@@ -60,8 +60,6 @@ client.on('interactionCreate', async interaction => {
       });
 
       for (let i = 1; i < frames.length; i++) {
-        await new Promise(resolve => setTimeout(resolve, 15));
-        
         const frameAttachment = new AttachmentBuilder(frames[i], { name: 'roulette.png' });
         
         if (i === frames.length - 1) {
@@ -81,6 +79,10 @@ client.on('interactionCreate', async interaction => {
             embeds: [embed],
             files: [frameAttachment],
           });
+        }
+        
+        if (i < frames.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1));
         }
       }
 
