@@ -218,11 +218,11 @@ class RouletteWheel {
     const anglePerChoice = (2 * Math.PI) / this.choices.length;
     const targetAngle = (2 * Math.PI * totalRotations) + (winningIndex * anglePerChoice) + (anglePerChoice / 2);
 
-    const numFrames = 35;
+    const numFrames = 80;
 
     for (let i = 0; i <= numFrames; i++) {
       const progress = i / numFrames;
-      const easeProgress = this.easeOutCubic(progress);
+      const easeProgress = this.easeOutQuart(progress);
       const currentAngle = targetAngle * easeProgress;
 
       const frame = this.generateFrame(currentAngle);
@@ -235,8 +235,8 @@ class RouletteWheel {
     return frames;
   }
 
-  easeOutCubic(t) {
-    return 1 - Math.pow(1 - t, 3);
+  easeOutQuart(t) {
+    return 1 - Math.pow(1 - t, 4);
   }
 
   getWinningChoice(winningIndex) {
