@@ -49,3 +49,4 @@ Bot Discord qui simule une roue de la chance animée. Les administrateurs peuven
 - 2025-10-15: Simplification : une seule commande /set-choices pour titre + choix (suppression /set-title)
 - 2025-10-15: Augmentation de la limite du titre à 20 caractères (au lieu de 15)
 - 2025-10-15: Ajout du rôle "Modo" aux permissions (admin + Modo peuvent utiliser /roulette et /set-choices)
+- 2025-10-15: Configuration de l'ID du rôle Modo (1157803768893689877) pour les permissions

@@ -15,8 +15,9 @@ function saveConfig() {
 }
 
 function hasRoulettePermission(member) {
+  const MODO_ROLE_ID = '1157803768893689877';
   return member.permissions.has(PermissionFlagsBits.Administrator) || 
-         member.roles.cache.some(role => role.name === 'Modo');
+         member.roles.cache.has(MODO_ROLE_ID);
 }
 
 client.once('clientReady', () => {
