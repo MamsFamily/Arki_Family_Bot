@@ -18,6 +18,12 @@ const commands = [
         description: 'Les choix séparés par des virgules (ex: Choix1,Choix2,Choix3)',
         required: true,
       },
+      {
+        name: 'title',
+        type: 3,
+        description: 'Le titre au centre (optionnel, max 15 caractères)',
+        required: false,
+      },
     ],
   },
   {

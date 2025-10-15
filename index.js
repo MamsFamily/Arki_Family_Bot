@@ -90,6 +90,7 @@ client.on('interactionCreate', async interaction => {
 
     const choicesString = interaction.options.getString('choices');
     const newChoices = choicesString.split(',').map(c => c.trim()).filter(c => c.length > 0);
+    const newTitle = interaction.options.getString('title');
 
     if (newChoices.length < 2) {
       return interaction.reply({
@@ -105,17 +106,27 @@ client.on('interactionCreate', async interaction => {
       });
     }
 
+    if (newTitle && newTitle.trim().length > 15) {
+      return interaction.reply({
+        content: '❌ Le titre ne doit pas dépasser 15 caractères !',
+        ephemeral: true,
+      });
+    }
+
     config.rouletteChoices = newChoices;
+    if (newTitle) {
+      config.rouletteTitle = newTitle.trim();
+    }
     saveConfig();
 
     const embed = new EmbedBuilder()
       .setColor('#00FF00')
-      .setTitle('✅ Choix mis à jour')
-      .setDescription(`**${newChoices.length} nouveaux choix:**\n${newChoices.map((c, i) => `${i + 1}. ${c}`).join('\n')}`)
+      .setTitle('✅ Configuration mise à jour')
+      .setDescription(`${newTitle ? `**🏆 Titre:** ${newTitle.trim()}\n\n` : ''}**${newChoices.length} choix:**\n${newChoices.map((c, i) => `${i + 1}. ${c}`).join('\n')}`)
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });
-    console.log(`⚙️ Choix mis à jour par ${interaction.user.tag}`);
+    console.log(`⚙️ Configuration mise à jour par ${interaction.user.tag}${newTitle ? ` (titre: ${newTitle})` : ''}`);
   }
 
   if (commandName === 'show-choices') {
