@@ -1,4 +1,5 @@
 const { createCanvas } = require('canvas');
+const GIFEncoder = require('gif-encoder-2');
 
 class RouletteWheel {
   constructor(choices) {
@@ -209,11 +210,17 @@ class RouletteWheel {
 
     ctx.restore();
 
-    return canvas.toBuffer('image/png');
+    return canvas.getContext('2d');
   }
 
-  async generateAnimation(winningIndex) {
-    const frames = [];
+  async generateAnimatedGif(winningIndex) {
+    const encoder = new GIFEncoder(this.width, this.height);
+    
+    encoder.start();
+    encoder.setRepeat(-1);
+    encoder.setDelay(30);
+    encoder.setQuality(10);
+
     const totalRotations = 3;
     const anglePerChoice = (2 * Math.PI) / this.choices.length;
     
@@ -221,21 +228,25 @@ class RouletteWheel {
     const winningAngle = winningIndex * anglePerChoice;
     const targetAngle = (2 * Math.PI * totalRotations) + (topPosition - winningAngle);
 
-    const numFrames = 40;
+    const numFrames = 60;
 
     for (let i = 0; i <= numFrames; i++) {
       const progress = i / numFrames;
       const easeProgress = this.easeOutQuart(progress);
       const currentAngle = targetAngle * easeProgress;
 
-      const frame = this.generateFrame(currentAngle);
-      frames.push(frame);
+      const ctx = this.generateFrame(currentAngle, i === numFrames ? winningIndex : null);
+      encoder.addFrame(ctx);
     }
 
-    const finalFrame = this.generateFrame(targetAngle, winningIndex);
-    frames.push(finalFrame);
+    for (let i = 0; i < 30; i++) {
+      const ctx = this.generateFrame(targetAngle, winningIndex);
+      encoder.addFrame(ctx);
+    }
 
-    return frames;
+    encoder.finish();
+    
+    return encoder.out.getData();
   }
 
   easeOutQuart(t) {

@@ -44,47 +44,30 @@ client.on('interactionCreate', async interaction => {
       const winningIndex = Math.floor(Math.random() * choices.length);
       const wheel = new RouletteWheel(choices);
 
-      const frames = await wheel.generateAnimation(winningIndex);
-      const winningChoice = wheel.getWinningChoice(winningIndex);
-
       const embed = new EmbedBuilder()
         .setColor('#FFD700')
         .setTitle('🎰 Roulette Arki')
-        .setDescription('La roue tourne...')
+        .setDescription('⏳ Génération de l\'animation...')
         .setTimestamp();
 
-      const initialAttachment = new AttachmentBuilder(frames[0], { name: 'roulette.png' });
-      const message = await interaction.editReply({
-        embeds: [embed],
-        files: [initialAttachment],
+      await interaction.editReply({ embeds: [embed] });
+
+      const gifBuffer = await wheel.generateAnimatedGif(winningIndex);
+      const winningChoice = wheel.getWinningChoice(winningIndex);
+
+      const finalEmbed = new EmbedBuilder()
+        .setColor('#00FF00')
+        .setTitle('🎰 Roulette Arki - Résultat')
+        .setDescription(`🎉 **Résultat:** ${winningChoice}`)
+        .setFooter({ text: `Lancé par ${interaction.user.tag}` })
+        .setTimestamp();
+
+      const gifAttachment = new AttachmentBuilder(gifBuffer, { name: 'roulette.gif' });
+
+      await interaction.editReply({
+        embeds: [finalEmbed],
+        files: [gifAttachment],
       });
-
-      for (let i = 1; i < frames.length; i++) {
-        const frameAttachment = new AttachmentBuilder(frames[i], { name: 'roulette.png' });
-        
-        if (i === frames.length - 1) {
-          const finalEmbed = new EmbedBuilder()
-            .setColor('#00FF00')
-            .setTitle('🎰 Roulette Arki - Résultat')
-            .setDescription(`🎉 **Résultat:** ${winningChoice}`)
-            .setFooter({ text: `Lancé par ${interaction.user.tag}` })
-            .setTimestamp();
-
-          await interaction.editReply({
-            embeds: [finalEmbed],
-            files: [frameAttachment],
-          });
-        } else {
-          await interaction.editReply({
-            embeds: [embed],
-            files: [frameAttachment],
-          });
-        }
-        
-        if (i < frames.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1));
-        }
-      }
 
       console.log(`🎲 Roulette lancée par ${interaction.user.tag}, résultat: ${winningChoice}`);
 

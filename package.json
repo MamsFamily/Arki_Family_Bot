@@ -12,6 +12,7 @@
   "description": "",
   "dependencies": {
     "canvas": "^3.2.0",
-    "discord.js": "^14.23.2"
+    "discord.js": "^14.23.2",
+    "gif-encoder-2": "^1.0.5"
   }
 }
