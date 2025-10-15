@@ -2,7 +2,8 @@
   "rouletteChoices": [
     "un",
     "deux",
-    "trois"
+    "trois",
+    "quatre"
   ],
-  "rouletteTitle": "ARKI"
+  "rouletteTitle": "test"
 }
