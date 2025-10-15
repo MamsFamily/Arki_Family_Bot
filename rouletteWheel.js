@@ -228,7 +228,7 @@ class RouletteWheel {
     const anglePerChoice = (2 * Math.PI) / this.choices.length;
     
     const topPosition = -Math.PI / 2;
-    const winningAngle = winningIndex * anglePerChoice;
+    const winningAngle = (winningIndex * anglePerChoice) + (anglePerChoice / 2);
     const targetAngle = (2 * Math.PI * totalRotations) + (topPosition - winningAngle);
 
     const numFrames = 60;
