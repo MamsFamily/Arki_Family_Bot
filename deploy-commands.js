@@ -24,6 +24,18 @@ const commands = [
     name: 'show-choices',
     description: 'Affiche les choix actuels de la roulette',
   },
+  {
+    name: 'set-title',
+    description: 'Modifie le titre au centre de la roulette (Admin seulement)',
+    options: [
+      {
+        name: 'title',
+        type: 3,
+        description: 'Le nouveau titre (ex: ARKI, CHAMPION, etc.)',
+        required: true,
+      },
+    ],
+  },
 ];
 
 const token = process.env.DISCORD_TOKEN;

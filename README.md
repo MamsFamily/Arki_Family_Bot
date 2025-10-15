@@ -4,11 +4,12 @@ Un bot Discord avec une roue de la chance animée ! Les administrateurs peuvent 
 
 ## ✨ Fonctionnalités
 
-- **🎲 /roulette** - Lance la roue de la chance avec animation (admin uniquement)
+- **🎲 /roulette** - Lance la roue de la chance avec animation GIF (admin uniquement)
 - **⚙️ /set-choices** - Modifie les choix disponibles sur la roue (admin uniquement)
+- **🏆 /set-title** - Personnalise le titre au centre de la roulette (admin uniquement)
 - **📋 /show-choices** - Affiche tous les choix actuels de la roulette
-- Animation visuelle de rotation en temps réel
-- Image de roue colorée générée dynamiquement
+- Animation GIF fluide sans écran noir
+- Image de roue colorée avec dégradés 3D générée dynamiquement
 - Système de permissions pour les administrateurs
 
 ## 🚀 Installation et Configuration
@@ -86,8 +87,9 @@ Si tout fonctionne, vous verrez :
 ### Commandes disponibles
 
 #### `/roulette`
-Lance la roue de la chance avec une animation. Le bot affichera une roue qui tourne et sélectionnera un choix aléatoire.
+Lance la roue de la chance avec une animation GIF fluide. Le bot affichera une roue qui tourne pendant 6 tours complets et sélectionnera un choix aléatoire.
 - **Permission requise:** Administrateur
+- **Animation:** GIF animé sans écran noir, parfaitement fluide
 
 #### `/set-choices [choices]`
 Modifie les choix disponibles sur la roulette.
@@ -96,8 +98,14 @@ Modifie les choix disponibles sur la roulette.
 - **Limites:** Minimum 2 choix, maximum 12 choix
 - **Permission requise:** Administrateur
 
+#### `/set-title [title]`
+Personnalise le titre affiché au centre de la roulette.
+- **Paramètre:** Le nouveau titre (max 15 caractères)
+- **Exemple:** `/set-title ARKI` ou `/set-title CHAMPION`
+- **Permission requise:** Administrateur
+
 #### `/show-choices`
-Affiche la liste de tous les choix actuels configurés sur la roulette.
+Affiche la liste de tous les choix actuels configurés sur la roulette ainsi que le titre.
 - **Permission requise:** Aucune (tous les utilisateurs)
 
 ## 📝 Configuration personnalisée
@@ -139,6 +147,7 @@ Vous pouvez modifier les choix par défaut de la roulette en éditant le fichier
 - **Node.js 20** - Runtime JavaScript
 - **Discord.js v14** - Bibliothèque pour l'API Discord
 - **Canvas** - Génération d'images de la roue
+- **GIF Encoder 2** - Création d'animations GIF fluides
 
 ## 📄 Licence
 

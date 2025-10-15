@@ -1,9 +1,13 @@
 {
   "rouletteChoices": [
-    "un",
-    "deux",
-    "trois",
-    "quatre",
-    "cinq"
-  ]
+    "mams",
+    "caille",
+    "tracteur",
+    "zero",
+    "death",
+    "zozio",
+    "bebzzz",
+    "swap"
+  ],
+  "rouletteTitle": "ARKI"
 }

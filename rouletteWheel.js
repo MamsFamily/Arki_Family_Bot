@@ -2,8 +2,9 @@ const { createCanvas } = require('canvas');
 const GIFEncoder = require('gif-encoder-2');
 
 class RouletteWheel {
-  constructor(choices) {
+  constructor(choices, title = 'ARKI') {
     this.choices = choices;
+    this.title = title;
     this.width = 900;
     this.height = 900;
     this.centerX = this.width / 2;
@@ -194,19 +195,21 @@ class RouletteWheel {
     ctx.fill();
 
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 36px "Arial Black", "Arial", sans-serif';
+    const titleLength = this.title.length;
+    const fontSize = Math.min(36, Math.max(20, 120 / titleLength));
+    ctx.font = `bold ${fontSize}px "Arial Black", "Arial", sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     
     ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
     ctx.lineWidth = 3;
-    ctx.strokeText('ARKI', this.centerX, this.centerY);
+    ctx.strokeText(this.title, this.centerX, this.centerY);
     
     ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
     ctx.shadowBlur = 4;
     ctx.shadowOffsetX = 2;
     ctx.shadowOffsetY = 2;
-    ctx.fillText('ARKI', this.centerX, this.centerY);
+    ctx.fillText(this.title, this.centerX, this.centerY);
 
     ctx.restore();
 
@@ -221,7 +224,7 @@ class RouletteWheel {
     encoder.setDelay(30);
     encoder.setQuality(10);
 
-    const totalRotations = 3;
+    const totalRotations = 6;
     const anglePerChoice = (2 * Math.PI) / this.choices.length;
     
     const topPosition = -Math.PI / 2;

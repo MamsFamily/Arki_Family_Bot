@@ -41,8 +41,9 @@ client.on('interactionCreate', async interaction => {
 
     try {
       const choices = config.rouletteChoices;
+      const title = config.rouletteTitle || 'ARKI';
       const winningIndex = Math.floor(Math.random() * choices.length);
-      const wheel = new RouletteWheel(choices);
+      const wheel = new RouletteWheel(choices, title);
 
       const embed = new EmbedBuilder()
         .setColor('#FFD700')
@@ -119,14 +120,53 @@ client.on('interactionCreate', async interaction => {
 
   if (commandName === 'show-choices') {
     const choices = config.rouletteChoices;
+    const title = config.rouletteTitle || 'ARKI';
     const embed = new EmbedBuilder()
       .setColor('#3498DB')
       .setTitle('📋 Choix actuels de la roulette')
       .setDescription(choices.map((c, i) => `${i + 1}. ${c}`).join('\n'))
+      .addFields({ name: '🏆 Titre', value: title, inline: true })
       .setFooter({ text: `${choices.length} choix au total` })
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });
+  }
+
+  if (commandName === 'set-title') {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({
+        content: '❌ Seuls les administrateurs peuvent modifier le titre !',
+        ephemeral: true,
+      });
+    }
+
+    const newTitle = interaction.options.getString('title').trim();
+
+    if (newTitle.length === 0) {
+      return interaction.reply({
+        content: '❌ Le titre ne peut pas être vide !',
+        ephemeral: true,
+      });
+    }
+
+    if (newTitle.length > 15) {
+      return interaction.reply({
+        content: '❌ Le titre ne doit pas dépasser 15 caractères !',
+        ephemeral: true,
+      });
+    }
+
+    config.rouletteTitle = newTitle;
+    saveConfig();
+
+    const embed = new EmbedBuilder()
+      .setColor('#00FF00')
+      .setTitle('✅ Titre mis à jour')
+      .setDescription(`**Nouveau titre:** ${newTitle}`)
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [embed] });
+    console.log(`⚙️ Titre mis à jour par ${interaction.user.tag}: ${newTitle}`);
   }
 });
 
