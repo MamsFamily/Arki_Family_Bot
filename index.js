@@ -14,6 +14,11 @@ function saveConfig() {
   fs.writeFileSync('./config.json', JSON.stringify(config, null, 2));
 }
 
+function hasRoulettePermission(member) {
+  return member.permissions.has(PermissionFlagsBits.Administrator) || 
+         member.roles.cache.some(role => role.name === 'Modo');
+}
+
 client.once('clientReady', () => {
   console.log('✅ Bot Discord Arki Roulette est en ligne !');
   console.log(`📝 Connecté en tant que ${client.user.tag}`);
@@ -30,9 +35,9 @@ client.on('interactionCreate', async interaction => {
   const { commandName } = interaction;
 
   if (commandName === 'roulette') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+    if (!hasRoulettePermission(interaction.member)) {
       return interaction.reply({
-        content: '❌ Seuls les administrateurs peuvent lancer la roulette !',
+        content: '❌ Seuls les administrateurs et les Modos peuvent lancer la roulette !',
         ephemeral: true,
       });
     }
@@ -81,9 +86,9 @@ client.on('interactionCreate', async interaction => {
   }
 
   if (commandName === 'set-choices') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+    if (!hasRoulettePermission(interaction.member)) {
       return interaction.reply({
-        content: '❌ Seuls les administrateurs peuvent modifier la configuration !',
+        content: '❌ Seuls les administrateurs et les Modos peuvent modifier la configuration !',
         ephemeral: true,
       });
     }

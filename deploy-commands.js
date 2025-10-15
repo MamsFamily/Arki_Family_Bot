@@ -6,11 +6,11 @@ const config = JSON.parse(fs.readFileSync('./config.json', 'utf-8'));
 const commands = [
   {
     name: 'roulette',
-    description: 'Lance la roue de la chance Arki (Admin seulement)',
+    description: 'Lance la roue de la chance Arki (Admin et Modo)',
   },
   {
     name: 'set-choices',
-    description: 'Modifie le titre et les choix de la roulette (Admin seulement)',
+    description: 'Modifie le titre et les choix de la roulette (Admin et Modo)',
     options: [
       {
         name: 'title',

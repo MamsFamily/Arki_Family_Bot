@@ -4,12 +4,12 @@ Un bot Discord avec une roue de la chance animée ! Les administrateurs peuvent 
 
 ## ✨ Fonctionnalités
 
-- **🎲 /roulette** - Lance la roue de la chance avec animation GIF (admin uniquement)
-- **⚙️ /set-choices** - Modifie le titre et les choix de la roulette (admin uniquement)
+- **🎲 /roulette** - Lance la roue de la chance avec animation GIF (admin et Modo)
+- **⚙️ /set-choices** - Modifie le titre et les choix de la roulette (admin et Modo)
 - **📋 /show-choices** - Affiche le titre et les choix actuels de la roulette
 - Animation GIF fluide sans écran noir (9 tours complets)
 - Image de roue colorée avec dégradés 3D générée dynamiquement
-- Système de permissions pour les administrateurs
+- Système de permissions pour les administrateurs et le rôle Modo
 
 ## 🚀 Installation et Configuration
 
@@ -87,7 +87,7 @@ Si tout fonctionne, vous verrez :
 
 #### `/roulette`
 Lance la roue de la chance avec une animation GIF fluide. Le bot affichera une roue qui tourne pendant 9 tours complets et sélectionnera un choix aléatoire.
-- **Permission requise:** Administrateur
+- **Permission requise:** Administrateur ou rôle Modo
 - **Animation:** GIF animé sans écran noir, parfaitement fluide
 
 #### `/set-choices [title] [choices]`
@@ -98,7 +98,7 @@ Modifie le titre et les choix de la roulette.
   - `/set-choices title:ARKI choices:mams,caille,tracteur,zero,death`
   - `/set-choices title:CHAMPION choices:Prix1,Prix2,Prix3,Essayez encore`
 - **Limites:** Minimum 2 choix, maximum 12 choix, titre max 20 caractères
-- **Permission requise:** Administrateur
+- **Permission requise:** Administrateur ou rôle Modo
 
 #### `/show-choices`
 Affiche la liste de tous les choix actuels configurés sur la roulette ainsi que le titre.
