@@ -130,10 +130,10 @@ class RouletteWheel {
     ctx.shadowOffsetY = 5;
 
     ctx.beginPath();
-    ctx.moveTo(this.centerX, 40);
-    ctx.lineTo(this.centerX - 25, 110);
-    ctx.lineTo(this.centerX, 95);
-    ctx.lineTo(this.centerX + 25, 110);
+    ctx.moveTo(this.centerX, 110);
+    ctx.lineTo(this.centerX - 25, 40);
+    ctx.lineTo(this.centerX, 55);
+    ctx.lineTo(this.centerX + 25, 40);
     ctx.closePath();
     
     const arrowGradient = ctx.createLinearGradient(this.centerX - 25, 40, this.centerX + 25, 110);
@@ -221,7 +221,7 @@ class RouletteWheel {
     const winningAngle = winningIndex * anglePerChoice;
     const targetAngle = (2 * Math.PI * totalRotations) + (topPosition - winningAngle);
 
-    const numFrames = 50;
+    const numFrames = 40;
 
     for (let i = 0; i <= numFrames; i++) {
       const progress = i / numFrames;

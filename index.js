@@ -60,7 +60,7 @@ client.on('interactionCreate', async interaction => {
       });
 
       for (let i = 1; i < frames.length; i++) {
-        await new Promise(resolve => setTimeout(resolve, 40));
+        await new Promise(resolve => setTimeout(resolve, 15));
         
         const frameAttachment = new AttachmentBuilder(frames[i], { name: 'roulette.png' });
         
