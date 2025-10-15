@@ -124,8 +124,7 @@ client.on('interactionCreate', async interaction => {
     const embed = new EmbedBuilder()
       .setColor('#3498DB')
       .setTitle('📋 Choix actuels de la roulette')
-      .setDescription(choices.map((c, i) => `${i + 1}. ${c}`).join('\n'))
-      .addFields({ name: '🏆 Titre', value: title, inline: true })
+      .setDescription(`**🏆 Titre:** ${title}\n\n**Choix disponibles:**\n${choices.map((c, i) => `${i + 1}. ${c}`).join('\n')}`)
       .setFooter({ text: `${choices.length} choix au total` })
       .setTimestamp();
 
