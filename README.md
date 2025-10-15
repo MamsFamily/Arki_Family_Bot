@@ -92,12 +92,12 @@ Lance la roue de la chance avec une animation GIF fluide. Le bot affichera une r
 
 #### `/set-choices [title] [choices]`
 Modifie le titre et les choix de la roulette.
-- **Paramètre title (requis):** Le titre au centre de la roulette (max 15 caractères)
+- **Paramètre title (requis):** Le titre au centre de la roulette (max 20 caractères)
 - **Paramètre choices (requis):** Liste de choix séparés par des virgules
 - **Exemples:** 
   - `/set-choices title:ARKI choices:mams,caille,tracteur,zero,death`
   - `/set-choices title:CHAMPION choices:Prix1,Prix2,Prix3,Essayez encore`
-- **Limites:** Minimum 2 choix, maximum 12 choix, titre max 15 caractères
+- **Limites:** Minimum 2 choix, maximum 12 choix, titre max 20 caractères
 - **Permission requise:** Administrateur
 
 #### `/show-choices`

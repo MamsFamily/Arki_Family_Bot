@@ -99,9 +99,9 @@ client.on('interactionCreate', async interaction => {
       });
     }
 
-    if (newTitle.trim().length > 15) {
+    if (newTitle.trim().length > 20) {
       return interaction.reply({
-        content: '❌ Le titre ne doit pas dépasser 15 caractères !',
+        content: '❌ Le titre ne doit pas dépasser 20 caractères !',
         ephemeral: true,
       });
     }

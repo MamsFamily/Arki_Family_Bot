@@ -47,3 +47,4 @@ Bot Discord qui simule une roue de la chance animée. Les administrateurs peuven
 - 2025-10-15: Ajout de la commande /set-choices avec titre et choix (en premier option titre puis choix)
 - 2025-10-15: Augmentation à 9 tours complets pour une animation plus longue et spectaculaire
 - 2025-10-15: Simplification : une seule commande /set-choices pour titre + choix (suppression /set-title)
+- 2025-10-15: Augmentation de la limite du titre à 20 caractères (au lieu de 15)

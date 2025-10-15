@@ -15,7 +15,7 @@ const commands = [
       {
         name: 'title',
         type: 3,
-        description: 'Le titre au centre (max 15 caractères)',
+        description: 'Le titre au centre (max 20 caractères)',
         required: true,
       },
       {
