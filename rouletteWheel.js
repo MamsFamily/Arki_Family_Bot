@@ -3,18 +3,24 @@ const { createCanvas } = require('canvas');
 class RouletteWheel {
   constructor(choices) {
     this.choices = choices;
-    this.width = 800;
-    this.height = 800;
+    this.width = 900;
+    this.height = 900;
     this.centerX = this.width / 2;
     this.centerY = this.height / 2;
-    this.radius = 350;
+    this.radius = 380;
   }
 
   generateFrame(rotationAngle, winningSectorIndex = null) {
     const canvas = createCanvas(this.width, this.height);
     const ctx = canvas.getContext('2d');
 
-    ctx.fillStyle = '#2C2F33';
+    const bgGradient = ctx.createRadialGradient(
+      this.centerX, this.centerY, 0,
+      this.centerX, this.centerY, this.width / 2
+    );
+    bgGradient.addColorStop(0, '#1a1d29');
+    bgGradient.addColorStop(1, '#0a0c14');
+    ctx.fillStyle = bgGradient;
     ctx.fillRect(0, 0, this.width, this.height);
 
     const numChoices = this.choices.length;
@@ -22,11 +28,34 @@ class RouletteWheel {
 
     ctx.save();
     ctx.translate(this.centerX, this.centerY);
+
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+    ctx.shadowBlur = 30;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 15;
+
+    ctx.beginPath();
+    ctx.arc(0, 0, this.radius + 5, 0, 2 * Math.PI);
+    ctx.fillStyle = '#1a1d29';
+    ctx.fill();
+
+    ctx.shadowColor = 'transparent';
+
     ctx.rotate(rotationAngle);
 
     const colors = [
-      '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A',
-      '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2'
+      ['#FF6B9D', '#C44569'],
+      ['#4FACFE', '#00F2FE'],
+      ['#43E97B', '#38F9D7'],
+      ['#FA709A', '#FEE140'],
+      ['#30CFD0', '#330867'],
+      ['#A8EDEA', '#FED6E3'],
+      ['#FF9A56', '#FF6A88'],
+      ['#667EEA', '#764BA2'],
+      ['#F093FB', '#F5576C'],
+      ['#4FACFE', '#00F2FE'],
+      ['#43E97B', '#38F9D7'],
+      ['#FAD961', '#F76B1C']
     ];
 
     for (let i = 0; i < numChoices; i++) {
@@ -39,70 +68,157 @@ class RouletteWheel {
       ctx.closePath();
 
       if (winningSectorIndex !== null && i === winningSectorIndex) {
-        ctx.fillStyle = '#FFD700';
-        ctx.strokeStyle = '#FFA500';
-        ctx.lineWidth = 6;
+        const winGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, this.radius);
+        winGradient.addColorStop(0, '#FFD700');
+        winGradient.addColorStop(0.5, '#FFA500');
+        winGradient.addColorStop(1, '#FF8C00');
+        ctx.fillStyle = winGradient;
+        
+        ctx.shadowColor = '#FFD700';
+        ctx.shadowBlur = 25;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
       } else {
-        ctx.fillStyle = colors[i % colors.length];
-        ctx.strokeStyle = '#23272A';
-        ctx.lineWidth = 3;
+        const colorSet = colors[i % colors.length];
+        const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, this.radius);
+        gradient.addColorStop(0, colorSet[0]);
+        gradient.addColorStop(1, colorSet[1]);
+        ctx.fillStyle = gradient;
+        
+        ctx.shadowColor = 'transparent';
       }
 
       ctx.fill();
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.lineWidth = 2;
       ctx.stroke();
 
       ctx.save();
       ctx.rotate(startAngle + anglePerChoice / 2);
+      
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 24px Arial';
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-      ctx.shadowBlur = 4;
-
+      
       const text = this.choices[i];
+      const maxWidth = this.radius * 0.5;
+      const fontSize = Math.min(28, Math.max(16, 400 / text.length));
+      ctx.font = `bold ${fontSize}px "Arial Black", "Arial", sans-serif`;
+      
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+      ctx.lineWidth = 4;
+      ctx.lineJoin = 'round';
+      ctx.strokeText(text, this.radius * 0.65, 0);
+      
+      ctx.fillStyle = '#FFFFFF';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+      ctx.shadowBlur = 6;
+      ctx.shadowOffsetX = 2;
+      ctx.shadowOffsetY = 2;
       ctx.fillText(text, this.radius * 0.65, 0);
 
+      ctx.shadowColor = 'transparent';
       ctx.restore();
     }
 
     ctx.restore();
 
+    ctx.save();
+    ctx.shadowColor = 'rgba(255, 0, 0, 0.6)';
+    ctx.shadowBlur = 15;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 5;
+
     ctx.beginPath();
-    ctx.moveTo(this.centerX, 50);
-    ctx.lineTo(this.centerX - 20, 100);
-    ctx.lineTo(this.centerX + 20, 100);
+    ctx.moveTo(this.centerX, 40);
+    ctx.lineTo(this.centerX - 25, 110);
+    ctx.lineTo(this.centerX, 95);
+    ctx.lineTo(this.centerX + 25, 110);
     ctx.closePath();
-    ctx.fillStyle = '#FF0000';
+    
+    const arrowGradient = ctx.createLinearGradient(this.centerX - 25, 40, this.centerX + 25, 110);
+    arrowGradient.addColorStop(0, '#FF0000');
+    arrowGradient.addColorStop(1, '#AA0000');
+    ctx.fillStyle = arrowGradient;
     ctx.fill();
-    ctx.strokeStyle = '#FFFFFF';
+    
+    ctx.strokeStyle = '#FFD700';
     ctx.lineWidth = 3;
     ctx.stroke();
 
+    ctx.shadowColor = 'transparent';
+    ctx.restore();
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(255, 215, 0, 0.8)';
+    ctx.shadowBlur = 25;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
+    const centerGradient = ctx.createRadialGradient(
+      this.centerX, this.centerY - 10, 0,
+      this.centerX, this.centerY, 70
+    );
+    centerGradient.addColorStop(0, '#FFD700');
+    centerGradient.addColorStop(0.5, '#FFA500');
+    centerGradient.addColorStop(1, '#FF8C00');
+
     ctx.beginPath();
-    ctx.arc(this.centerX, this.centerY, 50, 0, 2 * Math.PI);
-    ctx.fillStyle = '#23272A';
+    ctx.arc(this.centerX, this.centerY, 70, 0, 2 * Math.PI);
+    ctx.fillStyle = centerGradient;
     ctx.fill();
-    ctx.strokeStyle = '#FFD700';
-    ctx.lineWidth = 5;
+    
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 6;
     ctx.stroke();
 
+    ctx.beginPath();
+    ctx.arc(this.centerX, this.centerY, 60, 0, 2 * Math.PI);
+    ctx.strokeStyle = '#8B4513';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.shadowColor = 'transparent';
+
+    const highlightGradient = ctx.createRadialGradient(
+      this.centerX - 15, this.centerY - 15, 0,
+      this.centerX, this.centerY, 50
+    );
+    highlightGradient.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+    highlightGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    
+    ctx.beginPath();
+    ctx.arc(this.centerX, this.centerY, 60, 0, 2 * Math.PI);
+    ctx.fillStyle = highlightGradient;
+    ctx.fill();
+
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 30px Arial';
+    ctx.font = 'bold 36px "Arial Black", "Arial", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.lineWidth = 3;
+    ctx.strokeText('ARKI', this.centerX, this.centerY);
+    
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
     ctx.fillText('ARKI', this.centerX, this.centerY);
+
+    ctx.restore();
 
     return canvas.toBuffer('image/png');
   }
 
   async generateAnimation(winningIndex) {
     const frames = [];
-    const totalRotations = 5;
+    const totalRotations = 6;
     const anglePerChoice = (2 * Math.PI) / this.choices.length;
     const targetAngle = (2 * Math.PI * totalRotations) + (winningIndex * anglePerChoice) + (anglePerChoice / 2);
 
-    const numFrames = 30;
+    const numFrames = 35;
 
     for (let i = 0; i <= numFrames; i++) {
       const progress = i / numFrames;

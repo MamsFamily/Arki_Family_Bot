@@ -41,3 +41,4 @@ Bot Discord qui simule une roue de la chance animée. Les administrateurs peuven
 
 ## Changements récents
 - 2025-10-15: Création initiale du bot avec animation de roulette
+- 2025-10-15: Amélioration majeure du visuel de la roulette avec dégradés, effets 3D, et animations plus fluides
