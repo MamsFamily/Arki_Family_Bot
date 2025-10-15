@@ -214,11 +214,14 @@ class RouletteWheel {
 
   async generateAnimation(winningIndex) {
     const frames = [];
-    const totalRotations = 6;
+    const totalRotations = 3;
     const anglePerChoice = (2 * Math.PI) / this.choices.length;
-    const targetAngle = (2 * Math.PI * totalRotations) + (winningIndex * anglePerChoice) + (anglePerChoice / 2);
+    
+    const topPosition = -Math.PI / 2;
+    const winningAngle = winningIndex * anglePerChoice;
+    const targetAngle = (2 * Math.PI * totalRotations) + (topPosition - winningAngle);
 
-    const numFrames = 80;
+    const numFrames = 50;
 
     for (let i = 0; i <= numFrames; i++) {
       const progress = i / numFrames;
