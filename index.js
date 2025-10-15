@@ -83,14 +83,28 @@ client.on('interactionCreate', async interaction => {
   if (commandName === 'set-choices') {
     if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
       return interaction.reply({
-        content: '❌ Seuls les administrateurs peuvent modifier les choix !',
+        content: '❌ Seuls les administrateurs peuvent modifier la configuration !',
         ephemeral: true,
       });
     }
 
+    const newTitle = interaction.options.getString('title');
     const choicesString = interaction.options.getString('choices');
     const newChoices = choicesString.split(',').map(c => c.trim()).filter(c => c.length > 0);
-    const newTitle = interaction.options.getString('title');
+
+    if (newTitle.trim().length === 0) {
+      return interaction.reply({
+        content: '❌ Le titre ne peut pas être vide !',
+        ephemeral: true,
+      });
+    }
+
+    if (newTitle.trim().length > 15) {
+      return interaction.reply({
+        content: '❌ Le titre ne doit pas dépasser 15 caractères !',
+        ephemeral: true,
+      });
+    }
 
     if (newChoices.length < 2) {
       return interaction.reply({
@@ -106,27 +120,18 @@ client.on('interactionCreate', async interaction => {
       });
     }
 
-    if (newTitle && newTitle.trim().length > 15) {
-      return interaction.reply({
-        content: '❌ Le titre ne doit pas dépasser 15 caractères !',
-        ephemeral: true,
-      });
-    }
-
+    config.rouletteTitle = newTitle.trim();
     config.rouletteChoices = newChoices;
-    if (newTitle) {
-      config.rouletteTitle = newTitle.trim();
-    }
     saveConfig();
 
     const embed = new EmbedBuilder()
       .setColor('#00FF00')
       .setTitle('✅ Configuration mise à jour')
-      .setDescription(`${newTitle ? `**🏆 Titre:** ${newTitle.trim()}\n\n` : ''}**${newChoices.length} choix:**\n${newChoices.map((c, i) => `${i + 1}. ${c}`).join('\n')}`)
+      .setDescription(`**🏆 Titre:** ${newTitle.trim()}\n\n**${newChoices.length} choix:**\n${newChoices.map((c, i) => `${i + 1}. ${c}`).join('\n')}`)
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });
-    console.log(`⚙️ Configuration mise à jour par ${interaction.user.tag}${newTitle ? ` (titre: ${newTitle})` : ''}`);
+    console.log(`⚙️ Configuration mise à jour par ${interaction.user.tag} (titre: ${newTitle.trim()})`);
   }
 
   if (commandName === 'show-choices') {
@@ -140,43 +145,6 @@ client.on('interactionCreate', async interaction => {
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });
-  }
-
-  if (commandName === 'set-title') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-      return interaction.reply({
-        content: '❌ Seuls les administrateurs peuvent modifier le titre !',
-        ephemeral: true,
-      });
-    }
-
-    const newTitle = interaction.options.getString('title').trim();
-
-    if (newTitle.length === 0) {
-      return interaction.reply({
-        content: '❌ Le titre ne peut pas être vide !',
-        ephemeral: true,
-      });
-    }
-
-    if (newTitle.length > 15) {
-      return interaction.reply({
-        content: '❌ Le titre ne doit pas dépasser 15 caractères !',
-        ephemeral: true,
-      });
-    }
-
-    config.rouletteTitle = newTitle;
-    saveConfig();
-
-    const embed = new EmbedBuilder()
-      .setColor('#00FF00')
-      .setTitle('✅ Titre mis à jour')
-      .setDescription(`**Nouveau titre:** ${newTitle}`)
-      .setTimestamp();
-
-    await interaction.reply({ embeds: [embed] });
-    console.log(`⚙️ Titre mis à jour par ${interaction.user.tag}: ${newTitle}`);
   }
 });
 

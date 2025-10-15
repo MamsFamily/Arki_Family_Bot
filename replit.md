@@ -5,9 +5,8 @@ Bot Discord qui simule une roue de la chance animée. Les administrateurs peuven
 
 ## Fonctionnalités
 - **Commande /roulette**: Lance la roue avec animation GIF fluide (admin uniquement)
-- **Commande /set-choices**: Modifie les choix et optionnellement le titre en une seule commande (admin uniquement)
-- **Commande /set-title**: Personnalise uniquement le titre au centre de la roulette (admin uniquement)
-- **Commande /show-choices**: Affiche les choix actuels et le titre
+- **Commande /set-choices**: Modifie le titre et les choix de la roulette (admin uniquement)
+- **Commande /show-choices**: Affiche le titre et les choix actuels
 - Animation GIF fluide sans écran noir (60 frames + 6 tours complets)
 - Image de roue colorée avec dégradés 3D et les choix affichés
 - Système de permissions pour limiter aux administrateurs
@@ -45,5 +44,6 @@ Bot Discord qui simule une roue de la chance animée. Les administrateurs peuven
 - 2025-10-15: Création initiale du bot avec animation de roulette
 - 2025-10-15: Amélioration majeure du visuel de la roulette avec dégradés, effets 3D, et animations plus fluides
 - 2025-10-15: Conversion en animation GIF pour éliminer les écrans noirs
-- 2025-10-15: Ajout de la commande /set-title pour personnaliser le titre central
+- 2025-10-15: Ajout de la commande /set-choices avec titre et choix (en premier option titre puis choix)
 - 2025-10-15: Augmentation à 6 tours complets pour une animation plus spectaculaire
+- 2025-10-15: Simplification : une seule commande /set-choices pour titre + choix (suppression /set-title)

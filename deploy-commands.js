@@ -10,37 +10,25 @@ const commands = [
   },
   {
     name: 'set-choices',
-    description: 'Modifie les choix de la roulette (Admin seulement)',
+    description: 'Modifie le titre et les choix de la roulette (Admin seulement)',
     options: [
+      {
+        name: 'title',
+        type: 3,
+        description: 'Le titre au centre (max 15 caractères)',
+        required: true,
+      },
       {
         name: 'choices',
         type: 3,
         description: 'Les choix séparés par des virgules (ex: Choix1,Choix2,Choix3)',
         required: true,
       },
-      {
-        name: 'title',
-        type: 3,
-        description: 'Le titre au centre (optionnel, max 15 caractères)',
-        required: false,
-      },
     ],
   },
   {
     name: 'show-choices',
     description: 'Affiche les choix actuels de la roulette',
-  },
-  {
-    name: 'set-title',
-    description: 'Modifie le titre au centre de la roulette (Admin seulement)',
-    options: [
-      {
-        name: 'title',
-        type: 3,
-        description: 'Le nouveau titre (ex: ARKI, CHAMPION, etc.)',
-        required: true,
-      },
-    ],
   },
 ];
 

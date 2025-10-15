@@ -5,9 +5,8 @@ Un bot Discord avec une roue de la chance animée ! Les administrateurs peuvent 
 ## ✨ Fonctionnalités
 
 - **🎲 /roulette** - Lance la roue de la chance avec animation GIF (admin uniquement)
-- **⚙️ /set-choices** - Modifie les choix et optionnellement le titre (admin uniquement)
-- **🏆 /set-title** - Personnalise uniquement le titre au centre de la roulette (admin uniquement)
-- **📋 /show-choices** - Affiche tous les choix actuels et le titre de la roulette
+- **⚙️ /set-choices** - Modifie le titre et les choix de la roulette (admin uniquement)
+- **📋 /show-choices** - Affiche le titre et les choix actuels de la roulette
 - Animation GIF fluide sans écran noir (6 tours complets)
 - Image de roue colorée avec dégradés 3D générée dynamiquement
 - Système de permissions pour les administrateurs
@@ -91,20 +90,14 @@ Lance la roue de la chance avec une animation GIF fluide. Le bot affichera une r
 - **Permission requise:** Administrateur
 - **Animation:** GIF animé sans écran noir, parfaitement fluide
 
-#### `/set-choices [choices] [title]`
-Modifie les choix disponibles sur la roulette et optionnellement le titre.
+#### `/set-choices [title] [choices]`
+Modifie le titre et les choix de la roulette.
+- **Paramètre title (requis):** Le titre au centre de la roulette (max 15 caractères)
 - **Paramètre choices (requis):** Liste de choix séparés par des virgules
-- **Paramètre title (optionnel):** Le titre au centre de la roulette (max 15 caractères)
 - **Exemples:** 
-  - `/set-choices choices:Prix1,Prix2,Prix3,Essayez encore,Grand prix`
-  - `/set-choices choices:mams,caille,tracteur title:ARKI`
-- **Limites:** Minimum 2 choix, maximum 12 choix
-- **Permission requise:** Administrateur
-
-#### `/set-title [title]`
-Personnalise le titre affiché au centre de la roulette.
-- **Paramètre:** Le nouveau titre (max 15 caractères)
-- **Exemple:** `/set-title ARKI` ou `/set-title CHAMPION`
+  - `/set-choices title:ARKI choices:mams,caille,tracteur,zero,death`
+  - `/set-choices title:CHAMPION choices:Prix1,Prix2,Prix3,Essayez encore`
+- **Limites:** Minimum 2 choix, maximum 12 choix, titre max 15 caractères
 - **Permission requise:** Administrateur
 
 #### `/show-choices`
