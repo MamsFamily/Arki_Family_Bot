@@ -7,7 +7,7 @@ Un bot Discord avec une roue de la chance animée ! Les administrateurs peuvent 
 - **🎲 /roulette** - Lance la roue de la chance avec animation GIF (admin uniquement)
 - **⚙️ /set-choices** - Modifie le titre et les choix de la roulette (admin uniquement)
 - **📋 /show-choices** - Affiche le titre et les choix actuels de la roulette
-- Animation GIF fluide sans écran noir (6 tours complets)
+- Animation GIF fluide sans écran noir (9 tours complets)
 - Image de roue colorée avec dégradés 3D générée dynamiquement
 - Système de permissions pour les administrateurs
 
@@ -86,7 +86,7 @@ Si tout fonctionne, vous verrez :
 ### Commandes disponibles
 
 #### `/roulette`
-Lance la roue de la chance avec une animation GIF fluide. Le bot affichera une roue qui tourne pendant 6 tours complets et sélectionnera un choix aléatoire.
+Lance la roue de la chance avec une animation GIF fluide. Le bot affichera une roue qui tourne pendant 9 tours complets et sélectionnera un choix aléatoire.
 - **Permission requise:** Administrateur
 - **Animation:** GIF animé sans écran noir, parfaitement fluide
 

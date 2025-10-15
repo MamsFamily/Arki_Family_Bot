@@ -224,7 +224,7 @@ class RouletteWheel {
     encoder.setDelay(30);
     encoder.setQuality(10);
 
-    const totalRotations = 6;
+    const totalRotations = 9;
     const anglePerChoice = (2 * Math.PI) / this.choices.length;
     
     const topPosition = -Math.PI / 2;
