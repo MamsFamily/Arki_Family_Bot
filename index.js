@@ -14,7 +14,7 @@ function saveConfig() {
   fs.writeFileSync('./config.json', JSON.stringify(config, null, 2));
 }
 
-client.once('ready', () => {
+client.once('clientReady', () => {
   console.log('✅ Bot Discord Arki Roulette est en ligne !');
   console.log(`📝 Connecté en tant que ${client.user.tag}`);
   console.log(`🎰 ${config.rouletteChoices.length} choix de roulette chargés`);
