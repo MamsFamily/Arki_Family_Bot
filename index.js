@@ -300,8 +300,13 @@ client.on('interactionCreate', async interaction => {
         const chunks = resultsMessage.match(/[\s\S]{1,1900}/g) || [resultsMessage];
         for (let i = 0; i < chunks.length; i++) {
           let chunk = chunks[i];
-          if (i === 0 && votesConfig.STYLE.everyonePing) {
-            chunk = `|| @everyone ||\n` + chunk;
+          if (votesConfig.STYLE.everyonePing) {
+            if (i === 0) {
+              chunk = `|| @everyone ||\n` + chunk;
+            }
+            if (i === 1) {
+              chunk = chunk + `\n|| @everyone ||`;
+            }
           }
           await resultsChannel.send(chunk);
         }
@@ -411,8 +416,13 @@ client.on('interactionCreate', async interaction => {
         await testChannel.send(`⚠️ **TEST - PRÉVISUALISATION** ⚠️`);
         for (let i = 0; i < chunks.length; i++) {
           let chunk = chunks[i];
-          if (i === 0 && votesConfig.STYLE.everyonePing) {
-            chunk = `|| @everyone ||\n` + chunk;
+          if (votesConfig.STYLE.everyonePing) {
+            if (i === 0) {
+              chunk = `|| @everyone ||\n` + chunk;
+            }
+            if (i === 1) {
+              chunk = chunk + `\n|| @everyone ||`;
+            }
           }
           await testChannel.send(chunk);
         }
