@@ -348,52 +348,53 @@ client.on('interactionCreate', async interaction => {
       const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
       const monthName = monthNameFr(lastMonth);
 
-      let previewMessage = `🔍 **PRÉVISUALISATION - ${monthName}** (rien n'est envoyé)\n\n`;
-      previewMessage += `**Message qui sera publié:**\n`;
-      previewMessage += `───────────────────────\n`;
-
+      let classementText = '';
       const top5 = ranking.slice(0, 5);
       for (let i = 0; i < top5.length; i++) {
         const player = top5[i];
         const rank = i + 1;
-        const icon = votesConfig.STYLE.placeIcons[i] || `**${rank}.**`;
         const memberId = resolvePlayer(memberIndex, player.playername);
-        const mention = memberId ? `<@${memberId}>` : `**${player.playername}** ⚠️`;
+        const displayName = memberId ? `<@${memberId}>` : `**${player.playername}**`;
         const matchStatus = memberId ? '✅' : '❌';
-        
-        let rewards = '';
-        if (votesConfig.TOP_LOTS[rank]) {
-          rewards = ` → ${formatRewards(votesConfig.TOP_LOTS[rank])}`;
-        } else if (votesConfig.TOP_DIAMONDS[rank]) {
-          rewards = ` → 💎 ${votesConfig.TOP_DIAMONDS[rank]} bonus`;
-        }
-
         const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
-        previewMessage += `${icon} ${mention} - **${player.votes} votes** (💎 ${totalDiamonds})${rewards} ${matchStatus}\n`;
+        classementText += `**${rank}.** ${displayName} - ${player.votes} votes (💎 ${totalDiamonds}) ${matchStatus}\n`;
       }
-
-      previewMessage += `───────────────────────\n\n`;
 
       const foundCount = ranking.filter(p => resolvePlayer(memberIndex, p.playername)).length;
       const notFoundList = ranking.filter(p => !resolvePlayer(memberIndex, p.playername)).map(p => p.playername);
 
-      previewMessage += `📊 **Résumé:**\n`;
-      previewMessage += `   • Total votants: ${ranking.length}\n`;
-      previewMessage += `   • Joueurs reconnus: ${foundCount} ✅\n`;
-      previewMessage += `   • Joueurs non trouvés: ${notFoundList.length} ❌\n`;
+      const embed1 = new EmbedBuilder()
+        .setColor('#FFA500')
+        .setTitle(`🔍 Prévisualisation - ${monthName}`)
+        .setDescription(`**Top 5 :**\n${classementText}`)
+        .addFields(
+          { name: '📊 Résumé', value: `Total: ${ranking.length} | Reconnus: ${foundCount} ✅ | Non trouvés: ${notFoundList.length} ❌`, inline: false }
+        )
+        .setFooter({ text: 'Rien n\'est publié ni distribué' });
+
+      const embeds = [embed1];
 
       if (notFoundList.length > 0) {
-        previewMessage += `\n⚠️ **Non trouvés:** ${notFoundList.slice(0, 10).join(', ')}${notFoundList.length > 10 ? '...' : ''}\n`;
+        const embed2 = new EmbedBuilder()
+          .setColor('#FF6B6B')
+          .setTitle('⚠️ Joueurs non trouvés')
+          .setDescription(notFoundList.slice(0, 20).join(', ') + (notFoundList.length > 20 ? '...' : ''));
+        embeds.push(embed2);
       }
 
       const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);
       if (draftBotCommands.length > 0) {
-        previewMessage += `\n🎁 **Commandes DraftBot prévues:**\n\`\`\`\n${draftBotCommands.join('\n')}\n\`\`\``;
+        const embed3 = new EmbedBuilder()
+          .setColor('#4CAF50')
+          .setTitle('🎁 Commandes DraftBot prévues')
+          .setDescription('```\n' + draftBotCommands.slice(0, 10).join('\n') + '\n```');
+        embeds.push(embed3);
       }
 
-      previewMessage += `\n✅ Si tout est correct, utilisez \`/publish-votes\` pour publier et distribuer.`;
-
-      await interaction.editReply({ content: previewMessage });
+      await interaction.editReply({ 
+        content: '✅ Si tout est correct, utilisez `/publish-votes` pour publier et distribuer.',
+        embeds: embeds 
+      });
       console.log(`🔍 Test des votes effectué par ${interaction.user.tag}`);
 
     } catch (error) {
