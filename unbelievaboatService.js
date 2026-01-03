@@ -1,4 +1,4 @@
-const Client = require('unb-api');
+const { Client } = require('unb-api');
 
 const GUILD_ID = '1156256997403000874';
 const token = process.env.UNBELIEVABOAT_TOKEN;
