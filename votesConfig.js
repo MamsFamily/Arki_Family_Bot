@@ -25,7 +25,7 @@ const STYLE = {
   logoFallback: '🎮',
   fireworks: '<a:fireworks:1388428854078476339>',
   fireworksFallback: '🎆',
-  arrow: '<a:utilityarrow:1388432394574368800>',
+  arrow: '<a:fleche~2:1388432394574368800>',
   arrowFallback: '➡️',
   animeArrow: '<a:animearrow:1157234686200922152>',
   animeArrowFallback: '▶️',
