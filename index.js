@@ -268,7 +268,7 @@ client.on('interactionCreate', async interaction => {
         resultsMessage += `    •    ${i + 1} ${votesConfig.STYLE.arrow} ${player.votes} ${player.playername}\n`;
       }
 
-      const others = ranking.slice(10);
+      const others = ranking.slice(10).filter(p => p.votes >= 10);
       if (others.length > 0) {
         resultsMessage += '\n';
         for (const player of others) {
@@ -376,7 +376,7 @@ client.on('interactionCreate', async interaction => {
         previewMessage += `    •    ${i + 1} ${votesConfig.STYLE.arrow} ${player.votes} ${player.playername}\n`;
       }
 
-      const others = ranking.slice(10);
+      const others = ranking.slice(10).filter(p => p.votes >= 10);
       if (others.length > 0) {
         previewMessage += '\n';
         for (const player of others) {
