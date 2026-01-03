@@ -348,17 +348,30 @@ client.on('interactionCreate', async interaction => {
       const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
       const monthName = monthNameFr(lastMonth);
 
-      let classementText = '';
+      let previewResultsMessage = `${votesConfig.STYLE.fireworks} **RÉSULTATS DES VOTES - ${monthName}** ${votesConfig.STYLE.fireworks}\n\n`;
+      previewResultsMessage += `${votesConfig.STYLE.logo} Merci à tous les votants !\n\n`;
+
       const top5 = ranking.slice(0, 5);
       for (let i = 0; i < top5.length; i++) {
         const player = top5[i];
         const rank = i + 1;
+        const icon = votesConfig.STYLE.placeIcons[i] || `**${rank}.**`;
         const memberId = resolvePlayer(memberIndex, player.playername);
-        const displayName = memberId ? `<@${memberId}>` : `**${player.playername}**`;
+        const mention = memberId ? `<@${memberId}>` : `**${player.playername}**`;
         const matchStatus = memberId ? '✅' : '❌';
+        
+        let rewards = '';
+        if (votesConfig.TOP_LOTS[rank]) {
+          rewards = ` ${votesConfig.STYLE.arrow} ${formatRewards(votesConfig.TOP_LOTS[rank])}`;
+        } else if (votesConfig.TOP_DIAMONDS[rank]) {
+          rewards = ` ${votesConfig.STYLE.arrow} 💎 ${votesConfig.TOP_DIAMONDS[rank]}`;
+        }
+
         const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
-        classementText += `**${rank}.** ${displayName} - ${player.votes} votes (💎 ${totalDiamonds}) ${matchStatus}\n`;
+        previewResultsMessage += `${icon} ${mention} - **${player.votes} votes** (💎 ${totalDiamonds})${rewards} ${matchStatus}\n`;
       }
+
+      previewResultsMessage += `\n${votesConfig.STYLE.sparkly} Tous les votants reçoivent **${votesConfig.DIAMONDS_PER_VOTE} 💎 par vote** !`;
 
       const foundCount = ranking.filter(p => resolvePlayer(memberIndex, p.playername)).length;
       const notFoundList = ranking.filter(p => !resolvePlayer(memberIndex, p.playername)).map(p => p.playername);
@@ -366,19 +379,19 @@ client.on('interactionCreate', async interaction => {
       const embed1 = new EmbedBuilder()
         .setColor('#FFA500')
         .setTitle(`🔍 Prévisualisation - ${monthName}`)
-        .setDescription(`**Top 5 :**\n${classementText}`)
+        .setDescription(previewResultsMessage)
         .addFields(
-          { name: '📊 Résumé', value: `Total: ${ranking.length} | Reconnus: ${foundCount} ✅ | Non trouvés: ${notFoundList.length} ❌`, inline: false }
+          { name: '📊 Résumé distribution', value: `Total: ${ranking.length} | Reconnus: ${foundCount} ✅ | Non trouvés: ${notFoundList.length} ❌`, inline: false }
         )
-        .setFooter({ text: 'Rien n\'est publié ni distribué' });
+        .setFooter({ text: '⚠️ Rien n\'est publié ni distribué - TEST UNIQUEMENT' });
 
       const embeds = [embed1];
 
       if (notFoundList.length > 0) {
         const embed2 = new EmbedBuilder()
           .setColor('#FF6B6B')
-          .setTitle('⚠️ Joueurs non trouvés')
-          .setDescription(notFoundList.slice(0, 20).join(', ') + (notFoundList.length > 20 ? '...' : ''));
+          .setTitle('⚠️ Joueurs non trouvés (pas de récompense)')
+          .setDescription(notFoundList.slice(0, 30).join(', ') + (notFoundList.length > 30 ? `... (+${notFoundList.length - 30})` : ''));
         embeds.push(embed2);
       }
 
@@ -387,7 +400,7 @@ client.on('interactionCreate', async interaction => {
         const embed3 = new EmbedBuilder()
           .setColor('#4CAF50')
           .setTitle('🎁 Commandes DraftBot prévues')
-          .setDescription('```\n' + draftBotCommands.slice(0, 10).join('\n') + '\n```');
+          .setDescription('```\n' + draftBotCommands.slice(0, 8).join('\n') + '\n```');
         embeds.push(embed3);
       }
 

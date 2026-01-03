@@ -9,16 +9,37 @@ function normalizeName(s) {
   return normalized.trim();
 }
 
+function fuzzyMatch(playerName, memberName) {
+  const pNorm = normalizeName(playerName);
+  const mNorm = normalizeName(memberName);
+  
+  if (!pNorm || !mNorm) return false;
+  if (pNorm === mNorm) return true;
+  if (mNorm.includes(pNorm) || pNorm.includes(mNorm)) return true;
+  
+  const pWords = pNorm.split(' ').filter(w => w.length > 2);
+  const mWords = mNorm.split(' ').filter(w => w.length > 2);
+  for (const pw of pWords) {
+    for (const mw of mWords) {
+      if (pw === mw) return true;
+    }
+  }
+  
+  return false;
+}
+
 function monthNameFr(monthIndex) {
   return MONTHS_FR[monthIndex] || 'INCONNU';
 }
 
 async function buildMemberIndex(guild) {
   const index = {};
+  const membersList = [];
   const members = await guild.members.fetch();
 
   members.forEach((member) => {
     const names = [member.displayName, member.user.username];
+    membersList.push({ id: member.id, names: names });
     for (const name of names) {
       const key = normalizeName(name);
       if (!index[key]) {
@@ -30,15 +51,28 @@ async function buildMemberIndex(guild) {
     }
   });
 
+  index._membersList = membersList;
   return index;
 }
 
 function resolvePlayer(index, playername) {
-  const key = normalizeName(ALIASES[playername] || playername);
+  const aliasedName = ALIASES[playername] || playername;
+  const key = normalizeName(aliasedName);
+  
   const ids = index[key] || [];
   if (ids.length === 1) {
     return ids[0];
   }
+  
+  const membersList = index._membersList || [];
+  for (const member of membersList) {
+    for (const name of member.names) {
+      if (fuzzyMatch(aliasedName, name)) {
+        return member.id;
+      }
+    }
+  }
+  
   return null;
 }
 
@@ -50,6 +84,7 @@ function formatRewards(rewards) {
 
 module.exports = {
   normalizeName,
+  fuzzyMatch,
   monthNameFr,
   buildMemberIndex,
   resolvePlayer,
