@@ -22,10 +22,15 @@ const TOP_DIAMONDS = { 4: 4000, 5: 3000 };
 const STYLE = {
   everyonePing: true,
   logo: '<a:Logo:1313979016973127730>',
+  logoFallback: '🎮',
   fireworks: '<a:fireworks:1388428854078476339>',
+  fireworksFallback: '🎆',
   arrow: '<a:arrow:1388432394574368800>',
+  arrowFallback: '➡️',
   animeArrow: '<a:animearrow:1157234686200922152>',
+  animeArrowFallback: '▶️',
   sparkly: '<a:SparklyCrystal:1366174439003263087>',
+  sparklyFallback: '💎',
   memoUrl: 'https://discord.com/channels/1156256997403000874/1157994573716973629/1367513646158319637',
   placeIcons: [
     '<:icon_place_1:1120819097916149911>',
@@ -34,6 +39,7 @@ const STYLE = {
     '<:icon_place_4:1120819164119040151>',
     '<:icon_place_5:1120819191650451598>',
   ],
+  placeIconsFallback: ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'],
 };
 
 const DRAFTBOT_TEMPLATE = '/admininventaire donner membre:{mention} objet:"{item}" quantité:{qty}';
