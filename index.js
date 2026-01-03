@@ -401,7 +401,6 @@ client.on('interactionCreate', async interaction => {
       previewMessage += `.\n\n`;
       previewMessage += `-# Tirage au sort des 10 premiers pour le Dino Shiny juste après la distribution des récompenses votes\n\n`;
       previewMessage += `🫶\n\n`;
-      previewMessage += `|| @everyone ||`;
 
       const foundCount = ranking.filter(p => resolvePlayer(memberIndex, p.playername)).length;
       const notFoundList = ranking.filter(p => !resolvePlayer(memberIndex, p.playername)).map(p => p.playername);
@@ -410,7 +409,11 @@ client.on('interactionCreate', async interaction => {
       if (testChannel) {
         const chunks = previewMessage.match(/[\s\S]{1,1900}/g) || [previewMessage];
         await testChannel.send(`⚠️ **TEST - PRÉVISUALISATION** ⚠️`);
-        for (const chunk of chunks) {
+        for (let i = 0; i < chunks.length; i++) {
+          let chunk = chunks[i];
+          if (i === 0 && votesConfig.STYLE.everyonePing) {
+            chunk = `|| @everyone ||\n` + chunk;
+          }
           await testChannel.send(chunk);
         }
         
