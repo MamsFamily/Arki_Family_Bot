@@ -449,6 +449,82 @@ client.on('interactionCreate', async interaction => {
       });
     }
   }
+
+  if (commandName === 'pay-votes') {
+    if (!hasRoulettePermission(interaction.member)) {
+      return interaction.reply({
+        content: '❌ Seuls les administrateurs et les Modos peuvent distribuer les récompenses !',
+        ephemeral: true,
+      });
+    }
+
+    await interaction.deferReply();
+
+    try {
+      const ranking = await fetchTopserveursRanking(votesConfig.TOPSERVEURS_RANKING_URL);
+      
+      if (ranking.length === 0) {
+        return interaction.editReply({
+          content: '❌ Impossible de récupérer le classement des votes.',
+        });
+      }
+
+      const guild = interaction.guild;
+      const memberIndex = await buildMemberIndex(guild);
+
+      const now = new Date();
+      const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+      const monthName = monthNameFr(lastMonth);
+
+      const distributionResults = { success: 0, failed: 0, notFound: [] };
+
+      for (const player of ranking) {
+        const memberId = resolvePlayer(memberIndex, player.playername);
+        if (memberId) {
+          const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
+          const bonusDiamonds = votesConfig.TOP_DIAMONDS[ranking.indexOf(player) + 1] || 0;
+          const result = await addCashToUser(memberId, totalDiamonds + bonusDiamonds, `Votes ${monthName}`);
+          if (result.success) {
+            distributionResults.success++;
+          } else {
+            distributionResults.failed++;
+          }
+        } else {
+          distributionResults.notFound.push(player.playername);
+        }
+      }
+
+      const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);
+      
+      let adminMessage = `📊 **Rapport de distribution - ${monthName}**\n\n`;
+      adminMessage += `💎 **Distribution UnbelievaBoat:**\n`;
+      adminMessage += `   • ${distributionResults.success} joueurs récompensés\n`;
+      if (distributionResults.failed > 0) {
+        adminMessage += `   • ${distributionResults.failed} échecs\n`;
+      }
+      if (distributionResults.notFound.length > 0) {
+        adminMessage += `   • ${distributionResults.notFound.length} joueurs non trouvés: ${distributionResults.notFound.join(', ')}\n`;
+      }
+
+      if (draftBotCommands.length > 0) {
+        adminMessage += `\n🎁 **Commandes DraftBot à copier-coller:**\n\`\`\`\n${draftBotCommands.join('\n')}\n\`\`\``;
+      }
+
+      const adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
+      if (adminChannel) {
+        await adminChannel.send(adminMessage);
+      }
+
+      await interaction.editReply({ content: `✅ Distribution terminée ! Rapport envoyé dans <#${votesConfig.ADMIN_LOG_CHANNEL_ID}>` });
+      console.log(`💎 Distribution des votes par ${interaction.user.tag} - ${distributionResults.success} récompensés`);
+
+    } catch (error) {
+      console.error('Erreur lors de la distribution:', error);
+      await interaction.editReply({
+        content: '❌ Une erreur est survenue lors de la distribution.',
+      });
+    }
+  }
 });
 
 const token = process.env.DISCORD_TOKEN;

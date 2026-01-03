@@ -42,6 +42,10 @@ const commands = [
     name: 'test-votes',
     description: 'Prévisualise les résultats sans rien publier ni distribuer (Admin et Modo)',
   },
+  {
+    name: 'pay-votes',
+    description: 'Distribue uniquement les diamants sans publier de message (Admin et Modo)',
+  },
 ];
 
 const token = process.env.DISCORD_TOKEN;
