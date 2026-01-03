@@ -15,6 +15,7 @@
     "better-sqlite3": "^12.5.0",
     "canvas": "^3.2.0",
     "discord.js": "^14.23.2",
-    "gif-encoder-2": "^1.0.5"
+    "gif-encoder-2": "^1.0.5",
+    "unb-api": "^1.4.0"
   }
 }

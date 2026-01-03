@@ -3,7 +3,7 @@
 ## Vue d'ensemble
 Bot Discord avec deux fonctionnalités principales :
 1. **Roulette de la chance** - Roue animée style Nintendo avec choix personnalisables
-2. **Système de votes mensuels** - Suivi et récompenses des votants via TopServeurs API
+2. **Système de votes mensuels** - Suivi et récompenses automatiques des votants via TopServeurs API
 
 ## Fonctionnalités
 
@@ -16,9 +16,10 @@ Bot Discord avec deux fonctionnalités principales :
 
 ### Votes mensuels
 - **Commande /votes**: Affiche le classement des votes du mois dernier (admin et Modo)
-- **Commande /publish-votes**: Publie les résultats formatés avec récompenses (admin et Modo)
+- **Commande /publish-votes**: Publie les résultats et distribue automatiquement les récompenses (admin et Modo)
 - Intégration avec l'API TopServeurs pour récupérer les données de votes
-- Calcul automatique des diamants (100 par vote)
+- **Distribution automatique des diamants** via l'API UnbelievaBoat (100 💎 par vote)
+- **Génération des commandes DraftBot** à copier-coller pour les items du top 3
 - Récompenses spéciales pour le top 5 (lots pour top 3, diamants bonus pour 4-5)
 
 ### Permissions
@@ -26,17 +27,18 @@ Bot Discord avec deux fonctionnalités principales :
 
 ## Structure du projet
 ```
-├── index.js              # Bot principal Discord
-├── deploy-commands.js    # Script pour enregistrer les commandes slash
-├── rouletteWheel.js      # Génération de l'image de la roue et animation
-├── config.json           # Configuration des choix de roulette
-├── votesConfig.js        # Configuration du système de votes
-├── topserveursService.js # Service API TopServeurs
-├── database.js           # Service de base de données SQLite
-├── votesUtils.js         # Utilitaires de normalisation et formatage
-├── data/db/meta.sqlite   # Base de données SQLite
-├── package.json          # Dépendances Node.js
-└── .env.example          # Exemple de variables d'environnement
+├── index.js               # Bot principal Discord
+├── deploy-commands.js     # Script pour enregistrer les commandes slash
+├── rouletteWheel.js       # Génération de l'image de la roue et animation
+├── config.json            # Configuration des choix de roulette
+├── votesConfig.js         # Configuration du système de votes
+├── topserveursService.js  # Service API TopServeurs
+├── unbelievaboatService.js# Service API UnbelievaBoat (diamants)
+├── database.js            # Service de base de données SQLite
+├── votesUtils.js          # Utilitaires de normalisation et formatage
+├── data/db/meta.sqlite    # Base de données SQLite
+├── package.json           # Dépendances Node.js
+└── .env.example           # Exemple de variables d'environnement
 ```
 
 ## Technologies
@@ -46,19 +48,23 @@ Bot Discord avec deux fonctionnalités principales :
 - GIF Encoder 2 (pour créer les animations GIF)
 - Axios (pour les appels API)
 - Better-SQLite3 (pour la base de données locale)
+- unb-api (pour l'API UnbelievaBoat)
 
 ## Configuration requise
 1. Créer une application Discord sur https://discord.com/developers/applications
 2. Créer un bot et copier le token
-3. Ajouter les secrets Replit:
+3. Activer l'intent "Server Members" dans Bot → Privileged Gateway Intents
+4. Ajouter les secrets Replit:
    - `DISCORD_TOKEN`: Token du bot Discord
    - `DISCORD_CLIENT_ID`: ID client de l'application Discord
+   - `UNBELIEVABOAT_TOKEN`: Token API UnbelievaBoat
 
 ## Configuration des votes (votesConfig.js)
+- `GUILD_ID`: ID du serveur Discord (1156256997403000874)
 - `RESULTS_CHANNEL_ID`: ID du canal où publier les résultats
 - `TOPSERVEURS_RANKING_URL`: URL de l'API TopServeurs
 - `DIAMONDS_PER_VOTE`: Diamants par vote (100 par défaut)
-- `TOP_LOTS`: Récompenses spéciales pour le top 3
+- `TOP_LOTS`: Récompenses spéciales pour le top 3 (items DraftBot)
 - `TOP_DIAMONDS`: Bonus diamants pour places 4 et 5
 
 ## Utilisation
@@ -68,11 +74,8 @@ Bot Discord avec deux fonctionnalités principales :
 4. Utiliser les commandes disponibles
 
 ## Changements récents
+- 2026-01-03: Distribution automatique des diamants via UnbelievaBoat API
+- 2026-01-03: Génération automatique des commandes DraftBot à copier-coller
 - 2026-01-03: Ajout du système de votes mensuels avec TopServeurs API
 - 2026-01-03: Nouvelles commandes /votes et /publish-votes
 - 2025-10-15: Création initiale du bot avec animation de roulette
-- 2025-10-15: Amélioration majeure du visuel de la roulette avec dégradés, effets 3D, et animations plus fluides
-- 2025-10-15: Conversion en animation GIF pour éliminer les écrans noirs
-- 2025-10-15: Ajout de la commande /set-choices avec titre et choix
-- 2025-10-15: Augmentation à 9 tours complets pour une animation plus longue
-- 2025-10-15: Ajout du rôle "Modo" aux permissions

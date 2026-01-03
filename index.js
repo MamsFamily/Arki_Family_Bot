@@ -3,12 +3,14 @@ const fs = require('fs');
 const RouletteWheel = require('./rouletteWheel');
 const { initDatabase } = require('./database');
 const { fetchTopserveursRanking } = require('./topserveursService');
-const { monthNameFr, formatRewards } = require('./votesUtils');
+const { monthNameFr, formatRewards, buildMemberIndex, resolvePlayer } = require('./votesUtils');
 const votesConfig = require('./votesConfig');
+const { addCashToUser, generateDraftBotCommands } = require('./unbelievaboatService');
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
   ],
 });
 
@@ -230,6 +232,9 @@ client.on('interactionCreate', async interaction => {
         });
       }
 
+      const guild = interaction.guild;
+      const memberIndex = await buildMemberIndex(guild);
+
       const now = new Date();
       const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
       const monthName = monthNameFr(lastMonth);
@@ -237,12 +242,31 @@ client.on('interactionCreate', async interaction => {
       let resultsMessage = `${votesConfig.STYLE.fireworks} **RÉSULTATS DES VOTES - ${monthName}** ${votesConfig.STYLE.fireworks}\n\n`;
       resultsMessage += `${votesConfig.STYLE.logo} Merci à tous les votants !\n\n`;
 
+      const distributionResults = { success: 0, failed: 0, notFound: [] };
+
+      for (const player of ranking) {
+        const memberId = resolvePlayer(memberIndex, player.playername);
+        if (memberId) {
+          const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
+          const bonusDiamonds = votesConfig.TOP_DIAMONDS[ranking.indexOf(player) + 1] || 0;
+          const result = await addCashToUser(memberId, totalDiamonds + bonusDiamonds, `Votes ${monthName}`);
+          if (result.success) {
+            distributionResults.success++;
+          } else {
+            distributionResults.failed++;
+          }
+        } else {
+          distributionResults.notFound.push(player.playername);
+        }
+      }
+
       const top5 = ranking.slice(0, 5);
       for (let i = 0; i < top5.length; i++) {
         const player = top5[i];
         const rank = i + 1;
         const icon = votesConfig.STYLE.placeIcons[i] || `**${rank}.**`;
-        const mention = `**${player.playername}**`;
+        const memberId = resolvePlayer(memberIndex, player.playername);
+        const mention = memberId ? `<@${memberId}>` : `**${player.playername}**`;
         
         let rewards = '';
         if (votesConfig.TOP_LOTS[rank]) {
@@ -256,7 +280,6 @@ client.on('interactionCreate', async interaction => {
       }
 
       resultsMessage += `\n${votesConfig.STYLE.sparkly} Tous les votants reçoivent **${votesConfig.DIAMONDS_PER_VOTE} 💎 par vote** !`;
-      resultsMessage += `\n\n📝 Réclamez vos récompenses : ${votesConfig.STYLE.memoUrl}`;
 
       if (votesConfig.STYLE.everyonePing) {
         resultsMessage = '@everyone\n' + resultsMessage;
@@ -265,16 +288,26 @@ client.on('interactionCreate', async interaction => {
       const resultsChannel = await client.channels.fetch(votesConfig.RESULTS_CHANNEL_ID);
       if (resultsChannel) {
         await resultsChannel.send(resultsMessage);
-        await interaction.editReply({
-          content: `✅ Résultats publiés dans <#${votesConfig.RESULTS_CHANNEL_ID}> !`,
-        });
-      } else {
-        await interaction.editReply({
-          content: '❌ Canal de résultats introuvable.',
-        });
       }
 
-      console.log(`📢 Résultats des votes publiés par ${interaction.user.tag}`);
+      const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);
+      
+      let statusMessage = `✅ **Résultats publiés dans <#${votesConfig.RESULTS_CHANNEL_ID}>**\n\n`;
+      statusMessage += `💎 **Distribution UnbelievaBoat:**\n`;
+      statusMessage += `   • ${distributionResults.success} joueurs récompensés\n`;
+      if (distributionResults.failed > 0) {
+        statusMessage += `   • ${distributionResults.failed} échecs\n`;
+      }
+      if (distributionResults.notFound.length > 0) {
+        statusMessage += `   • ${distributionResults.notFound.length} joueurs non trouvés: ${distributionResults.notFound.slice(0, 5).join(', ')}${distributionResults.notFound.length > 5 ? '...' : ''}\n`;
+      }
+
+      if (draftBotCommands.length > 0) {
+        statusMessage += `\n🎁 **Commandes DraftBot à copier-coller:**\n\`\`\`\n${draftBotCommands.join('\n')}\n\`\`\``;
+      }
+
+      await interaction.editReply({ content: statusMessage });
+      console.log(`📢 Résultats des votes publiés par ${interaction.user.tag} - ${distributionResults.success} récompensés`);
 
     } catch (error) {
       console.error('Erreur lors de la publication des votes:', error);
