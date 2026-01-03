@@ -1,6 +1,10 @@
 const { Client, GatewayIntentBits, AttachmentBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const fs = require('fs');
 const RouletteWheel = require('./rouletteWheel');
+const { initDatabase } = require('./database');
+const { fetchTopserveursRanking } = require('./topserveursService');
+const { monthNameFr, formatRewards } = require('./votesUtils');
+const votesConfig = require('./votesConfig');
 
 const client = new Client({
   intents: [
@@ -21,6 +25,7 @@ function hasRoulettePermission(member) {
 }
 
 client.once('clientReady', () => {
+  initDatabase();
   console.log('✅ Bot Discord Arki Roulette est en ligne !');
   console.log(`📝 Connecté en tant que ${client.user.tag}`);
   console.log(`🎰 ${config.rouletteChoices.length} choix de roulette chargés`);
@@ -28,6 +33,8 @@ client.once('clientReady', () => {
   console.log('   /roulette - Lance la roue de la chance');
   console.log('   /set-choices - Modifie les choix de la roulette');
   console.log('   /show-choices - Affiche les choix actuels');
+  console.log('   /votes - Affiche le classement des votes');
+  console.log('   /publish-votes - Publie les résultats mensuels');
 });
 
 client.on('interactionCreate', async interaction => {
@@ -151,6 +158,130 @@ client.on('interactionCreate', async interaction => {
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });
+  }
+
+  if (commandName === 'votes') {
+    if (!hasRoulettePermission(interaction.member)) {
+      return interaction.reply({
+        content: '❌ Seuls les administrateurs et les Modos peuvent voir le classement !',
+        ephemeral: true,
+      });
+    }
+
+    await interaction.deferReply();
+
+    try {
+      const ranking = await fetchTopserveursRanking(votesConfig.TOPSERVEURS_RANKING_URL);
+      
+      if (ranking.length === 0) {
+        return interaction.editReply({
+          content: '❌ Impossible de récupérer le classement des votes.',
+        });
+      }
+
+      const now = new Date();
+      const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+      const monthName = monthNameFr(lastMonth);
+
+      let description = `**📊 Classement des votes - ${monthName}**\n\n`;
+      
+      const top10 = ranking.slice(0, 10);
+      for (let i = 0; i < top10.length; i++) {
+        const player = top10[i];
+        const icon = votesConfig.STYLE.placeIcons[i] || `**${i + 1}.**`;
+        const diamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
+        description += `${icon} **${player.playername}** - ${player.votes} votes (💎 ${diamonds})\n`;
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor('#FFD700')
+        .setTitle(`${votesConfig.STYLE.logo} Classement des votes`)
+        .setDescription(description)
+        .setFooter({ text: `Total: ${ranking.length} votants` })
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [embed] });
+      console.log(`📊 Classement des votes consulté par ${interaction.user.tag}`);
+
+    } catch (error) {
+      console.error('Erreur lors de la récupération des votes:', error);
+      await interaction.editReply({
+        content: '❌ Une erreur est survenue lors de la récupération du classement.',
+      });
+    }
+  }
+
+  if (commandName === 'publish-votes') {
+    if (!hasRoulettePermission(interaction.member)) {
+      return interaction.reply({
+        content: '❌ Seuls les administrateurs et les Modos peuvent publier les résultats !',
+        ephemeral: true,
+      });
+    }
+
+    await interaction.deferReply();
+
+    try {
+      const ranking = await fetchTopserveursRanking(votesConfig.TOPSERVEURS_RANKING_URL);
+      
+      if (ranking.length === 0) {
+        return interaction.editReply({
+          content: '❌ Impossible de récupérer le classement des votes.',
+        });
+      }
+
+      const now = new Date();
+      const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+      const monthName = monthNameFr(lastMonth);
+
+      let resultsMessage = `${votesConfig.STYLE.fireworks} **RÉSULTATS DES VOTES - ${monthName}** ${votesConfig.STYLE.fireworks}\n\n`;
+      resultsMessage += `${votesConfig.STYLE.logo} Merci à tous les votants !\n\n`;
+
+      const top5 = ranking.slice(0, 5);
+      for (let i = 0; i < top5.length; i++) {
+        const player = top5[i];
+        const rank = i + 1;
+        const icon = votesConfig.STYLE.placeIcons[i] || `**${rank}.**`;
+        const mention = `**${player.playername}**`;
+        
+        let rewards = '';
+        if (votesConfig.TOP_LOTS[rank]) {
+          rewards = ` ${votesConfig.STYLE.arrow} ${formatRewards(votesConfig.TOP_LOTS[rank])}`;
+        } else if (votesConfig.TOP_DIAMONDS[rank]) {
+          rewards = ` ${votesConfig.STYLE.arrow} 💎 ${votesConfig.TOP_DIAMONDS[rank]}`;
+        }
+
+        const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
+        resultsMessage += `${icon} ${mention} - **${player.votes} votes** (💎 ${totalDiamonds})${rewards}\n`;
+      }
+
+      resultsMessage += `\n${votesConfig.STYLE.sparkly} Tous les votants reçoivent **${votesConfig.DIAMONDS_PER_VOTE} 💎 par vote** !`;
+      resultsMessage += `\n\n📝 Réclamez vos récompenses : ${votesConfig.STYLE.memoUrl}`;
+
+      if (votesConfig.STYLE.everyonePing) {
+        resultsMessage = '@everyone\n' + resultsMessage;
+      }
+
+      const resultsChannel = await client.channels.fetch(votesConfig.RESULTS_CHANNEL_ID);
+      if (resultsChannel) {
+        await resultsChannel.send(resultsMessage);
+        await interaction.editReply({
+          content: `✅ Résultats publiés dans <#${votesConfig.RESULTS_CHANNEL_ID}> !`,
+        });
+      } else {
+        await interaction.editReply({
+          content: '❌ Canal de résultats introuvable.',
+        });
+      }
+
+      console.log(`📢 Résultats des votes publiés par ${interaction.user.tag}`);
+
+    } catch (error) {
+      console.error('Erreur lors de la publication des votes:', error);
+      await interaction.editReply({
+        content: '❌ Une erreur est survenue lors de la publication des résultats.',
+      });
+    }
   }
 });
 

@@ -30,6 +30,14 @@ const commands = [
     name: 'show-choices',
     description: 'Affiche les choix actuels de la roulette',
   },
+  {
+    name: 'votes',
+    description: 'Affiche le classement des votes du mois dernier (Admin et Modo)',
+  },
+  {
+    name: 'publish-votes',
+    description: 'Publie les résultats des votes mensuels (Admin et Modo)',
+  },
 ];
 
 const token = process.env.DISCORD_TOKEN;
