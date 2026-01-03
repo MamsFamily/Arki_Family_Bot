@@ -301,7 +301,10 @@ client.on('interactionCreate', async interaction => {
 
       const resultsChannel = await client.channels.fetch(votesConfig.RESULTS_CHANNEL_ID);
       if (resultsChannel) {
-        await resultsChannel.send(resultsMessage);
+        const chunks = resultsMessage.match(/[\s\S]{1,1900}/g) || [resultsMessage];
+        for (const chunk of chunks) {
+          await resultsChannel.send(chunk);
+        }
       }
 
       const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);
@@ -405,9 +408,13 @@ client.on('interactionCreate', async interaction => {
 
       const testChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
       if (testChannel) {
-        await testChannel.send(`⚠️ **TEST - PRÉVISUALISATION** ⚠️\n\n${previewMessage}`);
+        const chunks = previewMessage.match(/[\s\S]{1,1900}/g) || [previewMessage];
+        await testChannel.send(`⚠️ **TEST - PRÉVISUALISATION** ⚠️`);
+        for (const chunk of chunks) {
+          await testChannel.send(chunk);
+        }
         
-        let statsMessage = `\n📊 **Statistiques:**\n`;
+        let statsMessage = `📊 **Statistiques:**\n`;
         statsMessage += `• Total votants: ${ranking.length}\n`;
         statsMessage += `• Reconnus: ${foundCount} ✅\n`;
         statsMessage += `• Non trouvés: ${notFoundList.length} ❌\n`;
