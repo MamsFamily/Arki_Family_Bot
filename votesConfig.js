@@ -32,14 +32,8 @@ const STYLE = {
   sparkly: '<a:SparklyCrystal:1366174439003263087>',
   sparklyFallback: '💎',
   memoUrl: 'https://discord.com/channels/1156256997403000874/1157994573716973629/1367513646158319637',
-  placeIcons: [
-    '<:icon_place_1:1120819097916149911>',
-    '<:icon_place_2:1120819117197365299>',
-    '<:icon_place_3:1120819143659233452>',
-    '<:icon_place_4:1120819164119040151>',
-    '<:icon_place_5:1120819191650451598>',
-  ],
-  placeIconsFallback: ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'],
+  placeIcons: ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'],
+  placeIconsFallback: ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'],
 };
 
 const DRAFTBOT_TEMPLATE = '/admininventaire donner membre:{mention} objet:"{item}" quantité:{qty}';
