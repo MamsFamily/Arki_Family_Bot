@@ -239,9 +239,6 @@ client.on('interactionCreate', async interaction => {
       const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
       const monthName = monthNameFr(lastMonth);
 
-      let resultsMessage = `${votesConfig.STYLE.fireworks} **RÉSULTATS DES VOTES - ${monthName}** ${votesConfig.STYLE.fireworks}\n\n`;
-      resultsMessage += `${votesConfig.STYLE.logo} Merci à tous les votants !\n\n`;
-
       const distributionResults = { success: 0, failed: 0, notFound: [] };
 
       for (const player of ranking) {
@@ -260,29 +257,46 @@ client.on('interactionCreate', async interaction => {
         }
       }
 
+      let resultsMessage = `# Hello la Family\n${votesConfig.STYLE.logo} \n\n`;
+      resultsMessage += `## ${votesConfig.STYLE.fireworks} C'est le jour de Paie ${votesConfig.STYLE.fireworks} \n`;
+      resultsMessage += `${votesConfig.STYLE.logo} \n\n\n`;
+      resultsMessage += `Voici donc les résultats des votes du mois de ${monthName} :\n\n\n`;
+
+      const top10 = ranking.slice(0, 10);
+      for (let i = 0; i < top10.length; i++) {
+        const player = top10[i];
+        resultsMessage += `    •    ${i + 1} ${votesConfig.STYLE.arrow} ${player.votes} ${player.playername}\n`;
+      }
+
+      const others = ranking.slice(10);
+      if (others.length > 0) {
+        resultsMessage += '\n';
+        for (const player of others) {
+          resultsMessage += `    •    ${player.votes} ${player.playername}\n`;
+        }
+      }
+
+      const topVoterMemberId = resolvePlayer(memberIndex, ranking[0]?.playername);
+      resultsMessage += `\nUn grand Bravo à notre <@&${votesConfig.TOP_VOTER_ROLE_ID}>  qui remporte la première place et le rôle qui va avec ! 🎉\n\n`;
+
+      resultsMessage += `Merci à notre podium de ce mois-ci :\n`;
+      const placeNames = ['Première', 'Seconde', 'Troisième', 'Quatrième', 'Cinquième'];
       const top5 = ranking.slice(0, 5);
       for (let i = 0; i < top5.length; i++) {
         const player = top5[i];
-        const rank = i + 1;
-        const icon = votesConfig.STYLE.placeIcons[i] || `**${rank}.**`;
         const memberId = resolvePlayer(memberIndex, player.playername);
-        const mention = memberId ? `<@${memberId}>` : `**${player.playername}**`;
-        
-        let rewards = '';
-        if (votesConfig.TOP_LOTS[rank]) {
-          rewards = ` ${votesConfig.STYLE.arrow} ${formatRewards(votesConfig.TOP_LOTS[rank])}`;
-        } else if (votesConfig.TOP_DIAMONDS[rank]) {
-          rewards = ` ${votesConfig.STYLE.arrow} 💎 ${votesConfig.TOP_DIAMONDS[rank]}`;
-        }
-
-        const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
-        resultsMessage += `${icon} ${mention} - **${player.votes} votes** (💎 ${totalDiamonds})${rewards}\n`;
+        const mention = memberId ? `<@${memberId}>` : `@${player.playername}`;
+        resultsMessage += `    •    ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.placeIcons[i]} ${placeNames[i]} place ${mention} \n`;
       }
 
-      resultsMessage += `\n${votesConfig.STYLE.sparkly} Tous les votants reçoivent **${votesConfig.DIAMONDS_PER_VOTE} 💎 par vote** !`;
+      resultsMessage += `\nPour les règles des votes, toujours les mêmes, ${votesConfig.VOTES_PER_REWARD_DISPLAY} votes = ${votesConfig.DIAMONDS_PER_REWARD_DISPLAY} diamants ${votesConfig.STYLE.sparkly} que l'on vous verse le mois suivant 🤩\n\n`;
+      resultsMessage += `En mémo, voici les récompenses pour le top 10 ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.memoUrl}\n\n`;
+      resultsMessage += `.\n\n`;
+      resultsMessage += `-# Tirage au sort des 10 premiers pour le Dino Shiny juste après la distribution des récompenses votes\n\n`;
+      resultsMessage += `🫶\n\n`;
 
       if (votesConfig.STYLE.everyonePing) {
-        resultsMessage = '@everyone\n' + resultsMessage;
+        resultsMessage += `|| @everyone ||`;
       }
 
       const resultsChannel = await client.channels.fetch(votesConfig.RESULTS_CHANNEL_ID);
@@ -348,50 +362,46 @@ client.on('interactionCreate', async interaction => {
       const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
       const monthName = monthNameFr(lastMonth);
 
-      let previewResultsMessage = `${votesConfig.STYLE.fireworks} **RÉSULTATS DES VOTES - ${monthName}** ${votesConfig.STYLE.fireworks}\n\n`;
-      previewResultsMessage += `${votesConfig.STYLE.logo} Merci à tous les votants !\n\n`;
-
-      const top5 = ranking.slice(0, 5);
-      for (let i = 0; i < top5.length; i++) {
-        const player = top5[i];
-        const rank = i + 1;
-        const icon = votesConfig.STYLE.placeIcons[i] || `**${rank}.**`;
+      let classementPreview = '';
+      const top10 = ranking.slice(0, 10);
+      for (let i = 0; i < top10.length; i++) {
+        const player = top10[i];
         const memberId = resolvePlayer(memberIndex, player.playername);
-        const mention = memberId ? `<@${memberId}>` : `**${player.playername}**`;
-        const matchStatus = memberId ? '✅' : '❌';
-        
-        let rewards = '';
-        if (votesConfig.TOP_LOTS[rank]) {
-          rewards = ` ${votesConfig.STYLE.arrow} ${formatRewards(votesConfig.TOP_LOTS[rank])}`;
-        } else if (votesConfig.TOP_DIAMONDS[rank]) {
-          rewards = ` ${votesConfig.STYLE.arrow} 💎 ${votesConfig.TOP_DIAMONDS[rank]}`;
-        }
-
-        const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
-        previewResultsMessage += `${icon} ${mention} - **${player.votes} votes** (💎 ${totalDiamonds})${rewards} ${matchStatus}\n`;
+        const status = memberId ? '✅' : '❌';
+        classementPreview += `${i + 1}. ${player.playername} - ${player.votes} votes ${status}\n`;
       }
-
-      previewResultsMessage += `\n${votesConfig.STYLE.sparkly} Tous les votants reçoivent **${votesConfig.DIAMONDS_PER_VOTE} 💎 par vote** !`;
 
       const foundCount = ranking.filter(p => resolvePlayer(memberIndex, p.playername)).length;
       const notFoundList = ranking.filter(p => !resolvePlayer(memberIndex, p.playername)).map(p => p.playername);
 
+      let podiumPreview = '';
+      const placeNames = ['1ère', '2ème', '3ème', '4ème', '5ème'];
+      const top5 = ranking.slice(0, 5);
+      for (let i = 0; i < top5.length; i++) {
+        const player = top5[i];
+        const memberId = resolvePlayer(memberIndex, player.playername);
+        const mention = memberId ? `<@${memberId}>` : `@${player.playername}`;
+        const status = memberId ? '✅' : '❌';
+        podiumPreview += `${placeNames[i]}: ${mention} ${status}\n`;
+      }
+
       const embed1 = new EmbedBuilder()
         .setColor('#FFA500')
         .setTitle(`🔍 Prévisualisation - ${monthName}`)
-        .setDescription(previewResultsMessage)
+        .setDescription(`**Top 10 votants:**\n${classementPreview}`)
         .addFields(
-          { name: '📊 Résumé distribution', value: `Total: ${ranking.length} | Reconnus: ${foundCount} ✅ | Non trouvés: ${notFoundList.length} ❌`, inline: false }
+          { name: '🏆 Podium (mentions)', value: podiumPreview, inline: false },
+          { name: '📊 Distribution', value: `Total: ${ranking.length} | Reconnus: ${foundCount} ✅ | Non trouvés: ${notFoundList.length} ❌`, inline: false }
         )
-        .setFooter({ text: '⚠️ Rien n\'est publié ni distribué - TEST UNIQUEMENT' });
+        .setFooter({ text: '⚠️ TEST - Rien n\'est publié ni distribué' });
 
       const embeds = [embed1];
 
       if (notFoundList.length > 0) {
         const embed2 = new EmbedBuilder()
           .setColor('#FF6B6B')
-          .setTitle('⚠️ Joueurs non trouvés (pas de récompense)')
-          .setDescription(notFoundList.slice(0, 30).join(', ') + (notFoundList.length > 30 ? `... (+${notFoundList.length - 30})` : ''));
+          .setTitle('⚠️ Joueurs non trouvés')
+          .setDescription(notFoundList.slice(0, 25).join(', ') + (notFoundList.length > 25 ? `... (+${notFoundList.length - 25})` : ''));
         embeds.push(embed2);
       }
 
@@ -399,8 +409,8 @@ client.on('interactionCreate', async interaction => {
       if (draftBotCommands.length > 0) {
         const embed3 = new EmbedBuilder()
           .setColor('#4CAF50')
-          .setTitle('🎁 Commandes DraftBot prévues')
-          .setDescription('```\n' + draftBotCommands.slice(0, 8).join('\n') + '\n```');
+          .setTitle('🎁 Commandes DraftBot')
+          .setDescription('```\n' + draftBotCommands.slice(0, 6).join('\n') + '\n```');
         embeds.push(embed3);
       }
 

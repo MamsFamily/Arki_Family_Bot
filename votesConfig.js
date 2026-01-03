@@ -8,6 +8,8 @@ const TOPSERVEURS_RANKING_URL = process.env.TOPSERVEURS_RANKING_URL ||
 
 const TIMEZONE = process.env.TIMEZONE || 'Europe/Paris';
 const DIAMONDS_PER_VOTE = 100;
+const VOTES_PER_REWARD_DISPLAY = 10;
+const DIAMONDS_PER_REWARD_DISPLAY = 1000;
 
 const TOP_LOTS = {
   1: { '🦖': 6, '🎨': 6, '3️⃣': 1, '🍓': 15000, '💎': 15000 },
@@ -51,6 +53,8 @@ module.exports = {
   TOPSERVEURS_RANKING_URL,
   TIMEZONE,
   DIAMONDS_PER_VOTE,
+  VOTES_PER_REWARD_DISPLAY,
+  DIAMONDS_PER_REWARD_DISPLAY,
   TOP_LOTS,
   TOP_DIAMONDS,
   STYLE,
