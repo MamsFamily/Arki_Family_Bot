@@ -321,6 +321,88 @@ client.on('interactionCreate', async interaction => {
       });
     }
   }
+
+  if (commandName === 'test-votes') {
+    if (!hasRoulettePermission(interaction.member)) {
+      return interaction.reply({
+        content: '❌ Seuls les administrateurs et les Modos peuvent tester !',
+        ephemeral: true,
+      });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      const ranking = await fetchTopserveursRanking(votesConfig.TOPSERVEURS_RANKING_URL);
+      
+      if (ranking.length === 0) {
+        return interaction.editReply({
+          content: '❌ Impossible de récupérer le classement des votes.',
+        });
+      }
+
+      const guild = interaction.guild;
+      const memberIndex = await buildMemberIndex(guild);
+
+      const now = new Date();
+      const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+      const monthName = monthNameFr(lastMonth);
+
+      let previewMessage = `🔍 **PRÉVISUALISATION - ${monthName}** (rien n'est envoyé)\n\n`;
+      previewMessage += `**Message qui sera publié:**\n`;
+      previewMessage += `───────────────────────\n`;
+
+      const top5 = ranking.slice(0, 5);
+      for (let i = 0; i < top5.length; i++) {
+        const player = top5[i];
+        const rank = i + 1;
+        const icon = votesConfig.STYLE.placeIcons[i] || `**${rank}.**`;
+        const memberId = resolvePlayer(memberIndex, player.playername);
+        const mention = memberId ? `<@${memberId}>` : `**${player.playername}** ⚠️`;
+        const matchStatus = memberId ? '✅' : '❌';
+        
+        let rewards = '';
+        if (votesConfig.TOP_LOTS[rank]) {
+          rewards = ` → ${formatRewards(votesConfig.TOP_LOTS[rank])}`;
+        } else if (votesConfig.TOP_DIAMONDS[rank]) {
+          rewards = ` → 💎 ${votesConfig.TOP_DIAMONDS[rank]} bonus`;
+        }
+
+        const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
+        previewMessage += `${icon} ${mention} - **${player.votes} votes** (💎 ${totalDiamonds})${rewards} ${matchStatus}\n`;
+      }
+
+      previewMessage += `───────────────────────\n\n`;
+
+      const foundCount = ranking.filter(p => resolvePlayer(memberIndex, p.playername)).length;
+      const notFoundList = ranking.filter(p => !resolvePlayer(memberIndex, p.playername)).map(p => p.playername);
+
+      previewMessage += `📊 **Résumé:**\n`;
+      previewMessage += `   • Total votants: ${ranking.length}\n`;
+      previewMessage += `   • Joueurs reconnus: ${foundCount} ✅\n`;
+      previewMessage += `   • Joueurs non trouvés: ${notFoundList.length} ❌\n`;
+
+      if (notFoundList.length > 0) {
+        previewMessage += `\n⚠️ **Non trouvés:** ${notFoundList.slice(0, 10).join(', ')}${notFoundList.length > 10 ? '...' : ''}\n`;
+      }
+
+      const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);
+      if (draftBotCommands.length > 0) {
+        previewMessage += `\n🎁 **Commandes DraftBot prévues:**\n\`\`\`\n${draftBotCommands.join('\n')}\n\`\`\``;
+      }
+
+      previewMessage += `\n✅ Si tout est correct, utilisez \`/publish-votes\` pour publier et distribuer.`;
+
+      await interaction.editReply({ content: previewMessage });
+      console.log(`🔍 Test des votes effectué par ${interaction.user.tag}`);
+
+    } catch (error) {
+      console.error('Erreur lors du test des votes:', error);
+      await interaction.editReply({
+        content: '❌ Une erreur est survenue lors du test.',
+      });
+    }
+  }
 });
 
 const token = process.env.DISCORD_TOKEN;

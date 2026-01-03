@@ -38,6 +38,10 @@ const commands = [
     name: 'publish-votes',
     description: 'Publie les résultats des votes mensuels (Admin et Modo)',
   },
+  {
+    name: 'test-votes',
+    description: 'Prévisualise les résultats sans rien publier ni distribuer (Admin et Modo)',
+  },
 ];
 
 const token = process.env.DISCORD_TOKEN;
