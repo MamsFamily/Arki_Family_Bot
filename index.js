@@ -292,21 +292,26 @@ client.on('interactionCreate', async interaction => {
 
       const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);
       
-      let statusMessage = `✅ **Résultats publiés dans <#${votesConfig.RESULTS_CHANNEL_ID}>**\n\n`;
-      statusMessage += `💎 **Distribution UnbelievaBoat:**\n`;
-      statusMessage += `   • ${distributionResults.success} joueurs récompensés\n`;
+      let adminMessage = `📊 **Rapport de distribution - ${monthName}**\n\n`;
+      adminMessage += `💎 **Distribution UnbelievaBoat:**\n`;
+      adminMessage += `   • ${distributionResults.success} joueurs récompensés\n`;
       if (distributionResults.failed > 0) {
-        statusMessage += `   • ${distributionResults.failed} échecs\n`;
+        adminMessage += `   • ${distributionResults.failed} échecs\n`;
       }
       if (distributionResults.notFound.length > 0) {
-        statusMessage += `   • ${distributionResults.notFound.length} joueurs non trouvés: ${distributionResults.notFound.slice(0, 5).join(', ')}${distributionResults.notFound.length > 5 ? '...' : ''}\n`;
+        adminMessage += `   • ${distributionResults.notFound.length} joueurs non trouvés: ${distributionResults.notFound.join(', ')}\n`;
       }
 
       if (draftBotCommands.length > 0) {
-        statusMessage += `\n🎁 **Commandes DraftBot à copier-coller:**\n\`\`\`\n${draftBotCommands.join('\n')}\n\`\`\``;
+        adminMessage += `\n🎁 **Commandes DraftBot à copier-coller:**\n\`\`\`\n${draftBotCommands.join('\n')}\n\`\`\``;
       }
 
-      await interaction.editReply({ content: statusMessage });
+      const adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
+      if (adminChannel) {
+        await adminChannel.send(adminMessage);
+      }
+
+      await interaction.editReply({ content: `✅ Résultats publiés dans <#${votesConfig.RESULTS_CHANNEL_ID}> et rapport envoyé dans <#${votesConfig.ADMIN_LOG_CHANNEL_ID}>` });
       console.log(`📢 Résultats des votes publiés par ${interaction.user.tag} - ${distributionResults.success} récompensés`);
 
     } catch (error) {
