@@ -362,61 +362,63 @@ client.on('interactionCreate', async interaction => {
       const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
       const monthName = monthNameFr(lastMonth);
 
-      let classementPreview = '';
+      let previewMessage = `# Hello la Family\n${votesConfig.STYLE.logo} \n\n`;
+      previewMessage += `## ${votesConfig.STYLE.fireworks} C'est le jour de Paie ${votesConfig.STYLE.fireworks} \n`;
+      previewMessage += `${votesConfig.STYLE.logo} \n\n\n`;
+      previewMessage += `Voici donc les résultats des votes du mois de ${monthName} :\n\n\n`;
+
       const top10 = ranking.slice(0, 10);
       for (let i = 0; i < top10.length; i++) {
         const player = top10[i];
-        const memberId = resolvePlayer(memberIndex, player.playername);
-        const status = memberId ? '✅' : '❌';
-        classementPreview += `${i + 1}. ${player.playername} - ${player.votes} votes ${status}\n`;
+        previewMessage += `    •    ${i + 1} ${votesConfig.STYLE.arrow} ${player.votes} ${player.playername}\n`;
       }
 
-      const foundCount = ranking.filter(p => resolvePlayer(memberIndex, p.playername)).length;
-      const notFoundList = ranking.filter(p => !resolvePlayer(memberIndex, p.playername)).map(p => p.playername);
+      const others = ranking.slice(10);
+      if (others.length > 0) {
+        previewMessage += '\n';
+        for (const player of others) {
+          previewMessage += `    •    ${player.votes} ${player.playername}\n`;
+        }
+      }
 
-      let podiumPreview = '';
-      const placeNames = ['1ère', '2ème', '3ème', '4ème', '5ème'];
+      previewMessage += `\nUn grand Bravo à notre <@&${votesConfig.TOP_VOTER_ROLE_ID}>  qui remporte la première place et le rôle qui va avec ! 🎉\n\n`;
+
+      previewMessage += `Merci à notre podium de ce mois-ci :\n`;
+      const placeNames = ['Première', 'Seconde', 'Troisième', 'Quatrième', 'Cinquième'];
       const top5 = ranking.slice(0, 5);
       for (let i = 0; i < top5.length; i++) {
         const player = top5[i];
         const memberId = resolvePlayer(memberIndex, player.playername);
         const mention = memberId ? `<@${memberId}>` : `@${player.playername}`;
-        const status = memberId ? '✅' : '❌';
-        podiumPreview += `${placeNames[i]}: ${mention} ${status}\n`;
+        previewMessage += `    •    ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.placeIcons[i]} ${placeNames[i]} place ${mention} \n`;
       }
 
-      const embed1 = new EmbedBuilder()
-        .setColor('#FFA500')
-        .setTitle(`🔍 Prévisualisation - ${monthName}`)
-        .setDescription(`**Top 10 votants:**\n${classementPreview}`)
-        .addFields(
-          { name: '🏆 Podium (mentions)', value: podiumPreview, inline: false },
-          { name: '📊 Distribution', value: `Total: ${ranking.length} | Reconnus: ${foundCount} ✅ | Non trouvés: ${notFoundList.length} ❌`, inline: false }
-        )
-        .setFooter({ text: '⚠️ TEST - Rien n\'est publié ni distribué' });
+      previewMessage += `\nPour les règles des votes, toujours les mêmes, ${votesConfig.VOTES_PER_REWARD_DISPLAY} votes = ${votesConfig.DIAMONDS_PER_REWARD_DISPLAY} diamants ${votesConfig.STYLE.sparkly} que l'on vous verse le mois suivant 🤩\n\n`;
+      previewMessage += `En mémo, voici les récompenses pour le top 10 ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.memoUrl}\n\n`;
+      previewMessage += `.\n\n`;
+      previewMessage += `-# Tirage au sort des 10 premiers pour le Dino Shiny juste après la distribution des récompenses votes\n\n`;
+      previewMessage += `🫶\n\n`;
+      previewMessage += `|| @everyone ||`;
 
-      const embeds = [embed1];
+      const foundCount = ranking.filter(p => resolvePlayer(memberIndex, p.playername)).length;
+      const notFoundList = ranking.filter(p => !resolvePlayer(memberIndex, p.playername)).map(p => p.playername);
 
-      if (notFoundList.length > 0) {
-        const embed2 = new EmbedBuilder()
-          .setColor('#FF6B6B')
-          .setTitle('⚠️ Joueurs non trouvés')
-          .setDescription(notFoundList.slice(0, 25).join(', ') + (notFoundList.length > 25 ? `... (+${notFoundList.length - 25})` : ''));
-        embeds.push(embed2);
-      }
-
-      const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);
-      if (draftBotCommands.length > 0) {
-        const embed3 = new EmbedBuilder()
-          .setColor('#4CAF50')
-          .setTitle('🎁 Commandes DraftBot')
-          .setDescription('```\n' + draftBotCommands.slice(0, 6).join('\n') + '\n```');
-        embeds.push(embed3);
+      const testChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
+      if (testChannel) {
+        await testChannel.send(`⚠️ **TEST - PRÉVISUALISATION** ⚠️\n\n${previewMessage}`);
+        
+        let statsMessage = `\n📊 **Statistiques:**\n`;
+        statsMessage += `• Total votants: ${ranking.length}\n`;
+        statsMessage += `• Reconnus: ${foundCount} ✅\n`;
+        statsMessage += `• Non trouvés: ${notFoundList.length} ❌\n`;
+        if (notFoundList.length > 0) {
+          statsMessage += `\n⚠️ Non trouvés: ${notFoundList.slice(0, 15).join(', ')}${notFoundList.length > 15 ? '...' : ''}`;
+        }
+        await testChannel.send(statsMessage);
       }
 
       await interaction.editReply({ 
-        content: '✅ Si tout est correct, utilisez `/publish-votes` pour publier et distribuer.',
-        embeds: embeds 
+        content: `✅ Prévisualisation envoyée dans <#${votesConfig.ADMIN_LOG_CHANNEL_ID}>\n\nSi tout est correct, utilisez \`/publish-votes\` pour publier et distribuer.`
       });
       console.log(`🔍 Test des votes effectué par ${interaction.user.tag}`);
 
