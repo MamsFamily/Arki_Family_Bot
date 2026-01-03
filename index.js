@@ -295,14 +295,14 @@ client.on('interactionCreate', async interaction => {
       resultsMessage += `-# Tirage au sort des 10 premiers pour le Dino Shiny juste après la distribution des récompenses votes\n\n`;
       resultsMessage += `🫶\n\n`;
 
-      if (votesConfig.STYLE.everyonePing) {
-        resultsMessage += `|| @everyone ||`;
-      }
-
       const resultsChannel = await client.channels.fetch(votesConfig.RESULTS_CHANNEL_ID);
       if (resultsChannel) {
         const chunks = resultsMessage.match(/[\s\S]{1,1900}/g) || [resultsMessage];
-        for (const chunk of chunks) {
+        for (let i = 0; i < chunks.length; i++) {
+          let chunk = chunks[i];
+          if (i === 0 && votesConfig.STYLE.everyonePing) {
+            chunk = `|| @everyone ||\n` + chunk;
+          }
           await resultsChannel.send(chunk);
         }
       }
