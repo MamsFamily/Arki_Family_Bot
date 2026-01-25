@@ -22,8 +22,12 @@ function fuzzyMatch(playerName, memberName) {
   for (const pw of pWords) {
     for (const mw of mWords) {
       if (pw === mw) return true;
+      if (pw.startsWith(mw) || mw.startsWith(pw)) return true;
     }
   }
+  
+  if (pNorm.length >= 3 && mNorm.startsWith(pNorm)) return true;
+  if (mNorm.length >= 3 && pNorm.startsWith(mNorm)) return true;
   
   return false;
 }
@@ -38,7 +42,13 @@ async function buildMemberIndex(guild) {
   const members = await guild.members.fetch();
 
   members.forEach((member) => {
-    const names = [member.displayName, member.user.username];
+    const names = [
+      member.displayName,
+      member.user.username,
+      member.user.globalName,
+      member.nickname
+    ].filter(n => n);
+    
     membersList.push({ id: member.id, names: names });
     for (const name of names) {
       const key = normalizeName(name);
