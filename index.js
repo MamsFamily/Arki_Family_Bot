@@ -500,6 +500,25 @@ client.on('interactionCreate', async interaction => {
           statsMessage += `\n⚠️ Non trouvés: ${notFoundList.slice(0, 15).join(', ')}${notFoundList.length > 15 ? '...' : ''}`;
         }
         await testChannel.send(statsMessage);
+
+        const rouletteWheel = new RouletteWheel(top10.map(p => p.playername), 'DINO');
+        const winningIndex = Math.floor(Math.random() * top10.length);
+        const gifBuffer = await rouletteWheel.generateAnimatedGif(winningIndex);
+        const winningChoice = rouletteWheel.getWinningChoice(winningIndex);
+        const attachment = new AttachmentBuilder(gifBuffer, { name: 'dino-shiny-roulette.gif' });
+        
+        const winnerMemberId = resolvePlayer(memberIndex, winningChoice);
+        const winnerMention = winnerMemberId ? `<@${winnerMemberId}>` : winningChoice;
+
+        await testChannel.send({
+          content: `## 🦖 Tirage Dino Shiny du mois !\n\nParticipants :\n${top10.map((p, i) => {
+            const mid = resolvePlayer(memberIndex, p.playername);
+            return `${i + 1}. ${mid ? `<@${mid}>` : p.playername}`;
+          }).join('\n')}\n\n🎰 C'est parti !`,
+          files: [attachment]
+        });
+        
+        await testChannel.send(`## 🎉 Félicitations ${winnerMention} !\n\nTu remportes le **Dino Shiny** du mois ! 🦖✨`);
       }
 
       await interaction.editReply({ 
