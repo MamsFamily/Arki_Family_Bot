@@ -472,49 +472,47 @@ client.on('interactionCreate', async interaction => {
         .setStyle(ButtonStyle.Secondary);
       const row = new ActionRowBuilder().addComponents(button);
 
-      const testChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
-      if (testChannel) {
-        await testChannel.send(`⚠️ **TEST - PRÉVISUALISATION** ⚠️`);
-        let finalMessage = previewMessage;
-        if (votesConfig.STYLE.everyonePing) {
-          finalMessage = `|| @everyone ||\n` + finalMessage;
-        }
-        const chunks = finalMessage.match(/[\s\S]{1,1900}/g) || [finalMessage];
-        for (let i = 0; i < chunks.length; i++) {
-          if (i === chunks.length - 1) {
-            await testChannel.send({ content: chunks[i], components: [row] });
-          } else {
-            await testChannel.send(chunks[i]);
-          }
-        }
-        
-        let statsMessage = `📊 **Statistiques:**\n`;
-        statsMessage += `• Total votants: ${ranking.length}\n`;
-        statsMessage += `• Reconnus: ${foundCount} ✅\n`;
-        statsMessage += `• Non trouvés: ${notFoundList.length} ❌\n`;
-        if (notFoundList.length > 0) {
-          statsMessage += `\n⚠️ Non trouvés: ${notFoundList.slice(0, 15).join(', ')}${notFoundList.length > 15 ? '...' : ''}`;
-        }
-        await testChannel.send(statsMessage);
-
-        const rouletteWheel = new RouletteWheel(top10.map(p => p.playername), 'DINO');
-        const winningIndex = Math.floor(Math.random() * top10.length);
-        const gifBuffer = await rouletteWheel.generateAnimatedGif(winningIndex);
-        const winningChoice = rouletteWheel.getWinningChoice(winningIndex);
-        const attachment = new AttachmentBuilder(gifBuffer, { name: 'dino-shiny-roulette.gif' });
-        
-        await testChannel.send({
-          content: `## 🦖 Tirage Dino Shiny du mois !\n\nParticipants :\n${top10.map((p, i) => {
-            return `${i + 1}. **${p.playername}**`;
-          }).join('\n')}\n\n🎰 C'est parti !`,
-          files: [attachment]
-        });
-        
-        await testChannel.send(`## 🎉 Félicitations **${winningChoice}** !\n\nTu remportes le **Dino Shiny** du mois ! 🦖✨`);
+      const testChannel = interaction.channel;
+      await testChannel.send(`⚠️ **TEST - PRÉVISUALISATION** ⚠️`);
+      let finalMessage = previewMessage;
+      if (votesConfig.STYLE.everyonePing) {
+        finalMessage = `|| @everyone ||\n` + finalMessage;
       }
+      const chunks = finalMessage.match(/[\s\S]{1,1900}/g) || [finalMessage];
+      for (let i = 0; i < chunks.length; i++) {
+        if (i === chunks.length - 1) {
+          await testChannel.send({ content: chunks[i], components: [row] });
+        } else {
+          await testChannel.send(chunks[i]);
+        }
+      }
+      
+      let statsMessage = `📊 **Statistiques:**\n`;
+      statsMessage += `• Total votants: ${ranking.length}\n`;
+      statsMessage += `• Reconnus: ${foundCount} ✅\n`;
+      statsMessage += `• Non trouvés: ${notFoundList.length} ❌\n`;
+      if (notFoundList.length > 0) {
+        statsMessage += `\n⚠️ Non trouvés: ${notFoundList.slice(0, 15).join(', ')}${notFoundList.length > 15 ? '...' : ''}`;
+      }
+      await testChannel.send(statsMessage);
+
+      const rouletteWheel = new RouletteWheel(top10.map(p => p.playername), 'DINO');
+      const winningIndex = Math.floor(Math.random() * top10.length);
+      const gifBuffer = await rouletteWheel.generateAnimatedGif(winningIndex);
+      const winningChoice = rouletteWheel.getWinningChoice(winningIndex);
+      const attachment = new AttachmentBuilder(gifBuffer, { name: 'dino-shiny-roulette.gif' });
+      
+      await testChannel.send({
+        content: `## 🦖 Tirage Dino Shiny du mois !\n\nParticipants :\n${top10.map((p, i) => {
+          return `${i + 1}. **${p.playername}**`;
+        }).join('\n')}\n\n🎰 C'est parti !`,
+        files: [attachment]
+      });
+      
+      await testChannel.send(`## 🎉 Félicitations **${winningChoice}** !\n\nTu remportes le **Dino Shiny** du mois ! 🦖✨`);
 
       await interaction.editReply({ 
-        content: `✅ Prévisualisation envoyée dans <#${votesConfig.ADMIN_LOG_CHANNEL_ID}>\n\nSi tout est correct, utilisez \`/publish-votes\` pour publier et distribuer.`
+        content: `✅ Prévisualisation terminée !\n\nSi tout est correct, utilisez \`/publish-votes\` pour publier et distribuer.`
       });
       console.log(`🔍 Test des votes effectué par ${interaction.user.tag}`);
 
