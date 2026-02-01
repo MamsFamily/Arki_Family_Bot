@@ -455,11 +455,26 @@ client.on('interactionCreate', async interaction => {
       previewMessage += `---\n`;
       previewMessage += `📋 Mémo récompenses ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.memoUrl}\n`;
       previewMessage += `-# Tirage Dino Shiny juste après 🦖\n`;
-      previewMessage += `\n*[Bouton "Voir la liste complète" sera affiché ici]*\n`;
-      previewMessage += `\n*[Roulette Dino Shiny sera lancée automatiquement après]*\n`;
 
       const foundCount = ranking.filter(p => resolvePlayer(memberIndex, p.playername)).length;
       const notFoundList = ranking.filter(p => !resolvePlayer(memberIndex, p.playername)).map(p => p.playername);
+
+      const fullListData = ranking.filter(p => p.votes >= 10).map(p => {
+        const totalDiamonds = p.votes * votesConfig.DIAMONDS_PER_VOTE;
+        const idx = ranking.indexOf(p);
+        const bonusDiamonds = votesConfig.TOP_DIAMONDS[idx + 1] || 0;
+        const memberId = resolvePlayer(memberIndex, p.playername);
+        const status = memberId ? 'pending' : 'notfound';
+        return { ...p, totalGain: totalDiamonds + bonusDiamonds, status };
+      });
+      
+      global.lastVotesFullList = { data: fullListData, monthName, memberIndex };
+
+      const button = new ButtonBuilder()
+        .setCustomId('show_full_votes_list')
+        .setLabel('📋 Voir la liste complète')
+        .setStyle(ButtonStyle.Secondary);
+      const row = new ActionRowBuilder().addComponents(button);
 
       const testChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
       if (testChannel) {
@@ -469,8 +484,12 @@ client.on('interactionCreate', async interaction => {
           finalMessage = `|| @everyone ||\n` + finalMessage;
         }
         const chunks = finalMessage.match(/[\s\S]{1,1900}/g) || [finalMessage];
-        for (const chunk of chunks) {
-          await testChannel.send(chunk);
+        for (let i = 0; i < chunks.length; i++) {
+          if (i === chunks.length - 1) {
+            await testChannel.send({ content: chunks[i], components: [row] });
+          } else {
+            await testChannel.send(chunks[i]);
+          }
         }
         
         let statsMessage = `📊 **Statistiques:**\n`;
