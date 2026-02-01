@@ -288,28 +288,37 @@ client.on('interactionCreate', async interaction => {
         }
       }
 
-      let resultsMessage = `# Hello la Family\n${votesConfig.STYLE.logo} \n\n`;
-      resultsMessage += `## ${votesConfig.STYLE.fireworks} C'est le jour de Paie ${votesConfig.STYLE.fireworks} \n`;
-      resultsMessage += `${votesConfig.STYLE.logo} \n\n`;
-      resultsMessage += `Voici les résultats des votes du mois de **${monthName}** :\n\n`;
+      let resultsMessage = `# ${votesConfig.STYLE.fireworks} Résultats des votes de ${monthName} ${votesConfig.STYLE.fireworks}\n\n`;
+      resultsMessage += `Merci à tous les votants ! Grâce à vous, notre serveur gagne en visibilité. Continuez comme ça ! 💪\n\n`;
+      resultsMessage += `${votesConfig.STYLE.sparkly} Les diamants ont été **automatiquement crédités** sur vos comptes !\n\n`;
 
       const top10 = ranking.slice(0, 10);
       for (let i = 0; i < top10.length; i++) {
         const player = top10[i];
         const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
         const bonusDiamonds = votesConfig.TOP_DIAMONDS[i + 1] || 0;
-        const totalGain = totalDiamonds + bonusDiamonds;
         const memberId = resolvePlayer(memberIndex, player.playername);
-        const mention = memberId ? `<@${memberId}>` : player.playername;
+        const mention = memberId ? `<@${memberId}>` : `**${player.playername}**`;
         const status = playerStatus[player.playername];
-        const statusText = status === 'success' ? '✅' : status === 'failed' ? '❌ échec' : '⚠️ non trouvé';
-        resultsMessage += `${votesConfig.STYLE.placeIcons[i] || `**${i + 1}.**`} ${mention} — ${player.votes} votes — 💎 ${totalGain} ${statusText}\n`;
+        const statusIcon = status === 'success' ? '' : status === 'failed' ? ' ❌' : ' ⚠️';
+        
+        resultsMessage += `**${i + 1}** - ${mention}${statusIcon}\n`;
+        resultsMessage += `Votes : ${player.votes} | Gains : ${totalDiamonds.toLocaleString('fr-FR')} ${votesConfig.STYLE.sparkly}\n`;
+        
+        if (i === 0) {
+          resultsMessage += `+ Pack vote 1ère place + rôle <@&${votesConfig.TOP_VOTER_ROLE_ID}>\n`;
+        } else if (i === 1) {
+          resultsMessage += `+ Pack vote 2ème place\n`;
+        } else if (i === 2) {
+          resultsMessage += `+ Pack vote 3ème place\n`;
+        } else if (bonusDiamonds > 0) {
+          resultsMessage += `+ ${bonusDiamonds.toLocaleString('fr-FR')} ${votesConfig.STYLE.sparkly}\n`;
+        }
+        resultsMessage += `\n`;
       }
 
-      resultsMessage += `\nUn grand Bravo à notre <@&${votesConfig.TOP_VOTER_ROLE_ID}> qui remporte la première place ! 🎉\n\n`;
-      resultsMessage += `Pour les règles : ${votesConfig.VOTES_PER_REWARD_DISPLAY} votes = ${votesConfig.DIAMONDS_PER_REWARD_DISPLAY} ${votesConfig.STYLE.sparkly}\n`;
-      resultsMessage += `Mémo récompenses ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.memoUrl}\n\n`;
-      resultsMessage += `✅ **Diamants distribués !**\n\n`;
+      resultsMessage += `---\n`;
+      resultsMessage += `📋 Mémo récompenses ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.memoUrl}\n`;
       resultsMessage += `-# Tirage Dino Shiny juste après 🦖\n`;
 
       const fullListData = ranking.filter(p => p.votes >= 10).map(p => {
@@ -416,26 +425,35 @@ client.on('interactionCreate', async interaction => {
       const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
       const monthName = monthNameFr(lastMonth);
 
-      let previewMessage = `# Hello la Family\n${votesConfig.STYLE.logo} \n\n`;
-      previewMessage += `## ${votesConfig.STYLE.fireworks} C'est le jour de Paie ${votesConfig.STYLE.fireworks} \n`;
-      previewMessage += `${votesConfig.STYLE.logo} \n\n`;
-      previewMessage += `Voici les résultats des votes du mois de **${monthName}** :\n\n`;
+      let previewMessage = `# ${votesConfig.STYLE.fireworks} Résultats des votes de ${monthName} ${votesConfig.STYLE.fireworks}\n\n`;
+      previewMessage += `Merci à tous les votants ! Grâce à vous, notre serveur gagne en visibilité. Continuez comme ça ! 💪\n\n`;
+      previewMessage += `${votesConfig.STYLE.sparkly} Les diamants ont été **automatiquement crédités** sur vos comptes !\n\n`;
 
       const top10 = ranking.slice(0, 10);
       for (let i = 0; i < top10.length; i++) {
         const player = top10[i];
         const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
         const bonusDiamonds = votesConfig.TOP_DIAMONDS[i + 1] || 0;
-        const totalGain = totalDiamonds + bonusDiamonds;
         const memberId = resolvePlayer(memberIndex, player.playername);
-        const mention = memberId ? `<@${memberId}>` : player.playername;
-        previewMessage += `${votesConfig.STYLE.placeIcons[i] || `**${i + 1}.**`} ${mention} — ${player.votes} votes — 💎 ${totalGain} distribués\n`;
+        const mention = memberId ? `<@${memberId}>` : `**${player.playername}**`;
+        
+        previewMessage += `**${i + 1}** - ${mention}\n`;
+        previewMessage += `Votes : ${player.votes} | Gains : ${totalDiamonds.toLocaleString('fr-FR')} ${votesConfig.STYLE.sparkly}\n`;
+        
+        if (i === 0) {
+          previewMessage += `+ Pack vote 1ère place + rôle <@&${votesConfig.TOP_VOTER_ROLE_ID}>\n`;
+        } else if (i === 1) {
+          previewMessage += `+ Pack vote 2ème place\n`;
+        } else if (i === 2) {
+          previewMessage += `+ Pack vote 3ème place\n`;
+        } else if (bonusDiamonds > 0) {
+          previewMessage += `+ ${bonusDiamonds.toLocaleString('fr-FR')} ${votesConfig.STYLE.sparkly}\n`;
+        }
+        previewMessage += `\n`;
       }
 
-      previewMessage += `\nUn grand Bravo à notre <@&${votesConfig.TOP_VOTER_ROLE_ID}> qui remporte la première place ! 🎉\n\n`;
-      previewMessage += `Pour les règles : ${votesConfig.VOTES_PER_REWARD_DISPLAY} votes = ${votesConfig.DIAMONDS_PER_REWARD_DISPLAY} ${votesConfig.STYLE.sparkly}\n`;
-      previewMessage += `Mémo récompenses ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.memoUrl}\n\n`;
-      previewMessage += `✅ **Diamants distribués !**\n\n`;
+      previewMessage += `---\n`;
+      previewMessage += `📋 Mémo récompenses ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.memoUrl}\n`;
       previewMessage += `-# Tirage Dino Shiny juste après 🦖\n`;
       previewMessage += `\n*[Bouton "Voir la liste complète" sera affiché ici]*\n`;
       previewMessage += `\n*[Roulette Dino Shiny sera lancée automatiquement après]*\n`;
