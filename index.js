@@ -54,7 +54,8 @@ client.on('interactionCreate', async interaction => {
         const player = fullList.data[i];
         const memberId = resolvePlayer(fullList.memberIndex, player.playername);
         const mention = memberId ? `<@${memberId}>` : player.playername;
-        listMessage += `**${i + 1}.** ${mention} — ${player.votes} votes — 💎 ${player.totalGain} distribués\n`;
+        const statusText = player.status === 'success' ? '✅' : player.status === 'failed' ? '❌ échec' : '⚠️ non trouvé';
+        listMessage += `**${i + 1}.** ${mention} — ${player.votes} votes — 💎 ${player.totalGain} ${statusText}\n`;
       }
 
       const chunks = listMessage.match(/[\s\S]{1,1900}/g) || [listMessage];
@@ -266,6 +267,7 @@ client.on('interactionCreate', async interaction => {
       const monthName = monthNameFr(lastMonth);
 
       const distributionResults = { success: 0, failed: 0, notFound: [] };
+      const playerStatus = {};
 
       for (const player of ranking) {
         const memberId = resolvePlayer(memberIndex, player.playername);
@@ -275,11 +277,14 @@ client.on('interactionCreate', async interaction => {
           const result = await addCashToUser(memberId, totalDiamonds + bonusDiamonds, `Votes ${monthName}`);
           if (result.success) {
             distributionResults.success++;
+            playerStatus[player.playername] = 'success';
           } else {
             distributionResults.failed++;
+            playerStatus[player.playername] = 'failed';
           }
         } else {
           distributionResults.notFound.push(player.playername);
+          playerStatus[player.playername] = 'notfound';
         }
       }
 
@@ -296,7 +301,9 @@ client.on('interactionCreate', async interaction => {
         const totalGain = totalDiamonds + bonusDiamonds;
         const memberId = resolvePlayer(memberIndex, player.playername);
         const mention = memberId ? `<@${memberId}>` : player.playername;
-        resultsMessage += `${votesConfig.STYLE.placeIcons[i] || `**${i + 1}.**`} ${mention} — ${player.votes} votes — 💎 ${totalGain} distribués\n`;
+        const status = playerStatus[player.playername];
+        const statusText = status === 'success' ? '✅' : status === 'failed' ? '❌ échec' : '⚠️ non trouvé';
+        resultsMessage += `${votesConfig.STYLE.placeIcons[i] || `**${i + 1}.**`} ${mention} — ${player.votes} votes — 💎 ${totalGain} ${statusText}\n`;
       }
 
       resultsMessage += `\nUn grand Bravo à notre <@&${votesConfig.TOP_VOTER_ROLE_ID}> qui remporte la première place ! 🎉\n\n`;
@@ -309,7 +316,8 @@ client.on('interactionCreate', async interaction => {
         const totalDiamonds = p.votes * votesConfig.DIAMONDS_PER_VOTE;
         const idx = ranking.indexOf(p);
         const bonusDiamonds = votesConfig.TOP_DIAMONDS[idx + 1] || 0;
-        return { ...p, totalGain: totalDiamonds + bonusDiamonds };
+        const status = playerStatus[p.playername];
+        return { ...p, totalGain: totalDiamonds + bonusDiamonds, status };
       });
       
       global.lastVotesFullList = { data: fullListData, monthName, memberIndex };
