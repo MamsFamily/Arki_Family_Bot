@@ -46,6 +46,10 @@ const commands = [
     name: 'pay-votes',
     description: 'Distribue uniquement les diamants sans publier de message (Admin et Modo)',
   },
+  {
+    name: 'dino-roulette',
+    description: 'Lance la roulette Dino Shiny avec le top 10 des votants (Admin et Modo)',
+  },
 ];
 
 const token = process.env.DISCORD_TOKEN;

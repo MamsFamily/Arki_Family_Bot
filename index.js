@@ -57,9 +57,13 @@ client.on('interactionCreate', async interaction => {
       }
 
       const chunks = listMessage.match(/[\s\S]{1,1900}/g) || [listMessage];
-      await interaction.reply({ content: chunks[0], ephemeral: true });
-      for (let i = 1; i < chunks.length; i++) {
-        await interaction.followUp({ content: chunks[i], ephemeral: true });
+      try {
+        await interaction.reply({ content: chunks[0], ephemeral: true });
+        for (let i = 1; i < chunks.length; i++) {
+          await interaction.followUp({ content: chunks[i], ephemeral: true });
+        }
+      } catch (err) {
+        console.log('⚠️ Interaction expirée pour le bouton liste complète');
       }
       return;
     }
@@ -594,6 +598,59 @@ client.on('interactionCreate', async interaction => {
       console.error('Erreur lors de la distribution:', error);
       await interaction.editReply({
         content: '❌ Une erreur est survenue lors de la distribution.',
+      });
+    }
+  }
+
+  if (commandName === 'dino-roulette') {
+    if (!hasRoulettePermission(interaction.member)) {
+      return interaction.reply({
+        content: '❌ Seuls les administrateurs et les Modos peuvent lancer la roulette Dino !',
+        ephemeral: true,
+      });
+    }
+
+    await interaction.deferReply();
+
+    try {
+      const ranking = await fetchTopserveursRanking(votesConfig.TOPSERVEURS_RANKING_URL);
+      
+      if (ranking.length === 0) {
+        return interaction.editReply({
+          content: '❌ Impossible de récupérer le classement des votes.',
+        });
+      }
+
+      const top10 = ranking.slice(0, 10);
+      
+      const rouletteWheel = new RouletteWheel(top10.map(p => p.playername), 'DINO');
+      const winningIndex = Math.floor(Math.random() * top10.length);
+      const gifBuffer = await rouletteWheel.generateAnimatedGif(winningIndex);
+      const winningChoice = rouletteWheel.getWinningChoice(winningIndex);
+      const attachment = new AttachmentBuilder(gifBuffer, { name: 'dino-shiny-roulette.gif' });
+
+      const resultsChannel = await client.channels.fetch(votesConfig.RESULTS_CHANNEL_ID);
+      
+      if (resultsChannel) {
+        await resultsChannel.send({
+          content: `## 🦖 Tirage Dino Shiny du mois !\n\nParticipants :\n${top10.map((p, i) => {
+            return `${i + 1}. **${p.playername}**`;
+          }).join('\n')}\n\n🎰 C'est parti !`,
+          files: [attachment]
+        });
+        
+        await resultsChannel.send(`## 🎉 Félicitations **${winningChoice}** !\n\nTu remportes le **Dino Shiny** du mois ! 🦖✨`);
+      }
+
+      await interaction.editReply({
+        content: `✅ Roulette Dino Shiny lancée dans <#${votesConfig.RESULTS_CHANNEL_ID}>\n🎉 Gagnant: **${winningChoice}**`,
+      });
+      console.log(`🦖 Roulette Dino Shiny lancée par ${interaction.user.tag}, gagnant: ${winningChoice}`);
+
+    } catch (error) {
+      console.error('Erreur lors de la roulette Dino:', error);
+      await interaction.editReply({
+        content: '❌ Une erreur est survenue lors de la roulette.',
       });
     }
   }
