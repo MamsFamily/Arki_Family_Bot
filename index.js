@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, AttachmentBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, AttachmentBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const fs = require('fs');
 const RouletteWheel = require('./rouletteWheel');
 const { initDatabase } = require('./database');
@@ -40,6 +40,32 @@ client.once('clientReady', () => {
 });
 
 client.on('interactionCreate', async interaction => {
+  if (interaction.isButton()) {
+    if (interaction.customId === 'show_full_votes_list') {
+      const fullList = global.lastVotesFullList;
+      if (!fullList || !fullList.data) {
+        return interaction.reply({ content: '❌ Aucune liste disponible.', ephemeral: true });
+      }
+
+      let listMessage = `## 📋 Liste complète des votes - ${fullList.monthName}\n\n`;
+      listMessage += `*Joueurs avec 10+ votes :*\n\n`;
+      
+      for (let i = 0; i < fullList.data.length; i++) {
+        const player = fullList.data[i];
+        const memberId = resolvePlayer(fullList.memberIndex, player.playername);
+        const mention = memberId ? `<@${memberId}>` : player.playername;
+        listMessage += `**${i + 1}.** ${mention} — ${player.votes} votes — 💎 ${player.totalGain} distribués\n`;
+      }
+
+      const chunks = listMessage.match(/[\s\S]{1,1900}/g) || [listMessage];
+      await interaction.reply({ content: chunks[0], ephemeral: true });
+      for (let i = 1; i < chunks.length; i++) {
+        await interaction.followUp({ content: chunks[i], ephemeral: true });
+      }
+      return;
+    }
+  }
+
   if (!interaction.isChatInputCommand()) return;
 
   const { commandName } = interaction;
@@ -259,57 +285,69 @@ client.on('interactionCreate', async interaction => {
 
       let resultsMessage = `# Hello la Family\n${votesConfig.STYLE.logo} \n\n`;
       resultsMessage += `## ${votesConfig.STYLE.fireworks} C'est le jour de Paie ${votesConfig.STYLE.fireworks} \n`;
-      resultsMessage += `${votesConfig.STYLE.logo} \n\n\n`;
-      resultsMessage += `Voici donc les résultats des votes du mois de ${monthName} :\n\n\n`;
+      resultsMessage += `${votesConfig.STYLE.logo} \n\n`;
+      resultsMessage += `Voici les résultats des votes du mois de **${monthName}** :\n\n`;
 
       const top10 = ranking.slice(0, 10);
       for (let i = 0; i < top10.length; i++) {
         const player = top10[i];
-        resultsMessage += `    •    ${i + 1} ${votesConfig.STYLE.arrow} ${player.votes} ${player.playername}\n`;
-      }
-
-      const others = ranking.slice(10).filter(p => p.votes >= 10);
-      if (others.length > 0) {
-        resultsMessage += '\n';
-        for (const player of others) {
-          resultsMessage += `    •    ${player.votes} ${player.playername}\n`;
-        }
-      }
-
-      const topVoterMemberId = resolvePlayer(memberIndex, ranking[0]?.playername);
-      resultsMessage += `\nUn grand Bravo à notre <@&${votesConfig.TOP_VOTER_ROLE_ID}>  qui remporte la première place et le rôle qui va avec ! 🎉\n\n`;
-
-      resultsMessage += `Merci à notre podium de ce mois-ci :\n`;
-      const placeNames = ['Première', 'Seconde', 'Troisième', 'Quatrième', 'Cinquième'];
-      const top5 = ranking.slice(0, 5);
-      for (let i = 0; i < top5.length; i++) {
-        const player = top5[i];
+        const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
+        const bonusDiamonds = votesConfig.TOP_DIAMONDS[i + 1] || 0;
+        const totalGain = totalDiamonds + bonusDiamonds;
         const memberId = resolvePlayer(memberIndex, player.playername);
-        const mention = memberId ? `<@${memberId}>` : `@${player.playername}`;
-        resultsMessage += `    •    ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.placeIcons[i]} ${placeNames[i]} place ${mention} \n`;
+        const mention = memberId ? `<@${memberId}>` : player.playername;
+        resultsMessage += `${votesConfig.STYLE.placeIcons[i] || `**${i + 1}.**`} ${mention} — ${player.votes} votes — 💎 ${totalGain} distribués\n`;
       }
 
-      resultsMessage += `\nPour les règles des votes, toujours les mêmes, ${votesConfig.VOTES_PER_REWARD_DISPLAY} votes = ${votesConfig.DIAMONDS_PER_REWARD_DISPLAY} diamants ${votesConfig.STYLE.sparkly} que l'on vous verse le mois suivant 🤩\n\n`;
-      resultsMessage += `En mémo, voici les récompenses pour le top 10 ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.memoUrl}\n\n`;
-      resultsMessage += `.\n\n`;
-      resultsMessage += `-# Tirage au sort des 10 premiers pour le Dino Shiny juste après la distribution des récompenses votes\n\n`;
-      resultsMessage += `🫶\n\n`;
+      resultsMessage += `\nUn grand Bravo à notre <@&${votesConfig.TOP_VOTER_ROLE_ID}> qui remporte la première place ! 🎉\n\n`;
+      resultsMessage += `Pour les règles : ${votesConfig.VOTES_PER_REWARD_DISPLAY} votes = ${votesConfig.DIAMONDS_PER_REWARD_DISPLAY} ${votesConfig.STYLE.sparkly}\n`;
+      resultsMessage += `Mémo récompenses ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.memoUrl}\n\n`;
+      resultsMessage += `✅ **Diamants distribués !**\n\n`;
+      resultsMessage += `-# Tirage Dino Shiny juste après 🦖\n`;
+
+      const fullListData = ranking.filter(p => p.votes >= 10).map(p => {
+        const totalDiamonds = p.votes * votesConfig.DIAMONDS_PER_VOTE;
+        const idx = ranking.indexOf(p);
+        const bonusDiamonds = votesConfig.TOP_DIAMONDS[idx + 1] || 0;
+        return { ...p, totalGain: totalDiamonds + bonusDiamonds };
+      });
+      
+      global.lastVotesFullList = { data: fullListData, monthName, memberIndex };
+
+      const button = new ButtonBuilder()
+        .setCustomId('show_full_votes_list')
+        .setLabel('📋 Voir la liste complète')
+        .setStyle(ButtonStyle.Secondary);
+      const row = new ActionRowBuilder().addComponents(button);
 
       const resultsChannel = await client.channels.fetch(votesConfig.RESULTS_CHANNEL_ID);
       if (resultsChannel) {
-        const chunks = resultsMessage.match(/[\s\S]{1,1900}/g) || [resultsMessage];
-        for (let i = 0; i < chunks.length; i++) {
-          let chunk = chunks[i];
-          if (votesConfig.STYLE.everyonePing) {
-            if (i === 0) {
-              chunk = `|| @everyone ||\n` + chunk;
-            }
-            if (i === 1) {
-              chunk = chunk + `\n|| @everyone ||`;
-            }
-          }
-          await resultsChannel.send(chunk);
+        let finalMessage = resultsMessage;
+        if (votesConfig.STYLE.everyonePing) {
+          finalMessage = `|| @everyone ||\n` + finalMessage;
         }
+        await resultsChannel.send({ content: finalMessage, components: [row] });
+      }
+
+      const rouletteWheel = new RouletteWheel(top10.map(p => p.playername), 'DINO');
+      const winningIndex = Math.floor(Math.random() * top10.length);
+      const gifBuffer = await rouletteWheel.generateAnimatedGif(winningIndex);
+      const winningChoice = rouletteWheel.getWinningChoice(winningIndex);
+      const attachment = new AttachmentBuilder(gifBuffer, { name: 'dino-shiny-roulette.gif' });
+      
+      const winnerMemberId = resolvePlayer(memberIndex, winningChoice);
+      const winnerMention = winnerMemberId ? `<@${winnerMemberId}>` : winningChoice;
+
+      if (resultsChannel) {
+        await resultsChannel.send({
+          content: `## 🦖 Tirage Dino Shiny du mois !\n\nParticipants :\n${top10.map((p, i) => {
+            const mid = resolvePlayer(memberIndex, p.playername);
+            return `${i + 1}. ${mid ? `<@${mid}>` : p.playername}`;
+          }).join('\n')}\n\n🎰 C'est parti !`,
+          files: [attachment]
+        });
+        
+        await resultsChannel.send(`## 🎉 Félicitations ${winnerMention} !\n\nTu remportes le **Dino Shiny** du mois ! 🦖✨`);
       }
 
       const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);
@@ -372,58 +410,40 @@ client.on('interactionCreate', async interaction => {
 
       let previewMessage = `# Hello la Family\n${votesConfig.STYLE.logo} \n\n`;
       previewMessage += `## ${votesConfig.STYLE.fireworks} C'est le jour de Paie ${votesConfig.STYLE.fireworks} \n`;
-      previewMessage += `${votesConfig.STYLE.logo} \n\n\n`;
-      previewMessage += `Voici donc les résultats des votes du mois de ${monthName} :\n\n\n`;
+      previewMessage += `${votesConfig.STYLE.logo} \n\n`;
+      previewMessage += `Voici les résultats des votes du mois de **${monthName}** :\n\n`;
 
       const top10 = ranking.slice(0, 10);
       for (let i = 0; i < top10.length; i++) {
         const player = top10[i];
-        previewMessage += `    •    ${i + 1} ${votesConfig.STYLE.arrow} ${player.votes} ${player.playername}\n`;
-      }
-
-      const others = ranking.slice(10).filter(p => p.votes >= 10);
-      if (others.length > 0) {
-        previewMessage += '\n';
-        for (const player of others) {
-          previewMessage += `    •    ${player.votes} ${player.playername}\n`;
-        }
-      }
-
-      previewMessage += `\nUn grand Bravo à notre <@&${votesConfig.TOP_VOTER_ROLE_ID}>  qui remporte la première place et le rôle qui va avec ! 🎉\n\n`;
-
-      previewMessage += `Merci à notre podium de ce mois-ci :\n`;
-      const placeNames = ['Première', 'Seconde', 'Troisième', 'Quatrième', 'Cinquième'];
-      const top5 = ranking.slice(0, 5);
-      for (let i = 0; i < top5.length; i++) {
-        const player = top5[i];
+        const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
+        const bonusDiamonds = votesConfig.TOP_DIAMONDS[i + 1] || 0;
+        const totalGain = totalDiamonds + bonusDiamonds;
         const memberId = resolvePlayer(memberIndex, player.playername);
-        const mention = memberId ? `<@${memberId}>` : `@${player.playername}`;
-        previewMessage += `    •    ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.placeIcons[i]} ${placeNames[i]} place ${mention} \n`;
+        const mention = memberId ? `<@${memberId}>` : player.playername;
+        previewMessage += `${votesConfig.STYLE.placeIcons[i] || `**${i + 1}.**`} ${mention} — ${player.votes} votes — 💎 ${totalGain} distribués\n`;
       }
 
-      previewMessage += `\nPour les règles des votes, toujours les mêmes, ${votesConfig.VOTES_PER_REWARD_DISPLAY} votes = ${votesConfig.DIAMONDS_PER_REWARD_DISPLAY} diamants ${votesConfig.STYLE.sparkly} que l'on vous verse le mois suivant 🤩\n\n`;
-      previewMessage += `En mémo, voici les récompenses pour le top 10 ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.memoUrl}\n\n`;
-      previewMessage += `.\n\n`;
-      previewMessage += `-# Tirage au sort des 10 premiers pour le Dino Shiny juste après la distribution des récompenses votes\n\n`;
-      previewMessage += `🫶\n\n`;
+      previewMessage += `\nUn grand Bravo à notre <@&${votesConfig.TOP_VOTER_ROLE_ID}> qui remporte la première place ! 🎉\n\n`;
+      previewMessage += `Pour les règles : ${votesConfig.VOTES_PER_REWARD_DISPLAY} votes = ${votesConfig.DIAMONDS_PER_REWARD_DISPLAY} ${votesConfig.STYLE.sparkly}\n`;
+      previewMessage += `Mémo récompenses ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.memoUrl}\n\n`;
+      previewMessage += `✅ **Diamants distribués !**\n\n`;
+      previewMessage += `-# Tirage Dino Shiny juste après 🦖\n`;
+      previewMessage += `\n*[Bouton "Voir la liste complète" sera affiché ici]*\n`;
+      previewMessage += `\n*[Roulette Dino Shiny sera lancée automatiquement après]*\n`;
 
       const foundCount = ranking.filter(p => resolvePlayer(memberIndex, p.playername)).length;
       const notFoundList = ranking.filter(p => !resolvePlayer(memberIndex, p.playername)).map(p => p.playername);
 
       const testChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
       if (testChannel) {
-        const chunks = previewMessage.match(/[\s\S]{1,1900}/g) || [previewMessage];
         await testChannel.send(`⚠️ **TEST - PRÉVISUALISATION** ⚠️`);
-        for (let i = 0; i < chunks.length; i++) {
-          let chunk = chunks[i];
-          if (votesConfig.STYLE.everyonePing) {
-            if (i === 0) {
-              chunk = `|| @everyone ||\n` + chunk;
-            }
-            if (i === 1) {
-              chunk = chunk + `\n|| @everyone ||`;
-            }
-          }
+        let finalMessage = previewMessage;
+        if (votesConfig.STYLE.everyonePing) {
+          finalMessage = `|| @everyone ||\n` + finalMessage;
+        }
+        const chunks = finalMessage.match(/[\s\S]{1,1900}/g) || [finalMessage];
+        for (const chunk of chunks) {
           await testChannel.send(chunk);
         }
         

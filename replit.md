@@ -16,10 +16,14 @@ Bot Discord avec deux fonctionnalités principales :
 
 ### Votes mensuels
 - **Commande /votes**: Affiche le classement des votes du mois dernier (admin et Modo)
-- **Commande /publish-votes**: Publie les résultats et distribue automatiquement les récompenses (admin et Modo)
+- **Commande /publish-votes**: Publie les résultats avec gains, bouton liste complète, et lance la roulette Dino Shiny
+- **Commande /pay-votes**: Distribue uniquement les diamants sans publier de message public
+- **Commande /test-votes**: Prévisualise les résultats sans rien publier ni distribuer
 - Intégration avec l'API TopServeurs pour récupérer les données de votes
 - **Distribution automatique des diamants** via l'API UnbelievaBoat (100 💎 par vote)
 - **Génération des commandes DraftBot** à copier-coller pour les items du top 3
+- **Bouton interactif** pour afficher la liste complète des votants (10+ votes)
+- **Roulette Dino Shiny automatique** après publication des résultats
 - Récompenses spéciales pour le top 5 (lots pour top 3, diamants bonus pour 4-5)
 
 ### Permissions
@@ -61,7 +65,8 @@ Bot Discord avec deux fonctionnalités principales :
 
 ## Configuration des votes (votesConfig.js)
 - `GUILD_ID`: ID du serveur Discord (1156256997403000874)
-- `RESULTS_CHANNEL_ID`: ID du canal où publier les résultats
+- `RESULTS_CHANNEL_ID`: ID du canal où publier les résultats (1157994586774442085)
+- `ADMIN_LOG_CHANNEL_ID`: ID du canal admin pour les rapports (1457048610939207769)
 - `TOPSERVEURS_RANKING_URL`: URL de l'API TopServeurs
 - `DIAMONDS_PER_VOTE`: Diamants par vote (100 par défaut)
 - `TOP_LOTS`: Récompenses spéciales pour le top 3 (items DraftBot)
@@ -74,8 +79,10 @@ Bot Discord avec deux fonctionnalités principales :
 4. Utiliser les commandes disponibles
 
 ## Changements récents
+- 2026-02-01: Nouveau format de publication avec gains affichés, bouton liste complète, et roulette Dino Shiny automatique
+- 2026-02-01: Amélioration du matching de noms (globalName, nickname, fuzzy matching)
+- 2026-01-03: Ajout de la commande /pay-votes pour distribution seule
 - 2026-01-03: Distribution automatique des diamants via UnbelievaBoat API
 - 2026-01-03: Génération automatique des commandes DraftBot à copier-coller
 - 2026-01-03: Ajout du système de votes mensuels avec TopServeurs API
-- 2026-01-03: Nouvelles commandes /votes et /publish-votes
 - 2025-10-15: Création initiale du bot avec animation de roulette
