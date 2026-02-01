@@ -52,10 +52,8 @@ client.on('interactionCreate', async interaction => {
       
       for (let i = 0; i < fullList.data.length; i++) {
         const player = fullList.data[i];
-        const memberId = resolvePlayer(fullList.memberIndex, player.playername);
-        const mention = memberId ? `<@${memberId}>` : player.playername;
-        const statusText = player.status === 'success' ? '✅' : player.status === 'failed' ? '❌ échec' : '⚠️ non trouvé';
-        listMessage += `**${i + 1}.** ${mention} — ${player.votes} votes — 💎 ${player.totalGain} ${statusText}\n`;
+        const statusText = player.status === 'success' ? '✅' : player.status === 'failed' ? '❌ échec' : player.status === 'pending' ? '⏳' : '⚠️ non trouvé';
+        listMessage += `**${i + 1}.** **${player.playername}** — ${player.votes} votes — 💎 ${player.totalGain} ${statusText}\n`;
       }
 
       const chunks = listMessage.match(/[\s\S]{1,1900}/g) || [listMessage];
@@ -298,11 +296,10 @@ client.on('interactionCreate', async interaction => {
         const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
         const bonusDiamonds = votesConfig.TOP_DIAMONDS[i + 1] || 0;
         const memberId = resolvePlayer(memberIndex, player.playername);
-        const mention = memberId ? `<@${memberId}>` : `**${player.playername}**`;
         const status = playerStatus[player.playername];
         const statusIcon = status === 'success' ? '' : status === 'failed' ? ' ❌' : ' ⚠️';
         
-        resultsMessage += `**${i + 1}** - ${mention}${statusIcon}\n`;
+        resultsMessage += `**${i + 1}** - **${player.playername}**${statusIcon}\n`;
         resultsMessage += `Votes : ${player.votes} | Gains : ${totalDiamonds.toLocaleString('fr-FR')} ${votesConfig.STYLE.sparkly}\n`;
         
         if (i === 0) {
@@ -352,19 +349,15 @@ client.on('interactionCreate', async interaction => {
       const winningChoice = rouletteWheel.getWinningChoice(winningIndex);
       const attachment = new AttachmentBuilder(gifBuffer, { name: 'dino-shiny-roulette.gif' });
       
-      const winnerMemberId = resolvePlayer(memberIndex, winningChoice);
-      const winnerMention = winnerMemberId ? `<@${winnerMemberId}>` : winningChoice;
-
       if (resultsChannel) {
         await resultsChannel.send({
           content: `## 🦖 Tirage Dino Shiny du mois !\n\nParticipants :\n${top10.map((p, i) => {
-            const mid = resolvePlayer(memberIndex, p.playername);
-            return `${i + 1}. ${mid ? `<@${mid}>` : p.playername}`;
+            return `${i + 1}. **${p.playername}**`;
           }).join('\n')}\n\n🎰 C'est parti !`,
           files: [attachment]
         });
         
-        await resultsChannel.send(`## 🎉 Félicitations ${winnerMention} !\n\nTu remportes le **Dino Shiny** du mois ! 🦖✨`);
+        await resultsChannel.send(`## 🎉 Félicitations **${winningChoice}** !\n\nTu remportes le **Dino Shiny** du mois ! 🦖✨`);
       }
 
       const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);
@@ -435,9 +428,8 @@ client.on('interactionCreate', async interaction => {
         const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
         const bonusDiamonds = votesConfig.TOP_DIAMONDS[i + 1] || 0;
         const memberId = resolvePlayer(memberIndex, player.playername);
-        const mention = memberId ? `<@${memberId}>` : `**${player.playername}**`;
         
-        previewMessage += `**${i + 1}** - ${mention}\n`;
+        previewMessage += `**${i + 1}** - **${player.playername}**\n`;
         previewMessage += `Votes : ${player.votes} | Gains : ${totalDiamonds.toLocaleString('fr-FR')} ${votesConfig.STYLE.sparkly}\n`;
         
         if (i === 0) {
@@ -507,18 +499,14 @@ client.on('interactionCreate', async interaction => {
         const winningChoice = rouletteWheel.getWinningChoice(winningIndex);
         const attachment = new AttachmentBuilder(gifBuffer, { name: 'dino-shiny-roulette.gif' });
         
-        const winnerMemberId = resolvePlayer(memberIndex, winningChoice);
-        const winnerMention = winnerMemberId ? `<@${winnerMemberId}>` : winningChoice;
-
         await testChannel.send({
           content: `## 🦖 Tirage Dino Shiny du mois !\n\nParticipants :\n${top10.map((p, i) => {
-            const mid = resolvePlayer(memberIndex, p.playername);
-            return `${i + 1}. ${mid ? `<@${mid}>` : p.playername}`;
+            return `${i + 1}. **${p.playername}**`;
           }).join('\n')}\n\n🎰 C'est parti !`,
           files: [attachment]
         });
         
-        await testChannel.send(`## 🎉 Félicitations ${winnerMention} !\n\nTu remportes le **Dino Shiny** du mois ! 🦖✨`);
+        await testChannel.send(`## 🎉 Félicitations **${winningChoice}** !\n\nTu remportes le **Dino Shiny** du mois ! 🦖✨`);
       }
 
       await interaction.editReply({ 
