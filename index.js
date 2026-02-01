@@ -52,7 +52,7 @@ client.on('interactionCreate', async interaction => {
       
       for (let i = 0; i < fullList.data.length; i++) {
         const player = fullList.data[i];
-        const statusText = player.status === 'success' ? '✅' : player.status === 'failed' ? '❌ échec' : player.status === 'pending' ? '⏳' : '⚠️ non trouvé';
+        const statusText = player.status === 'success' ? '✅' : player.status === 'failed' ? '❌ échec' : player.status === 'notfound' ? '⚠️ non trouvé' : '✅';
         listMessage += `**${i + 1}.** **${player.playername}** — ${player.votes} votes — 💎 ${player.totalGain} ${statusText}\n`;
       }
 
@@ -315,7 +315,7 @@ client.on('interactionCreate', async interaction => {
       }
 
       resultsMessage += `---\n`;
-      resultsMessage += `📋 Mémo récompenses ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.memoUrl}\n`;
+      resultsMessage += `Pour mémo, vous retrouverez la liste des récompenses votes à gagner ici ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.memoUrl}\n\n`;
       resultsMessage += `-# Tirage Dino Shiny juste après 🦖\n`;
 
       const fullListData = ranking.filter(p => p.votes >= 10).map(p => {
@@ -445,7 +445,7 @@ client.on('interactionCreate', async interaction => {
       }
 
       previewMessage += `---\n`;
-      previewMessage += `📋 Mémo récompenses ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.memoUrl}\n`;
+      previewMessage += `Pour mémo, vous retrouverez la liste des récompenses votes à gagner ici ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.memoUrl}\n\n`;
       previewMessage += `-# Tirage Dino Shiny juste après 🦖\n`;
 
       const foundCount = ranking.filter(p => resolvePlayer(memberIndex, p.playername)).length;
