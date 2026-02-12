@@ -6,6 +6,7 @@ const { fetchTopserveursRanking } = require('./topserveursService');
 const { monthNameFr, formatRewards, buildMemberIndex, resolvePlayer } = require('./votesUtils');
 const votesConfig = require('./votesConfig');
 const { addCashToUser, generateDraftBotCommands } = require('./unbelievaboatService');
+const { translate } = require('@vitalets/google-translate-api');
 
 const client = new Client({
   intents: [
@@ -596,6 +597,34 @@ client.on('interactionCreate', async interaction => {
       console.error('Erreur lors de la distribution:', error);
       await interaction.editReply({
         content: '❌ Une erreur est survenue lors de la distribution.',
+      });
+    }
+  }
+
+  if (commandName === 'translate') {
+    const texte = interaction.options.getString('texte');
+    await interaction.deferReply();
+
+    try {
+      const result = await translate(texte, { to: 'fr' });
+      
+      let response = `## 🌐 Traduction\n\n`;
+      response += `**Original :**\n${texte}\n\n`;
+      response += `**Français :**\n${result.text}`;
+      
+      if (response.length > 2000) {
+        const chunks = response.match(/[\s\S]{1,1900}/g) || [response];
+        await interaction.editReply({ content: chunks[0] });
+        for (let i = 1; i < chunks.length; i++) {
+          await interaction.followUp({ content: chunks[i] });
+        }
+      } else {
+        await interaction.editReply({ content: response });
+      }
+    } catch (error) {
+      console.error('Erreur de traduction:', error);
+      await interaction.editReply({
+        content: '❌ Une erreur est survenue lors de la traduction.',
       });
     }
   }

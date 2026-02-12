@@ -50,6 +50,18 @@ const commands = [
     name: 'dino-roulette',
     description: 'Lance la roulette Dino Shiny avec le top 10 des votants (Admin et Modo)',
   },
+  {
+    name: 'translate',
+    description: 'Traduit un texte en français',
+    options: [
+      {
+        name: 'texte',
+        type: 3,
+        description: 'Le texte à traduire en français',
+        required: true,
+      },
+    ],
+  },
 ];
 
 const token = process.env.DISCORD_TOKEN;
