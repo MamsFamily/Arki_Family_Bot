@@ -12,6 +12,8 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
   ],
 });
 
@@ -602,15 +604,60 @@ client.on('interactionCreate', async interaction => {
   }
 
   if (commandName === 'traduction') {
-    const texte = interaction.options.getString('texte');
+    const input = interaction.options.getString('message');
     await interaction.deferReply();
 
     try {
-      const result = await translate(texte, { to: 'fr' });
+      let messageContent = '';
+      let channelId = null;
+      let messageId = null;
+
+      const linkMatch = input.match(/discord\.com\/channels\/(\d+)\/(\d+)\/(\d+)/);
+      if (linkMatch) {
+        channelId = linkMatch[2];
+        messageId = linkMatch[3];
+      } else if (/^\d+$/.test(input.trim())) {
+        messageId = input.trim();
+        channelId = interaction.channelId;
+      }
+
+      if (channelId && messageId) {
+        const channel = await client.channels.fetch(channelId);
+        const msg = await channel.messages.fetch(messageId);
+        messageContent = msg.content;
+      } else {
+        messageContent = input;
+      }
+
+      if (!messageContent || messageContent.trim() === '') {
+        return interaction.editReply({ content: '❌ Le message est vide ou introuvable.' });
+      }
+
+      const lines = messageContent.split('\n');
+      const translatedLines = [];
       
-      let response = `## 🌐 Traduction\n\n`;
-      response += `**Original :**\n${texte}\n\n`;
-      response += `**Français :**\n${result.text}`;
+      for (const line of lines) {
+        if (line.trim() === '' || line.trim() === '---' || /^[#]+\s*$/.test(line.trim())) {
+          translatedLines.push(line);
+          continue;
+        }
+
+        const mdPrefix = line.match(/^(\s*(?:[#]+\s|[-*]\s|>\s|\d+\.\s|`{3}.*)?)/);
+        const prefix = mdPrefix ? mdPrefix[1] : '';
+        const textPart = line.slice(prefix.length);
+
+        if (textPart.trim() === '') {
+          translatedLines.push(line);
+          continue;
+        }
+
+        const result = await translate(textPart, { to: 'fr' });
+        translatedLines.push(prefix + result.text);
+      }
+
+      const translatedText = translatedLines.join('\n');
+      
+      let response = `## 🌐 Traduction\n\n${translatedText}`;
       
       if (response.length > 2000) {
         const chunks = response.match(/[\s\S]{1,1900}/g) || [response];
@@ -624,7 +671,7 @@ client.on('interactionCreate', async interaction => {
     } catch (error) {
       console.error('Erreur de traduction:', error);
       await interaction.editReply({
-        content: '❌ Une erreur est survenue lors de la traduction.',
+        content: '❌ Une erreur est survenue lors de la traduction. Vérifie que le lien ou l\'identifiant du message est correct.',
       });
     }
   }

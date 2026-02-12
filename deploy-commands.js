@@ -52,12 +52,12 @@ const commands = [
   },
   {
     name: 'traduction',
-    description: 'Traduit un texte en français',
+    description: 'Traduit un message en français',
     options: [
       {
-        name: 'texte',
+        name: 'message',
         type: 3,
-        description: 'Le texte à traduire en français',
+        description: 'Le lien ou l\'identifiant du message à traduire',
         required: true,
       },
     ],
