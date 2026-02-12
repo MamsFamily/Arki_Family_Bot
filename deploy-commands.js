@@ -51,7 +51,7 @@ const commands = [
     description: 'Lance la roulette Dino Shiny avec le top 10 des votants (Admin et Modo)',
   },
   {
-    name: 'translate',
+    name: 'traduction',
     description: 'Traduit un texte en français',
     options: [
       {

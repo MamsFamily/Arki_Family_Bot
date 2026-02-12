@@ -601,7 +601,7 @@ client.on('interactionCreate', async interaction => {
     }
   }
 
-  if (commandName === 'translate') {
+  if (commandName === 'traduction') {
     const texte = interaction.options.getString('texte');
     await interaction.deferReply();
 
