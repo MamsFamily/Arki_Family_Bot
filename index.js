@@ -14,6 +14,7 @@ const client = new Client({
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMessageReactions,
   ],
 });
 
@@ -40,6 +41,55 @@ client.once('clientReady', () => {
   console.log('   /show-choices - Affiche les choix actuels');
   console.log('   /votes - Affiche le classement des votes');
   console.log('   /publish-votes - Publie les résultats mensuels');
+});
+
+client.on('messageReactionAdd', async (reaction, user) => {
+  if (user.bot) return;
+  if (reaction.emoji.name !== '🇫🇷') return;
+
+  try {
+    if (reaction.partial) await reaction.fetch();
+    if (reaction.message.partial) await reaction.message.fetch();
+
+    const messageContent = reaction.message.content;
+    if (!messageContent || messageContent.trim() === '') return;
+
+    const lines = messageContent.split('\n');
+    const translatedLines = [];
+
+    for (const line of lines) {
+      if (line.trim() === '' || line.trim() === '---') {
+        translatedLines.push(line);
+        continue;
+      }
+
+      const mdPrefix = line.match(/^(\s*(?:[#]+\s|[-*]\s|>\s|\d+\.\s|`{3}.*)?)/);
+      const prefix = mdPrefix ? mdPrefix[1] : '';
+      const textPart = line.slice(prefix.length);
+
+      if (textPart.trim() === '') {
+        translatedLines.push(line);
+        continue;
+      }
+
+      const result = await translate(textPart, { to: 'fr' });
+      translatedLines.push(prefix + result.text);
+    }
+
+    const translatedText = translatedLines.join('\n');
+    let response = `## 🇫🇷 Traduction\n\n${translatedText}`;
+
+    if (response.length > 2000) {
+      const chunks = response.match(/[\s\S]{1,1900}/g) || [response];
+      for (const chunk of chunks) {
+        await reaction.message.channel.send(chunk);
+      }
+    } else {
+      await reaction.message.channel.send(response);
+    }
+  } catch (error) {
+    console.error('Erreur traduction par réaction:', error);
+  }
 });
 
 client.on('interactionCreate', async interaction => {
