@@ -45,7 +45,9 @@ client.once('clientReady', () => {
 
 client.on('messageReactionAdd', async (reaction, user) => {
   if (user.bot) return;
-  if (reaction.emoji.name !== '🇫🇷') return;
+  const langMap = { '🇫🇷': 'fr', '🇬🇧': 'en' };
+  const lang = langMap[reaction.emoji.name];
+  if (!lang) return;
 
   try {
     if (reaction.partial) await reaction.fetch();
@@ -72,12 +74,13 @@ client.on('messageReactionAdd', async (reaction, user) => {
         continue;
       }
 
-      const result = await translate(textPart, { to: 'fr' });
+      const result = await translate(textPart, { to: lang });
       translatedLines.push(prefix + result.text);
     }
 
     const translatedText = translatedLines.join('\n');
-    let response = `## 🇫🇷 Traduction\n\n${translatedText}`;
+    const flag = lang === 'fr' ? '🇫🇷' : '🇬🇧';
+    let response = `## ${flag} Traduction\n\n${translatedText}`;
 
     if (response.length > 2000) {
       const chunks = response.match(/[\s\S]{1,1900}/g) || [response];
