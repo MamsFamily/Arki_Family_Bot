@@ -1,3 +1,7 @@
+<button class="mobile-menu-btn" onclick="document.querySelector('.sidebar').classList.add('open');document.querySelector('.sidebar-overlay').classList.add('show')" aria-label="Menu">
+  <span></span><span></span><span></span>
+</button>
+<div class="sidebar-overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('show')"></div>
 <aside class="sidebar">
   <div class="sidebar-header">
     <div class="bot-avatar">
@@ -11,6 +15,7 @@
       <h2><%= botUser ? botUser.username : 'Arki Bot' %></h2>
       <span>● En ligne</span>
     </div>
+    <button class="sidebar-close" onclick="document.querySelector('.sidebar').classList.remove('open');document.querySelector('.sidebar-overlay').classList.remove('show')" aria-label="Fermer">✕</button>
   </div>
   <nav class="sidebar-nav">
     <a href="/" class="nav-link <%= path === '/' ? 'active' : '' %>">
