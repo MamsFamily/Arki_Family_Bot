@@ -23,9 +23,19 @@ args = "Bot"
 name = "Bot"
 author = "agent"
 
+[workflows.workflow.metadata]
+outputType = "webview"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "node index.js"
+waitForPort = 5000
 
-[workflows.workflow.metadata]
-outputType = "console"
+[userenv]
+
+[userenv.shared]
+DASHBOARD_PASSWORD = "arki2024"
+
+[[ports]]
+localPort = 5000
+externalPort = 80

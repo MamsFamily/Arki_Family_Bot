@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tableau de bord - Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>Tableau de bord</h1>
+        <p>Vue d'ensemble de votre bot Discord</p>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">🖥️</div>
+          <div class="stat-value"><%= guildCount %></div>
+          <div class="stat-label">Serveurs</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">👥</div>
+          <div class="stat-value"><%= memberCount.toLocaleString('fr-FR') %></div>
+          <div class="stat-label">Membres</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🎰</div>
+          <div class="stat-value"><%= config.rouletteChoices.length %></div>
+          <div class="stat-label">Choix roulette</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">⏱️</div>
+          <div class="stat-value"><%= Math.floor(uptime / 3600) %>h<%= Math.floor((uptime % 3600) / 60).toString().padStart(2, '0') %></div>
+          <div class="stat-label">Uptime</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>🎰 Roulette actuelle</h2>
+        </div>
+        <div class="card-body">
+          <p style="margin-bottom: 12px; color: var(--text-secondary);">Titre : <strong style="color: var(--text-primary);"><%= config.rouletteTitle || 'ARKI' %></strong></p>
+          <div class="choice-list">
+            <% config.rouletteChoices.forEach(c => { %>
+              <span class="choice-tag"><%= c %></span>
+            <% }) %>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>💎 Configuration votes</h2>
+        </div>
+        <div class="card-body">
+          <div class="config-item">
+            <span class="config-label">Diamants par vote</span>
+            <span class="config-value"><%= votesConfig.DIAMONDS_PER_VOTE %></span>
+          </div>
+          <div class="config-item">
+            <span class="config-label">Bonus 4ème place</span>
+            <span class="config-value"><%= votesConfig.TOP_DIAMONDS[4] || 0 %> 💎</span>
+          </div>
+          <div class="config-item">
+            <span class="config-label">Bonus 5ème place</span>
+            <span class="config-value"><%= votesConfig.TOP_DIAMONDS[5] || 0 %> 💎</span>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

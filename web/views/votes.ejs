@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Votes - Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>📊 Classement des votes</h1>
+        <p>Résultats du mois : <%= monthName || 'N/A' %></p>
+      </div>
+
+      <% if (error) { %>
+        <div class="alert alert-error">❌ <%= error %></div>
+      <% } %>
+
+      <% if (ranking.length === 0) { %>
+        <div class="empty-state">
+          <div class="icon">📊</div>
+          <p>Aucune donnée de votes disponible</p>
+        </div>
+      <% } else { %>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon">🗳️</div>
+            <div class="stat-value"><%= ranking.length %></div>
+            <div class="stat-label">Votants</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">📈</div>
+            <div class="stat-value"><%= ranking.reduce((s, p) => s + p.votes, 0) %></div>
+            <div class="stat-label">Votes totaux</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🏆</div>
+            <div class="stat-value"><%= ranking[0] ? ranking[0].playername : '-' %></div>
+            <div class="stat-label">Premier</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">💎</div>
+            <div class="stat-value"><%= ranking.reduce((s, p) => s + p.votes * votesConfig.DIAMONDS_PER_VOTE, 0).toLocaleString('fr-FR') %></div>
+            <div class="stat-label">Diamants à distribuer</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Classement</h2>
+            <span style="color: var(--text-muted); font-size: 13px;">Top <%= Math.min(ranking.length, 30) %></span>
+          </div>
+          <div class="card-body" style="padding: 0;">
+            <table class="votes-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Joueur</th>
+                  <th>Votes</th>
+                  <th>Gains</th>
+                  <th>Bonus</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% ranking.slice(0, 30).forEach((p, i) => {
+                  const diamonds = p.votes * votesConfig.DIAMONDS_PER_VOTE;
+                  const bonus = votesConfig.TOP_DIAMONDS[i + 1] || 0;
+                  const total = diamonds + bonus;
+                  const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
+                %>
+                  <tr>
+                    <td class="rank <%= rankClass %>"><%= i + 1 %></td>
+                    <td class="player-name">
+                      <%= p.playername %>
+                      <% if (i === 0) { %><span class="badge badge-gold">🥇 1er</span><% } %>
+                      <% if (i === 1) { %><span class="badge badge-silver">🥈 2ème</span><% } %>
+                      <% if (i === 2) { %><span class="badge badge-bronze">🥉 3ème</span><% } %>
+                    </td>
+                    <td><%= p.votes %></td>
+                    <td class="diamonds">💎 <%= total.toLocaleString('fr-FR') %></td>
+                    <td>
+                      <% if (bonus > 0) { %>
+                        + <%= bonus.toLocaleString('fr-FR') %> bonus
+                      <% } else if (i < 3) { %>
+                        Pack vote
+                      <% } else { %>
+                        -
+                      <% } %>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      <% } %>
+    </main>
+  </div>
+</body>
+</html>

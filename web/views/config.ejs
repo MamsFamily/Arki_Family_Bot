@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configuration - Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>⚙️ Configuration</h1>
+        <p>Paramètres généraux du bot</p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>🏠 Serveur Discord</h2>
+        </div>
+        <div class="card-body">
+          <div class="config-item">
+            <span class="config-label">ID du serveur</span>
+            <span class="config-value"><%= votesConfig.GUILD_ID %></span>
+          </div>
+          <div class="config-item">
+            <span class="config-label">Canal des résultats</span>
+            <span class="config-value"><%= votesConfig.RESULTS_CHANNEL_ID %></span>
+          </div>
+          <div class="config-item">
+            <span class="config-label">Canal admin / logs</span>
+            <span class="config-value"><%= votesConfig.ADMIN_LOG_CHANNEL_ID %></span>
+          </div>
+          <div class="config-item">
+            <span class="config-label">Rôle Top Votant</span>
+            <span class="config-value"><%= votesConfig.TOP_VOTER_ROLE_ID %></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>💎 Récompenses</h2>
+        </div>
+        <div class="card-body">
+          <div class="config-item">
+            <span class="config-label">Diamants par vote</span>
+            <span class="config-value"><%= votesConfig.DIAMONDS_PER_VOTE %></span>
+          </div>
+          <div class="config-item">
+            <span class="config-label">Bonus 4ème place</span>
+            <span class="config-value"><%= votesConfig.TOP_DIAMONDS[4] || 0 %> 💎</span>
+          </div>
+          <div class="config-item">
+            <span class="config-label">Bonus 5ème place</span>
+            <span class="config-value"><%= votesConfig.TOP_DIAMONDS[5] || 0 %> 💎</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>🎁 Lots Top 3</h2>
+        </div>
+        <div class="card-body">
+          <div class="config-item">
+            <span class="config-label">🥇 1ère place</span>
+            <span class="config-value">🦖x6 🎨x6 3️⃣x1 🍓15000 💎15000</span>
+          </div>
+          <div class="config-item">
+            <span class="config-label">🥈 2ème place</span>
+            <span class="config-value">🦖x4 🎨x4 2️⃣x1 🍓10000 💎10000</span>
+          </div>
+          <div class="config-item">
+            <span class="config-label">🥉 3ème place</span>
+            <span class="config-value">🦖x2 🎨x2 1️⃣x1 🍓5000 💎5000</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>🔗 API</h2>
+        </div>
+        <div class="card-body">
+          <div class="config-item">
+            <span class="config-label">URL TopServeurs</span>
+            <span class="config-value" style="font-size: 11px; word-break: break-all;"><%= votesConfig.TOPSERVEURS_RANKING_URL %></span>
+          </div>
+          <div class="config-item">
+            <span class="config-label">Fuseau horaire</span>
+            <span class="config-value"><%= votesConfig.TIMEZONE %></span>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

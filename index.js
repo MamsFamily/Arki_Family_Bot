@@ -8,6 +8,7 @@ const votesConfig = require('./votesConfig');
 const { addCashToUser, generateDraftBotCommands } = require('./unbelievaboatService');
 const { translate } = require('@vitalets/google-translate-api');
 const OpenAI = require('openai');
+const { createWebServer } = require('./web/server');
 
 const openaiConfig = {};
 if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
@@ -49,6 +50,7 @@ function hasRoulettePermission(member) {
 
 client.once('clientReady', () => {
   initDatabase();
+  createWebServer(client);
   console.log('✅ Bot Discord Arki Roulette est en ligne !');
   console.log(`📝 Connecté en tant que ${client.user.tag}`);
   console.log(`🎰 ${config.rouletteChoices.length} choix de roulette chargés`);

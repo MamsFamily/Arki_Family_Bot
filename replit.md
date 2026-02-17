@@ -6,6 +6,13 @@ Bot Discord avec trois fonctionnalités principales :
 2. **Système de votes mensuels** - Suivi et récompenses automatiques des votants via TopServeurs API
 3. **Traduction et reformulation** - Traduction par réaction (🇫🇷/🇬🇧), commande /traduction, et reformulation style Kaamelott via IA (réaction emoji Arthur)
 
+## Dashboard Web
+Dashboard d'administration accessible sur le port 5000, protégé par mot de passe (DASHBOARD_PASSWORD).
+- **Tableau de bord** : Vue d'ensemble (serveurs, membres, uptime, config roulette)
+- **Roulette** : Modifier le titre et les choix depuis le navigateur
+- **Votes** : Voir le classement des votes en temps réel depuis TopServeurs
+- **Configuration** : Vue en lecture seule des paramètres du bot
+
 ## Fonctionnalités
 
 ### Roulette
@@ -32,7 +39,7 @@ Bot Discord avec trois fonctionnalités principales :
 
 ## Structure du projet
 ```
-├── index.js               # Bot principal Discord
+├── index.js               # Bot principal Discord + démarrage serveur web
 ├── deploy-commands.js     # Script pour enregistrer les commandes slash
 ├── rouletteWheel.js       # Génération de l'image de la roue et animation
 ├── config.json            # Configuration des choix de roulette
@@ -41,14 +48,24 @@ Bot Discord avec trois fonctionnalités principales :
 ├── unbelievaboatService.js# Service API UnbelievaBoat (diamants)
 ├── database.js            # Service de base de données SQLite
 ├── votesUtils.js          # Utilitaires de normalisation et formatage
+├── web/
+│   ├── server.js          # Serveur Express (dashboard)
+│   ├── views/             # Templates EJS
+│   │   ├── sidebar.ejs    # Barre latérale commune
+│   │   ├── login.ejs      # Page de connexion
+│   │   ├── dashboard.ejs  # Tableau de bord
+│   │   ├── roulette.ejs   # Gestion roulette
+│   │   ├── votes.ejs      # Classement votes
+│   │   └── config.ejs     # Configuration
+│   └── public/css/        # Styles CSS
 ├── data/db/meta.sqlite    # Base de données SQLite
-├── package.json           # Dépendances Node.js
-└── .env.example           # Exemple de variables d'environnement
+└── package.json           # Dépendances Node.js
 ```
 
 ## Technologies
 - Node.js 20
 - Discord.js (pour l'API Discord)
+- Express + EJS (pour le dashboard web)
 - Canvas (pour générer les images de la roue)
 - GIF Encoder 2 (pour créer les animations GIF)
 - Axios (pour les appels API)
@@ -65,6 +82,8 @@ Bot Discord avec trois fonctionnalités principales :
    - `DISCORD_TOKEN`: Token du bot Discord
    - `DISCORD_CLIENT_ID`: ID client de l'application Discord
    - `UNBELIEVABOAT_TOKEN`: Token API UnbelievaBoat
+   - `SESSION_SECRET`: Clé de session pour le dashboard
+   - `DASHBOARD_PASSWORD`: Mot de passe du dashboard web
 
 ## Configuration des votes (votesConfig.js)
 - `GUILD_ID`: ID du serveur Discord (1156256997403000874)
@@ -80,8 +99,10 @@ Bot Discord avec trois fonctionnalités principales :
 2. Lancer le bot avec `index.js`
 3. Inviter le bot sur votre serveur Discord
 4. Utiliser les commandes disponibles
+5. Accéder au dashboard via le port 5000
 
 ## Changements récents
+- 2026-02-17: Ajout du dashboard web d'administration (Express + EJS)
 - 2026-02-17: Ajout reformulation style Kaamelott via réaction emoji Arthur (IA OpenAI)
 - 2026-02-01: Nouveau format de publication avec gains affichés, bouton liste complète, et roulette Dino Shiny automatique
 - 2026-02-01: Amélioration du matching de noms (globalName, nickname, fuzzy matching)
