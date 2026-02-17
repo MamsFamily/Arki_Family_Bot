@@ -63,16 +63,52 @@ client.once('clientReady', () => {
   console.log('   /publish-votes - Publie les résultats mensuels');
 });
 
+const reactionTracker = new Map();
+
+function getReactionKey(messageId, emojiKey) {
+  return `${messageId}:${emojiKey}`;
+}
+
+function getEmojiKey(emoji) {
+  return emoji.id || emoji.name;
+}
+
+client.on('messageReactionRemove', async (reaction, user) => {
+  if (user.bot) return;
+  try {
+    if (reaction.partial) await reaction.fetch();
+  } catch { return; }
+
+  const key = getReactionKey(reaction.message.id, getEmojiKey(reaction.emoji));
+  if (reaction.count === 0) {
+    reactionTracker.delete(key);
+  }
+});
+
 client.on('messageReactionAdd', async (reaction, user) => {
   if (user.bot) return;
+
+  try {
+    if (reaction.partial) await reaction.fetch();
+    if (reaction.message.partial) await reaction.message.fetch();
+  } catch { return; }
+
+  const emojiKey = getEmojiKey(reaction.emoji);
+  const trackerKey = getReactionKey(reaction.message.id, emojiKey);
+
+  if (reactionTracker.has(trackerKey)) return;
+  reactionTracker.set(trackerKey, Date.now());
+
+  if (reactionTracker.size > 5000) {
+    const entries = [...reactionTracker.entries()].sort((a, b) => a[1] - b[1]);
+    for (let i = 0; i < 1000; i++) {
+      reactionTracker.delete(entries[i][0]);
+    }
+  }
+
   if (reaction.emoji.id === ARTHUR_EMOJI_ID) {
     if (!openai) return;
     try {
-      if (reaction.partial) await reaction.fetch();
-      if (reaction.message.partial) await reaction.message.fetch();
-
-      if (reaction.count > 1) return;
-
       const messageContent = reaction.message.content;
       if (!messageContent || messageContent.trim() === '') return;
 
@@ -121,11 +157,6 @@ Reste concis. Ne mets pas de guillemets autour du texte. Ne dis pas quel personn
   if (!lang) return;
 
   try {
-    if (reaction.partial) await reaction.fetch();
-    if (reaction.message.partial) await reaction.message.fetch();
-
-    if (reaction.count > 1) return;
-
     const messageContent = reaction.message.content;
     if (!messageContent || messageContent.trim() === '') return;
 
