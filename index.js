@@ -90,7 +90,7 @@ Reste concis. Ne mets pas de guillemets autour du texte. Ne dis pas quel personn
       const kaamelottText = completion.choices[0]?.message?.content;
       if (!kaamelottText) return;
 
-      let response = `## <:arthur:${ARTHUR_EMOJI_ID}> Version Kaamelott\n\n${kaamelottText}`;
+      let response = `-# spa traduction d'Arthur <:arthur:${ARTHUR_EMOJI_ID}>\n## <:arthur:${ARTHUR_EMOJI_ID}> Version Kaamelott\n\n${kaamelottText}`;
 
       if (response.length > 2000) {
         const chunks = response.match(/[\s\S]{1,1900}/g) || [response];
