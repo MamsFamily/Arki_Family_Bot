@@ -1,15 +1,11 @@
 <button class="mobile-menu-btn" onclick="document.querySelector('.sidebar').classList.add('open');document.querySelector('.sidebar-overlay').classList.add('show')" aria-label="Menu">
-  <span></span><span></span><span></span>
+  <img src="/images/logo-brut.png" alt="Menu" class="mobile-menu-logo">
 </button>
 <div class="sidebar-overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('show')"></div>
 <aside class="sidebar">
   <div class="sidebar-header">
     <div class="bot-avatar">
-      <% if (botUser && botUser.displayAvatarURL) { %>
-        <img src="<%= botUser.displayAvatarURL({ size: 64 }) %>" alt="Bot">
-      <% } else { %>
-        A
-      <% } %>
+      <img src="/images/logo-brut.png" alt="Arki Family">
     </div>
     <div class="bot-info">
       <h2><%= botUser ? botUser.username : 'Arki Bot' %></h2>

@@ -9,12 +9,13 @@
 <body>
   <div class="login-page">
     <div class="login-card">
-      <h1>🎰 Arki Dashboard</h1>
+      <img src="/images/logo.png" alt="Arki Family" class="login-logo">
+      <h1>Arki Dashboard</h1>
       <p class="subtitle">Connectez-vous pour gérer votre bot</p>
 
       <% if (error) { %>
         <div class="alert alert-error">
-          ❌ <%= error %>
+          <%= error %>
         </div>
       <% } %>
 

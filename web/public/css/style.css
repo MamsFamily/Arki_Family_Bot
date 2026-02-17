@@ -135,6 +135,22 @@ body {
   max-width: 1200px;
 }
 
+.dashboard-banner {
+  width: 100%;
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 28px;
+  box-shadow: var(--shadow);
+}
+
+.dashboard-banner img {
+  width: 100%;
+  height: auto;
+  display: block;
+  max-height: 220px;
+  object-fit: cover;
+}
+
 .page-header {
   margin-bottom: 32px;
 }
@@ -431,13 +447,22 @@ body {
   background: var(--bg-primary);
 }
 
+.login-logo {
+  display: block;
+  width: 140px;
+  height: 140px;
+  object-fit: contain;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+}
+
 .login-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 48px 40px;
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
   box-shadow: var(--shadow);
 }
 
@@ -571,24 +596,20 @@ code {
 .mobile-menu-btn {
   display: none;
   position: fixed;
-  top: 12px;
-  left: 12px;
+  top: 8px;
+  left: 8px;
   z-index: 100;
-  background: var(--accent);
+  background: none;
   border: none;
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
+  padding: 0;
   cursor: pointer;
-  flex-direction: column;
-  gap: 4px;
 }
 
-.mobile-menu-btn span {
-  display: block;
-  width: 22px;
-  height: 2.5px;
-  background: #fff;
-  border-radius: 2px;
+.mobile-menu-logo {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));
 }
 
 .sidebar-overlay {
