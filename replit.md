@@ -1,9 +1,10 @@
 # Bot Discord Arki Roulette
 
 ## Vue d'ensemble
-Bot Discord avec deux fonctionnalités principales :
+Bot Discord avec trois fonctionnalités principales :
 1. **Roulette de la chance** - Roue animée style Nintendo avec choix personnalisables
 2. **Système de votes mensuels** - Suivi et récompenses automatiques des votants via TopServeurs API
+3. **Traduction et reformulation** - Traduction par réaction (🇫🇷/🇬🇧), commande /traduction, et reformulation style Kaamelott via IA (réaction emoji Arthur)
 
 ## Fonctionnalités
 
@@ -53,6 +54,8 @@ Bot Discord avec deux fonctionnalités principales :
 - Axios (pour les appels API)
 - Better-SQLite3 (pour la base de données locale)
 - unb-api (pour l'API UnbelievaBoat)
+- OpenAI via Replit AI Integrations (pour la reformulation style Kaamelott)
+- @vitalets/google-translate-api (pour la traduction gratuite)
 
 ## Configuration requise
 1. Créer une application Discord sur https://discord.com/developers/applications
@@ -79,6 +82,7 @@ Bot Discord avec deux fonctionnalités principales :
 4. Utiliser les commandes disponibles
 
 ## Changements récents
+- 2026-02-17: Ajout reformulation style Kaamelott via réaction emoji Arthur (IA OpenAI)
 - 2026-02-01: Nouveau format de publication avec gains affichés, bouton liste complète, et roulette Dino Shiny automatique
 - 2026-02-01: Amélioration du matching de noms (globalName, nickname, fuzzy matching)
 - 2026-01-03: Ajout de la commande /pay-votes pour distribution seule

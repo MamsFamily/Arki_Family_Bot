@@ -7,6 +7,14 @@ const { monthNameFr, formatRewards, buildMemberIndex, resolvePlayer } = require(
 const votesConfig = require('./votesConfig');
 const { addCashToUser, generateDraftBotCommands } = require('./unbelievaboatService');
 const { translate } = require('@vitalets/google-translate-api');
+const OpenAI = require('openai');
+
+const openai = new OpenAI({
+  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+});
+
+const ARTHUR_EMOJI_ID = '1473289815180050473';
 
 const client = new Client({
   intents: [
@@ -50,6 +58,54 @@ client.once('clientReady', () => {
 
 client.on('messageReactionAdd', async (reaction, user) => {
   if (user.bot) return;
+  if (reaction.emoji.id === ARTHUR_EMOJI_ID) {
+    try {
+      if (reaction.partial) await reaction.fetch();
+      if (reaction.message.partial) await reaction.message.fetch();
+
+      const messageContent = reaction.message.content;
+      if (!messageContent || messageContent.trim() === '') return;
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4.1-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `Tu es un expert de la série Kaamelott. Tu dois réécrire le texte fourni dans le style et le ton des personnages de Kaamelott (Arthur, Perceval, Karadoc, Léodagan, etc.). Garde le même sens général mais reformule avec :
+- Le vocabulaire et les expressions typiques de Kaamelott
+- Le ton médiéval-comique de la série
+- Des références subtiles à l'univers de Kaamelott si possible
+- Les tournures de phrases caractéristiques des personnages
+Reste concis. Ne mets pas de guillemets autour du texte. Ne dis pas quel personnage parle. Reformule directement.`
+          },
+          {
+            role: 'user',
+            content: messageContent
+          }
+        ],
+        max_tokens: 1000,
+        temperature: 0.9,
+      });
+
+      const kaamelottText = completion.choices[0]?.message?.content;
+      if (!kaamelottText) return;
+
+      let response = `## <:arthur:${ARTHUR_EMOJI_ID}> Version Kaamelott\n\n${kaamelottText}`;
+
+      if (response.length > 2000) {
+        const chunks = response.match(/[\s\S]{1,1900}/g) || [response];
+        for (const chunk of chunks) {
+          await reaction.message.channel.send(chunk);
+        }
+      } else {
+        await reaction.message.channel.send(response);
+      }
+    } catch (error) {
+      console.error('Erreur traduction Kaamelott:', error);
+    }
+    return;
+  }
+
   const langMap = { '🇫🇷': 'fr', '🇬🇧': 'en' };
   const lang = langMap[reaction.emoji.name];
   if (!lang) return;
