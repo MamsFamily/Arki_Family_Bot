@@ -63,6 +63,8 @@ client.on('messageReactionAdd', async (reaction, user) => {
       if (reaction.partial) await reaction.fetch();
       if (reaction.message.partial) await reaction.message.fetch();
 
+      if (reaction.count > 1) return;
+
       const messageContent = reaction.message.content;
       if (!messageContent || messageContent.trim() === '') return;
 
@@ -113,6 +115,8 @@ Reste concis. Ne mets pas de guillemets autour du texte. Ne dis pas quel personn
   try {
     if (reaction.partial) await reaction.fetch();
     if (reaction.message.partial) await reaction.message.fetch();
+
+    if (reaction.count > 1) return;
 
     const messageContent = reaction.message.content;
     if (!messageContent || messageContent.trim() === '') return;
