@@ -10,8 +10,10 @@ Bot Discord avec trois fonctionnalités principales :
 Dashboard d'administration accessible sur le port 5000, protégé par mot de passe (DASHBOARD_PASSWORD).
 - **Tableau de bord** : Vue d'ensemble (serveurs, membres, uptime, config roulette)
 - **Roulette** : Modifier le titre et les choix depuis le navigateur
-- **Votes** : Voir le classement des votes en temps réel depuis TopServeurs
-- **Configuration** : Vue en lecture seule des paramètres du bot
+- **Classement Votes** : Voir le classement des votes en temps réel depuis TopServeurs
+- **Récompenses** : Modifier diamants/vote, bonus top 4-5, lots du top 3 (emojis + quantités)
+- **Message publié** : Personnaliser tous les textes du message de résultats (intro, crédits, packs, mémo, dino shiny) avec aperçu en direct
+- **Paramètres** : Configurer les IDs de canaux, rôles, emojis, URL API, ping @everyone, et aliases joueurs
 
 ## Fonctionnalités
 
@@ -43,7 +45,9 @@ Dashboard d'administration accessible sur le port 5000, protégé par mot de pas
 ├── deploy-commands.js     # Script pour enregistrer les commandes slash
 ├── rouletteWheel.js       # Génération de l'image de la roue et animation
 ├── config.json            # Configuration des choix de roulette
-├── votesConfig.js         # Configuration du système de votes
+├── settings.json          # Configuration centralisée (généré automatiquement)
+├── settingsManager.js     # Gestionnaire centralisé des paramètres (lecture/écriture/defaults)
+├── votesConfig.js         # Export dynamique getVotesConfig() depuis settingsManager
 ├── topserveursService.js  # Service API TopServeurs
 ├── unbelievaboatService.js# Service API UnbelievaBoat (diamants)
 ├── database.js            # Service de base de données SQLite
@@ -56,7 +60,9 @@ Dashboard d'administration accessible sur le port 5000, protégé par mot de pas
 │   │   ├── dashboard.ejs  # Tableau de bord
 │   │   ├── roulette.ejs   # Gestion roulette
 │   │   ├── votes.ejs      # Classement votes
-│   │   └── config.ejs     # Configuration
+│   │   ├── rewards.ejs    # Récompenses votes (diamants, lots, bonus)
+│   │   ├── message.ejs    # Template du message publié
+│   │   └── settings.ejs   # Paramètres (canaux, rôles, emojis, aliases)
 │   └── public/css/        # Styles CSS
 ├── data/db/meta.sqlite    # Base de données SQLite
 └── package.json           # Dépendances Node.js
@@ -102,6 +108,8 @@ Dashboard d'administration accessible sur le port 5000, protégé par mot de pas
 5. Accéder au dashboard via le port 5000
 
 ## Changements récents
+- 2026-02-17: Dashboard complet avec pages Récompenses, Message publié, Paramètres (tout configurable depuis le web)
+- 2026-02-17: Système de configuration centralisé (settingsManager.js + settings.json) avec support env vars
 - 2026-02-17: Ajout du dashboard web d'administration (Express + EJS)
 - 2026-02-17: Ajout reformulation style Kaamelott via réaction emoji Arthur (IA OpenAI)
 - 2026-02-01: Nouveau format de publication avec gains affichés, bouton liste complète, et roulette Dino Shiny automatique

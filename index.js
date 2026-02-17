@@ -4,7 +4,7 @@ const RouletteWheel = require('./rouletteWheel');
 const { initDatabase } = require('./database');
 const { fetchTopserveursRanking } = require('./topserveursService');
 const { monthNameFr, formatRewards, buildMemberIndex, resolvePlayer } = require('./votesUtils');
-const votesConfig = require('./votesConfig');
+const { getVotesConfig } = require('./votesConfig');
 const { addCashToUser, generateDraftBotCommands } = require('./unbelievaboatService');
 const { translate } = require('@vitalets/google-translate-api');
 const OpenAI = require('openai');
@@ -43,7 +43,8 @@ function saveConfig() {
 }
 
 function hasRoulettePermission(member) {
-  const MODO_ROLE_ID = '1157803768893689877';
+  const votesConfig = getVotesConfig();
+  const MODO_ROLE_ID = votesConfig.MODO_ROLE_ID || '1157803768893689877';
   return member.permissions.has(PermissionFlagsBits.Administrator) || 
          member.roles.cache.has(MODO_ROLE_ID);
 }
@@ -330,6 +331,7 @@ client.on('interactionCreate', async interaction => {
     await interaction.deferReply();
 
     try {
+      const votesConfig = getVotesConfig();
       const ranking = await fetchTopserveursRanking(votesConfig.TOPSERVEURS_RANKING_URL);
       
       if (ranking.length === 0) {
@@ -381,6 +383,7 @@ client.on('interactionCreate', async interaction => {
     await interaction.deferReply();
 
     try {
+      const votesConfig = getVotesConfig();
       const ranking = await fetchTopserveursRanking(votesConfig.TOPSERVEURS_RANKING_URL);
       
       if (ranking.length === 0) {
@@ -419,8 +422,9 @@ client.on('interactionCreate', async interaction => {
       }
 
       let resultsMessage = `# ${votesConfig.STYLE.fireworks} Résultats des votes de ${monthName} ${votesConfig.STYLE.fireworks}\n\n`;
-      resultsMessage += `Merci à tous les votants ! Grâce à vous, notre serveur gagne en visibilité. Continuez comme ça ! 💪\n\n`;
-      resultsMessage += `${votesConfig.STYLE.sparkly} Les diamants ont été **automatiquement crédités** sur vos comptes !\n\n`;
+      const msg = votesConfig.MESSAGE || {};
+      resultsMessage += `${msg.introText || ''}\n\n`;
+      resultsMessage += `${votesConfig.STYLE.sparkly} ${msg.creditText || ''}\n\n`;
 
       const top10 = ranking.slice(0, 10);
       for (let i = 0; i < top10.length; i++) {
@@ -435,11 +439,11 @@ client.on('interactionCreate', async interaction => {
         resultsMessage += `Votes : ${player.votes} | Gains : ${totalDiamonds.toLocaleString('fr-FR')} ${votesConfig.STYLE.sparkly}\n`;
         
         if (i === 0) {
-          resultsMessage += `+ Pack vote 1ère place + rôle <@&${votesConfig.TOP_VOTER_ROLE_ID}>\n`;
+          resultsMessage += `+ ${msg.pack1Text || 'Pack vote 1ère place'} + rôle <@&${votesConfig.TOP_VOTER_ROLE_ID}>\n`;
         } else if (i === 1) {
-          resultsMessage += `+ Pack vote 2ème place\n`;
+          resultsMessage += `+ ${msg.pack2Text || 'Pack vote 2ème place'}\n`;
         } else if (i === 2) {
-          resultsMessage += `+ Pack vote 3ème place\n`;
+          resultsMessage += `+ ${msg.pack3Text || 'Pack vote 3ème place'}\n`;
         } else if (bonusDiamonds > 0) {
           resultsMessage += `+ ${bonusDiamonds.toLocaleString('fr-FR')} ${votesConfig.STYLE.sparkly}\n`;
         }
@@ -447,8 +451,8 @@ client.on('interactionCreate', async interaction => {
       }
 
       resultsMessage += `---\n`;
-      resultsMessage += `Pour mémo, vous retrouverez la liste des récompenses votes à gagner ici ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.memoUrl}\n\n`;
-      resultsMessage += `-# Tirage Dino Shiny juste après 🦖\n`;
+      resultsMessage += `${msg.memoText || 'Pour mémo'} ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.memoUrl}\n\n`;
+      resultsMessage += `-# ${msg.dinoShinyText || 'Tirage Dino Shiny juste après 🦖'}\n`;
 
       const fullListData = ranking.filter(p => p.votes >= 10).map(p => {
         const totalDiamonds = p.votes * votesConfig.DIAMONDS_PER_VOTE;
@@ -475,7 +479,8 @@ client.on('interactionCreate', async interaction => {
         await resultsChannel.send({ content: finalMessage, components: [row] });
       }
 
-      const rouletteWheel = new RouletteWheel(top10.map(p => p.playername), 'DINO');
+      const dinoTitle = msg.dinoTitle || 'DINO';
+      const rouletteWheel = new RouletteWheel(top10.map(p => p.playername), dinoTitle);
       const winningIndex = Math.floor(Math.random() * top10.length);
       const gifBuffer = await rouletteWheel.generateAnimatedGif(winningIndex);
       const winningChoice = rouletteWheel.getWinningChoice(winningIndex);
@@ -489,7 +494,8 @@ client.on('interactionCreate', async interaction => {
           files: [attachment]
         });
         
-        await resultsChannel.send(`## 🎉 Félicitations **${winningChoice}** !\n\nTu remportes le **Dino Shiny** du mois ! 🦖✨`);
+        const dinoWinText = msg.dinoWinText || 'Tu remportes le **Dino Shiny** du mois ! 🦖✨';
+        await resultsChannel.send(`## 🎉 Félicitations **${winningChoice}** !\n\n${dinoWinText}`);
       }
 
       const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);
@@ -535,6 +541,7 @@ client.on('interactionCreate', async interaction => {
     await interaction.deferReply({ ephemeral: true });
 
     try {
+      const votesConfig = getVotesConfig();
       const ranking = await fetchTopserveursRanking(votesConfig.TOPSERVEURS_RANKING_URL);
       
       if (ranking.length === 0) {
@@ -550,9 +557,10 @@ client.on('interactionCreate', async interaction => {
       const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
       const monthName = monthNameFr(lastMonth);
 
+      const msg = votesConfig.MESSAGE || {};
       let previewMessage = `# ${votesConfig.STYLE.fireworks} Résultats des votes de ${monthName} ${votesConfig.STYLE.fireworks}\n\n`;
-      previewMessage += `Merci à tous les votants ! Grâce à vous, notre serveur gagne en visibilité. Continuez comme ça ! 💪\n\n`;
-      previewMessage += `${votesConfig.STYLE.sparkly} Les diamants ont été **automatiquement crédités** sur vos comptes !\n\n`;
+      previewMessage += `${msg.introText || ''}\n\n`;
+      previewMessage += `${votesConfig.STYLE.sparkly} ${msg.creditText || ''}\n\n`;
 
       const top10 = ranking.slice(0, 10);
       for (let i = 0; i < top10.length; i++) {
@@ -565,11 +573,11 @@ client.on('interactionCreate', async interaction => {
         previewMessage += `Votes : ${player.votes} | Gains : ${totalDiamonds.toLocaleString('fr-FR')} ${votesConfig.STYLE.sparkly}\n`;
         
         if (i === 0) {
-          previewMessage += `+ Pack vote 1ère place + rôle <@&${votesConfig.TOP_VOTER_ROLE_ID}>\n`;
+          previewMessage += `+ ${msg.pack1Text || 'Pack vote 1ère place'} + rôle <@&${votesConfig.TOP_VOTER_ROLE_ID}>\n`;
         } else if (i === 1) {
-          previewMessage += `+ Pack vote 2ème place\n`;
+          previewMessage += `+ ${msg.pack2Text || 'Pack vote 2ème place'}\n`;
         } else if (i === 2) {
-          previewMessage += `+ Pack vote 3ème place\n`;
+          previewMessage += `+ ${msg.pack3Text || 'Pack vote 3ème place'}\n`;
         } else if (bonusDiamonds > 0) {
           previewMessage += `+ ${bonusDiamonds.toLocaleString('fr-FR')} ${votesConfig.STYLE.sparkly}\n`;
         }
@@ -577,8 +585,8 @@ client.on('interactionCreate', async interaction => {
       }
 
       previewMessage += `---\n`;
-      previewMessage += `Pour mémo, vous retrouverez la liste des récompenses votes à gagner ici ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.memoUrl}\n\n`;
-      previewMessage += `-# Tirage Dino Shiny juste après 🦖\n`;
+      previewMessage += `${msg.memoText || 'Pour mémo'} ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.memoUrl}\n\n`;
+      previewMessage += `-# ${msg.dinoShinyText || 'Tirage Dino Shiny juste après 🦖'}\n`;
 
       const foundCount = ranking.filter(p => resolvePlayer(memberIndex, p.playername)).length;
       const notFoundList = ranking.filter(p => !resolvePlayer(memberIndex, p.playername)).map(p => p.playername);
@@ -624,7 +632,8 @@ client.on('interactionCreate', async interaction => {
       }
       await testChannel.send(statsMessage);
 
-      const rouletteWheel = new RouletteWheel(top10.map(p => p.playername), 'DINO');
+      const dinoTitle2 = msg.dinoTitle || 'DINO';
+      const rouletteWheel = new RouletteWheel(top10.map(p => p.playername), dinoTitle2);
       const winningIndex = Math.floor(Math.random() * top10.length);
       const gifBuffer = await rouletteWheel.generateAnimatedGif(winningIndex);
       const winningChoice = rouletteWheel.getWinningChoice(winningIndex);
@@ -637,7 +646,8 @@ client.on('interactionCreate', async interaction => {
         files: [attachment]
       });
       
-      await testChannel.send(`## 🎉 Félicitations **${winningChoice}** !\n\nTu remportes le **Dino Shiny** du mois ! 🦖✨`);
+      const dinoWinText2 = msg.dinoWinText || 'Tu remportes le **Dino Shiny** du mois ! 🦖✨';
+      await testChannel.send(`## 🎉 Félicitations **${winningChoice}** !\n\n${dinoWinText2}`);
 
       await interaction.editReply({ 
         content: `✅ Prévisualisation terminée !\n\nSi tout est correct, utilisez \`/publish-votes\` pour publier et distribuer.`
@@ -663,6 +673,7 @@ client.on('interactionCreate', async interaction => {
     await interaction.deferReply();
 
     try {
+      const votesConfig = getVotesConfig();
       const ranking = await fetchTopserveursRanking(votesConfig.TOPSERVEURS_RANKING_URL);
       
       if (ranking.length === 0) {
@@ -812,6 +823,7 @@ client.on('interactionCreate', async interaction => {
     await interaction.deferReply();
 
     try {
+      const votesConfig = getVotesConfig();
       const ranking = await fetchTopserveursRanking(votesConfig.TOPSERVEURS_RANKING_URL);
       
       if (ranking.length === 0) {
@@ -822,7 +834,9 @@ client.on('interactionCreate', async interaction => {
 
       const top10 = ranking.slice(0, 10);
       
-      const rouletteWheel = new RouletteWheel(top10.map(p => p.playername), 'DINO');
+      const msg = votesConfig.MESSAGE || {};
+      const dinoTitle = msg.dinoTitle || 'DINO';
+      const rouletteWheel = new RouletteWheel(top10.map(p => p.playername), dinoTitle);
       const winningIndex = Math.floor(Math.random() * top10.length);
       const gifBuffer = await rouletteWheel.generateAnimatedGif(winningIndex);
       const winningChoice = rouletteWheel.getWinningChoice(winningIndex);
@@ -838,7 +852,8 @@ client.on('interactionCreate', async interaction => {
           files: [attachment]
         });
         
-        await resultsChannel.send(`## 🎉 Félicitations **${winningChoice}** !\n\nTu remportes le **Dino Shiny** du mois ! 🦖✨`);
+        const dinoWinText = msg.dinoWinText || 'Tu remportes le **Dino Shiny** du mois ! 🦖✨';
+        await resultsChannel.send(`## 🎉 Félicitations **${winningChoice}** !\n\n${dinoWinText}`);
       }
 
       await interaction.editReply({

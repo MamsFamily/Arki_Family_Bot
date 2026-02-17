@@ -1,4 +1,4 @@
-const { MONTHS_FR, ALIASES } = require('./votesConfig');
+const { getVotesConfig } = require('./votesConfig');
 
 function normalizeName(s) {
   if (!s) return '';
@@ -33,6 +33,7 @@ function fuzzyMatch(playerName, memberName) {
 }
 
 function monthNameFr(monthIndex) {
+  const { MONTHS_FR } = getVotesConfig();
   return MONTHS_FR[monthIndex] || 'INCONNU';
 }
 
@@ -66,7 +67,8 @@ async function buildMemberIndex(guild) {
 }
 
 function resolvePlayer(index, playername) {
-  const aliasedName = ALIASES[playername] || playername;
+  const { ALIASES } = getVotesConfig();
+  const aliasedName = (ALIASES && ALIASES[playername]) || playername;
   const key = normalizeName(aliasedName);
   
   const ids = index[key] || [];

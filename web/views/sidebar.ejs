@@ -19,11 +19,21 @@
     <a href="/roulette" class="nav-link <%= path === '/roulette' ? 'active' : '' %>">
       <span class="icon">🎰</span> Roulette
     </a>
+
+    <div class="nav-section">Votes</div>
     <a href="/votes" class="nav-link <%= path === '/votes' ? 'active' : '' %>">
-      <span class="icon">📊</span> Votes
+      <span class="icon">📊</span> Classement
     </a>
-    <a href="/config" class="nav-link <%= path === '/config' ? 'active' : '' %>">
-      <span class="icon">⚙️</span> Configuration
+    <a href="/rewards" class="nav-link <%= path === '/rewards' ? 'active' : '' %>">
+      <span class="icon">💎</span> Récompenses
+    </a>
+    <a href="/message" class="nav-link <%= path === '/message' ? 'active' : '' %>">
+      <span class="icon">📝</span> Message publié
+    </a>
+
+    <div class="nav-section">Système</div>
+    <a href="/settings" class="nav-link <%= path === '/settings' ? 'active' : '' %>">
+      <span class="icon">⚙️</span> Paramètres
     </a>
   </nav>
   <div class="sidebar-footer">

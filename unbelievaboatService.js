@@ -44,7 +44,8 @@ async function getUserBalance(userId) {
 }
 
 function generateDraftBotCommands(players, memberIndex, resolvePlayer) {
-  const { TOP_LOTS } = require('./votesConfig');
+  const { getVotesConfig } = require('./votesConfig');
+  const { TOP_LOTS } = getVotesConfig();
   const commands = [];
 
   for (let i = 0; i < Math.min(players.length, 3); i++) {

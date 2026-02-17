@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Paramètres - Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>⚙️ Paramètres</h1>
+        <p>Configuration des canaux, rôles, emojis et API</p>
+      </div>
+
+      <% if (success) { %>
+        <div class="alert alert-success">✅ <%= success %></div>
+      <% } %>
+      <% if (error) { %>
+        <div class="alert alert-error">❌ <%= error %></div>
+      <% } %>
+
+      <form method="POST" action="/settings">
+        <div class="card">
+          <div class="card-header">
+            <h2>🏠 Serveur Discord</h2>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label for="guildId">ID du serveur</label>
+              <input type="text" id="guildId" name="guildId" value="<%= settings.guild.guildId %>" required>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="resultsChannelId">Canal des résultats</label>
+                <input type="text" id="resultsChannelId" name="resultsChannelId" value="<%= settings.guild.resultsChannelId %>" required>
+                <p class="help-text">ID du canal où sont publiés les résultats des votes</p>
+              </div>
+              <div class="form-group">
+                <label for="adminLogChannelId">Canal admin / logs</label>
+                <input type="text" id="adminLogChannelId" name="adminLogChannelId" value="<%= settings.guild.adminLogChannelId %>" required>
+                <p class="help-text">ID du canal pour les rapports de distribution</p>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="topVoterRoleId">Rôle Top Votant</label>
+                <input type="text" id="topVoterRoleId" name="topVoterRoleId" value="<%= settings.guild.topVoterRoleId %>" required>
+                <p class="help-text">ID du rôle attribué au 1er votant</p>
+              </div>
+              <div class="form-group">
+                <label for="modoRoleId">Rôle Modo</label>
+                <input type="text" id="modoRoleId" name="modoRoleId" value="<%= settings.guild.modoRoleId %>" required>
+                <p class="help-text">ID du rôle qui peut utiliser les commandes admin</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>🎨 Emojis personnalisés</h2>
+          </div>
+          <div class="card-body">
+            <p class="help-text" style="margin-bottom: 16px;">Format Discord : <code>&lt;a:nom:ID&gt;</code> pour animé ou <code>&lt;:nom:ID&gt;</code> pour statique</p>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="logo">Logo</label>
+                <input type="text" id="logo" name="logo" value="<%= settings.style.logo %>">
+              </div>
+              <div class="form-group">
+                <label for="fireworks">Feux d'artifice</label>
+                <input type="text" id="fireworks" name="fireworks" value="<%= settings.style.fireworks %>">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="sparkly">Diamant / Sparkly</label>
+                <input type="text" id="sparkly" name="sparkly" value="<%= settings.style.sparkly %>">
+              </div>
+              <div class="form-group">
+                <label for="animeArrow">Flèche animée</label>
+                <input type="text" id="animeArrow" name="animeArrow" value="<%= settings.style.animeArrow %>">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="arrow">Flèche</label>
+              <input type="text" id="arrow" name="arrow" value="<%= settings.style.arrow %>">
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>📡 Options</h2>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label class="toggle-label">
+                <input type="checkbox" name="everyonePing" value="true" <%= settings.style.everyonePing ? 'checked' : '' %>>
+                <span class="toggle-text">Ping @everyone lors de la publication des résultats</span>
+              </label>
+            </div>
+            <div class="form-group">
+              <label for="memoUrl">URL du mémo des récompenses</label>
+              <input type="text" id="memoUrl" name="memoUrl" value="<%= settings.style.memoUrl %>">
+              <p class="help-text">Lien Discord vers le message listant les récompenses</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>🔗 API</h2>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label for="topserveursRankingUrl">URL API TopServeurs</label>
+              <input type="text" id="topserveursRankingUrl" name="topserveursRankingUrl" value="<%= settings.api.topserveursRankingUrl %>" required>
+              <p class="help-text">URL complète de l'API de classement TopServeurs</p>
+            </div>
+            <div class="form-group">
+              <label for="timezone">Fuseau horaire</label>
+              <input type="text" id="timezone" name="timezone" value="<%= settings.api.timezone %>">
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>🔄 Aliases de joueurs</h2>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label for="aliases">Aliases (format : nom_topserveurs=nom_discord, un par ligne)</label>
+              <textarea id="aliases" name="aliases" rows="6" placeholder="ancien_nom=nouveau_nom&#10;joueur123=JoueurDiscord"><%= Object.entries(settings.aliases || {}).map(([k, v]) => k + '=' + v).join('\n') %></textarea>
+              <p class="help-text">Permet de lier un pseudo TopServeurs à un pseudo Discord quand ils sont différents</p>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">💾 Sauvegarder les paramètres</button>
+      </form>
+    </main>
+  </div>
+</body>
+</html>

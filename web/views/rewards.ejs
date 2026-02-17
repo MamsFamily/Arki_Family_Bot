@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Récompenses - Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>💎 Récompenses des votes</h1>
+        <p>Configurez les gains distribués aux votants</p>
+      </div>
+
+      <% if (success) { %>
+        <div class="alert alert-success">✅ <%= success %></div>
+      <% } %>
+      <% if (error) { %>
+        <div class="alert alert-error">❌ <%= error %></div>
+      <% } %>
+
+      <form method="POST" action="/rewards">
+        <div class="card">
+          <div class="card-header">
+            <h2>💰 Gains de base</h2>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label for="diamondsPerVote">Diamants par vote</label>
+              <input type="number" id="diamondsPerVote" name="diamondsPerVote" value="<%= settings.rewards.diamondsPerVote %>" min="1" max="100000" required>
+              <p class="help-text">Chaque vote rapporte ce nombre de diamants au joueur</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>🏅 Bonus diamants (places 4 et 5)</h2>
+          </div>
+          <div class="card-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="bonus4">Bonus 4ème place</label>
+                <input type="number" id="bonus4" name="bonus4" value="<%= settings.rewards.topDiamonds[4] || 0 %>" min="0" max="100000">
+              </div>
+              <div class="form-group">
+                <label for="bonus5">Bonus 5ème place</label>
+                <input type="number" id="bonus5" name="bonus5" value="<%= settings.rewards.topDiamonds[5] || 0 %>" min="0" max="100000">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>🎁 Lots du Top 3 (items DraftBot)</h2>
+          </div>
+          <div class="card-body">
+            <% for (let place = 1; place <= 3; place++) {
+              const lot = settings.rewards.topLots[place] || {};
+              const medal = place === 1 ? '🥇' : place === 2 ? '🥈' : '🥉';
+            %>
+              <div class="lot-section">
+                <h3><%= medal %> <%= place %><%= place === 1 ? 'ère' : 'ème' %> place</h3>
+                <div class="form-row lot-row">
+                  <div class="form-group form-sm">
+                    <label>🦖 Dino</label>
+                    <input type="number" name="lot<%= place %>_dino" value="<%= lot['🦖'] || 0 %>" min="0">
+                  </div>
+                  <div class="form-group form-sm">
+                    <label>🎨 Art</label>
+                    <input type="number" name="lot<%= place %>_art" value="<%= lot['🎨'] || 0 %>" min="0">
+                  </div>
+                  <div class="form-group form-sm">
+                    <label><%= place %>️⃣ Badge</label>
+                    <input type="number" name="lot<%= place %>_badge" value="<%= lot[place + '️⃣'] || 0 %>" min="0">
+                  </div>
+                  <div class="form-group form-sm">
+                    <label>🍓 Fraises</label>
+                    <input type="number" name="lot<%= place %>_fraises" value="<%= lot['🍓'] || 0 %>" min="0">
+                  </div>
+                  <div class="form-group form-sm">
+                    <label>💎 Diamants</label>
+                    <input type="number" name="lot<%= place %>_diamants" value="<%= lot['💎'] || 0 %>" min="0">
+                  </div>
+                </div>
+              </div>
+            <% } %>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">💾 Sauvegarder les récompenses</button>
+      </form>
+    </main>
+  </div>
+</body>
+</html>
