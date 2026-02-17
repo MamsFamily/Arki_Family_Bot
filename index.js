@@ -9,10 +9,14 @@ const { addCashToUser, generateDraftBotCommands } = require('./unbelievaboatServ
 const { translate } = require('@vitalets/google-translate-api');
 const OpenAI = require('openai');
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+const openaiConfig = {};
+if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
+  openaiConfig.apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  openaiConfig.baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+} else if (process.env.OPENAI_API_KEY) {
+  openaiConfig.apiKey = process.env.OPENAI_API_KEY;
+}
+const openai = openaiConfig.apiKey ? new OpenAI(openaiConfig) : null;
 
 const ARTHUR_EMOJI_ID = '1473289815180050473';
 
@@ -59,6 +63,7 @@ client.once('clientReady', () => {
 client.on('messageReactionAdd', async (reaction, user) => {
   if (user.bot) return;
   if (reaction.emoji.id === ARTHUR_EMOJI_ID) {
+    if (!openai) return;
     try {
       if (reaction.partial) await reaction.fetch();
       if (reaction.message.partial) await reaction.message.fetch();
