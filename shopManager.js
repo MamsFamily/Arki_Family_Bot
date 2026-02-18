@@ -94,20 +94,22 @@ function buildPackEmbed(pack) {
   const lines = [];
 
   if (pack.priceDiamonds > 0 || pack.priceStrawberries > 0) {
-    let priceLine = '> **Prix :** ';
     const parts = [];
     if (pack.priceDiamonds > 0) {
-      parts.push(`${pack.priceDiamonds.toLocaleString('fr-FR')} <a:SparklyCrystal:1366174439003263087>`);
+      parts.push(`**${pack.priceDiamonds.toLocaleString('fr-FR')}** <a:SparklyCrystal:1366174439003263087>`);
     }
     if (pack.priceStrawberries > 0) {
-      parts.push(`${pack.priceStrawberries.toLocaleString('fr-FR')} <:fraises:1328148609585123379>`);
+      parts.push(`**${pack.priceStrawberries.toLocaleString('fr-FR')}** <:fraises:1328148609585123379>`);
     }
-    priceLine += parts.join(' + ');
-    lines.push(priceLine);
+    lines.push(`> 🏷️ ${parts.join(' + ')}`);
   }
 
   if (pack.donationAvailable) {
     lines.push('> <a:ok:1328152449785008189> **Compatible Pack Inventaire 📦**');
+  }
+
+  if (pack.notCompatible) {
+    lines.push('> <a:no:1328152539660554363> **Non compatible avec les pack inventaires**');
   }
 
   if (pack.available === false) {

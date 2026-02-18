@@ -297,7 +297,7 @@ function createWebServer(discordClient) {
   });
 
   app.post('/shop/pack', requireAuth, (req, res) => {
-    const { packId, name, category, priceDiamonds, priceStrawberries, content, note, color, donationAvailable, unavailable, noReduction } = req.body;
+    const { packId, name, category, priceDiamonds, priceStrawberries, content, note, color, donationAvailable, notCompatible, unavailable, noReduction } = req.body;
 
     const packData = {
       name: name || 'Pack sans nom',
@@ -308,6 +308,7 @@ function createWebServer(discordClient) {
       note: note || '',
       color: color || '#e74c3c',
       donationAvailable: donationAvailable === 'true',
+      notCompatible: notCompatible === 'true',
       available: unavailable !== 'true',
       noReduction: noReduction === 'true',
     };

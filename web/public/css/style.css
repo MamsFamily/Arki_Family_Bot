@@ -730,6 +730,7 @@ code {
 
 .badge-donation { background: rgba(46, 204, 113, 0.15); color: #2ecc71; }
 .badge-unavailable { background: rgba(255, 152, 0, 0.15); color: #ff9800; }
+.badge-notcompat { background: rgba(231, 76, 60, 0.15); color: #e74c3c; }
 .badge-nored { background: rgba(231, 76, 60, 0.15); color: #e74c3c; }
 .badge-published { background: rgba(76, 175, 80, 0.15); color: var(--success); }
 .badge-draft { background: rgba(124, 92, 252, 0.15); color: var(--accent); }

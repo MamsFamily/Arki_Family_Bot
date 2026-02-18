@@ -68,6 +68,9 @@
                       <% if (pack.donationAvailable) { %>
                         <span class="pack-badge badge-donation">&#x2705; Pack Inventaire</span>
                       <% } %>
+                      <% if (pack.notCompatible) { %>
+                        <span class="pack-badge badge-notcompat">&#x274C; Non compatible</span>
+                      <% } %>
                       <% if (pack.available === false) { %>
                         <span class="pack-badge badge-unavailable">&#x26A0;&#xFE0F; Indispo</span>
                       <% } %>
@@ -185,11 +188,19 @@
                 </div>
               </div>
 
-              <div class="form-group">
-                <label class="toggle-label">
-                  <input type="checkbox" name="noReduction" id="noReduction" value="true">
-                  <span class="toggle-text">&#x26D4; R&eacute;ductions non applicables</span>
-                </label>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="toggle-label">
+                    <input type="checkbox" name="notCompatible" id="notCompatible" value="true">
+                    <span class="toggle-text">&#x274C; Non compatible pack inventaires</span>
+                  </label>
+                </div>
+                <div class="form-group">
+                  <label class="toggle-label">
+                    <input type="checkbox" name="noReduction" id="noReduction" value="true">
+                    <span class="toggle-text">&#x26D4; R&eacute;ductions non applicables</span>
+                  </label>
+                </div>
               </div>
 
               <div class="card" style="margin-top:12px;">
@@ -233,6 +244,7 @@
         document.getElementById('packNote').value = '';
         document.getElementById('packColor').value = '#e74c3c';
         document.getElementById('donationAvailable').checked = false;
+        document.getElementById('notCompatible').checked = false;
         document.getElementById('packUnavailable').checked = false;
         document.getElementById('noReduction').checked = false;
       }
@@ -252,6 +264,7 @@
       document.getElementById('packNote').value = pack.note || '';
       document.getElementById('packColor').value = pack.color || '#e74c3c';
       document.getElementById('donationAvailable').checked = !!pack.donationAvailable;
+      document.getElementById('notCompatible').checked = !!pack.notCompatible;
       document.getElementById('packUnavailable').checked = pack.available === false;
       document.getElementById('noReduction').checked = !!pack.noReduction;
       document.getElementById('packModal').classList.add('show');
@@ -271,6 +284,7 @@
       const strawberries = parseInt(document.getElementById('priceStrawberries').value) || 0;
       const content = document.getElementById('packContent').value;
       const donation = document.getElementById('donationAvailable').checked;
+      const notCompat = document.getElementById('notCompatible').checked;
       const unavailable = document.getElementById('packUnavailable').checked;
       const noRed = document.getElementById('noReduction').checked;
       const note = document.getElementById('packNote').value;
@@ -281,11 +295,12 @@
       let desc = '';
       if (diamonds > 0 || strawberries > 0) {
         let parts = [];
-        if (diamonds > 0) parts.push(diamonds.toLocaleString('fr-FR') + ' \u{1F48E}');
-        if (strawberries > 0) parts.push(strawberries.toLocaleString('fr-FR') + ' \u{1F353}');
-        desc += '> **Prix :** ' + parts.join(' + ') + '\n';
+        if (diamonds > 0) parts.push('**' + diamonds.toLocaleString('fr-FR') + '** \u{1F48E}');
+        if (strawberries > 0) parts.push('**' + strawberries.toLocaleString('fr-FR') + '** \u{1F353}');
+        desc += '> \u{1F3F7}\u{FE0F} ' + parts.join(' + ') + '\n';
       }
       if (donation) desc += '> \u2705 **Compatible Pack Inventaire \u{1F4E6}**\n';
+      if (notCompat) desc += '> \u274C **Non compatible avec les pack inventaires**\n';
       if (unavailable) desc += '> \u{26A0}\u{FE0F} *Pas encore disponible*\n';
       if (noRed) desc += '> \u{26D4} *R\u00e9ductions non applicables*\n';
       if (desc) desc += '\n';
@@ -312,7 +327,7 @@
     ['packCategory', 'packColor'].forEach(id => {
       document.getElementById(id).addEventListener('change', updatePreview);
     });
-    ['donationAvailable', 'packUnavailable', 'noReduction'].forEach(id => {
+    ['donationAvailable', 'notCompatible', 'packUnavailable', 'noReduction'].forEach(id => {
       document.getElementById(id).addEventListener('change', updatePreview);
     });
 
