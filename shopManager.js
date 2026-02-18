@@ -101,7 +101,9 @@ function buildPackEmbed(pack) {
     if (pack.priceStrawberries > 0) {
       parts.push(`**${pack.priceStrawberries.toLocaleString('fr-FR')}** <:fraises:1328148609585123379>`);
     }
-    lines.push(`> 🏷️ ${parts.join(' + ')}`);
+    lines.push('');
+    lines.push(`# 🏷️ ${parts.join(' + ')}`);
+    lines.push('');
   }
 
   if (pack.donationAvailable) {

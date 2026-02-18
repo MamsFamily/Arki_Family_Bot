@@ -43,6 +43,24 @@
       "color": "#95a5a6"
     }
   ],
-  "packs": [],
+  "packs": [
+    {
+      "name": "Pack Apiculteur 🐝",
+      "category": "packs",
+      "priceDiamonds": 5000,
+      "priceStrawberries": 1800,
+      "content": "* **1** Ruche 🐝\r\n* **4** Extracteurs de sève\r\n* **200** Fleurs rare 🪻\r\n* **200** Miel 🍯",
+      "note": "",
+      "color": "#f5ec00",
+      "donationAvailable": true,
+      "notCompatible": false,
+      "available": true,
+      "noReduction": false,
+      "id": "mlsnrlc6xkjn",
+      "createdAt": "2026-02-18T23:23:30.630Z",
+      "messageId": "1473822309117595702",
+      "channelId": "1457048610939207769"
+    }
+  ],
   "shopChannelId": "1457048610939207769"
 }
