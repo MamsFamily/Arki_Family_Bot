@@ -90,18 +90,22 @@ function addCategory(category) {
   return category;
 }
 
+function formatNumber(n) {
+  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
+
 function buildPackEmbed(pack) {
   const lines = [];
 
   if (pack.priceDiamonds > 0 || pack.priceStrawberries > 0) {
     const parts = [];
     if (pack.priceDiamonds > 0) {
-      parts.push(`${pack.priceDiamonds.toLocaleString('fr-FR').replace(/\u202F/g, ' ')} <a:SparklyCrystal:1366174439003263087>`);
+      parts.push(`**${formatNumber(pack.priceDiamonds)}** <a:SparklyCrystal:1366174439003263087>`);
     }
     if (pack.priceStrawberries > 0) {
-      parts.push(`${pack.priceStrawberries.toLocaleString('fr-FR').replace(/\u202F/g, ' ')} <:fraises:1328148609585123379>`);
+      parts.push(`**${formatNumber(pack.priceStrawberries)}** <:fraises:1328148609585123379>`);
     }
-    lines.push(`### ${parts.join(' + ')}`);
+    lines.push(parts.join(' + '));
     lines.push('');
   }
 
@@ -145,7 +149,8 @@ function buildPackEmbed(pack) {
   const category = DEFAULT_CATEGORIES.find(c => c.id === pack.category) || DEFAULT_CATEGORIES[0];
 
   return {
-    description: `# ${pack.name}\n` + lines.join('\n') + '\n\n*Arki\' Family Shop*',
+    title: `${category.emoji} ${pack.name}`,
+    description: lines.join('\n') + '\n\n*Arki\' Family Shop*',
     color: parseInt(pack.color ? pack.color.replace('#', '') : category.color.replace('#', ''), 16),
   };
 }
