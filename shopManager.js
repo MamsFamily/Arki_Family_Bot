@@ -98,14 +98,19 @@ function buildPackEmbed(pack) {
   const lines = [];
 
   if (pack.priceDiamonds > 0 || pack.priceStrawberries > 0) {
-    const parts = [];
+    const priceParts = [];
+    const emojiParts = [];
     if (pack.priceDiamonds > 0) {
-      parts.push(`**${formatNumber(pack.priceDiamonds)}** <a:SparklyCrystal:1366174439003263087>`);
+      priceParts.push(formatNumber(pack.priceDiamonds));
+      emojiParts.push(`**${formatNumber(pack.priceDiamonds)}** <a:SparklyCrystal:1366174439003263087>`);
     }
     if (pack.priceStrawberries > 0) {
-      parts.push(`**${formatNumber(pack.priceStrawberries)}** <:fraises:1328148609585123379>`);
+      if (priceParts.length > 0) priceParts.push('+');
+      priceParts.push(formatNumber(pack.priceStrawberries));
+      emojiParts.push(`**${formatNumber(pack.priceStrawberries)}** <:fraises:1328148609585123379>`);
     }
-    lines.push(parts.join('  +  '));
+    lines.push(`## ${priceParts.join('  ')}`);
+    lines.push(emojiParts.join('  +  '));
     lines.push('');
   }
 
@@ -149,8 +154,7 @@ function buildPackEmbed(pack) {
   const category = DEFAULT_CATEGORIES.find(c => c.id === pack.category) || DEFAULT_CATEGORIES[0];
 
   return {
-    title: pack.name,
-    description: lines.join('\n') + '\n\n*Arki\' Family Shop*',
+    description: `# ${pack.name}\n` + lines.join('\n') + '\n\n*Arki\' Family Shop*',
     color: parseInt(pack.color ? pack.color.replace('#', '') : category.color.replace('#', ''), 16),
   };
 }
