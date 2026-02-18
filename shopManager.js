@@ -101,8 +101,7 @@ function buildPackEmbed(pack) {
     if (pack.priceStrawberries > 0) {
       parts.push(`**${pack.priceStrawberries.toLocaleString('fr-FR')}** <:fraises:1328148609585123379>`);
     }
-    lines.push('');
-    lines.push(`# 🏷️ ${parts.join(' + ')}`);
+    lines.push(`### ${parts.join(' + ')}`);
     lines.push('');
   }
 
@@ -146,11 +145,8 @@ function buildPackEmbed(pack) {
   const category = DEFAULT_CATEGORIES.find(c => c.id === pack.category) || DEFAULT_CATEGORIES[0];
 
   return {
-    title: `${category.emoji} ${pack.name}`,
-    description: lines.join('\n'),
+    description: `# ${category.emoji} ${pack.name}\n` + lines.join('\n') + '\n\n*Arki\' Family Shop*',
     color: parseInt(pack.color ? pack.color.replace('#', '') : category.color.replace('#', ''), 16),
-    footer: { text: 'Arki\' Family Shop' },
-    timestamp: new Date().toISOString(),
   };
 }
 
