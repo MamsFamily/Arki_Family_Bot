@@ -36,6 +36,14 @@ Dashboard d'administration accessible sur le port 5000, protégé par mot de pas
 - **Roulette Dino Shiny automatique** après publication des résultats
 - Récompenses spéciales pour le top 5 (lots pour top 3, diamants bonus pour 4-5)
 
+### Shop
+- **Dashboard Shop** : Créer, modifier, supprimer des packs depuis le dashboard web
+- **Publication Discord** : Un embed stylé par pack, publié dans un salon choisi
+- **Mise à jour** : Modifier un pack et mettre à jour l'embed Discord existant
+- **Options** : Toggle donation, indisponibilité, réductions non applicables
+- **Aperçu live** : Prévisualisation de l'embed Discord dans le formulaire
+- **Publication groupée** : Bouton pour publier/mettre à jour tous les packs d'un coup
+
 ### Permissions
 - Système de permissions pour les administrateurs et le rôle Modo (ID: 1157803768893689877)
 
@@ -47,6 +55,8 @@ Dashboard d'administration accessible sur le port 5000, protégé par mot de pas
 ├── config.json            # Configuration des choix de roulette
 ├── settings.json          # Configuration centralisée (généré automatiquement)
 ├── settingsManager.js     # Gestionnaire centralisé des paramètres (lecture/écriture/defaults)
+├── shopManager.js         # Gestionnaire du shop (packs, embeds, publication)
+├── shop.json              # Données des packs du shop (généré automatiquement)
 ├── votesConfig.js         # Export dynamique getVotesConfig() depuis settingsManager
 ├── topserveursService.js  # Service API TopServeurs
 ├── unbelievaboatService.js# Service API UnbelievaBoat (diamants)
@@ -62,6 +72,7 @@ Dashboard d'administration accessible sur le port 5000, protégé par mot de pas
 │   │   ├── votes.ejs      # Classement votes
 │   │   ├── rewards.ejs    # Récompenses votes (diamants, lots, bonus)
 │   │   ├── message.ejs    # Template du message publié
+│   │   ├── shop.ejs       # Gestion du shop (packs, embeds)
 │   │   └── settings.ejs   # Paramètres (canaux, rôles, emojis, aliases)
 │   └── public/css/        # Styles CSS
 ├── data/db/meta.sqlite    # Base de données SQLite
@@ -108,6 +119,7 @@ Dashboard d'administration accessible sur le port 5000, protégé par mot de pas
 5. Accéder au dashboard via le port 5000
 
 ## Changements récents
+- 2026-02-18: Système Shop avec dashboard CRUD, publication Discord (embeds par pack), aperçu live, donation/dispo/réduction toggles
 - 2026-02-17: Dashboard complet avec pages Récompenses, Message publié, Paramètres (tout configurable depuis le web)
 - 2026-02-17: Système de configuration centralisé (settingsManager.js + settings.json) avec support env vars
 - 2026-02-17: Ajout du dashboard web d'administration (Express + EJS)

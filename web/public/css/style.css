@@ -681,6 +681,241 @@ code {
   }
 }
 
+.shop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 20px;
+}
+
+.shop-pack-card {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.shop-pack-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+
+.pack-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pack-header-row h3 {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.pack-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pack-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-donation { background: rgba(46, 204, 113, 0.15); color: #2ecc71; }
+.badge-unavailable { background: rgba(255, 152, 0, 0.15); color: #ff9800; }
+.badge-nored { background: rgba(231, 76, 60, 0.15); color: #e74c3c; }
+.badge-published { background: rgba(76, 175, 80, 0.15); color: var(--success); }
+.badge-draft { background: rgba(124, 92, 252, 0.15); color: var(--accent); }
+
+.pack-price {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.price-tag {
+  font-size: 14px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 8px;
+}
+
+.price-diamonds { background: rgba(124, 92, 252, 0.15); color: var(--accent); }
+.price-strawberries { background: rgba(231, 76, 60, 0.15); color: #e74c3c; }
+
+.pack-content-preview {
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.pack-item {
+  padding: 1px 0;
+}
+
+.pack-more {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.pack-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-sm {
+  padding: 6px 14px;
+  font-size: 12px;
+}
+
+.btn-danger {
+  background: rgba(244, 67, 54, 0.15);
+  color: var(--error);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
+.btn-danger:hover {
+  background: rgba(244, 67, 54, 0.3);
+}
+
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.modal-overlay.show {
+  display: flex;
+}
+
+.modal-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 700px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 24px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.modal-close:hover {
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.embed-preview {
+  background: #2f3136;
+  border-radius: 4px;
+  display: flex;
+  overflow: hidden;
+}
+
+.embed-bar {
+  width: 4px;
+  background: #e74c3c;
+  flex-shrink: 0;
+}
+
+.embed-content {
+  padding: 12px 16px;
+  flex: 1;
+  min-width: 0;
+}
+
+.embed-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 8px;
+}
+
+.embed-desc {
+  font-size: 13px;
+  color: #dcddde;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.embed-desc .embed-quote {
+  display: block;
+  padding-left: 12px;
+  border-left: 3px solid rgba(255,255,255,0.1);
+  margin: 2px 0;
+}
+
+.embed-footer {
+  font-size: 11px;
+  color: #72767d;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+@media (max-width: 768px) {
+  .shop-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-card {
+    max-width: 100%;
+    margin: 10px;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 480px) {
   .stats-grid {
     grid-template-columns: 1fr;

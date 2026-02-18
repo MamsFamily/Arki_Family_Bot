@@ -3,6 +3,7 @@ const session = require('express-session');
 const path = require('path');
 const fs = require('fs');
 const { getSettings, updateSection } = require('../settingsManager');
+const { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, buildPackEmbed, DEFAULT_CATEGORIES } = require('../shopManager');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
 
@@ -272,6 +273,138 @@ function createWebServer(discordClient) {
 
     const settings = getSettings();
     res.render('settings', { settings, success: 'Paramètres sauvegardés !', error: null });
+  });
+
+  app.get('/shop', requireAuth, (req, res) => {
+    const shop = getShop();
+    const settings = getSettings();
+    const configuredGuildId = settings.guild.guildId;
+    const guild = configuredGuildId ? discordClient.guilds.cache.get(configuredGuildId) : discordClient.guilds.cache.first();
+    let channels = [];
+    if (guild) {
+      channels = guild.channels.cache
+        .filter(ch => ch.type === 0)
+        .sort((a, b) => a.position - b.position)
+        .map(ch => ({ id: ch.id, name: ch.name }));
+    }
+    res.render('shop', { shop, categories: DEFAULT_CATEGORIES, channels, success: req.query.success || null, error: req.query.error || null });
+  });
+
+  app.post('/shop/settings', requireAuth, (req, res) => {
+    const { shopChannelId } = req.body;
+    updateShopChannel(shopChannelId || '');
+    res.redirect('/shop?success=Salon+sauvegard%C3%A9+!');
+  });
+
+  app.post('/shop/pack', requireAuth, (req, res) => {
+    const { packId, name, category, priceDiamonds, priceStrawberries, content, note, color, donationAvailable, unavailable, noReduction } = req.body;
+
+    const packData = {
+      name: name || 'Pack sans nom',
+      category: category || 'packs',
+      priceDiamonds: parseInt(priceDiamonds) || 0,
+      priceStrawberries: parseInt(priceStrawberries) || 0,
+      content: content || '',
+      note: note || '',
+      color: color || '#e74c3c',
+      donationAvailable: donationAvailable === 'true',
+      available: unavailable !== 'true',
+      noReduction: noReduction === 'true',
+    };
+
+    if (packId) {
+      updatePack(packId, packData);
+      res.redirect('/shop?success=Pack+modifi%C3%A9+!');
+    } else {
+      addPack(packData);
+      res.redirect('/shop?success=Pack+cr%C3%A9%C3%A9+!');
+    }
+  });
+
+  app.post('/shop/delete/:id', requireAuth, (req, res) => {
+    const pack = getPack(req.params.id);
+    if (pack && pack.messageId && pack.channelId) {
+      try {
+        const channel = discordClient.channels.cache.get(pack.channelId);
+        if (channel) {
+          channel.messages.fetch(pack.messageId).then(msg => msg.delete()).catch(() => {});
+        }
+      } catch (e) {}
+    }
+    deletePack(req.params.id);
+    res.redirect('/shop?success=Pack+supprim%C3%A9+!');
+  });
+
+  app.post('/shop/publish/:id', requireAuth, async (req, res) => {
+    const shop = getShop();
+    const pack = getPack(req.params.id);
+    if (!pack) return res.redirect('/shop?error=Pack+introuvable');
+
+    const channelId = shop.shopChannelId;
+    if (!channelId) return res.redirect('/shop?error=Aucun+salon+configur%C3%A9');
+
+    try {
+      const channel = await discordClient.channels.fetch(channelId);
+      if (!channel) return res.redirect('/shop?error=Salon+introuvable');
+
+      const embed = buildPackEmbed(pack);
+
+      if (pack.messageId) {
+        try {
+          const existingMsg = await channel.messages.fetch(pack.messageId);
+          await existingMsg.edit({ embeds: [embed] });
+          res.redirect('/shop?success=Embed+mis+%C3%A0+jour+!');
+        } catch (e) {
+          const newMsg = await channel.send({ embeds: [embed] });
+          updatePack(pack.id, { messageId: newMsg.id, channelId: channelId });
+          res.redirect('/shop?success=Embed+republié+!');
+        }
+      } else {
+        const newMsg = await channel.send({ embeds: [embed] });
+        updatePack(pack.id, { messageId: newMsg.id, channelId: channelId });
+        res.redirect('/shop?success=Embed+publi%C3%A9+!');
+      }
+    } catch (err) {
+      console.error('Erreur publication shop:', err);
+      res.redirect('/shop?error=Erreur+de+publication');
+    }
+  });
+
+  app.post('/shop/publish-all', requireAuth, async (req, res) => {
+    const shop = getShop();
+    if (!shop.shopChannelId) return res.redirect('/shop?error=Aucun+salon+configur%C3%A9');
+
+    try {
+      const channel = await discordClient.channels.fetch(shop.shopChannelId);
+      if (!channel) return res.redirect('/shop?error=Salon+introuvable');
+
+      let published = 0;
+      for (const pack of shop.packs) {
+        const embed = buildPackEmbed(pack);
+        try {
+          if (pack.messageId) {
+            try {
+              const existingMsg = await channel.messages.fetch(pack.messageId);
+              await existingMsg.edit({ embeds: [embed] });
+            } catch (e) {
+              const newMsg = await channel.send({ embeds: [embed] });
+              updatePack(pack.id, { messageId: newMsg.id, channelId: shop.shopChannelId });
+            }
+          } else {
+            const newMsg = await channel.send({ embeds: [embed] });
+            updatePack(pack.id, { messageId: newMsg.id, channelId: shop.shopChannelId });
+          }
+          published++;
+        } catch (err) {
+          console.error(`Erreur publication pack ${pack.name}:`, err);
+        }
+      }
+
+      res.redirect(`/shop?success=${published}+packs+publiés+!`);
+    } catch (err) {
+      console.error('Erreur publication shop:', err);
+      res.redirect('/shop?error=Erreur+de+publication');
+    }
   });
 
   const PORT = 5000;
