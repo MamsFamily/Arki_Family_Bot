@@ -45,7 +45,7 @@
   ],
   "packs": [
     {
-      "name": "Pack Apiculteur 🐝",
+      "name": "# Pack Apiculteur 🐝",
       "category": "packs",
       "priceDiamonds": 5000,
       "priceStrawberries": 1800,
@@ -58,7 +58,7 @@
       "noReduction": false,
       "id": "mlsnrlc6xkjn",
       "createdAt": "2026-02-18T23:23:30.630Z",
-      "messageId": "1473822309117595702",
+      "messageId": "1473822713968726078",
       "channelId": "1457048610939207769"
     }
   ],
