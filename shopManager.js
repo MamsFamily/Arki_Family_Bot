@@ -96,10 +96,10 @@ function buildPackEmbed(pack) {
   if (pack.priceDiamonds > 0 || pack.priceStrawberries > 0) {
     const parts = [];
     if (pack.priceDiamonds > 0) {
-      parts.push(`${pack.priceDiamonds.toLocaleString('fr-FR')} <a:SparklyCrystal:1366174439003263087>`);
+      parts.push(`${pack.priceDiamonds.toLocaleString('fr-FR').replace(/\u202F/g, ' ')} <a:SparklyCrystal:1366174439003263087>`);
     }
     if (pack.priceStrawberries > 0) {
-      parts.push(`${pack.priceStrawberries.toLocaleString('fr-FR')} <:fraises:1328148609585123379>`);
+      parts.push(`${pack.priceStrawberries.toLocaleString('fr-FR').replace(/\u202F/g, ' ')} <:fraises:1328148609585123379>`);
     }
     lines.push(`### ${parts.join(' + ')}`);
     lines.push('');
