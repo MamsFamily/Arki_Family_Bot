@@ -107,7 +107,7 @@ function buildPackEmbed(pack) {
   }
 
   if (pack.donationAvailable) {
-    lines.push('> 🎁 **Donation disponible**');
+    lines.push('> <a:ok:1328152449785008189> **Compatible Pack Inventaire 📦**');
   }
 
   if (pack.available === false) {

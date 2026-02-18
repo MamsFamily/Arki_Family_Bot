@@ -66,7 +66,7 @@
                     <h3><%= cat.emoji %> <%= pack.name %></h3>
                     <div class="pack-badges">
                       <% if (pack.donationAvailable) { %>
-                        <span class="pack-badge badge-donation">&#x1F381; Donation</span>
+                        <span class="pack-badge badge-donation">&#x2705; Pack Inventaire</span>
                       <% } %>
                       <% if (pack.available === false) { %>
                         <span class="pack-badge badge-unavailable">&#x26A0;&#xFE0F; Indispo</span>
@@ -174,7 +174,7 @@
                 <div class="form-group">
                   <label class="toggle-label">
                     <input type="checkbox" name="donationAvailable" id="donationAvailable" value="true">
-                    <span class="toggle-text">&#x1F381; Donation disponible</span>
+                    <span class="toggle-text">&#x2705; Compatible Pack Inventaire &#x1F4E6;</span>
                   </label>
                 </div>
                 <div class="form-group">
@@ -285,7 +285,7 @@
         if (strawberries > 0) parts.push(strawberries.toLocaleString('fr-FR') + ' \u{1F353}');
         desc += '> **Prix :** ' + parts.join(' + ') + '\n';
       }
-      if (donation) desc += '> \u{1F381} **Donation disponible**\n';
+      if (donation) desc += '> \u2705 **Compatible Pack Inventaire \u{1F4E6}**\n';
       if (unavailable) desc += '> \u{26A0}\u{FE0F} *Pas encore disponible*\n';
       if (noRed) desc += '> \u{26D4} *R\u00e9ductions non applicables*\n';
       if (desc) desc += '\n';

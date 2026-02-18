@@ -1,0 +1,48 @@
+{
+  "categories": [
+    {
+      "id": "packs",
+      "name": "Packs",
+      "emoji": "📦",
+      "color": "#e74c3c"
+    },
+    {
+      "id": "dinos",
+      "name": "Dinos",
+      "emoji": "🦖",
+      "color": "#2ecc71"
+    },
+    {
+      "id": "imprint",
+      "name": "Imprint",
+      "emoji": "⬆️",
+      "color": "#3498db"
+    },
+    {
+      "id": "elements",
+      "name": "Éléments",
+      "emoji": "🧪",
+      "color": "#9b59b6"
+    },
+    {
+      "id": "chibis",
+      "name": "Chibis & Skins",
+      "emoji": "🎨",
+      "color": "#f39c12"
+    },
+    {
+      "id": "mutagene",
+      "name": "Mutagène",
+      "emoji": "☣️",
+      "color": "#1abc9c"
+    },
+    {
+      "id": "autres",
+      "name": "Autres",
+      "emoji": "🛒",
+      "color": "#95a5a6"
+    }
+  ],
+  "packs": [],
+  "shopChannelId": "1457048610939207769"
+}
