@@ -149,7 +149,7 @@ function buildPackEmbed(pack) {
   const category = DEFAULT_CATEGORIES.find(c => c.id === pack.category) || DEFAULT_CATEGORIES[0];
 
   return {
-    title: pack.name,
+    title: pack.name.toUpperCase(),
     description: lines.join('\n') + '\n\n*Arki\' Family Shop*',
     color: parseInt(pack.color ? pack.color.replace('#', '') : category.color.replace('#', ''), 16),
   };
