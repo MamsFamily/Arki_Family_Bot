@@ -213,6 +213,17 @@ function getAllLetters() {
   return Object.keys(grouped).sort();
 }
 
+function updateNavMessage(messageId, channelId) {
+  const data = getDinoData();
+  data.dinoNavMessage = { messageId, channelId };
+  saveDinos(data);
+}
+
+function getNavMessage() {
+  const data = getDinoData();
+  return data.dinoNavMessage || null;
+}
+
 module.exports = {
   getDinoData,
   addDino,
@@ -228,6 +239,8 @@ module.exports = {
   getDinosByLetter,
   buildLetterEmbed,
   getAllLetters,
+  updateNavMessage,
+  getNavMessage,
   formatNumber,
   DEFAULT_LETTER_COLORS,
 };

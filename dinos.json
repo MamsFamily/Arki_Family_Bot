@@ -82,6 +82,61 @@
       "notAvailableShop": false,
       "id": "mltbi5brlj7a",
       "createdAt": "2026-02-19T10:28:00.759Z"
+    },
+    {
+      "name": "Allosaure",
+      "priceDiamonds": 5000,
+      "priceStrawberries": 1500,
+      "variants": [
+        {
+          "label": "X",
+          "priceDiamonds": 6000,
+          "priceStrawberries": 1800,
+          "notAvailableShop": true
+        },
+        {
+          "label": "R",
+          "priceDiamonds": 7000,
+          "priceStrawberries": 2100,
+          "notAvailableShop": true
+        }
+      ],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "id": "mlth277psc30",
+      "createdAt": "2026-02-19T13:03:34.405Z"
+    },
+    {
+      "name": "Armagasaurus",
+      "priceDiamonds": 14000,
+      "priceStrawberries": 4200,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "id": "mlth2ysyxmmm",
+      "createdAt": "2026-02-19T13:04:10.162Z"
+    },
+    {
+      "name": "Ammonite",
+      "priceDiamonds": 4000,
+      "priceStrawberries": 1200,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "id": "mlth3l6to70z",
+      "createdAt": "2026-02-19T13:04:39.173Z"
     }
   ],
   "dinoChannelId": "1457048610939207769",

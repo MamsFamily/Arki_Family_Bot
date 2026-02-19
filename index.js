@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Partials, AttachmentBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, AttachmentBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
 const fs = require('fs');
 const RouletteWheel = require('./rouletteWheel');
 const { initDatabase } = require('./database');
@@ -9,6 +9,7 @@ const { addCashToUser, generateDraftBotCommands } = require('./unbelievaboatServ
 const { translate } = require('@vitalets/google-translate-api');
 const OpenAI = require('openai');
 const { createWebServer } = require('./web/server');
+const { getDinosByLetter, buildLetterEmbed, getAllLetters, getLetterColor } = require('./dinoManager');
 
 const openaiConfig = {};
 if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
@@ -224,6 +225,40 @@ client.on('interactionCreate', async interaction => {
         }
       } catch (err) {
         console.log('⚠️ Interaction expirée pour le bouton liste complète');
+      }
+      return;
+    }
+  }
+
+  if (interaction.isStringSelectMenu()) {
+    if (interaction.customId === 'dino_letter_select') {
+      const selectedLetter = interaction.values[0];
+      const grouped = getDinosByLetter();
+      const dinos = grouped[selectedLetter];
+
+      if (!dinos || dinos.length === 0) {
+        return interaction.reply({ content: `❌ Aucun dino pour la lettre ${selectedLetter}.`, ephemeral: true });
+      }
+
+      const embed = buildLetterEmbed(selectedLetter, dinos);
+      const letters = Object.keys(grouped).sort();
+      const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId('dino_letter_select')
+        .setPlaceholder('🦖 Choisir une lettre...')
+        .addOptions(letters.map(l => ({
+          label: `Lettre ${l}`,
+          description: `${grouped[l].length} dino${grouped[l].length > 1 ? 's' : ''}`,
+          value: l,
+          emoji: '📖',
+          default: l === selectedLetter,
+        })));
+
+      const row = new ActionRowBuilder().addComponents(selectMenu);
+
+      try {
+        await interaction.update({ embeds: [embed], components: [row] });
+      } catch (err) {
+        console.error('Erreur select menu dino:', err);
       }
       return;
     }

@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { getSettings, updateSection } = require('../settingsManager');
 const { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, buildPackEmbed, DEFAULT_CATEGORIES } = require('../shopManager');
-const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, buildLetterEmbed, getAllLetters, DEFAULT_LETTER_COLORS } = require('../dinoManager');
+const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, buildLetterEmbed, getAllLetters, updateNavMessage, getNavMessage, DEFAULT_LETTER_COLORS } = require('../dinoManager');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
 
@@ -520,6 +520,58 @@ function createWebServer(discordClient) {
       }
     } catch (err) {
       console.error('Erreur publication dino:', err);
+      res.redirect('/dinos?error=Erreur+de+publication');
+    }
+  });
+
+  app.post('/dinos/publish-nav', requireAuth, async (req, res) => {
+    const { ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+    const dinoData = getDinoData();
+    const channelId = dinoData.dinoChannelId;
+    if (!channelId) return res.redirect('/dinos?error=Aucun+salon+configur%C3%A9');
+
+    const grouped = getDinosByLetter();
+    const letters = Object.keys(grouped).sort();
+    if (letters.length === 0) return res.redirect('/dinos?error=Aucun+dino+enregistr%C3%A9');
+
+    try {
+      const channel = await discordClient.channels.fetch(channelId);
+      if (!channel) return res.redirect('/dinos?error=Salon+introuvable');
+
+      const firstLetter = letters[0];
+      const embed = buildLetterEmbed(firstLetter, grouped[firstLetter]);
+
+      const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId('dino_letter_select')
+        .setPlaceholder('🦖 Choisir une lettre...')
+        .addOptions(letters.map(l => ({
+          label: `Lettre ${l}`,
+          description: `${grouped[l].length} dino${grouped[l].length > 1 ? 's' : ''}`,
+          value: l,
+          emoji: '📖',
+          default: l === firstLetter,
+        })));
+
+      const row = new ActionRowBuilder().addComponents(selectMenu);
+
+      const navInfo = getNavMessage();
+      if (navInfo && navInfo.messageId) {
+        try {
+          const existingMsg = await channel.messages.fetch(navInfo.messageId);
+          await existingMsg.edit({ embeds: [embed], components: [row] });
+          res.redirect('/dinos?success=Menu+navigable+mis+%C3%A0+jour+!');
+        } catch (e) {
+          const newMsg = await channel.send({ embeds: [embed], components: [row] });
+          updateNavMessage(newMsg.id, channelId);
+          res.redirect('/dinos?success=Menu+navigable+republié+!');
+        }
+      } else {
+        const newMsg = await channel.send({ embeds: [embed], components: [row] });
+        updateNavMessage(newMsg.id, channelId);
+        res.redirect('/dinos?success=Menu+navigable+publi%C3%A9+!');
+      }
+    } catch (err) {
+      console.error('Erreur publication menu dino:', err);
       res.redirect('/dinos?error=Erreur+de+publication');
     }
   });
