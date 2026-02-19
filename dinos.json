@@ -1,0 +1,85 @@
+{
+  "dinos": [
+    {
+      "name": "Abeille (Reine) ",
+      "priceDiamonds": 7000,
+      "priceStrawberries": 2100,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "id": "mlt8x3u06f7v",
+      "createdAt": "2026-02-19T09:15:39.816Z"
+    },
+    {
+      "name": "Barionyx",
+      "priceDiamonds": 6000,
+      "priceStrawberries": 1800,
+      "variants": [
+        {
+          "label": "A",
+          "priceDiamonds": 7000,
+          "priceStrawberries": 2100
+        }
+      ],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "id": "mlt8yjnofodv",
+      "createdAt": "2026-02-19T09:16:46.980Z"
+    },
+    {
+      "name": "Dreadnougthus",
+      "priceDiamonds": 60000,
+      "priceStrawberries": 18000,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": true,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "id": "mlt91c66k7nw",
+      "createdAt": "2026-02-19T09:18:57.246Z"
+    },
+    {
+      "name": "Stryder tek",
+      "priceDiamonds": 100000,
+      "priceStrawberries": 30000,
+      "variants": [],
+      "uniquePerTribe": true,
+      "noReduction": true,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": true,
+      "notAvailableShop": true,
+      "id": "mlt92z9no4gm",
+      "createdAt": "2026-02-19T09:20:13.835Z"
+    }
+  ],
+  "dinoChannelId": "1457048610939207769",
+  "letterMessages": {
+    "A": {
+      "messageId": "1473971613186785415",
+      "channelId": "1457048610939207769"
+    },
+    "B": {
+      "messageId": "1473971614734618798",
+      "channelId": "1457048610939207769"
+    },
+    "D": {
+      "messageId": "1473972488370131050",
+      "channelId": "1457048610939207769"
+    },
+    "S": {
+      "messageId": "1473972490341711984",
+      "channelId": "1457048610939207769"
+    }
+  }
+}

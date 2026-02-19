@@ -5,13 +5,145 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dinos - Arki Dashboard</title>
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .dino-letter-section {
+      margin-bottom: 24px;
+      border: none;
+      border-radius: 16px;
+      overflow: hidden;
+      background: var(--bg-card);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+    .dino-letter-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 20px;
+      border-bottom: none;
+      position: relative;
+    }
+    .letter-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      font-size: 1.6em;
+      font-weight: 900;
+      color: #fff;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    .letter-header-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .letter-count {
+      color: var(--text-secondary);
+      font-size: 0.9em;
+    }
+    .letter-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .color-picker-mini {
+      width: 32px;
+      height: 32px;
+      border: 2px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      cursor: pointer;
+      padding: 0;
+      background: none;
+    }
+    .dino-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      gap: 12px;
+      transition: background 0.15s;
+    }
+    .dino-item:last-child { border-bottom: none; }
+    .dino-item:hover { background: rgba(255,255,255,0.03); }
+    .dino-name-row {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .dino-name-main {
+      font-size: 1.05em;
+      font-weight: 700;
+      color: #fff;
+    }
+    .dino-price-inline {
+      font-size: 0.9em;
+      color: var(--text-secondary);
+      background: rgba(255,255,255,0.05);
+      padding: 2px 10px;
+      border-radius: 20px;
+    }
+    .dino-variants {
+      margin-top: 4px;
+      padding-left: 20px;
+    }
+    .dino-variant {
+      color: var(--text-secondary);
+      font-size: 0.85em;
+      padding: 2px 0;
+    }
+    .dino-badges {
+      margin-top: 6px;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .dino-actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .variant-row {
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .variant-row:last-child { border-bottom: none; }
+    .stats-bar {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .stat-chip {
+      background: var(--bg-card);
+      padding: 10px 18px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.95em;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .stat-chip .stat-num {
+      font-weight: 700;
+      font-size: 1.2em;
+      color: #fff;
+    }
+    .stat-chip .stat-label {
+      color: var(--text-secondary);
+    }
+  </style>
 </head>
 <body>
   <div class="layout">
     <%- include('sidebar') %>
     <main class="main-content">
       <div class="page-header">
-        <h1>🦖 Prix des Dinos</h1>
+        <h1>&#x1F996; Prix des Dinos</h1>
         <p>G&eacute;rez les prix et options des dinosaures, publiez par lettre dans Discord</p>
       </div>
 
@@ -21,6 +153,20 @@
       <% if (error) { %>
         <div class="alert alert-error">&#x274C; <%= error %></div>
       <% } %>
+
+      <% const letters = Object.keys(grouped).sort(); %>
+      <% const totalDinos = Object.values(grouped).reduce((s, arr) => s + arr.length, 0); %>
+
+      <div class="stats-bar">
+        <div class="stat-chip">
+          <span class="stat-num"><%= totalDinos %></span>
+          <span class="stat-label">dinos</span>
+        </div>
+        <div class="stat-chip">
+          <span class="stat-num"><%= letters.length %></span>
+          <span class="stat-label">lettres</span>
+        </div>
+      </div>
 
       <div class="card">
         <div class="card-header">
@@ -47,33 +193,42 @@
       <div class="card">
         <div class="card-header">
           <h2>&#x1F995; Liste des dinos</h2>
-          <div>
+          <div style="display:flex;gap:8px;">
             <button class="btn btn-primary" onclick="openDinoModal()">+ Nouveau dino</button>
+            <% if (letters.length > 0) { %>
+              <form method="POST" action="/dinos/publish-all" style="display:inline">
+                <button type="submit" class="btn btn-secondary" onclick="return confirm('Publier/mettre \u00e0 jour toutes les lettres ?')">&#x1F4E2; Tout publier</button>
+              </form>
+            <% } %>
           </div>
         </div>
         <div class="card-body">
-          <% const letters = Object.keys(grouped).sort(); %>
           <% if (letters.length === 0) { %>
             <div class="empty-state">
               <div class="icon">&#x1F996;</div>
               <p>Aucun dinosaure pour le moment.<br>Cliquez sur "Nouveau dino" pour commencer.</p>
             </div>
           <% } else { %>
-
-            <div style="margin-bottom: 16px;">
-              <form method="POST" action="/dinos/publish-all">
-                <button type="submit" class="btn btn-primary" onclick="return confirm('Publier/mettre &agrave; jour toutes les lettres ?')">&#x1F4E2; Publier toutes les lettres</button>
-              </form>
-            </div>
-
-            <% letters.forEach(letter => { %>
+            <% letters.forEach(letter => {
+              const lColor = letterColors[letter] || defaultColors[letter] || '#2ecc71';
+            %>
               <div class="dino-letter-section">
-                <div class="dino-letter-header">
-                  <h3>&#x1F53B; <%= letter %> &#x1F53B;</h3>
-                  <div>
+                <div class="dino-letter-header" style="background: linear-gradient(135deg, <%= lColor %>22, <%= lColor %>08);">
+                  <div class="letter-header-left">
+                    <div class="letter-badge" style="background: linear-gradient(135deg, <%= lColor %>, <%= lColor %>cc);"><%= letter %></div>
+                    <div>
+                      <strong style="font-size:1.1em;color:#fff;"><%= grouped[letter].length %> dino<%= grouped[letter].length > 1 ? 's' : '' %></strong>
+                      <div class="letter-count">Lettre <%= letter %></div>
+                    </div>
+                  </div>
+                  <div class="letter-actions">
+                    <form method="POST" action="/dinos/letter-color" style="display:flex;align-items:center;gap:4px;">
+                      <input type="hidden" name="letter" value="<%= letter %>">
+                      <input type="color" name="color" value="<%= lColor %>" class="color-picker-mini" onchange="this.form.submit()" title="Couleur de la lettre">
+                    </form>
                     <form method="POST" action="/dinos/publish-letter/<%= letter %>" style="display:inline">
-                      <button type="submit" class="btn btn-sm btn-primary" title="Publier cette lettre">
-                        <%= letterMessages[letter] ? '&#x1F504; MAJ' : '&#x1F4E4; Publier' %> <%= letter %>
+                      <button type="submit" class="btn btn-sm btn-primary">
+                        <%= letterMessages[letter] ? '&#x1F504; MAJ' : '&#x1F4E4; Publier' %>
                       </button>
                     </form>
                   </div>
@@ -83,8 +238,8 @@
                     <div class="dino-item">
                       <div class="dino-info">
                         <div class="dino-name-row">
-                          <strong><%= dino.name %></strong>
-                          <span class="dino-price">&#x1F48E; <%= (dino.priceDiamonds || 0).toLocaleString('fr-FR') %> + &#x1F353; <%= (dino.priceStrawberries || 0).toLocaleString('fr-FR') %></span>
+                          <span class="dino-name-main" style="border-left: 3px solid <%= lColor %>; padding-left: 8px;"><%= dino.name %></span>
+                          <span class="dino-price-inline">&#x1F48E; <%= (dino.priceDiamonds || 0).toLocaleString('fr-FR') %> + &#x1F353; <%= (dino.priceStrawberries || 0).toLocaleString('fr-FR') %></span>
                         </div>
                         <% if (dino.variants && dino.variants.length > 0) { %>
                           <div class="dino-variants">
@@ -104,7 +259,7 @@
                             <span class="pack-badge badge-donation">&#x1F996; x2 inventaire</span>
                           <% } %>
                           <% if (dino.coupleInventaire) { %>
-                            <span class="pack-badge badge-donation">&#x1F48D; Couple inventaire</span>
+                            <span class="pack-badge badge-donation">&#x1F996; x2 via inventaire</span>
                           <% } %>
                           <% if (dino.notAvailableDona) { %>
                             <span class="pack-badge badge-notcompat">&#x274C; Pas en dona/inv</span>
@@ -189,7 +344,7 @@
                 <div class="form-group">
                   <label class="toggle-label">
                     <input type="checkbox" name="coupleInventaire" id="coupleInventaire" value="true">
-                    <span class="toggle-text">&#x1F48D; &Eacute;quivaut &agrave; un couple inventaire</span>
+                    <span class="toggle-text">&#x1F996; Achat inventaire co&ucirc;te x2</span>
                   </label>
                 </div>
               </div>
@@ -213,9 +368,11 @@
                 <div class="card-header"><h2>&#x1F441;&#xFE0F; Aper&ccedil;u Discord</h2></div>
                 <div class="card-body">
                   <div class="embed-preview" id="dinoEmbedPreview">
-                    <div class="embed-bar" style="background:#2ecc71"></div>
+                    <div class="embed-bar" id="dinoEmbedBar" style="background:#2ecc71"></div>
                     <div class="embed-content">
+                      <div class="embed-title" id="dinoPreviewTitle">&#x1F996; &#x2501;&#x2501;&#x2501; ? &#x2501;&#x2501;&#x2501; &#x1F996;</div>
                       <div class="embed-desc" id="dinoPreviewDesc">Ajoutez un dino pour voir l'aper&ccedil;u</div>
+                      <div class="embed-footer">Arki' Family ─ Prix Dinos</div>
                     </div>
                   </div>
                 </div>
@@ -233,6 +390,8 @@
   </div>
 
   <script>
+    const LETTER_COLORS = <%- JSON.stringify(defaultColors) %>;
+    const CUSTOM_COLORS = <%- JSON.stringify(letterColors) %>;
     let variantCount = 0;
 
     function openDinoModal(dino) {
@@ -277,7 +436,7 @@
           addVariant(v.label, v.priceDiamonds, v.priceStrawberries);
         });
       } else {
-        document.getElementById('variantsContainer').innerHTML = '<p class="help-text" id="noVariantsText">Aucun variant. Cliquez sur "+ Variant" pour ajouter (ex: R, A, X).</p>';
+        document.getElementById('variantsContainer').innerHTML = '<p class="help-text" id="noVariantsText">Aucun variant.</p>';
       }
 
       document.getElementById('dinoModal').classList.add('show');
@@ -348,28 +507,43 @@
       const notShop = document.getElementById('notAvailableShop').checked;
       const letter = name[0] ? name[0].toUpperCase() : '?';
 
-      let desc = `\u{1F53B} <strong>${letter}</strong> \u{1F53B}\n\n`;
-      desc += `\u2022 <strong><u>${name}</u></strong>: ${formatNum(diamonds)}\u{1F48E} + ${formatNum(strawberries)}\u{1F353}`;
+      var dash = String.fromCodePoint(0x2501);
+      var dino_emoji = String.fromCodePoint(0x1F996);
+      var bone = String.fromCodePoint(0x1F9B4);
+      var gem = String.fromCodePoint(0x1F48E);
+      var berry = String.fromCodePoint(0x1F353);
+      var warn = String.fromCodePoint(0x26A0) + String.fromCodePoint(0xFE0F);
+      var stop = String.fromCodePoint(0x26D4);
+      var bang = String.fromCodePoint(0x203C) + String.fromCodePoint(0xFE0F);
+      var no = String.fromCodePoint(0x1F6AB);
 
-      if (unique) desc += '  <em><u>Un seul par tribu</u></em> \u{26A0}\u{FE0F}';
-      if (couple) desc += '  ( 1 \u00e9quivaut \u00e0 un couple inventaire )';
+      document.getElementById('dinoPreviewTitle').textContent = dino_emoji + ' ' + dash+dash+dash + ' ' + letter + ' ' + dash+dash+dash + ' ' + dino_emoji;
+      var barColor = CUSTOM_COLORS[letter] || LETTER_COLORS[letter] || '#2ecc71';
+      document.getElementById('dinoEmbedBar').style.background = barColor;
+
+      var desc = '';
+      desc += '> ' + bone + ' <strong><u>' + name + '</u></strong> : ' + formatNum(diamonds) + gem + ' + ' + formatNum(strawberries) + berry;
+
+      if (unique) desc += '\n> ' + warn + ' <em><u>Un seul par tribu</u></em>';
+      if (couple) desc += '\n> ' + dino_emoji + ' <em>( Un achat via inventaire co\u00fbte ' + dino_emoji + ' x2 )</em>';
       desc += '\n';
 
-      const variantRows = document.querySelectorAll('.variant-row');
-      variantRows.forEach(row => {
-        const inputs = row.querySelectorAll('input');
-        const vLabel = inputs[0]?.value || '?';
-        const vD = parseInt(inputs[1]?.value) || 0;
-        const vS = parseInt(inputs[2]?.value) || 0;
-        desc += `  \u25E6 <strong>${vLabel}</strong> : ${formatNum(vD)}\u{1F48E} + ${formatNum(vS)}\u{1F353}\n`;
+      var variantRows = document.querySelectorAll('.variant-row');
+      variantRows.forEach(function(row) {
+        var inputs = row.querySelectorAll('input');
+        var vLabel = (inputs[0] && inputs[0].value) || '?';
+        var vD = parseInt(inputs[1] && inputs[1].value) || 0;
+        var vS = parseInt(inputs[2] && inputs[2].value) || 0;
+        desc += '>   \u25E6 <strong>' + vLabel + '</strong> : ' + formatNum(vD) + gem + ' + ' + formatNum(vS) + berry + '\n';
       });
 
-      if (noRed) desc += '  \u{26D4} <em>R\u00e9ductions non applicables</em>\n';
-      if (notDona) desc += '  \u{26A0}\u{FE0F} <em>NON DISPONIBLE AVEC LES PACKS DONA OU LES DINOS INVENTAIRES</em>\n';
-      if (doubleInv) desc += '  \u{1F996} <em>x2 par paiement inventaire</em>\n';
-      if (notShop) desc += '  \u{1F6AB} <em>Pas encore disponible au shop</em>\n';
+      if (noRed) desc += '> ' + stop + ' <em>R\u00e9ductions non applicables</em>\n';
+      if (notDona) desc += '> ' + bang + ' <em>NON DISPONIBLE AVEC LES PACKS DONA OU LES DINOS INVENTAIRES</em>\n';
+      if (doubleInv) desc += '> ' + dino_emoji + ' <em>x2 par paiement inventaire</em>\n';
+      if (notShop) desc += '> ' + no + ' <em>Pas encore disponible au shop</em>\n';
 
-      document.getElementById('dinoPreviewDesc').innerHTML = desc.replace(/\n/g, '<br>');
+      document.getElementById('dinoPreviewDesc').innerHTML = desc
+        .replace(/\n/g, '<br>') || 'Ajoutez un dino pour voir l\'aper\u00e7u';
     }
 
     ['dinoName', 'dinoPriceDiamonds', 'dinoPriceStrawberries'].forEach(id => {

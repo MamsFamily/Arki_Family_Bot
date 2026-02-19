@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { getSettings, updateSection } = require('../settingsManager');
 const { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, buildPackEmbed, DEFAULT_CATEGORIES } = require('../shopManager');
-const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, getDinosByLetter, buildLetterEmbed, getAllLetters } = require('../dinoManager');
+const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, buildLetterEmbed, getAllLetters, DEFAULT_LETTER_COLORS } = require('../dinoManager');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
 
@@ -423,12 +423,21 @@ function createWebServer(discordClient) {
         .sort((a, b) => a.position - b.position)
         .map(ch => ({ id: ch.id, name: ch.name }));
     }
-    res.render('dinos', { dinoData, grouped, letterMessages, channels, success: req.query.success || null, error: req.query.error || null });
+    const letterColors = getLetterColors();
+    res.render('dinos', { dinoData, grouped, letterMessages, letterColors, defaultColors: DEFAULT_LETTER_COLORS, channels, success: req.query.success || null, error: req.query.error || null });
   });
 
   app.post('/dinos/settings', requireAuth, (req, res) => {
     updateDinoChannel(req.body.dinoChannelId || '');
     res.redirect('/dinos?success=Salon+sauvegard%C3%A9+!');
+  });
+
+  app.post('/dinos/letter-color', requireAuth, (req, res) => {
+    const { letter, color } = req.body;
+    if (letter && color) {
+      updateLetterColor(letter.toUpperCase(), color);
+    }
+    res.redirect('/dinos?success=Couleur+mise+%C3%A0+jour+!');
   });
 
   app.post('/dinos/save', requireAuth, (req, res) => {
