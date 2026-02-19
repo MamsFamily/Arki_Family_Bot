@@ -449,10 +449,12 @@ function createWebServer(discordClient) {
       const vd = req.body[`variant_diamonds_${i}`];
       const vs = req.body[`variant_strawberries_${i}`];
       if (label !== undefined && label.trim()) {
+        const vNotShop = req.body[`variant_notshop_${i}`];
         variants.push({
           label: label.trim(),
           priceDiamonds: parseInt(vd) || 0,
           priceStrawberries: parseInt(vs) || 0,
+          notAvailableShop: vNotShop === 'true',
         });
       }
     }

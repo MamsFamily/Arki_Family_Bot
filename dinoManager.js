@@ -156,7 +156,11 @@ function buildDinoLine(dino) {
 function buildVariantLine(variant) {
   const diamonds = variant.priceDiamonds || 0;
   const strawberries = variant.priceStrawberries || 0;
-  return `>   ◦ **${toDoubleStruck(variant.label)}** : ${formatNumber(diamonds)}<a:SparklyCrystal:1366174439003263087> + ${formatNumber(strawberries)}<:fraises:1328148609585123379>`;
+  let line = `>   ◦ **${toDoubleStruck(variant.label)}** : ${formatNumber(diamonds)}<a:SparklyCrystal:1366174439003263087> + ${formatNumber(strawberries)}<:fraises:1328148609585123379>`;
+  if (variant.notAvailableShop) {
+    line += '\n>     🚫 *Pas encore disponible au shop*';
+  }
+  return line;
 }
 
 function buildLetterEmbed(letter, dinos) {

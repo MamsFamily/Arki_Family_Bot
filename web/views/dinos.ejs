@@ -433,7 +433,7 @@
       variantCount = 0;
       if (dino.variants && dino.variants.length > 0) {
         dino.variants.forEach(v => {
-          addVariant(v.label, v.priceDiamonds, v.priceStrawberries);
+          addVariant(v.label, v.priceDiamonds, v.priceStrawberries, v.notAvailableShop);
         });
       } else {
         document.getElementById('variantsContainer').innerHTML = '<p class="help-text" id="noVariantsText">Aucun variant.</p>';
@@ -447,7 +447,7 @@
       document.getElementById('dinoModal').classList.remove('show');
     }
 
-    function addVariant(label, diamonds, strawberries) {
+    function addVariant(label, diamonds, strawberries, notAvailableShop) {
       const noText = document.getElementById('noVariantsText');
       if (noText) noText.remove();
 
@@ -469,6 +469,10 @@
           <div class="form-group" style="flex:1;">
             <label>\u{1F353}</label>
             <input type="number" name="variant_strawberries_${idx}" value="${strawberries || 0}" min="0" class="variant-input">
+          </div>
+          <div class="form-group" style="flex:0.3;text-align:center;">
+            <label style="font-size:0.7em;">\u{1F6AB} Shop</label>
+            <input type="checkbox" name="variant_notshop_${idx}" value="true" ${notAvailableShop ? 'checked' : ''} class="variant-input" style="width:auto;margin:auto;">
           </div>
           <button type="button" class="btn btn-sm btn-danger" onclick="removeVariant(${idx})" style="margin-bottom:4px;">\u{1F5D1}\u{FE0F}</button>
         </div>
@@ -534,7 +538,9 @@
         var vLabel = (inputs[0] && inputs[0].value) || '?';
         var vD = parseInt(inputs[1] && inputs[1].value) || 0;
         var vS = parseInt(inputs[2] && inputs[2].value) || 0;
+        var vNotShop = inputs[3] && inputs[3].checked;
         desc += '>   \u25E6 <strong>' + vLabel + '</strong> : ' + formatNum(vD) + gem + ' + ' + formatNum(vS) + berry + '\n';
+        if (vNotShop) desc += '>     ' + no + ' <em>Pas encore disponible au shop</em>\n';
       });
 
       if (noRed) desc += '> ' + stop + ' <em>R\u00e9ductions non applicables</em>\n';
