@@ -280,7 +280,7 @@ function buildSaleEmbed(dino, percent) {
   const newStrawberries = Math.round(strawberries * (1 - percent / 100));
 
   const lines = [];
-  lines.push(`## 🔥 FLASH SALE 🔥`);
+  lines.push(`## 🔥 VENTE FLASH 🔥`);
   lines.push('');
   lines.push(`### ▫️ ${toDoubleStruck(dino.name)}`);
   lines.push('');
@@ -294,7 +294,7 @@ function buildSaleEmbed(dino, percent) {
   return {
     description: lines.join('\n'),
     color: 0xe74c3c,
-    footer: { text: `Arki' Family ─ Flash Sale ─ ${dino.name}` },
+    footer: { text: `Arki' Family ─ Vente Flash ─ ${dino.name}` },
   };
 }
 
