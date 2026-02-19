@@ -70,7 +70,8 @@
         {
           "label": "A",
           "priceDiamonds": 5000,
-          "priceStrawberries": 1500
+          "priceStrawberries": 1500,
+          "notAvailableShop": true
         }
       ],
       "uniquePerTribe": false,
