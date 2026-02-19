@@ -9,7 +9,7 @@ const { addCashToUser, generateDraftBotCommands } = require('./unbelievaboatServ
 const { translate } = require('@vitalets/google-translate-api');
 const OpenAI = require('openai');
 const { createWebServer } = require('./web/server');
-const { getDinosByLetter, buildLetterEmbed, getAllLetters, getLetterColor } = require('./dinoManager');
+const { getDinosByLetter, getModdedDinos, buildLetterEmbed, buildModdedEmbed, getAllLetters, getLetterColor } = require('./dinoManager');
 
 const openaiConfig = {};
 if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
@@ -235,12 +235,19 @@ client.on('interactionCreate', async interaction => {
       const selectedLetter = interaction.values[0];
       const grouped = getDinosByLetter();
       const letters = Object.keys(grouped).sort();
-      const totalDinos = letters.reduce((sum, l) => sum + grouped[l].length, 0);
+      const moddedDinos = getModdedDinos();
+      const totalDinos = letters.reduce((sum, l) => sum + grouped[l].length, 0) + moddedDinos.length;
 
       let embeds;
       if (selectedLetter === 'ALL') {
         embeds = letters.map(l => buildLetterEmbed(l, grouped[l]));
+        if (moddedDinos.length > 0) embeds.push(buildModdedEmbed(moddedDinos));
         if (embeds.length > 10) embeds = embeds.slice(0, 10);
+      } else if (selectedLetter === 'MODDED') {
+        if (moddedDinos.length === 0) {
+          return interaction.reply({ content: '❌ Aucun dino moddé.', ephemeral: true });
+        }
+        embeds = [buildModdedEmbed(moddedDinos)];
       } else {
         const dinos = grouped[selectedLetter];
         if (!dinos || dinos.length === 0) {
@@ -259,6 +266,15 @@ client.on('interactionCreate', async interaction => {
           default: l === selectedLetter,
         })),
       ];
+      if (moddedDinos.length > 0) {
+        options.push({
+          label: 'Dinos Moddés',
+          description: `${moddedDinos.length} dino${moddedDinos.length > 1 ? 's' : ''} moddé${moddedDinos.length > 1 ? 's' : ''}`,
+          value: 'MODDED',
+          emoji: '🔧',
+          default: selectedLetter === 'MODDED',
+        });
+      }
 
       const selectMenu = new StringSelectMenuBuilder()
         .setCustomId('dino_letter_select')

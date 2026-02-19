@@ -107,10 +107,12 @@ function getLetterColors() {
   return data.letterColors || {};
 }
 
-function getDinosByLetter() {
+function getDinosByLetter(includeModded) {
   const data = getDinoData();
   const grouped = {};
   data.dinos.forEach(dino => {
+    if (!includeModded && dino.isModded) return;
+    if (includeModded === 'only' && !dino.isModded) return;
     const letter = (dino.name || '?')[0].toUpperCase();
     if (!grouped[letter]) grouped[letter] = [];
     grouped[letter].push(dino);
@@ -119,6 +121,53 @@ function getDinosByLetter() {
     grouped[letter].sort((a, b) => a.name.localeCompare(b.name, 'fr'));
   });
   return grouped;
+}
+
+function getModdedDinos() {
+  const data = getDinoData();
+  return data.dinos.filter(d => d.isModded).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+}
+
+const MODDED_WARNING = `>>> ## <a:Announcements:1328165705069236308> Information importante – Dinos moddés
+
+***Les dinos issus de mods restent dépendants du suivi de leurs créateurs.
+En cas de dysfonctionnement, d'absence de mise à jour, ou si leur présence ne correspond plus à l'équilibre et à l'évolution du serveur, l'équipe d'administration se réserve le droit de les modifier ou de les retirer.***
+
+<a:flche_droite:1438132479385931868> **Merci d'en prendre note lors de l'achat d'un Dino moddé.** <a:flche_gauche:1438122377551548510>`;
+
+function buildModdedEmbed(moddedDinos) {
+  const blocks = [];
+  blocks.push(MODDED_WARNING);
+  blocks.push('');
+
+  moddedDinos.forEach(dino => {
+    const dinoLines = [];
+    dinoLines.push(buildDinoLine(dino));
+
+    if (dino.variants && dino.variants.length > 0) {
+      dino.variants.filter(v => !v.hidden).forEach(v => {
+        dinoLines.push(buildVariantLine(v));
+      });
+    }
+
+    if (dino.noReduction) {
+      dinoLines.push('> ⛔ *Réductions fondateur ou donateur non applicables*');
+    }
+    if (dino.notAvailableDona) {
+      dinoLines.push('> ‼️ *( NON DISPONIBLE AVEC LES PACKS DONA OU LES DINOS INVENTAIRES )*');
+    }
+    if (dino.doubleInventaire) {
+      dinoLines.push('> 🦖 *x2 par paiement inventaire*');
+    }
+
+    blocks.push(dinoLines.join('\n'));
+  });
+
+  return {
+    description: `# ━━━ 【🔧 MODDÉS】 ━━━\n` + blocks.join('\n'),
+    color: 0x9b59b6,
+    footer: { text: `Arki' Family ─ Prix Dinos ─ Moddés` },
+  };
 }
 
 function formatNumber(n) {
@@ -224,6 +273,31 @@ function getNavMessage() {
   return data.dinoNavMessage || null;
 }
 
+function buildSaleEmbed(dino, percent) {
+  const diamonds = dino.priceDiamonds || 0;
+  const strawberries = dino.priceStrawberries || 0;
+  const newDiamonds = Math.round(diamonds * (1 - percent / 100));
+  const newStrawberries = Math.round(strawberries * (1 - percent / 100));
+
+  const lines = [];
+  lines.push(`## 🔥 FLASH SALE 🔥`);
+  lines.push('');
+  lines.push(`### ▫️ ${toDoubleStruck(dino.name)}`);
+  lines.push('');
+  lines.push(`> 🏷️ **-${percent}%** de réduction !`);
+  lines.push('');
+  lines.push(`> ~~${formatNumber(diamonds)}~~<a:SparklyCrystal:1366174439003263087> + ~~${formatNumber(strawberries)}~~<:fraises:1328148609585123379>`);
+  lines.push(`> <a:animearrow:1157234686200922152> **${formatNumber(newDiamonds)}**<a:SparklyCrystal:1366174439003263087> + **${formatNumber(newStrawberries)}**<:fraises:1328148609585123379>`);
+  lines.push('');
+  lines.push(`> *Offre limitée, profitez-en !*`);
+
+  return {
+    description: lines.join('\n'),
+    color: 0xe74c3c,
+    footer: { text: `Arki' Family ─ Flash Sale ─ ${dino.name}` },
+  };
+}
+
 module.exports = {
   getDinoData,
   addDino,
@@ -237,7 +311,10 @@ module.exports = {
   getLetterColor,
   getLetterColors,
   getDinosByLetter,
+  getModdedDinos,
   buildLetterEmbed,
+  buildModdedEmbed,
+  buildSaleEmbed,
   getAllLetters,
   updateNavMessage,
   getNavMessage,

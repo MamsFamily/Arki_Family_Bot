@@ -192,6 +192,50 @@
 
       <div class="card">
         <div class="card-header">
+          <h2>&#x1F525; Dino Flash Sale</h2>
+        </div>
+        <div class="card-body">
+          <form method="POST" action="/dinos/publish-sale" id="saleForm" onsubmit="return confirm('Publier cette promo dino sur Discord ?')">
+            <div class="form-row">
+              <div class="form-group" style="flex:2;">
+                <label for="saleDinoId">Choisir un dino</label>
+                <select id="saleDinoId" name="saleDinoId" class="form-control" onchange="updateSalePreview()">
+                  <option value="">-- S&eacute;lectionner un dino --</option>
+                  <% dinoData.dinos.slice().sort((a,b) => a.name.localeCompare(b.name, 'fr')).forEach(d => { %>
+                    <option value="<%= d.id %>" data-diamonds="<%= d.priceDiamonds || 0 %>" data-strawberries="<%= d.priceStrawberries || 0 %>" data-name="<%= d.name %>"><%= d.name %> (&#x1F48E; <%= (d.priceDiamonds || 0).toLocaleString('fr-FR') %> + &#x1F353; <%= (d.priceStrawberries || 0).toLocaleString('fr-FR') %>)</option>
+                  <% }); %>
+                </select>
+              </div>
+              <div class="form-group" style="flex:1;">
+                <label for="salePercent">R&eacute;duction (%)</label>
+                <input type="number" id="salePercent" name="salePercent" min="1" max="99" placeholder="Ex: 25" onchange="updateSalePreview()" oninput="updateSalePreview()">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="saleChannelId">Salon Discord</label>
+                <select id="saleChannelId" name="saleChannelId" class="form-control">
+                  <option value="">-- Salon par d&eacute;faut (dinos) --</option>
+                  <% channels.forEach(ch => { %>
+                    <option value="<%= ch.id %>"># <%= ch.name %></option>
+                  <% }); %>
+                </select>
+              </div>
+            </div>
+
+            <div id="salePreview" style="display:none;margin:12px 0;padding:16px;background:#2b2d31;border-radius:8px;border-left:4px solid #e74c3c;">
+              <p style="margin:0 0 8px;color:#e74c3c;font-weight:700;font-size:1.1em;">&#x1F525; Aper&ccedil;u de la promo</p>
+              <p style="margin:0;color:#e0e0e0;" id="salePreviewDino"></p>
+              <p style="margin:4px 0 0;color:#888;font-size:13px;" id="salePreviewCalc"></p>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="saleSubmitBtn" disabled>&#x1F525; Publier la promo</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
           <h2>&#x1F995; Liste des dinos</h2>
           <div style="display:flex;gap:8px;">
             <button class="btn btn-primary" onclick="openDinoModal()">+ Nouveau dino</button>
@@ -291,6 +335,9 @@
                           <% if (dino.notAvailableShop) { %>
                             <span class="pack-badge badge-unavailable">&#x1F6AB; Pas dispo shop</span>
                           <% } %>
+                          <% if (dino.isModded) { %>
+                            <span class="pack-badge badge-donation">&#x1F527; Mod&eacute;</span>
+                          <% } %>
                         </div>
                       </div>
                       <div class="dino-actions">
@@ -304,6 +351,64 @@
                 </div>
               </div>
             <% }); %>
+
+            <% if (moddedDinos.length > 0) { %>
+              <div class="dino-letter-section">
+                <div class="dino-letter-header" style="background: linear-gradient(135deg, #9b59b622, #9b59b608);">
+                  <div class="letter-header-left">
+                    <div class="letter-badge" style="background: linear-gradient(135deg, #9b59b6, #9b59b6cc);">&#x1F527;</div>
+                    <div>
+                      <strong style="font-size:1.1em;color:#fff;"><%= moddedDinos.length %> dino<%= moddedDinos.length > 1 ? 's' : '' %> modd&eacute;<%= moddedDinos.length > 1 ? 's' : '' %></strong>
+                      <div class="letter-count">Cat&eacute;gorie Modd&eacute;s</div>
+                    </div>
+                  </div>
+                  <div class="letter-actions">
+                    <form method="POST" action="/dinos/publish-letter/MODDED" style="display:inline">
+                      <button type="submit" class="btn btn-sm btn-primary">
+                        <%= letterMessages['MODDED'] ? '&#x1F504; MAJ' : '&#x1F4E4; Publier' %>
+                      </button>
+                    </form>
+                  </div>
+                </div>
+                <div class="dino-list">
+                  <% moddedDinos.forEach(dino => { %>
+                    <div class="dino-item">
+                      <div class="dino-info">
+                        <div class="dino-name-row">
+                          <span class="dino-name-main" style="border-left: 3px solid #9b59b6; padding-left: 8px;"><%= dino.name %></span>
+                          <span class="dino-price-inline">&#x1F48E; <%= (dino.priceDiamonds || 0).toLocaleString('fr-FR') %> + &#x1F353; <%= (dino.priceStrawberries || 0).toLocaleString('fr-FR') %></span>
+                        </div>
+                        <% if (dino.variants && dino.variants.length > 0) { %>
+                          <div class="dino-variants">
+                            <% dino.variants.forEach(v => { %>
+                              <div class="dino-variant">&#x25E6; <strong><%= v.label %></strong> : &#x1F48E; <%= (v.priceDiamonds || 0).toLocaleString('fr-FR') %> + &#x1F353; <%= (v.priceStrawberries || 0).toLocaleString('fr-FR') %></div>
+                            <% }); %>
+                          </div>
+                        <% } %>
+                        <div class="dino-badges">
+                          <span class="pack-badge badge-donation">&#x1F527; Mod&eacute;</span>
+                          <% if (dino.uniquePerTribe) { %>
+                            <span class="pack-badge badge-unavailable">&#x26A0;&#xFE0F; 1 par tribu</span>
+                          <% } %>
+                          <% if (dino.noReduction) { %>
+                            <span class="pack-badge badge-nored">&#x26D4; Pas de r&eacute;duc</span>
+                          <% } %>
+                          <% if (dino.notAvailableShop) { %>
+                            <span class="pack-badge badge-unavailable">&#x1F6AB; Pas dispo shop</span>
+                          <% } %>
+                        </div>
+                      </div>
+                      <div class="dino-actions">
+                        <button class="btn btn-sm btn-secondary" data-dino="<%= encodeURIComponent(JSON.stringify(dino)) %>" onclick="editDino(JSON.parse(decodeURIComponent(this.dataset.dino)))">&#x270F;&#xFE0F;</button>
+                        <form method="POST" action="/dinos/delete/<%= dino.id %>" style="display:inline" onsubmit="return confirm('Supprimer <%= dino.name %> ?')">
+                          <button type="submit" class="btn btn-sm btn-danger">&#x1F5D1;&#xFE0F;</button>
+                        </form>
+                      </div>
+                    </div>
+                  <% }); %>
+                </div>
+              </div>
+            <% } %>
           <% } %>
         </div>
       </div>
@@ -388,6 +493,15 @@
                 </div>
               </div>
 
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="toggle-label">
+                    <input type="checkbox" name="isModded" id="isModded" value="true">
+                    <span class="toggle-text">&#x1F527; Dino mod&eacute; (cat&eacute;gorie s&eacute;par&eacute;e)</span>
+                  </label>
+                </div>
+              </div>
+
               <div class="card" style="margin-top:12px;">
                 <div class="card-header"><h2>&#x1F441;&#xFE0F; Aper&ccedil;u Discord</h2></div>
                 <div class="card-body">
@@ -418,6 +532,37 @@
     const CUSTOM_COLORS = <%- JSON.stringify(letterColors) %>;
     let variantCount = 0;
 
+    function updateSalePreview() {
+      const select = document.getElementById('saleDinoId');
+      const pct = parseInt(document.getElementById('salePercent').value) || 0;
+      const preview = document.getElementById('salePreview');
+      const btn = document.getElementById('saleSubmitBtn');
+
+      if (!select.value || pct <= 0 || pct >= 100) {
+        preview.style.display = 'none';
+        btn.disabled = true;
+        return;
+      }
+
+      const opt = select.options[select.selectedIndex];
+      const name = opt.dataset.name;
+      const diamonds = parseInt(opt.dataset.diamonds) || 0;
+      const strawberries = parseInt(opt.dataset.strawberries) || 0;
+
+      const newDiamonds = Math.round(diamonds * (1 - pct / 100));
+      const newStrawberries = Math.round(strawberries * (1 - pct / 100));
+
+      const fmt = n => n.toLocaleString('fr-FR');
+
+      document.getElementById('salePreviewDino').innerHTML =
+        `<strong>${name}</strong> &mdash; <strong style="color:#e74c3c">-${pct}%</strong>`;
+      document.getElementById('salePreviewCalc').innerHTML =
+        `\u{1F48E} <s>${fmt(diamonds)}</s> \u2192 <strong style="color:#2ecc71">${fmt(newDiamonds)}</strong> + \u{1F353} <s>${fmt(strawberries)}</s> \u2192 <strong style="color:#2ecc71">${fmt(newStrawberries)}</strong>`;
+
+      preview.style.display = 'block';
+      btn.disabled = false;
+    }
+
     function toggleVariantDropdown() {
       const dd = document.getElementById('variantDropdown');
       dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
@@ -444,6 +589,7 @@
         document.getElementById('coupleInventaire').checked = false;
         document.getElementById('notAvailableDona').checked = false;
         document.getElementById('notAvailableShop').checked = false;
+        document.getElementById('isModded').checked = false;
         document.getElementById('variantsContainer').innerHTML = '<p class="help-text" id="noVariantsText">Aucun variant. Cliquez sur "+ Variant" pour ajouter (ex: R, A, X).</p>';
         variantCount = 0;
       }
@@ -463,6 +609,7 @@
       document.getElementById('coupleInventaire').checked = !!dino.coupleInventaire;
       document.getElementById('notAvailableDona').checked = !!dino.notAvailableDona;
       document.getElementById('notAvailableShop').checked = !!dino.notAvailableShop;
+      document.getElementById('isModded').checked = !!dino.isModded;
 
       document.getElementById('variantsContainer').innerHTML = '';
       variantCount = 0;

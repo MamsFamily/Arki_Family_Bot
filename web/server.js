@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { getSettings, updateSection } = require('../settingsManager');
 const { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, buildPackEmbed, DEFAULT_CATEGORIES } = require('../shopManager');
-const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, buildLetterEmbed, getAllLetters, updateNavMessage, getNavMessage, DEFAULT_LETTER_COLORS } = require('../dinoManager');
+const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, buildLetterEmbed, buildModdedEmbed, buildSaleEmbed, getAllLetters, updateNavMessage, getNavMessage, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
 
@@ -424,6 +424,7 @@ function createWebServer(discordClient) {
         .map(ch => ({ id: ch.id, name: ch.name }));
     }
     const letterColors = getLetterColors();
+    const moddedDinos = getModdedDinos();
     const variantLabels = {};
     dinoData.dinos.forEach(d => {
       if (d.variants && d.variants.length > 0) {
@@ -436,7 +437,7 @@ function createWebServer(discordClient) {
       }
     });
     const hasAnyVariant = Object.keys(variantLabels).length > 0;
-    res.render('dinos', { dinoData, grouped, letterMessages, letterColors, defaultColors: DEFAULT_LETTER_COLORS, channels, variantLabels, hasAnyVariant, success: req.query.success || null, error: req.query.error || null });
+    res.render('dinos', { dinoData, grouped, moddedDinos, letterMessages, letterColors, defaultColors: DEFAULT_LETTER_COLORS, channels, variantLabels, hasAnyVariant, success: req.query.success || null, error: req.query.error || null });
   });
 
   app.post('/dinos/settings', requireAuth, (req, res) => {
@@ -467,13 +468,12 @@ function createWebServer(discordClient) {
         });
       }
     });
-    const { saveDinos } = require('../dinoManager');
     saveDinos(data);
     res.redirect('/dinos?success=Variants+mis+%C3%A0+jour+!');
   });
 
   app.post('/dinos/save', requireAuth, (req, res) => {
-    const { dinoId, name, priceDiamonds, priceStrawberries, uniquePerTribe, noReduction, doubleInventaire, coupleInventaire, notAvailableDona, notAvailableShop } = req.body;
+    const { dinoId, name, priceDiamonds, priceStrawberries, uniquePerTribe, noReduction, doubleInventaire, coupleInventaire, notAvailableDona, notAvailableShop, isModded } = req.body;
 
     const variants = [];
     for (let i = 1; i <= 20; i++) {
@@ -504,6 +504,7 @@ function createWebServer(discordClient) {
       coupleInventaire: coupleInventaire === 'true',
       notAvailableDona: notAvailableDona === 'true',
       notAvailableShop: notAvailableShop === 'true',
+      isModded: isModded === 'true',
     };
 
     if (dinoId) {
@@ -526,15 +527,22 @@ function createWebServer(discordClient) {
     const channelId = dinoData.dinoChannelId;
     if (!channelId) return res.redirect('/dinos?error=Aucun+salon+configur%C3%A9');
 
-    const grouped = getDinosByLetter();
-    const dinos = grouped[letter];
-    if (!dinos || dinos.length === 0) return res.redirect('/dinos?error=Aucun+dino+pour+cette+lettre');
+    let embed;
+    if (letter === 'MODDED') {
+      const moddedDinos = getModdedDinos();
+      if (moddedDinos.length === 0) return res.redirect('/dinos?error=Aucun+dino+modd%C3%A9');
+      embed = buildModdedEmbed(moddedDinos);
+    } else {
+      const grouped = getDinosByLetter();
+      const dinos = grouped[letter];
+      if (!dinos || dinos.length === 0) return res.redirect('/dinos?error=Aucun+dino+pour+cette+lettre');
+      embed = buildLetterEmbed(letter, dinos);
+    }
 
     try {
       const channel = await discordClient.channels.fetch(channelId);
       if (!channel) return res.redirect('/dinos?error=Salon+introuvable');
 
-      const embed = buildLetterEmbed(letter, dinos);
       const letterMsgs = getLetterMessages();
 
       if (letterMsgs[letter] && letterMsgs[letter].messageId) {
@@ -566,29 +574,40 @@ function createWebServer(discordClient) {
 
     const grouped = getDinosByLetter();
     const letters = Object.keys(grouped).sort();
-    if (letters.length === 0) return res.redirect('/dinos?error=Aucun+dino+enregistr%C3%A9');
+    const moddedDinos = getModdedDinos();
+    if (letters.length === 0 && moddedDinos.length === 0) return res.redirect('/dinos?error=Aucun+dino+enregistr%C3%A9');
 
     try {
       const channel = await discordClient.channels.fetch(channelId);
       if (!channel) return res.redirect('/dinos?error=Salon+introuvable');
 
-      const firstLetter = letters[0];
-      const embed = buildLetterEmbed(firstLetter, grouped[firstLetter]);
+      const firstLetter = letters.length > 0 ? letters[0] : null;
+      const embed = firstLetter ? buildLetterEmbed(firstLetter, grouped[firstLetter]) : buildModdedEmbed(moddedDinos);
 
-      const totalDinos = letters.reduce((sum, l) => sum + grouped[l].length, 0);
+      const totalDinos = letters.reduce((sum, l) => sum + grouped[l].length, 0) + moddedDinos.length;
+      const menuOptions = [
+        { label: 'Tout afficher', description: `${totalDinos} dinos au total`, value: 'ALL', emoji: '📋' },
+        ...letters.map(l => ({
+          label: `Lettre ${l}`,
+          description: `${grouped[l].length} dino${grouped[l].length > 1 ? 's' : ''}`,
+          value: l,
+          emoji: '📖',
+          default: l === firstLetter,
+        })),
+      ];
+      if (moddedDinos.length > 0) {
+        menuOptions.push({
+          label: 'Dinos Moddés',
+          description: `${moddedDinos.length} dino${moddedDinos.length > 1 ? 's' : ''} moddé${moddedDinos.length > 1 ? 's' : ''}`,
+          value: 'MODDED',
+          emoji: '🔧',
+        });
+      }
+
       const selectMenu = new StringSelectMenuBuilder()
         .setCustomId('dino_letter_select')
         .setPlaceholder('🦖 Choisir une lettre...')
-        .addOptions([
-          { label: 'Tout afficher', description: `${totalDinos} dinos au total`, value: 'ALL', emoji: '📋' },
-          ...letters.map(l => ({
-            label: `Lettre ${l}`,
-            description: `${grouped[l].length} dino${grouped[l].length > 1 ? 's' : ''}`,
-            value: l,
-            emoji: '📖',
-            default: l === firstLetter,
-          })),
-        ]);
+        .addOptions(menuOptions);
 
       const row = new ActionRowBuilder().addComponents(selectMenu);
 
@@ -648,9 +667,58 @@ function createWebServer(discordClient) {
         }
       }
 
+      const moddedList = getModdedDinos();
+      if (moddedList.length > 0) {
+        const moddedEmbed = buildModdedEmbed(moddedList);
+        try {
+          if (letterMsgs['MODDED'] && letterMsgs['MODDED'].messageId) {
+            try {
+              const existingMsg = await channel.messages.fetch(letterMsgs['MODDED'].messageId);
+              await existingMsg.edit({ embeds: [moddedEmbed] });
+            } catch (e) {
+              const newMsg = await channel.send({ embeds: [moddedEmbed] });
+              updateLetterMessage('MODDED', newMsg.id, dinoData.dinoChannelId);
+            }
+          } else {
+            const newMsg = await channel.send({ embeds: [moddedEmbed] });
+            updateLetterMessage('MODDED', newMsg.id, dinoData.dinoChannelId);
+          }
+          published++;
+        } catch (err) {
+          console.error('Erreur publication moddés:', err);
+        }
+      }
+
       res.redirect(`/dinos?success=${published}+lettres+publi%C3%A9es+!`);
     } catch (err) {
       console.error('Erreur publication dinos:', err);
+      res.redirect('/dinos?error=Erreur+de+publication');
+    }
+  });
+
+  app.post('/dinos/publish-sale', requireAuth, async (req, res) => {
+    const { saleDinoId, salePercent, saleChannelId } = req.body;
+    if (!saleDinoId || !salePercent) return res.redirect('/dinos?error=Dino+et+pourcentage+requis');
+
+    const dino = getDino(saleDinoId);
+    if (!dino) return res.redirect('/dinos?error=Dino+introuvable');
+
+    const percent = parseInt(salePercent);
+    if (percent <= 0 || percent >= 100) return res.redirect('/dinos?error=Pourcentage+invalide');
+
+    const dinoData = getDinoData();
+    const channelId = saleChannelId || dinoData.dinoChannelId;
+    if (!channelId) return res.redirect('/dinos?error=Aucun+salon+configur%C3%A9');
+
+    try {
+      const channel = await discordClient.channels.fetch(channelId);
+      if (!channel) return res.redirect('/dinos?error=Salon+introuvable');
+
+      const embed = buildSaleEmbed(dino, percent);
+      await channel.send({ embeds: [embed] });
+      res.redirect('/dinos?success=Promo+publi%C3%A9e+!');
+    } catch (err) {
+      console.error('Erreur publication promo dino:', err);
       res.redirect('/dinos?error=Erreur+de+publication');
     }
   });

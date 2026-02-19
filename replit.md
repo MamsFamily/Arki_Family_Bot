@@ -47,11 +47,13 @@ Dashboard d'administration accessible sur le port 5000, protégé par mot de pas
 ### Prix Dinos
 - **Dashboard Dinos** : Créer, modifier, supprimer des dinos depuis le dashboard web
 - **Classement alphabétique** : Dinos groupés par lettre (A, B, C...)
-- **Variants** : Support des variants (R, A, X) avec prix différents
-- **Options** : Un seul par tribu, réductions non applicables, x2 inventaire, couple inventaire, non dispo dona
-- **Publication Discord** : Un embed par lettre, publié/mis à jour dans un salon choisi
-- **Publication groupée** : Publier toutes les lettres d'un coup
+- **Dinos moddés** : Catégorie séparée avec message d'avertissement, option `isModded` sur chaque dino
+- **Variants** : Support des variants (R, A, X) avec prix différents, visibilité par type
+- **Options** : Un seul par tribu, réductions non applicables, x2 inventaire, couple inventaire, non dispo dona, dino modé
+- **Publication Discord** : Un embed par lettre + catégorie Moddés, publié/mis à jour dans un salon choisi
+- **Publication groupée** : Publier toutes les lettres + moddés d'un coup
 - **Aperçu live** : Prévisualisation de l'embed Discord dans le formulaire
+- **Flash Sale** : Système de soldes avec sélection dino, pourcentage de réduction, calcul automatique des prix, publication embed Discord
 
 ### Permissions
 - Système de permissions pour les administrateurs et le rôle Modo (ID: 1157803768893689877)
@@ -131,6 +133,7 @@ Dashboard d'administration accessible sur le port 5000, protégé par mot de pas
 5. Accéder au dashboard via le port 5000
 
 ## Changements récents
+- 2026-02-19: Dinos moddés (catégorie séparée avec avertissement) + Flash Sale (soldes avec calcul prix automatique, publication embed)
 - 2026-02-19: Système Prix Dinos avec dashboard CRUD, variants (R/A/X), options (unique tribu, x2 inventaire, couple, non dispo dona), publication par lettre alphabétique
 - 2026-02-18: Système Shop avec dashboard CRUD, publication Discord (embeds par pack), aperçu live, donation/dispo/réduction toggles
 - 2026-02-17: Dashboard complet avec pages Récompenses, Message publié, Paramètres (tout configurable depuis le web)
