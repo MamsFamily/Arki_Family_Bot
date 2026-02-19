@@ -516,7 +516,7 @@
       var bang = String.fromCodePoint(0x203C) + String.fromCodePoint(0xFE0F);
       var no = String.fromCodePoint(0x1F6AB);
 
-      document.getElementById('dinoPreviewTitle').innerHTML = '<span style="font-size:1.4em;font-weight:bold">' + dino_emoji + ' ' + dash+dash+dash + ' ' + letter + ' ' + dash+dash+dash + ' ' + dino_emoji + '</span>';
+      document.getElementById('dinoPreviewTitle').innerHTML = '<span style="font-size:1.4em;font-weight:bold">' + dino_emoji + ' ' + dash+dash+dash + ' \u3010' + letter + '\u3011 ' + dash+dash+dash + ' ' + dino_emoji + '</span>';
       var barColor = CUSTOM_COLORS[letter] || LETTER_COLORS[letter] || '#2ecc71';
       document.getElementById('dinoEmbedBar').style.background = barColor;
 

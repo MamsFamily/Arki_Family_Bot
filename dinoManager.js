@@ -179,7 +179,7 @@ function buildLetterEmbed(letter, dinos) {
   const colorInt = parseInt(color.replace('#', ''), 16);
 
   return {
-    description: `# 🦖 ━━━ ${letter} ━━━ 🦖\n\n` + blocks.join('\n\n'),
+    description: `# 🦖 ━━━ 【${letter}】 ━━━ 🦖\n\n` + blocks.join('\n\n'),
     color: colorInt,
     footer: { text: `Arki' Family ─ Prix Dinos ─ ${letter}` },
   };
