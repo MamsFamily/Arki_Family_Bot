@@ -44,6 +44,15 @@ Dashboard d'administration accessible sur le port 5000, protégé par mot de pas
 - **Aperçu live** : Prévisualisation de l'embed Discord dans le formulaire
 - **Publication groupée** : Bouton pour publier/mettre à jour tous les packs d'un coup
 
+### Prix Dinos
+- **Dashboard Dinos** : Créer, modifier, supprimer des dinos depuis le dashboard web
+- **Classement alphabétique** : Dinos groupés par lettre (A, B, C...)
+- **Variants** : Support des variants (R, A, X) avec prix différents
+- **Options** : Un seul par tribu, réductions non applicables, x2 inventaire, couple inventaire, non dispo dona
+- **Publication Discord** : Un embed par lettre, publié/mis à jour dans un salon choisi
+- **Publication groupée** : Publier toutes les lettres d'un coup
+- **Aperçu live** : Prévisualisation de l'embed Discord dans le formulaire
+
 ### Permissions
 - Système de permissions pour les administrateurs et le rôle Modo (ID: 1157803768893689877)
 
@@ -57,6 +66,8 @@ Dashboard d'administration accessible sur le port 5000, protégé par mot de pas
 ├── settingsManager.js     # Gestionnaire centralisé des paramètres (lecture/écriture/defaults)
 ├── shopManager.js         # Gestionnaire du shop (packs, embeds, publication)
 ├── shop.json              # Données des packs du shop (généré automatiquement)
+├── dinoManager.js         # Gestionnaire des dinos (prix, variants, publication par lettre)
+├── dinos.json             # Données des dinos (généré automatiquement)
 ├── votesConfig.js         # Export dynamique getVotesConfig() depuis settingsManager
 ├── topserveursService.js  # Service API TopServeurs
 ├── unbelievaboatService.js# Service API UnbelievaBoat (diamants)
@@ -73,6 +84,7 @@ Dashboard d'administration accessible sur le port 5000, protégé par mot de pas
 │   │   ├── rewards.ejs    # Récompenses votes (diamants, lots, bonus)
 │   │   ├── message.ejs    # Template du message publié
 │   │   ├── shop.ejs       # Gestion du shop (packs, embeds)
+│   │   ├── dinos.ejs      # Gestion des prix dinos (par lettre, variants)
 │   │   └── settings.ejs   # Paramètres (canaux, rôles, emojis, aliases)
 │   └── public/css/        # Styles CSS
 ├── data/db/meta.sqlite    # Base de données SQLite
@@ -119,6 +131,7 @@ Dashboard d'administration accessible sur le port 5000, protégé par mot de pas
 5. Accéder au dashboard via le port 5000
 
 ## Changements récents
+- 2026-02-19: Système Prix Dinos avec dashboard CRUD, variants (R/A/X), options (unique tribu, x2 inventaire, couple, non dispo dona), publication par lettre alphabétique
 - 2026-02-18: Système Shop avec dashboard CRUD, publication Discord (embeds par pack), aperçu live, donation/dispo/réduction toggles
 - 2026-02-17: Dashboard complet avec pages Récompenses, Message publié, Paramètres (tout configurable depuis le web)
 - 2026-02-17: Système de configuration centralisé (settingsManager.js + settings.json) avec support env vars

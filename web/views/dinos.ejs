@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dinos - Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>🦖 Prix des Dinos</h1>
+        <p>G&eacute;rez les prix et options des dinosaures, publiez par lettre dans Discord</p>
+      </div>
+
+      <% if (success) { %>
+        <div class="alert alert-success">&#x2705; <%= success %></div>
+      <% } %>
+      <% if (error) { %>
+        <div class="alert alert-error">&#x274C; <%= error %></div>
+      <% } %>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>&#x2699;&#xFE0F; Salon de publication</h2>
+        </div>
+        <div class="card-body">
+          <form method="POST" action="/dinos/settings" class="form-row">
+            <div class="form-group">
+              <label for="dinoChannelId">Salon Discord des dinos</label>
+              <select id="dinoChannelId" name="dinoChannelId" class="form-control">
+                <option value="">-- S&eacute;lectionner un salon --</option>
+                <% channels.forEach(ch => { %>
+                  <option value="<%= ch.id %>" <%= dinoData.dinoChannelId === ch.id ? 'selected' : '' %>># <%= ch.name %></option>
+                <% }); %>
+              </select>
+            </div>
+            <div class="form-group" style="display:flex;align-items:flex-end;">
+              <button type="submit" class="btn btn-primary">&#x1F4BE; Sauvegarder</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>&#x1F995; Liste des dinos</h2>
+          <div>
+            <button class="btn btn-primary" onclick="openDinoModal()">+ Nouveau dino</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <% const letters = Object.keys(grouped).sort(); %>
+          <% if (letters.length === 0) { %>
+            <div class="empty-state">
+              <div class="icon">&#x1F996;</div>
+              <p>Aucun dinosaure pour le moment.<br>Cliquez sur "Nouveau dino" pour commencer.</p>
+            </div>
+          <% } else { %>
+
+            <div style="margin-bottom: 16px;">
+              <form method="POST" action="/dinos/publish-all">
+                <button type="submit" class="btn btn-primary" onclick="return confirm('Publier/mettre &agrave; jour toutes les lettres ?')">&#x1F4E2; Publier toutes les lettres</button>
+              </form>
+            </div>
+
+            <% letters.forEach(letter => { %>
+              <div class="dino-letter-section">
+                <div class="dino-letter-header">
+                  <h3>&#x1F53B; <%= letter %> &#x1F53B;</h3>
+                  <div>
+                    <form method="POST" action="/dinos/publish-letter/<%= letter %>" style="display:inline">
+                      <button type="submit" class="btn btn-sm btn-primary" title="Publier cette lettre">
+                        <%= letterMessages[letter] ? '&#x1F504; MAJ' : '&#x1F4E4; Publier' %> <%= letter %>
+                      </button>
+                    </form>
+                  </div>
+                </div>
+                <div class="dino-list">
+                  <% grouped[letter].forEach(dino => { %>
+                    <div class="dino-item">
+                      <div class="dino-info">
+                        <div class="dino-name-row">
+                          <strong><%= dino.name %></strong>
+                          <span class="dino-price">&#x1F48E; <%= (dino.priceDiamonds || 0).toLocaleString('fr-FR') %> + &#x1F353; <%= (dino.priceStrawberries || 0).toLocaleString('fr-FR') %></span>
+                        </div>
+                        <% if (dino.variants && dino.variants.length > 0) { %>
+                          <div class="dino-variants">
+                            <% dino.variants.forEach(v => { %>
+                              <div class="dino-variant">&#x25E6; <strong><%= v.label %></strong> : &#x1F48E; <%= (v.priceDiamonds || 0).toLocaleString('fr-FR') %> + &#x1F353; <%= (v.priceStrawberries || 0).toLocaleString('fr-FR') %></div>
+                            <% }); %>
+                          </div>
+                        <% } %>
+                        <div class="dino-badges">
+                          <% if (dino.uniquePerTribe) { %>
+                            <span class="pack-badge badge-unavailable">&#x26A0;&#xFE0F; 1 par tribu</span>
+                          <% } %>
+                          <% if (dino.noReduction) { %>
+                            <span class="pack-badge badge-nored">&#x26D4; Pas de r&eacute;duc</span>
+                          <% } %>
+                          <% if (dino.doubleInventaire) { %>
+                            <span class="pack-badge badge-donation">&#x1F996; x2 inventaire</span>
+                          <% } %>
+                          <% if (dino.coupleInventaire) { %>
+                            <span class="pack-badge badge-donation">&#x1F48D; Couple inventaire</span>
+                          <% } %>
+                          <% if (dino.notAvailableDona) { %>
+                            <span class="pack-badge badge-notcompat">&#x274C; Pas en dona/inv</span>
+                          <% } %>
+                        </div>
+                      </div>
+                      <div class="dino-actions">
+                        <button class="btn btn-sm btn-secondary" data-dino="<%= encodeURIComponent(JSON.stringify(dino)) %>" onclick="editDino(JSON.parse(decodeURIComponent(this.dataset.dino)))">&#x270F;&#xFE0F;</button>
+                        <form method="POST" action="/dinos/delete/<%= dino.id %>" style="display:inline" onsubmit="return confirm('Supprimer <%= dino.name %> ?')">
+                          <button type="submit" class="btn btn-sm btn-danger">&#x1F5D1;&#xFE0F;</button>
+                        </form>
+                      </div>
+                    </div>
+                  <% }); %>
+                </div>
+              </div>
+            <% }); %>
+          <% } %>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="dinoModal">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h2 id="dinoModalTitle">&#x1F996; Nouveau dino</h2>
+            <button class="modal-close" onclick="closeDinoModal()">&times;</button>
+          </div>
+          <form method="POST" action="/dinos/save" id="dinoForm">
+            <input type="hidden" name="dinoId" id="dinoId" value="">
+            <div class="modal-body">
+              <div class="form-group">
+                <label for="dinoName">Nom du dinosaure</label>
+                <input type="text" id="dinoName" name="name" required placeholder="Ex: Tyrannosaure">
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="dinoPriceDiamonds">Prix diamants &#x1F48E;</label>
+                  <input type="number" id="dinoPriceDiamonds" name="priceDiamonds" value="0" min="0">
+                </div>
+                <div class="form-group">
+                  <label for="dinoPriceStrawberries">Prix fraises &#x1F353;</label>
+                  <input type="number" id="dinoPriceStrawberries" name="priceStrawberries" value="0" min="0">
+                </div>
+              </div>
+
+              <div class="card" style="margin-top:12px;margin-bottom:12px;">
+                <div class="card-header">
+                  <h2>&#x1F3A8; Variants</h2>
+                  <button type="button" class="btn btn-sm btn-secondary" onclick="addVariant()">+ Variant</button>
+                </div>
+                <div class="card-body" id="variantsContainer">
+                  <p class="help-text" id="noVariantsText">Aucun variant. Cliquez sur "+ Variant" pour ajouter (ex: R, A, X).</p>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="toggle-label">
+                    <input type="checkbox" name="uniquePerTribe" id="uniquePerTribe" value="true">
+                    <span class="toggle-text">&#x26A0;&#xFE0F; Un seul par tribu</span>
+                  </label>
+                </div>
+                <div class="form-group">
+                  <label class="toggle-label">
+                    <input type="checkbox" name="noReduction" id="dinoNoReduction" value="true">
+                    <span class="toggle-text">&#x26D4; R&eacute;ductions non applicables</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="toggle-label">
+                    <input type="checkbox" name="doubleInventaire" id="doubleInventaire" value="true">
+                    <span class="toggle-text">&#x1F996; x2 par paiement inventaire</span>
+                  </label>
+                </div>
+                <div class="form-group">
+                  <label class="toggle-label">
+                    <input type="checkbox" name="coupleInventaire" id="coupleInventaire" value="true">
+                    <span class="toggle-text">&#x1F48D; &Eacute;quivaut &agrave; un couple inventaire</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="toggle-label">
+                    <input type="checkbox" name="notAvailableDona" id="notAvailableDona" value="true">
+                    <span class="toggle-text">&#x274C; Non dispo avec packs dona / dinos inventaires</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="card" style="margin-top:12px;">
+                <div class="card-header"><h2>&#x1F441;&#xFE0F; Aper&ccedil;u Discord</h2></div>
+                <div class="card-body">
+                  <div class="embed-preview" id="dinoEmbedPreview">
+                    <div class="embed-bar" style="background:#2ecc71"></div>
+                    <div class="embed-content">
+                      <div class="embed-desc" id="dinoPreviewDesc">Ajoutez un dino pour voir l'aper&ccedil;u</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" onclick="closeDinoModal()">Annuler</button>
+              <button type="submit" class="btn btn-primary" id="dinoSubmitBtn">&#x1F4BE; Ajouter le dino</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    let variantCount = 0;
+
+    function openDinoModal(dino) {
+      document.getElementById('dinoModal').classList.add('show');
+      if (!dino) {
+        document.getElementById('dinoModalTitle').textContent = '\u{1F996} Nouveau dino';
+        document.getElementById('dinoSubmitBtn').textContent = '\u{1F4BE} Ajouter le dino';
+        document.getElementById('dinoId').value = '';
+        document.getElementById('dinoName').value = '';
+        document.getElementById('dinoPriceDiamonds').value = '0';
+        document.getElementById('dinoPriceStrawberries').value = '0';
+        document.getElementById('uniquePerTribe').checked = false;
+        document.getElementById('dinoNoReduction').checked = false;
+        document.getElementById('doubleInventaire').checked = false;
+        document.getElementById('coupleInventaire').checked = false;
+        document.getElementById('notAvailableDona').checked = false;
+        document.getElementById('variantsContainer').innerHTML = '<p class="help-text" id="noVariantsText">Aucun variant. Cliquez sur "+ Variant" pour ajouter (ex: R, A, X).</p>';
+        variantCount = 0;
+      }
+      updateDinoPreview();
+    }
+
+    function editDino(dino) {
+      document.getElementById('dinoModalTitle').textContent = '\u{270F}\u{FE0F} Modifier : ' + dino.name;
+      document.getElementById('dinoSubmitBtn').textContent = '\u{1F4BE} Sauvegarder';
+      document.getElementById('dinoId').value = dino.id;
+      document.getElementById('dinoName').value = dino.name || '';
+      document.getElementById('dinoPriceDiamonds').value = dino.priceDiamonds || 0;
+      document.getElementById('dinoPriceStrawberries').value = dino.priceStrawberries || 0;
+      document.getElementById('uniquePerTribe').checked = !!dino.uniquePerTribe;
+      document.getElementById('dinoNoReduction').checked = !!dino.noReduction;
+      document.getElementById('doubleInventaire').checked = !!dino.doubleInventaire;
+      document.getElementById('coupleInventaire').checked = !!dino.coupleInventaire;
+      document.getElementById('notAvailableDona').checked = !!dino.notAvailableDona;
+
+      document.getElementById('variantsContainer').innerHTML = '';
+      variantCount = 0;
+      if (dino.variants && dino.variants.length > 0) {
+        dino.variants.forEach(v => {
+          addVariant(v.label, v.priceDiamonds, v.priceStrawberries);
+        });
+      } else {
+        document.getElementById('variantsContainer').innerHTML = '<p class="help-text" id="noVariantsText">Aucun variant. Cliquez sur "+ Variant" pour ajouter (ex: R, A, X).</p>';
+      }
+
+      document.getElementById('dinoModal').classList.add('show');
+      updateDinoPreview();
+    }
+
+    function closeDinoModal() {
+      document.getElementById('dinoModal').classList.remove('show');
+    }
+
+    function addVariant(label, diamonds, strawberries) {
+      const noText = document.getElementById('noVariantsText');
+      if (noText) noText.remove();
+
+      variantCount++;
+      const idx = variantCount;
+      const div = document.createElement('div');
+      div.className = 'variant-row';
+      div.id = 'variant-' + idx;
+      div.innerHTML = `
+        <div class="form-row" style="margin-bottom:8px;align-items:flex-end;">
+          <div class="form-group" style="flex:0.5;">
+            <label>Label</label>
+            <input type="text" name="variant_label_${idx}" value="${label || ''}" placeholder="R, A, X..." class="variant-input">
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label>\u{1F48E}</label>
+            <input type="number" name="variant_diamonds_${idx}" value="${diamonds || 0}" min="0" class="variant-input">
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label>\u{1F353}</label>
+            <input type="number" name="variant_strawberries_${idx}" value="${strawberries || 0}" min="0" class="variant-input">
+          </div>
+          <button type="button" class="btn btn-sm btn-danger" onclick="removeVariant(${idx})" style="margin-bottom:4px;">\u{1F5D1}\u{FE0F}</button>
+        </div>
+      `;
+      document.getElementById('variantsContainer').appendChild(div);
+
+      div.querySelectorAll('.variant-input').forEach(input => {
+        input.addEventListener('input', updateDinoPreview);
+      });
+
+      updateDinoPreview();
+    }
+
+    function removeVariant(idx) {
+      const el = document.getElementById('variant-' + idx);
+      if (el) el.remove();
+      if (document.getElementById('variantsContainer').children.length === 0) {
+        document.getElementById('variantsContainer').innerHTML = '<p class="help-text" id="noVariantsText">Aucun variant.</p>';
+      }
+      updateDinoPreview();
+    }
+
+    function formatNum(n) {
+      return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    }
+
+    function updateDinoPreview() {
+      const name = document.getElementById('dinoName').value || 'Dino';
+      const diamonds = parseInt(document.getElementById('dinoPriceDiamonds').value) || 0;
+      const strawberries = parseInt(document.getElementById('dinoPriceStrawberries').value) || 0;
+      const unique = document.getElementById('uniquePerTribe').checked;
+      const noRed = document.getElementById('dinoNoReduction').checked;
+      const doubleInv = document.getElementById('doubleInventaire').checked;
+      const couple = document.getElementById('coupleInventaire').checked;
+      const notDona = document.getElementById('notAvailableDona').checked;
+      const letter = name[0] ? name[0].toUpperCase() : '?';
+
+      let desc = `\u{1F53B} <strong>${letter}</strong> \u{1F53B}\n\n`;
+      desc += `\u2022 <strong><u>${name}</u></strong>: ${formatNum(diamonds)}\u{1F48E} + ${formatNum(strawberries)}\u{1F353}`;
+
+      if (unique) desc += '  <em><u>Un seul par tribu</u></em> \u{26A0}\u{FE0F}';
+      if (couple) desc += '  ( 1 \u00e9quivaut \u00e0 un couple inventaire )';
+      desc += '\n';
+
+      const variantRows = document.querySelectorAll('.variant-row');
+      variantRows.forEach(row => {
+        const inputs = row.querySelectorAll('input');
+        const vLabel = inputs[0]?.value || '?';
+        const vD = parseInt(inputs[1]?.value) || 0;
+        const vS = parseInt(inputs[2]?.value) || 0;
+        desc += `  \u25E6 <strong>${vLabel}</strong> : ${formatNum(vD)}\u{1F48E} + ${formatNum(vS)}\u{1F353}\n`;
+      });
+
+      if (noRed) desc += '  \u{26D4} <em>R\u00e9ductions non applicables</em>\n';
+      if (notDona) desc += '  \u{26A0}\u{FE0F} <em>NON DISPONIBLE AVEC LES PACKS DONA OU LES DINOS INVENTAIRES</em>\n';
+      if (doubleInv) desc += '  \u{1F996} <em>x2 par paiement inventaire</em>\n';
+
+      document.getElementById('dinoPreviewDesc').innerHTML = desc.replace(/\n/g, '<br>');
+    }
+
+    ['dinoName', 'dinoPriceDiamonds', 'dinoPriceStrawberries'].forEach(id => {
+      document.getElementById(id).addEventListener('input', updateDinoPreview);
+    });
+    ['uniquePerTribe', 'dinoNoReduction', 'doubleInventaire', 'coupleInventaire', 'notAvailableDona'].forEach(id => {
+      document.getElementById(id).addEventListener('change', updateDinoPreview);
+    });
+
+    document.getElementById('dinoModal').addEventListener('click', function(e) {
+      if (e.target === this) closeDinoModal();
+    });
+  </script>
+</body>
+</html>
