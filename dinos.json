@@ -265,6 +265,38 @@
       "isShoulder": true,
       "id": "mltyl7ww4xxk",
       "createdAt": "2026-02-19T21:14:15.248Z"
+    },
+    {
+      "name": "Cornusaurus",
+      "priceDiamonds": 35000,
+      "priceStrawberries": 10500,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "isModded": false,
+      "isShoulder": false,
+      "id": "mltyql46dcz8",
+      "createdAt": "2026-02-19T21:18:25.638Z"
+    },
+    {
+      "name": "Carcha",
+      "priceDiamonds": 28000,
+      "priceStrawberries": 7500,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "isModded": false,
+      "isShoulder": false,
+      "id": "mltyrygor5zg",
+      "createdAt": "2026-02-19T21:19:29.592Z"
     }
   ],
   "dinoChannelId": "1457048610939207769",
@@ -300,7 +332,7 @@
   },
   "letterColors": {},
   "dinoNavMessage": {
-    "messageId": "1474152352088068356",
-    "channelId": "1457048610939207769"
+    "messageId": "1474154083253489901",
+    "channelId": "1164230832773406880"
   }
 }
