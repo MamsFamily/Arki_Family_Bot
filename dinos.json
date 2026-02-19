@@ -158,5 +158,9 @@
       "channelId": "1457048610939207769"
     }
   },
-  "letterColors": {}
+  "letterColors": {},
+  "dinoNavMessage": {
+    "messageId": "1474087497729314928",
+    "channelId": "1457048610939207769"
+  }
 }

@@ -234,29 +234,41 @@ client.on('interactionCreate', async interaction => {
     if (interaction.customId === 'dino_letter_select') {
       const selectedLetter = interaction.values[0];
       const grouped = getDinosByLetter();
-      const dinos = grouped[selectedLetter];
+      const letters = Object.keys(grouped).sort();
+      const totalDinos = letters.reduce((sum, l) => sum + grouped[l].length, 0);
 
-      if (!dinos || dinos.length === 0) {
-        return interaction.reply({ content: `❌ Aucun dino pour la lettre ${selectedLetter}.`, ephemeral: true });
+      let embeds;
+      if (selectedLetter === 'ALL') {
+        embeds = letters.map(l => buildLetterEmbed(l, grouped[l]));
+        if (embeds.length > 10) embeds = embeds.slice(0, 10);
+      } else {
+        const dinos = grouped[selectedLetter];
+        if (!dinos || dinos.length === 0) {
+          return interaction.reply({ content: `❌ Aucun dino pour la lettre ${selectedLetter}.`, ephemeral: true });
+        }
+        embeds = [buildLetterEmbed(selectedLetter, dinos)];
       }
 
-      const embed = buildLetterEmbed(selectedLetter, dinos);
-      const letters = Object.keys(grouped).sort();
-      const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId('dino_letter_select')
-        .setPlaceholder('🦖 Choisir une lettre...')
-        .addOptions(letters.map(l => ({
+      const options = [
+        { label: 'Tout afficher', description: `${totalDinos} dinos au total`, value: 'ALL', emoji: '📋', default: selectedLetter === 'ALL' },
+        ...letters.map(l => ({
           label: `Lettre ${l}`,
           description: `${grouped[l].length} dino${grouped[l].length > 1 ? 's' : ''}`,
           value: l,
           emoji: '📖',
           default: l === selectedLetter,
-        })));
+        })),
+      ];
+
+      const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId('dino_letter_select')
+        .setPlaceholder('🦖 Choisir une lettre...')
+        .addOptions(options);
 
       const row = new ActionRowBuilder().addComponents(selectMenu);
 
       try {
-        await interaction.update({ embeds: [embed], components: [row] });
+        await interaction.update({ embeds, components: [row] });
       } catch (err) {
         console.error('Erreur select menu dino:', err);
       }

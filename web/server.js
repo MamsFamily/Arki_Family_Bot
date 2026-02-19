@@ -541,16 +541,20 @@ function createWebServer(discordClient) {
       const firstLetter = letters[0];
       const embed = buildLetterEmbed(firstLetter, grouped[firstLetter]);
 
+      const totalDinos = letters.reduce((sum, l) => sum + grouped[l].length, 0);
       const selectMenu = new StringSelectMenuBuilder()
         .setCustomId('dino_letter_select')
         .setPlaceholder('🦖 Choisir une lettre...')
-        .addOptions(letters.map(l => ({
-          label: `Lettre ${l}`,
-          description: `${grouped[l].length} dino${grouped[l].length > 1 ? 's' : ''}`,
-          value: l,
-          emoji: '📖',
-          default: l === firstLetter,
-        })));
+        .addOptions([
+          { label: 'Tout afficher', description: `${totalDinos} dinos au total`, value: 'ALL', emoji: '📋' },
+          ...letters.map(l => ({
+            label: `Lettre ${l}`,
+            description: `${grouped[l].length} dino${grouped[l].length > 1 ? 's' : ''}`,
+            value: l,
+            emoji: '📖',
+            default: l === firstLetter,
+          })),
+        ]);
 
       const row = new ActionRowBuilder().addComponents(selectMenu);
 
