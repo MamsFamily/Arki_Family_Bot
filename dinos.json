@@ -61,6 +61,26 @@
       "notAvailableShop": true,
       "id": "mlt92z9no4gm",
       "createdAt": "2026-02-19T09:20:13.835Z"
+    },
+    {
+      "name": "Achatina",
+      "priceDiamonds": 4000,
+      "priceStrawberries": 1200,
+      "variants": [
+        {
+          "label": "A",
+          "priceDiamonds": 5000,
+          "priceStrawberries": 1500
+        }
+      ],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "id": "mltbi5brlj7a",
+      "createdAt": "2026-02-19T10:28:00.759Z"
     }
   ],
   "dinoChannelId": "1457048610939207769",
@@ -81,5 +101,6 @@
       "messageId": "1473972490341711984",
       "channelId": "1457048610939207769"
     }
-  }
+  },
+  "letterColors": {}
 }
