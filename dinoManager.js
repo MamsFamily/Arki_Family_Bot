@@ -128,7 +128,7 @@ function formatNumber(n) {
 function buildDinoLine(dino) {
   const diamonds = dino.priceDiamonds || 0;
   const strawberries = dino.priceStrawberries || 0;
-  let line = `> 🦴 **__${dino.name}__** : ${formatNumber(diamonds)}<a:SparklyCrystal:1366174439003263087> + ${formatNumber(strawberries)}<:fraises:1328148609585123379>`;
+  let line = `## ${dino.name}\n> ${formatNumber(diamonds)}<a:SparklyCrystal:1366174439003263087> + ${formatNumber(strawberries)}<:fraises:1328148609585123379>`;
 
   if (dino.uniquePerTribe) {
     line += '\n> ⚠️ __*Un seul par tribu*__';
@@ -179,8 +179,7 @@ function buildLetterEmbed(letter, dinos) {
   const colorInt = parseInt(color.replace('#', ''), 16);
 
   return {
-    title: `🦖 ━━━ ${letter} ━━━ 🦖`,
-    description: blocks.join('\n\n'),
+    description: `# 🦖 ━━━ ${letter} ━━━ 🦖\n\n` + blocks.join('\n\n'),
     color: colorInt,
     footer: { text: `Arki' Family ─ Prix Dinos ─ ${letter}` },
   };

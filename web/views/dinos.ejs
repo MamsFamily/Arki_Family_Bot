@@ -509,7 +509,6 @@
 
       var dash = String.fromCodePoint(0x2501);
       var dino_emoji = String.fromCodePoint(0x1F996);
-      var bone = String.fromCodePoint(0x1F9B4);
       var gem = String.fromCodePoint(0x1F48E);
       var berry = String.fromCodePoint(0x1F353);
       var warn = String.fromCodePoint(0x26A0) + String.fromCodePoint(0xFE0F);
@@ -517,12 +516,13 @@
       var bang = String.fromCodePoint(0x203C) + String.fromCodePoint(0xFE0F);
       var no = String.fromCodePoint(0x1F6AB);
 
-      document.getElementById('dinoPreviewTitle').textContent = dino_emoji + ' ' + dash+dash+dash + ' ' + letter + ' ' + dash+dash+dash + ' ' + dino_emoji;
+      document.getElementById('dinoPreviewTitle').innerHTML = '<span style="font-size:1.4em;font-weight:bold">' + dino_emoji + ' ' + dash+dash+dash + ' ' + letter + ' ' + dash+dash+dash + ' ' + dino_emoji + '</span>';
       var barColor = CUSTOM_COLORS[letter] || LETTER_COLORS[letter] || '#2ecc71';
       document.getElementById('dinoEmbedBar').style.background = barColor;
 
       var desc = '';
-      desc += '> ' + bone + ' <strong><u>' + name + '</u></strong> : ' + formatNum(diamonds) + gem + ' + ' + formatNum(strawberries) + berry;
+      desc += '<strong style="font-size:1.1em">' + name + '</strong><br>';
+      desc += '> ' + formatNum(diamonds) + gem + ' + ' + formatNum(strawberries) + berry;
 
       if (unique) desc += '\n> ' + warn + ' <em><u>Un seul par tribu</u></em>';
       if (couple) desc += '\n> ' + dino_emoji + ' <em>( Un achat via inventaire co\u00fbte ' + dino_emoji + ' x2 )</em>';
