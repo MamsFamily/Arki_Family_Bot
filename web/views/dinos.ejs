@@ -316,6 +316,7 @@
                 <div class="card-header">
                   <h2>&#x1F3A8; Variants</h2>
                   <button type="button" class="btn btn-sm btn-secondary" onclick="addVariant()">+ Variant</button>
+                  <button type="button" class="btn btn-sm btn-secondary" onclick="toggleAllVariantsHidden()" id="toggleHiddenBtn" style="margin-left:6px;">👁️ Tout masquer</button>
                 </div>
                 <div class="card-body" id="variantsContainer">
                   <p class="help-text" id="noVariantsText">Aucun variant. Cliquez sur "+ Variant" pour ajouter (ex: R, A, X).</p>
@@ -487,10 +488,11 @@
       document.getElementById('variantsContainer').appendChild(div);
 
       div.querySelectorAll('.variant-input').forEach(input => {
-        input.addEventListener('input', updateDinoPreview);
+        input.addEventListener('input', () => { updateDinoPreview(); updateToggleHiddenBtn(); });
       });
 
       updateDinoPreview();
+      updateToggleHiddenBtn();
     }
 
     function removeVariant(idx) {
@@ -500,6 +502,27 @@
         document.getElementById('variantsContainer').innerHTML = '<p class="help-text" id="noVariantsText">Aucun variant.</p>';
       }
       updateDinoPreview();
+      updateToggleHiddenBtn();
+    }
+
+    function toggleAllVariantsHidden() {
+      const checkboxes = document.querySelectorAll('input[name^="variant_hidden_"]');
+      if (checkboxes.length === 0) return;
+      const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+      checkboxes.forEach(cb => { cb.checked = !allChecked; });
+      updateToggleHiddenBtn();
+      updateDinoPreview();
+    }
+
+    function updateToggleHiddenBtn() {
+      const btn = document.getElementById('toggleHiddenBtn');
+      const checkboxes = document.querySelectorAll('input[name^="variant_hidden_"]');
+      if (checkboxes.length === 0) {
+        btn.textContent = '\u{1F441}\u{FE0F} Tout masquer';
+        return;
+      }
+      const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+      btn.textContent = allChecked ? '\u{1F441}\u{FE0F} Tout afficher' : '\u{1F441}\u{FE0F} Tout masquer';
     }
 
     function formatNum(n) {
