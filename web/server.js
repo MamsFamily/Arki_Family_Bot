@@ -663,68 +663,6 @@ function createWebServer(discordClient) {
     }
   });
 
-  app.post('/dinos/publish-all', requireAuth, async (req, res) => {
-    const dinoData = getDinoData();
-    if (!dinoData.dinoChannelId) return res.redirect('/dinos?error=Aucun+salon+configur%C3%A9');
-
-    try {
-      const channel = await discordClient.channels.fetch(dinoData.dinoChannelId);
-      if (!channel) return res.redirect('/dinos?error=Salon+introuvable');
-
-      const grouped = getDinosByLetter();
-      const letters = Object.keys(grouped).sort();
-      let published = 0;
-      const letterMsgs = getLetterMessages();
-
-      for (const letter of letters) {
-        const embed = buildLetterEmbed(letter, grouped[letter]);
-        try {
-          if (letterMsgs[letter] && letterMsgs[letter].messageId) {
-            try {
-              const existingMsg = await channel.messages.fetch(letterMsgs[letter].messageId);
-              await existingMsg.edit({ embeds: [embed] });
-            } catch (e) {
-              const newMsg = await channel.send({ embeds: [embed] });
-              updateLetterMessage(letter, newMsg.id, dinoData.dinoChannelId);
-            }
-          } else {
-            const newMsg = await channel.send({ embeds: [embed] });
-            updateLetterMessage(letter, newMsg.id, dinoData.dinoChannelId);
-          }
-          published++;
-        } catch (err) {
-          console.error(`Erreur publication lettre ${letter}:`, err);
-        }
-      }
-
-      const moddedList = getModdedDinos();
-      if (moddedList.length > 0) {
-        const moddedEmbed = buildModdedEmbed(moddedList);
-        try {
-          if (letterMsgs['MODDED'] && letterMsgs['MODDED'].messageId) {
-            try {
-              const existingMsg = await channel.messages.fetch(letterMsgs['MODDED'].messageId);
-              await existingMsg.edit({ embeds: [moddedEmbed] });
-            } catch (e) {
-              const newMsg = await channel.send({ embeds: [moddedEmbed] });
-              updateLetterMessage('MODDED', newMsg.id, dinoData.dinoChannelId);
-            }
-          } else {
-            const newMsg = await channel.send({ embeds: [moddedEmbed] });
-            updateLetterMessage('MODDED', newMsg.id, dinoData.dinoChannelId);
-          }
-          published++;
-        } catch (err) {
-          console.error('Erreur publication moddés:', err);
-        }
-      }
-
-      res.redirect(`/dinos?success=${published}+lettres+publi%C3%A9es+!`);
-    } catch (err) {
-      console.error('Erreur publication dinos:', err);
-      res.redirect('/dinos?error=Erreur+de+publication');
-    }
-  });
 
   app.post('/dinos/publish-sale', requireAuth, async (req, res) => {
     const { saleDinoId, salePercent, saleChannelId } = req.body;

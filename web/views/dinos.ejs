@@ -262,10 +262,11 @@
             <% } %>
             <% if (letters.length > 0) { %>
               <form method="POST" action="/dinos/publish-nav" style="display:inline">
-                <button type="submit" class="btn btn-primary" onclick="return confirm('Publier le menu navigable avec liste déroulante ?')">🦖 Menu navigable</button>
-              </form>
-              <form method="POST" action="/dinos/publish-all" style="display:inline">
-                <button type="submit" class="btn btn-secondary" onclick="return confirm('Publier/mettre \u00e0 jour toutes les lettres ?')">&#x1F4E2; Tout publier</button>
+                <% if (dinoData.dinoNavMessage && dinoData.dinoNavMessage.messageId) { %>
+                  <button type="submit" class="btn btn-primary" onclick="return confirm('Mettre à jour le menu dinos sur Discord ?')">🔄 Mettre à jour Discord</button>
+                <% } else { %>
+                  <button type="submit" class="btn btn-primary" onclick="return confirm('Publier le menu dinos sur Discord ?')">🦖 Publier sur Discord</button>
+                <% } %>
               </form>
             <% } %>
           </div>
