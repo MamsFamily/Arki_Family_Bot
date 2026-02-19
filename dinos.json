@@ -22,7 +22,8 @@
         {
           "label": "A",
           "priceDiamonds": 7000,
-          "priceStrawberries": 2100
+          "priceStrawberries": 2100,
+          "hidden": true
         }
       ],
       "uniquePerTribe": false,
@@ -71,7 +72,8 @@
           "label": "A",
           "priceDiamonds": 5000,
           "priceStrawberries": 1500,
-          "notAvailableShop": true
+          "notAvailableShop": true,
+          "hidden": true
         }
       ],
       "uniquePerTribe": false,
@@ -92,13 +94,15 @@
           "label": "X",
           "priceDiamonds": 6000,
           "priceStrawberries": 1800,
-          "notAvailableShop": true
+          "notAvailableShop": true,
+          "hidden": true
         },
         {
           "label": "R",
           "priceDiamonds": 7000,
           "priceStrawberries": 2100,
-          "notAvailableShop": true
+          "notAvailableShop": true,
+          "hidden": true
         }
       ],
       "uniquePerTribe": false,

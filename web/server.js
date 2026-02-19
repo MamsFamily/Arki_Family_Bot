@@ -424,9 +424,19 @@ function createWebServer(discordClient) {
         .map(ch => ({ id: ch.id, name: ch.name }));
     }
     const letterColors = getLetterColors();
-    const allVariantsHidden = dinoData.dinos.every(d => !d.variants || d.variants.length === 0 || d.variants.every(v => v.hidden));
-    const hasAnyVariant = dinoData.dinos.some(d => d.variants && d.variants.length > 0);
-    res.render('dinos', { dinoData, grouped, letterMessages, letterColors, defaultColors: DEFAULT_LETTER_COLORS, channels, allVariantsHidden, hasAnyVariant, success: req.query.success || null, error: req.query.error || null });
+    const variantLabels = {};
+    dinoData.dinos.forEach(d => {
+      if (d.variants && d.variants.length > 0) {
+        d.variants.forEach(v => {
+          const label = (v.label || '').toUpperCase();
+          if (!variantLabels[label]) variantLabels[label] = { count: 0, hidden: true };
+          variantLabels[label].count++;
+          if (!v.hidden) variantLabels[label].hidden = false;
+        });
+      }
+    });
+    const hasAnyVariant = Object.keys(variantLabels).length > 0;
+    res.render('dinos', { dinoData, grouped, letterMessages, letterColors, defaultColors: DEFAULT_LETTER_COLORS, channels, variantLabels, hasAnyVariant, success: req.query.success || null, error: req.query.error || null });
   });
 
   app.post('/dinos/settings', requireAuth, (req, res) => {
@@ -444,16 +454,22 @@ function createWebServer(discordClient) {
 
   app.post('/dinos/toggle-variants', requireAuth, (req, res) => {
     const data = getDinoData();
-    const allHidden = data.dinos.every(d => !d.variants || d.variants.length === 0 || d.variants.every(v => v.hidden));
-    const newState = !allHidden;
+    const visibleLabels = [];
+    Object.keys(req.body).forEach(key => {
+      if (key.startsWith('variant_visible_')) {
+        visibleLabels.push(key.replace('variant_visible_', '').toUpperCase());
+      }
+    });
     data.dinos.forEach(d => {
       if (d.variants && d.variants.length > 0) {
-        d.variants.forEach(v => { v.hidden = newState; });
+        d.variants.forEach(v => {
+          v.hidden = !visibleLabels.includes((v.label || '').toUpperCase());
+        });
       }
     });
     const { saveDinos } = require('../dinoManager');
     saveDinos(data);
-    res.redirect('/dinos?success=Variants+' + (newState ? 'masqu%C3%A9s' : 'affich%C3%A9s') + '+!');
+    res.redirect('/dinos?success=Variants+mis+%C3%A0+jour+!');
   });
 
   app.post('/dinos/save', requireAuth, (req, res) => {

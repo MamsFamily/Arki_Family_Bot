@@ -196,9 +196,25 @@
           <div style="display:flex;gap:8px;">
             <button class="btn btn-primary" onclick="openDinoModal()">+ Nouveau dino</button>
             <% if (hasAnyVariant) { %>
-              <form method="POST" action="/dinos/toggle-variants" style="display:inline">
-                <button type="submit" class="btn btn-secondary"><%= allVariantsHidden ? '👁️ Afficher tous les variants' : '👁️ Masquer tous les variants' %></button>
-              </form>
+              <div style="position:relative;display:inline-block;" id="variantDropdownWrap">
+                <button type="button" class="btn btn-secondary" onclick="toggleVariantDropdown()">👁️ Visibilité variants</button>
+                <div id="variantDropdown" style="display:none;position:absolute;top:100%;left:0;z-index:100;background:#1e1e2e;border:1px solid #3a3a5c;border-radius:8px;padding:12px;min-width:200px;margin-top:4px;box-shadow:0 4px 12px rgba(0,0,0,0.4);">
+                  <form method="POST" action="/dinos/toggle-variants">
+                    <p style="margin:0 0 8px;color:#ccc;font-size:13px;font-weight:600;">Afficher sur Discord :</p>
+                    <% Object.keys(variantLabels).sort().forEach(label => { %>
+                      <label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;color:#e0e0e0;font-size:14px;">
+                        <input type="checkbox" name="variant_visible_<%= label.toLowerCase() %>" value="1" <%= !variantLabels[label].hidden ? 'checked' : '' %>>
+                        <span>Variant <strong><%= label %></strong></span>
+                        <span style="color:#888;font-size:12px;">(<%= variantLabels[label].count %>)</span>
+                      </label>
+                    <% }); %>
+                    <div style="margin-top:10px;display:flex;gap:6px;">
+                      <button type="submit" class="btn btn-primary btn-sm">Appliquer</button>
+                      <button type="button" class="btn btn-sm btn-secondary" onclick="toggleVariantDropdown()">Fermer</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
             <% } %>
             <% if (letters.length > 0) { %>
               <form method="POST" action="/dinos/publish-nav" style="display:inline">
@@ -401,6 +417,17 @@
     const LETTER_COLORS = <%- JSON.stringify(defaultColors) %>;
     const CUSTOM_COLORS = <%- JSON.stringify(letterColors) %>;
     let variantCount = 0;
+
+    function toggleVariantDropdown() {
+      const dd = document.getElementById('variantDropdown');
+      dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+    }
+    document.addEventListener('click', function(e) {
+      const wrap = document.getElementById('variantDropdownWrap');
+      if (wrap && !wrap.contains(e.target)) {
+        document.getElementById('variantDropdown').style.display = 'none';
+      }
+    });
 
     function openDinoModal(dino) {
       document.getElementById('dinoModal').classList.add('show');
