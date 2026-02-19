@@ -126,7 +126,8 @@
       "notAvailableDona": false,
       "notAvailableShop": false,
       "id": "mlth2ysyxmmm",
-      "createdAt": "2026-02-19T13:04:10.162Z"
+      "createdAt": "2026-02-19T13:04:10.162Z",
+      "isModded": false
     },
     {
       "name": "Ammonite",
@@ -141,6 +142,66 @@
       "notAvailableShop": false,
       "id": "mlth3l6to70z",
       "createdAt": "2026-02-19T13:04:39.173Z"
+    },
+    {
+      "name": "Armadoggo",
+      "priceDiamonds": 12000,
+      "priceStrawberries": 3600,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "isModded": false,
+      "id": "mltxvq2lgmg0",
+      "createdAt": "2026-02-19T20:54:25.725Z"
+    },
+    {
+      "name": "Bison",
+      "priceDiamonds": 12000,
+      "priceStrawberries": 3200,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "isModded": false,
+      "id": "mltxwowr7wv8",
+      "createdAt": "2026-02-19T20:55:10.875Z"
+    },
+    {
+      "name": "Wyvern Runic",
+      "priceDiamonds": 20000,
+      "priceStrawberries": 6000,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "isModded": true,
+      "id": "mltxypl0firz",
+      "createdAt": "2026-02-19T20:56:45.060Z"
+    },
+    {
+      "name": "Wyvern Runic Crystal",
+      "priceDiamonds": 25000,
+      "priceStrawberries": 7500,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "isModded": true,
+      "id": "mltxzpk2uobc",
+      "createdAt": "2026-02-19T20:57:31.682Z"
     }
   ],
   "dinoChannelId": "1457048610939207769",
@@ -160,11 +221,15 @@
     "S": {
       "messageId": "1473972490341711984",
       "channelId": "1457048610939207769"
+    },
+    "MODDED": {
+      "messageId": "1474145157342560470",
+      "channelId": "1457048610939207769"
     }
   },
   "letterColors": {},
   "dinoNavMessage": {
-    "messageId": "1474087497729314928",
+    "messageId": "1474145921490096290",
     "channelId": "1457048610939207769"
   }
 }

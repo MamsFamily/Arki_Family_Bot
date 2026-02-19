@@ -338,6 +338,9 @@
                           <% if (dino.isModded) { %>
                             <span class="pack-badge badge-donation">&#x1F527; Mod&eacute;</span>
                           <% } %>
+                          <% if (dino.isShoulder) { %>
+                            <span class="pack-badge badge-donation">&#x1F99C; &Eacute;paule</span>
+                          <% } %>
                         </div>
                       </div>
                       <div class="dino-actions">
@@ -500,6 +503,12 @@
                     <span class="toggle-text">&#x1F527; Dino mod&eacute; (cat&eacute;gorie s&eacute;par&eacute;e)</span>
                   </label>
                 </div>
+                <div class="form-group">
+                  <label class="toggle-label">
+                    <input type="checkbox" name="isShoulder" id="isShoulder" value="true">
+                    <span class="toggle-text">&#x1F99C; Dino d'&eacute;paule</span>
+                  </label>
+                </div>
               </div>
 
               <div class="card" style="margin-top:12px;">
@@ -590,6 +599,7 @@
         document.getElementById('notAvailableDona').checked = false;
         document.getElementById('notAvailableShop').checked = false;
         document.getElementById('isModded').checked = false;
+        document.getElementById('isShoulder').checked = false;
         document.getElementById('variantsContainer').innerHTML = '<p class="help-text" id="noVariantsText">Aucun variant. Cliquez sur "+ Variant" pour ajouter (ex: R, A, X).</p>';
         variantCount = 0;
       }
@@ -610,6 +620,7 @@
       document.getElementById('notAvailableDona').checked = !!dino.notAvailableDona;
       document.getElementById('notAvailableShop').checked = !!dino.notAvailableShop;
       document.getElementById('isModded').checked = !!dino.isModded;
+      document.getElementById('isShoulder').checked = !!dino.isShoulder;
 
       document.getElementById('variantsContainer').innerHTML = '';
       variantCount = 0;

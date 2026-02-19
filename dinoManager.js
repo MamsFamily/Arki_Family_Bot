@@ -128,6 +128,44 @@ function getModdedDinos() {
   return data.dinos.filter(d => d.isModded).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
 }
 
+function getShoulderDinos() {
+  const data = getDinoData();
+  return data.dinos.filter(d => d.isShoulder).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+}
+
+function buildShoulderEmbed(shoulderDinos) {
+  const blocks = [];
+
+  shoulderDinos.forEach(dino => {
+    const dinoLines = [];
+    dinoLines.push(buildDinoLine(dino));
+
+    if (dino.variants && dino.variants.length > 0) {
+      dino.variants.filter(v => !v.hidden).forEach(v => {
+        dinoLines.push(buildVariantLine(v));
+      });
+    }
+
+    if (dino.noReduction) {
+      dinoLines.push('> ⛔ *Réductions fondateur ou donateur non applicables*');
+    }
+    if (dino.notAvailableDona) {
+      dinoLines.push('> ‼️ *( NON DISPONIBLE AVEC LES PACKS DONA OU LES DINOS INVENTAIRES )*');
+    }
+    if (dino.doubleInventaire) {
+      dinoLines.push('> 🦖 *x2 par paiement inventaire*');
+    }
+
+    blocks.push(dinoLines.join('\n'));
+  });
+
+  return {
+    description: `# ━━━ 【🦜 ÉPAULE】 ━━━\n` + blocks.join('\n'),
+    color: 0x2ecc71,
+    footer: { text: `Arki' Family ─ Prix Dinos ─ Dinos d'épaule` },
+  };
+}
+
 const MODDED_WARNING = `>>> ## <a:Announcements:1328165705069236308> Information importante – Dinos moddés
 
 ***Les dinos issus de mods restent dépendants du suivi de leurs créateurs.
@@ -195,6 +233,10 @@ function buildDinoLine(dino) {
     line = `### ▫️ ${toDoubleStruck(dino.name)}\n> *${formatNumber(diamonds)}💎 + ${formatNumber(strawberries)}🍓 ── 🚫 Pas encore disponible au shop*`;
   } else {
     line = `### ▫️ ${toDoubleStruck(dino.name)}\n> <a:animearrow:1157234686200922152> **${formatNumber(diamonds)}**<a:SparklyCrystal:1366174439003263087> + **${formatNumber(strawberries)}**<:fraises:1328148609585123379>`;
+  }
+
+  if (dino.isShoulder) {
+    line += '\n> -# 🦜 *Dino d\'épaule*';
   }
 
   if (dino.uniquePerTribe) {
@@ -312,8 +354,10 @@ module.exports = {
   getLetterColors,
   getDinosByLetter,
   getModdedDinos,
+  getShoulderDinos,
   buildLetterEmbed,
   buildModdedEmbed,
+  buildShoulderEmbed,
   buildSaleEmbed,
   getAllLetters,
   updateNavMessage,

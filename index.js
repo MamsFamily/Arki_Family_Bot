@@ -9,7 +9,7 @@ const { addCashToUser, generateDraftBotCommands } = require('./unbelievaboatServ
 const { translate } = require('@vitalets/google-translate-api');
 const OpenAI = require('openai');
 const { createWebServer } = require('./web/server');
-const { getDinosByLetter, getModdedDinos, buildLetterEmbed, buildModdedEmbed, getAllLetters, getLetterColor } = require('./dinoManager');
+const { getDinosByLetter, getModdedDinos, getShoulderDinos, buildLetterEmbed, buildModdedEmbed, buildShoulderEmbed, getAllLetters, getLetterColor } = require('./dinoManager');
 
 const openaiConfig = {};
 if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
@@ -236,6 +236,7 @@ client.on('interactionCreate', async interaction => {
       const grouped = getDinosByLetter();
       const letters = Object.keys(grouped).sort();
       const moddedDinos = getModdedDinos();
+      const shoulderDinos = getShoulderDinos();
       const totalDinos = letters.reduce((sum, l) => sum + grouped[l].length, 0) + moddedDinos.length;
 
       let embeds;
@@ -248,6 +249,11 @@ client.on('interactionCreate', async interaction => {
           return interaction.reply({ content: '❌ Aucun dino moddé.', ephemeral: true });
         }
         embeds = [buildModdedEmbed(moddedDinos)];
+      } else if (selectedLetter === 'SHOULDER') {
+        if (shoulderDinos.length === 0) {
+          return interaction.reply({ content: '❌ Aucun dino d\'épaule.', ephemeral: true });
+        }
+        embeds = [buildShoulderEmbed(shoulderDinos)];
       } else {
         const dinos = grouped[selectedLetter];
         if (!dinos || dinos.length === 0) {
@@ -266,6 +272,15 @@ client.on('interactionCreate', async interaction => {
           default: l === selectedLetter,
         })),
       ];
+      if (shoulderDinos.length > 0) {
+        options.push({
+          label: 'Dinos d\'épaule',
+          description: `${shoulderDinos.length} dino${shoulderDinos.length > 1 ? 's' : ''} d'épaule`,
+          value: 'SHOULDER',
+          emoji: '🦜',
+          default: selectedLetter === 'SHOULDER',
+        });
+      }
       if (moddedDinos.length > 0) {
         options.push({
           label: 'Dinos Moddés',

@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { getSettings, updateSection } = require('../settingsManager');
 const { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, buildPackEmbed, DEFAULT_CATEGORIES } = require('../shopManager');
-const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, buildLetterEmbed, buildModdedEmbed, buildSaleEmbed, getAllLetters, updateNavMessage, getNavMessage, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
+const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, buildLetterEmbed, buildModdedEmbed, buildShoulderEmbed, buildSaleEmbed, getAllLetters, updateNavMessage, getNavMessage, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
 
@@ -473,7 +473,7 @@ function createWebServer(discordClient) {
   });
 
   app.post('/dinos/save', requireAuth, (req, res) => {
-    const { dinoId, name, priceDiamonds, priceStrawberries, uniquePerTribe, noReduction, doubleInventaire, coupleInventaire, notAvailableDona, notAvailableShop, isModded } = req.body;
+    const { dinoId, name, priceDiamonds, priceStrawberries, uniquePerTribe, noReduction, doubleInventaire, coupleInventaire, notAvailableDona, notAvailableShop, isModded, isShoulder } = req.body;
 
     const variants = [];
     for (let i = 1; i <= 20; i++) {
@@ -505,6 +505,7 @@ function createWebServer(discordClient) {
       notAvailableDona: notAvailableDona === 'true',
       notAvailableShop: notAvailableShop === 'true',
       isModded: isModded === 'true',
+      isShoulder: isShoulder === 'true',
     };
 
     if (dinoId) {
@@ -575,6 +576,7 @@ function createWebServer(discordClient) {
     const grouped = getDinosByLetter();
     const letters = Object.keys(grouped).sort();
     const moddedDinos = getModdedDinos();
+    const shoulderDinos = getShoulderDinos();
     if (letters.length === 0 && moddedDinos.length === 0) return res.redirect('/dinos?error=Aucun+dino+enregistr%C3%A9');
 
     try {
@@ -595,6 +597,14 @@ function createWebServer(discordClient) {
           default: l === firstLetter,
         })),
       ];
+      if (shoulderDinos.length > 0) {
+        menuOptions.push({
+          label: 'Dinos d\'épaule',
+          description: `${shoulderDinos.length} dino${shoulderDinos.length > 1 ? 's' : ''} d'épaule`,
+          value: 'SHOULDER',
+          emoji: '🦜',
+        });
+      }
       if (moddedDinos.length > 0) {
         menuOptions.push({
           label: 'Dinos Moddés',
