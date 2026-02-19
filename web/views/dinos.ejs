@@ -109,6 +109,9 @@
                           <% if (dino.notAvailableDona) { %>
                             <span class="pack-badge badge-notcompat">&#x274C; Pas en dona/inv</span>
                           <% } %>
+                          <% if (dino.notAvailableShop) { %>
+                            <span class="pack-badge badge-unavailable">&#x1F6AB; Pas dispo shop</span>
+                          <% } %>
                         </div>
                       </div>
                       <div class="dino-actions">
@@ -198,6 +201,12 @@
                     <span class="toggle-text">&#x274C; Non dispo avec packs dona / dinos inventaires</span>
                   </label>
                 </div>
+                <div class="form-group">
+                  <label class="toggle-label">
+                    <input type="checkbox" name="notAvailableShop" id="notAvailableShop" value="true">
+                    <span class="toggle-text">&#x1F6AB; Pas encore disponible au shop</span>
+                  </label>
+                </div>
               </div>
 
               <div class="card" style="margin-top:12px;">
@@ -240,6 +249,7 @@
         document.getElementById('doubleInventaire').checked = false;
         document.getElementById('coupleInventaire').checked = false;
         document.getElementById('notAvailableDona').checked = false;
+        document.getElementById('notAvailableShop').checked = false;
         document.getElementById('variantsContainer').innerHTML = '<p class="help-text" id="noVariantsText">Aucun variant. Cliquez sur "+ Variant" pour ajouter (ex: R, A, X).</p>';
         variantCount = 0;
       }
@@ -258,6 +268,7 @@
       document.getElementById('doubleInventaire').checked = !!dino.doubleInventaire;
       document.getElementById('coupleInventaire').checked = !!dino.coupleInventaire;
       document.getElementById('notAvailableDona').checked = !!dino.notAvailableDona;
+      document.getElementById('notAvailableShop').checked = !!dino.notAvailableShop;
 
       document.getElementById('variantsContainer').innerHTML = '';
       variantCount = 0;
@@ -334,6 +345,7 @@
       const doubleInv = document.getElementById('doubleInventaire').checked;
       const couple = document.getElementById('coupleInventaire').checked;
       const notDona = document.getElementById('notAvailableDona').checked;
+      const notShop = document.getElementById('notAvailableShop').checked;
       const letter = name[0] ? name[0].toUpperCase() : '?';
 
       let desc = `\u{1F53B} <strong>${letter}</strong> \u{1F53B}\n\n`;
@@ -355,6 +367,7 @@
       if (noRed) desc += '  \u{26D4} <em>R\u00e9ductions non applicables</em>\n';
       if (notDona) desc += '  \u{26A0}\u{FE0F} <em>NON DISPONIBLE AVEC LES PACKS DONA OU LES DINOS INVENTAIRES</em>\n';
       if (doubleInv) desc += '  \u{1F996} <em>x2 par paiement inventaire</em>\n';
+      if (notShop) desc += '  \u{1F6AB} <em>Pas encore disponible au shop</em>\n';
 
       document.getElementById('dinoPreviewDesc').innerHTML = desc.replace(/\n/g, '<br>');
     }
@@ -362,7 +375,7 @@
     ['dinoName', 'dinoPriceDiamonds', 'dinoPriceStrawberries'].forEach(id => {
       document.getElementById(id).addEventListener('input', updateDinoPreview);
     });
-    ['uniquePerTribe', 'dinoNoReduction', 'doubleInventaire', 'coupleInventaire', 'notAvailableDona'].forEach(id => {
+    ['uniquePerTribe', 'dinoNoReduction', 'doubleInventaire', 'coupleInventaire', 'notAvailableDona', 'notAvailableShop'].forEach(id => {
       document.getElementById(id).addEventListener('change', updateDinoPreview);
     });
 

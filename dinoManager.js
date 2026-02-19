@@ -141,6 +141,9 @@ function buildLetterEmbed(letter, dinos) {
     if (dino.doubleInventaire) {
       dinoLines.push('🦖 *x2 par paiement inventaire*');
     }
+    if (dino.notAvailableShop) {
+      dinoLines.push('🚫 *Pas encore disponible au shop*');
+    }
 
     blocks.push(dinoLines.join('\n'));
   });
