@@ -144,7 +144,7 @@ function buildDinoLine(dino) {
   let line = `## ${toDoubleStruck(dino.name)}\n> **${formatNumber(diamonds)}**<a:SparklyCrystal:1366174439003263087> + **${formatNumber(strawberries)}**<:fraises:1328148609585123379>`;
 
   if (dino.notAvailableShop) {
-    line += '\n> -# 🚫 Pas encore disponible au shop';
+    line += '\n-# > 🚫 Pas encore disponible au shop';
   }
   if (dino.uniquePerTribe) {
     line += '\n> ⚠️ __*Un seul par tribu*__';
@@ -161,7 +161,7 @@ function buildVariantLine(variant) {
   const strawberries = variant.priceStrawberries || 0;
   let line = `>   ◦ **${toDoubleStruck(variant.label)}** : **${formatNumber(diamonds)}**<a:SparklyCrystal:1366174439003263087> + **${formatNumber(strawberries)}**<:fraises:1328148609585123379>`;
   if (variant.notAvailableShop) {
-    line += '\n>   -# 🚫 Pas encore disponible au shop';
+    line += '\n-# >   🚫 Pas encore disponible au shop';
   }
   return line;
 }
