@@ -202,6 +202,69 @@
       "isModded": true,
       "id": "mltxzpk2uobc",
       "createdAt": "2026-02-19T20:57:31.682Z"
+    },
+    {
+      "name": "Cosmo",
+      "priceDiamonds": 4000,
+      "priceStrawberries": 1200,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "isModded": false,
+      "isShoulder": true,
+      "id": "mltyitsn7evo",
+      "createdAt": "2026-02-19T21:12:23.639Z"
+    },
+    {
+      "name": "Chat",
+      "priceDiamonds": 4000,
+      "priceStrawberries": 1200,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "isModded": false,
+      "isShoulder": true,
+      "id": "mltyj9hts4k9",
+      "createdAt": "2026-02-19T21:12:43.985Z"
+    },
+    {
+      "name": "Loutre ",
+      "priceDiamonds": 3000,
+      "priceStrawberries": 900,
+      "variants": [
+        {
+          "label": "A",
+          "priceDiamonds": 4000,
+          "priceStrawberries": 1200,
+          "notAvailableShop": false,
+          "hidden": false
+        },
+        {
+          "label": "X",
+          "priceDiamonds": 5000,
+          "priceStrawberries": 1500,
+          "notAvailableShop": true,
+          "hidden": true
+        }
+      ],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "isModded": false,
+      "isShoulder": true,
+      "id": "mltyl7ww4xxk",
+      "createdAt": "2026-02-19T21:14:15.248Z"
     }
   ],
   "dinoChannelId": "1457048610939207769",
@@ -223,13 +286,21 @@
       "channelId": "1457048610939207769"
     },
     "MODDED": {
-      "messageId": "1474145157342560470",
+      "messageId": "1474152187482607779",
+      "channelId": "1457048610939207769"
+    },
+    "C": {
+      "messageId": "1474152163709026344",
+      "channelId": "1457048610939207769"
+    },
+    "L": {
+      "messageId": "1474152165953110149",
       "channelId": "1457048610939207769"
     }
   },
   "letterColors": {},
   "dinoNavMessage": {
-    "messageId": "1474145921490096290",
+    "messageId": "1474152352088068356",
     "channelId": "1457048610939207769"
   }
 }
