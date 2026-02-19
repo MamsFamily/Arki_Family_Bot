@@ -143,9 +143,9 @@ function buildDinoLine(dino) {
   const strawberries = dino.priceStrawberries || 0;
   let line;
   if (dino.notAvailableShop) {
-    line = `### ${toDoubleStruck(dino.name)}\n> *${formatNumber(diamonds)}💎 + ${formatNumber(strawberries)}🍓 ── 🚫 Pas encore disponible au shop*`;
+    line = `### ▫️ ${toDoubleStruck(dino.name)}\n> *${formatNumber(diamonds)}💎 + ${formatNumber(strawberries)}🍓 ── 🚫 Pas encore disponible au shop*`;
   } else {
-    line = `### ${toDoubleStruck(dino.name)}\n> **${formatNumber(diamonds)}**<a:SparklyCrystal:1366174439003263087> + **${formatNumber(strawberries)}**<:fraises:1328148609585123379>`;
+    line = `### ▫️ ${toDoubleStruck(dino.name)}\n> <a:animearrow:1157234686200922152> **${formatNumber(diamonds)}**<a:SparklyCrystal:1366174439003263087> + **${formatNumber(strawberries)}**<:fraises:1328148609585123379>`;
   }
 
   if (dino.uniquePerTribe) {
