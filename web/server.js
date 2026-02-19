@@ -424,7 +424,9 @@ function createWebServer(discordClient) {
         .map(ch => ({ id: ch.id, name: ch.name }));
     }
     const letterColors = getLetterColors();
-    res.render('dinos', { dinoData, grouped, letterMessages, letterColors, defaultColors: DEFAULT_LETTER_COLORS, channels, success: req.query.success || null, error: req.query.error || null });
+    const allVariantsHidden = dinoData.dinos.every(d => !d.variants || d.variants.length === 0 || d.variants.every(v => v.hidden));
+    const hasAnyVariant = dinoData.dinos.some(d => d.variants && d.variants.length > 0);
+    res.render('dinos', { dinoData, grouped, letterMessages, letterColors, defaultColors: DEFAULT_LETTER_COLORS, channels, allVariantsHidden, hasAnyVariant, success: req.query.success || null, error: req.query.error || null });
   });
 
   app.post('/dinos/settings', requireAuth, (req, res) => {
@@ -438,6 +440,20 @@ function createWebServer(discordClient) {
       updateLetterColor(letter.toUpperCase(), color);
     }
     res.redirect('/dinos?success=Couleur+mise+%C3%A0+jour+!');
+  });
+
+  app.post('/dinos/toggle-variants', requireAuth, (req, res) => {
+    const data = getDinoData();
+    const allHidden = data.dinos.every(d => !d.variants || d.variants.length === 0 || d.variants.every(v => v.hidden));
+    const newState = !allHidden;
+    data.dinos.forEach(d => {
+      if (d.variants && d.variants.length > 0) {
+        d.variants.forEach(v => { v.hidden = newState; });
+      }
+    });
+    const { saveDinos } = require('../dinoManager');
+    saveDinos(data);
+    res.redirect('/dinos?success=Variants+' + (newState ? 'masqu%C3%A9s' : 'affich%C3%A9s') + '+!');
   });
 
   app.post('/dinos/save', requireAuth, (req, res) => {

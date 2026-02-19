@@ -195,6 +195,11 @@
           <h2>&#x1F995; Liste des dinos</h2>
           <div style="display:flex;gap:8px;">
             <button class="btn btn-primary" onclick="openDinoModal()">+ Nouveau dino</button>
+            <% if (hasAnyVariant) { %>
+              <form method="POST" action="/dinos/toggle-variants" style="display:inline">
+                <button type="submit" class="btn btn-secondary"><%= allVariantsHidden ? '👁️ Afficher tous les variants' : '👁️ Masquer tous les variants' %></button>
+              </form>
+            <% } %>
             <% if (letters.length > 0) { %>
               <form method="POST" action="/dinos/publish-nav" style="display:inline">
                 <button type="submit" class="btn btn-primary" onclick="return confirm('Publier le menu navigable avec liste déroulante ?')">🦖 Menu navigable</button>
@@ -316,7 +321,6 @@
                 <div class="card-header">
                   <h2>&#x1F3A8; Variants</h2>
                   <button type="button" class="btn btn-sm btn-secondary" onclick="addVariant()">+ Variant</button>
-                  <button type="button" class="btn btn-sm btn-secondary" onclick="toggleAllVariantsHidden()" id="toggleHiddenBtn" style="margin-left:6px;">👁️ Tout masquer</button>
                 </div>
                 <div class="card-body" id="variantsContainer">
                   <p class="help-text" id="noVariantsText">Aucun variant. Cliquez sur "+ Variant" pour ajouter (ex: R, A, X).</p>

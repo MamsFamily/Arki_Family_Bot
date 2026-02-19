@@ -241,6 +241,7 @@ module.exports = {
   getAllLetters,
   updateNavMessage,
   getNavMessage,
+  saveDinos,
   formatNumber,
   DEFAULT_LETTER_COLORS,
 };
