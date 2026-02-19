@@ -178,7 +178,7 @@ function buildLetterEmbed(letter, dinos) {
     dinoLines.push(buildDinoLine(dino));
 
     if (dino.variants && dino.variants.length > 0) {
-      dino.variants.forEach(v => {
+      dino.variants.filter(v => !v.hidden).forEach(v => {
         dinoLines.push(buildVariantLine(v));
       });
     }

@@ -304,11 +304,11 @@
               <div class="form-row">
                 <div class="form-group">
                   <label for="dinoPriceDiamonds">Prix diamants &#x1F48E;</label>
-                  <input type="number" id="dinoPriceDiamonds" name="priceDiamonds" value="0" min="0">
+                  <input type="number" id="dinoPriceDiamonds" name="priceDiamonds" min="0" placeholder="0">
                 </div>
                 <div class="form-group">
                   <label for="dinoPriceStrawberries">Prix fraises &#x1F353;</label>
-                  <input type="number" id="dinoPriceStrawberries" name="priceStrawberries" value="0" min="0">
+                  <input type="number" id="dinoPriceStrawberries" name="priceStrawberries" min="0" placeholder="0">
                 </div>
               </div>
 
@@ -404,8 +404,8 @@
         document.getElementById('dinoSubmitBtn').textContent = '\u{1F4BE} Ajouter le dino';
         document.getElementById('dinoId').value = '';
         document.getElementById('dinoName').value = '';
-        document.getElementById('dinoPriceDiamonds').value = '0';
-        document.getElementById('dinoPriceStrawberries').value = '0';
+        document.getElementById('dinoPriceDiamonds').value = '';
+        document.getElementById('dinoPriceStrawberries').value = '';
         document.getElementById('uniquePerTribe').checked = false;
         document.getElementById('dinoNoReduction').checked = false;
         document.getElementById('doubleInventaire').checked = false;
@@ -423,8 +423,8 @@
       document.getElementById('dinoSubmitBtn').textContent = '\u{1F4BE} Sauvegarder';
       document.getElementById('dinoId').value = dino.id;
       document.getElementById('dinoName').value = dino.name || '';
-      document.getElementById('dinoPriceDiamonds').value = dino.priceDiamonds || 0;
-      document.getElementById('dinoPriceStrawberries').value = dino.priceStrawberries || 0;
+      document.getElementById('dinoPriceDiamonds').value = dino.priceDiamonds || '';
+      document.getElementById('dinoPriceStrawberries').value = dino.priceStrawberries || '';
       document.getElementById('uniquePerTribe').checked = !!dino.uniquePerTribe;
       document.getElementById('dinoNoReduction').checked = !!dino.noReduction;
       document.getElementById('doubleInventaire').checked = !!dino.doubleInventaire;
@@ -436,7 +436,7 @@
       variantCount = 0;
       if (dino.variants && dino.variants.length > 0) {
         dino.variants.forEach(v => {
-          addVariant(v.label, v.priceDiamonds, v.priceStrawberries, v.notAvailableShop);
+          addVariant(v.label, v.priceDiamonds, v.priceStrawberries, v.notAvailableShop, v.hidden);
         });
       } else {
         document.getElementById('variantsContainer').innerHTML = '<p class="help-text" id="noVariantsText">Aucun variant.</p>';
@@ -450,7 +450,7 @@
       document.getElementById('dinoModal').classList.remove('show');
     }
 
-    function addVariant(label, diamonds, strawberries, notAvailableShop) {
+    function addVariant(label, diamonds, strawberries, notAvailableShop, hidden) {
       const noText = document.getElementById('noVariantsText');
       if (noText) noText.remove();
 
@@ -467,15 +467,19 @@
           </div>
           <div class="form-group" style="flex:1;">
             <label>\u{1F48E}</label>
-            <input type="number" name="variant_diamonds_${idx}" value="${diamonds || 0}" min="0" class="variant-input">
+            <input type="number" name="variant_diamonds_${idx}" value="${diamonds !== undefined && diamonds !== null ? diamonds : ''}" min="0" class="variant-input" placeholder="0">
           </div>
           <div class="form-group" style="flex:1;">
             <label>\u{1F353}</label>
-            <input type="number" name="variant_strawberries_${idx}" value="${strawberries || 0}" min="0" class="variant-input">
+            <input type="number" name="variant_strawberries_${idx}" value="${strawberries !== undefined && strawberries !== null ? strawberries : ''}" min="0" class="variant-input" placeholder="0">
           </div>
           <div class="form-group" style="flex:0.3;text-align:center;">
             <label style="font-size:0.7em;">\u{1F6AB} Shop</label>
             <input type="checkbox" name="variant_notshop_${idx}" value="true" ${notAvailableShop ? 'checked' : ''} class="variant-input" style="width:auto;margin:auto;">
+          </div>
+          <div class="form-group" style="flex:0.3;text-align:center;">
+            <label style="font-size:0.7em;">\u{1F441}\u{FE0F} Masquer</label>
+            <input type="checkbox" name="variant_hidden_${idx}" value="true" ${hidden ? 'checked' : ''} class="variant-input" style="width:auto;margin:auto;">
           </div>
           <button type="button" class="btn btn-sm btn-danger" onclick="removeVariant(${idx})" style="margin-bottom:4px;">\u{1F5D1}\u{FE0F}</button>
         </div>
