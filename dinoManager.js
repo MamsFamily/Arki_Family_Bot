@@ -125,10 +125,23 @@ function formatNumber(n) {
   return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
 
+const DS_UPPER_CODES = [0x1D538,0x1D539,0x2102,0x1D53B,0x1D53C,0x1D53D,0x1D53E,0x210D,0x1D540,0x1D541,0x1D542,0x1D543,0x1D544,0x2115,0x1D546,0x2119,0x211A,0x211D,0x1D54A,0x1D54B,0x1D54C,0x1D54D,0x1D54E,0x1D54F,0x1D550,0x2124];
+const DS_LOWER_CODES = [0x1D552,0x1D553,0x1D554,0x1D555,0x1D556,0x1D557,0x1D558,0x1D559,0x1D55A,0x1D55B,0x1D55C,0x1D55D,0x1D55E,0x1D55F,0x1D560,0x1D561,0x1D562,0x1D563,0x1D564,0x1D565,0x1D566,0x1D567,0x1D568,0x1D569,0x1D56A,0x1D56B];
+
+function toDoubleStruck(text) {
+  return [...text].map(c => {
+    const code = c.charCodeAt(0);
+    if (code >= 65 && code <= 90) return String.fromCodePoint(DS_UPPER_CODES[code - 65]);
+    if (code >= 97 && code <= 122) return String.fromCodePoint(DS_LOWER_CODES[code - 97]);
+    return c;
+  }).join('');
+}
+
+
 function buildDinoLine(dino) {
   const diamonds = dino.priceDiamonds || 0;
   const strawberries = dino.priceStrawberries || 0;
-  let line = `## ${dino.name}\n> ${formatNumber(diamonds)}<a:SparklyCrystal:1366174439003263087> + ${formatNumber(strawberries)}<:fraises:1328148609585123379>`;
+  let line = `## ${toDoubleStruck(dino.name)}\n> ${formatNumber(diamonds)}<a:SparklyCrystal:1366174439003263087> + ${formatNumber(strawberries)}<:fraises:1328148609585123379>`;
 
   if (dino.uniquePerTribe) {
     line += '\n> ⚠️ __*Un seul par tribu*__';
@@ -143,7 +156,7 @@ function buildDinoLine(dino) {
 function buildVariantLine(variant) {
   const diamonds = variant.priceDiamonds || 0;
   const strawberries = variant.priceStrawberries || 0;
-  return `>   ◦ **${variant.label}** : ${formatNumber(diamonds)}<a:SparklyCrystal:1366174439003263087> + ${formatNumber(strawberries)}<:fraises:1328148609585123379>`;
+  return `>   ◦ **${toDoubleStruck(variant.label)}** : ${formatNumber(diamonds)}<a:SparklyCrystal:1366174439003263087> + ${formatNumber(strawberries)}<:fraises:1328148609585123379>`;
 }
 
 function buildLetterEmbed(letter, dinos) {
