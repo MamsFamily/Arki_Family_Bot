@@ -14,6 +14,7 @@
     <button class="sidebar-close" onclick="document.querySelector('.sidebar').classList.remove('open');document.querySelector('.sidebar-overlay').classList.remove('show')" aria-label="Fermer">✕</button>
   </div>
   <nav class="sidebar-nav">
+    <% if (role === 'admin') { %>
     <a href="/" class="nav-link <%= path === '/' ? 'active' : '' %>">
       <span class="icon">🏠</span> Tableau de bord
     </a>
@@ -31,6 +32,7 @@
     <a href="/message" class="nav-link <%= path === '/message' ? 'active' : '' %>">
       <span class="icon">📝</span> Message publié
     </a>
+    <% } %>
 
     <div class="nav-section">Shop</div>
     <a href="/shop" class="nav-link <%= path === '/shop' ? 'active' : '' %>">
@@ -40,10 +42,12 @@
       <span class="icon">🦖</span> Prix Dinos
     </a>
 
+    <% if (role === 'admin') { %>
     <div class="nav-section">Système</div>
     <a href="/settings" class="nav-link <%= path === '/settings' ? 'active' : '' %>">
       <span class="icon">⚙️</span> Paramètres
     </a>
+    <% } %>
   </nav>
   <div class="sidebar-footer">
     <a href="/logout" class="nav-link">

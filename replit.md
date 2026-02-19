@@ -7,7 +7,9 @@ Bot Discord avec trois fonctionnalités principales :
 3. **Traduction et reformulation** - Traduction par réaction (🇫🇷/🇬🇧), commande /traduction, et reformulation style Kaamelott via IA (réaction emoji Arthur)
 
 ## Dashboard Web
-Dashboard d'administration accessible sur le port 5000, protégé par mot de passe (DASHBOARD_PASSWORD).
+Dashboard d'administration accessible sur le port 5000, avec double authentification :
+- **Admin** (mot de passe admin dans settings.json > auth.adminPassword) : accès complet à tout le dashboard
+- **Staff** (mot de passe staff dans settings.json > auth.staffPassword) : accès uniquement au Shop et Prix Dinos
 - **Tableau de bord** : Vue d'ensemble (serveurs, membres, uptime, config roulette)
 - **Roulette** : Modifier le titre et les choix depuis le navigateur
 - **Classement Votes** : Voir le classement des votes en temps réel depuis TopServeurs
@@ -133,6 +135,8 @@ Dashboard d'administration accessible sur le port 5000, protégé par mot de pas
 5. Accéder au dashboard via le port 5000
 
 ## Changements récents
+- 2026-02-19: Double authentification dashboard (admin = accès complet, staff = shop/dinos uniquement)
+- 2026-02-19: Dinos d'épaule (isShoulder) avec catégorie dédiée dans le menu déroulant Discord
 - 2026-02-19: Dinos moddés (catégorie séparée avec avertissement) + Flash Sale (soldes avec calcul prix automatique, publication embed)
 - 2026-02-19: Système Prix Dinos avec dashboard CRUD, variants (R/A/X), options (unique tribu, x2 inventaire, couple, non dispo dona), publication par lettre alphabétique
 - 2026-02-18: Système Shop avec dashboard CRUD, publication Discord (embeds par pack), aperçu live, donation/dispo/réduction toggles

@@ -34,10 +34,12 @@ function createWebServer(discordClient) {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
-  const dashPassword = process.env.DASHBOARD_PASSWORD;
-  if (!dashPassword) {
-    console.warn('⚠️ DASHBOARD_PASSWORD non défini ! Dashboard désactivé pour sécurité.');
-    return null;
+  function getPasswords() {
+    const settings = getSettings();
+    return {
+      admin: settings.auth?.adminPassword || process.env.DASHBOARD_PASSWORD || 'arki2024',
+      staff: settings.auth?.staffPassword || 'arkistaff',
+    };
   }
 
   app.use(session({
@@ -63,24 +65,42 @@ function createWebServer(discordClient) {
     res.redirect('/login');
   }
 
+  function requireAdmin(req, res, next) {
+    if (req.session && req.session.authenticated && req.session.role === 'admin') {
+      return next();
+    }
+    if (req.session && req.session.authenticated) {
+      return res.redirect('/shop');
+    }
+    res.redirect('/login');
+  }
+
   app.use((req, res, next) => {
     res.locals.botUser = discordClient.user;
     res.locals.path = req.path;
+    res.locals.role = req.session?.role || null;
     next();
   });
 
   app.get('/login', (req, res) => {
     if (req.session && req.session.authenticated) {
-      return res.redirect('/');
+      return res.redirect(req.session.role === 'admin' ? '/' : '/shop');
     }
     res.render('login', { error: null });
   });
 
   app.post('/login', (req, res) => {
     const { password } = req.body;
-    if (password === dashPassword) {
+    const passwords = getPasswords();
+    if (password === passwords.admin) {
       req.session.authenticated = true;
+      req.session.role = 'admin';
       return res.redirect('/');
+    }
+    if (password === passwords.staff) {
+      req.session.authenticated = true;
+      req.session.role = 'staff';
+      return res.redirect('/shop');
     }
     res.render('login', { error: 'Mot de passe incorrect' });
   });
@@ -90,7 +110,7 @@ function createWebServer(discordClient) {
     res.redirect('/login');
   });
 
-  app.get('/', requireAuth, (req, res) => {
+  app.get('/', requireAdmin, (req, res) => {
     const config = readConfig();
     const { getVotesConfig } = require('../votesConfig');
     const votesConfig = getVotesConfig();
@@ -107,12 +127,12 @@ function createWebServer(discordClient) {
     });
   });
 
-  app.get('/roulette', requireAuth, (req, res) => {
+  app.get('/roulette', requireAdmin, (req, res) => {
     const config = readConfig();
     res.render('roulette', { config, success: null, error: null });
   });
 
-  app.post('/roulette', requireAuth, (req, res) => {
+  app.post('/roulette', requireAdmin, (req, res) => {
     const { title, choices } = req.body;
 
     if (!title || title.trim().length === 0) {
@@ -139,7 +159,7 @@ function createWebServer(discordClient) {
     res.render('roulette', { config, success: 'Configuration sauvegardée !', error: null });
   });
 
-  app.get('/votes', requireAuth, async (req, res) => {
+  app.get('/votes', requireAdmin, async (req, res) => {
     const { fetchTopserveursRanking } = require('../topserveursService');
     const { getVotesConfig } = require('../votesConfig');
     const votesConfig = getVotesConfig();
@@ -162,12 +182,12 @@ function createWebServer(discordClient) {
     res.render('votes', { ranking, monthName, votesConfig, error });
   });
 
-  app.get('/rewards', requireAuth, (req, res) => {
+  app.get('/rewards', requireAdmin, (req, res) => {
     const settings = getSettings();
     res.render('rewards', { settings, success: null, error: null });
   });
 
-  app.post('/rewards', requireAuth, (req, res) => {
+  app.post('/rewards', requireAdmin, (req, res) => {
     const { diamondsPerVote, bonus4, bonus5 } = req.body;
 
     const topDiamonds = {};
@@ -202,12 +222,12 @@ function createWebServer(discordClient) {
     res.render('rewards', { settings, success: 'Récompenses sauvegardées !', error: null });
   });
 
-  app.get('/message', requireAuth, (req, res) => {
+  app.get('/message', requireAdmin, (req, res) => {
     const settings = getSettings();
     res.render('message', { settings, success: null, error: null });
   });
 
-  app.post('/message', requireAuth, (req, res) => {
+  app.post('/message', requireAdmin, (req, res) => {
     const { introText, creditText, pack1Text, pack2Text, pack3Text, memoText, dinoShinyText, dinoTitle, dinoWinText } = req.body;
 
     updateSection('message', {
@@ -226,12 +246,12 @@ function createWebServer(discordClient) {
     res.render('message', { settings, success: 'Message sauvegardé !', error: null });
   });
 
-  app.get('/settings', requireAuth, (req, res) => {
+  app.get('/settings', requireAdmin, (req, res) => {
     const settings = getSettings();
     res.render('settings', { settings, success: null, error: null });
   });
 
-  app.post('/settings', requireAuth, (req, res) => {
+  app.post('/settings', requireAdmin, (req, res) => {
     const {
       guildId, resultsChannelId, adminLogChannelId, topVoterRoleId, modoRoleId,
       logo, fireworks, sparkly, animeArrow, arrow, memoUrl,

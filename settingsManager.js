@@ -48,6 +48,10 @@ const DEFAULTS = {
     pack2Text: 'Pack vote 2ème place',
     pack3Text: 'Pack vote 3ème place',
   },
+  auth: {
+    adminPassword: envOr('DASHBOARD_PASSWORD', 'arki2024'),
+    staffPassword: 'arkistaff',
+  },
   aliases: {},
 };
 
