@@ -241,11 +241,7 @@
             <button class="btn btn-primary" onclick="openDinoModal()" style="flex:1;text-align:center;">+ Nouveau dino</button>
             <% if (letters.length > 0) { %>
               <form method="POST" action="/dinos/publish-nav" style="flex:1;">
-                <% if (dinoData.dinoNavMessage && dinoData.dinoNavMessage.messageId) { %>
-                  <button type="submit" class="btn btn-primary" style="width:100%;" onclick="return confirm('Mettre à jour le menu dinos sur Discord ?')">&#x1F504; Mettre &agrave; jour Discord</button>
-                <% } else { %>
-                  <button type="submit" class="btn btn-primary" style="width:100%;" onclick="return confirm('Publier le menu dinos sur Discord ?')">&#x1F996; Publier sur Discord</button>
-                <% } %>
+                <button type="submit" class="btn btn-primary" style="width:100%;" onclick="return confirm('Publier ou mettre à jour le menu dinos sur Discord ?')">&#x1F4E4; Publier / Mettre &agrave; jour Discord</button>
               </form>
             <% } %>
             <% if (hasAnyVariant) { %>
@@ -660,14 +656,6 @@
           <div class="form-group" style="flex:1;">
             <label>\u{1F353}</label>
             <input type="number" name="variant_strawberries_${idx}" value="${strawberries !== undefined && strawberries !== null ? strawberries : ''}" min="0" class="variant-input" placeholder="0">
-          </div>
-          <div class="form-group" style="flex:0.3;text-align:center;">
-            <label style="font-size:0.7em;">\u{1F6AB} Shop</label>
-            <input type="checkbox" name="variant_notshop_${idx}" value="true" ${notAvailableShop ? 'checked' : ''} class="variant-input" style="width:auto;margin:auto;">
-          </div>
-          <div class="form-group" style="flex:0.3;text-align:center;">
-            <label style="font-size:0.7em;">\u{1F441}\u{FE0F} Masquer</label>
-            <input type="checkbox" name="variant_hidden_${idx}" value="true" ${hidden ? 'checked' : ''} class="variant-input" style="width:auto;margin:auto;">
           </div>
           <button type="button" class="btn btn-sm btn-danger" onclick="removeVariant(${idx})" style="margin-bottom:4px;">\u{1F5D1}\u{FE0F}</button>
         </div>
