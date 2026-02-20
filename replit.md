@@ -91,7 +91,9 @@ Dashboard d'administration accessible sur le port 5000, avec double authentifica
 │   │   ├── dinos.ejs      # Gestion des prix dinos (par lettre, variants)
 │   │   └── settings.ejs   # Paramètres (canaux, rôles, emojis, aliases)
 │   └── public/css/        # Styles CSS
-├── data/db/meta.sqlite    # Base de données SQLite
+├── pgStore.js             # Module PostgreSQL (connexion, lecture/écriture, fallback JSON)
+├── configManager.js       # Gestionnaire async de la config roulette (PostgreSQL/JSON)
+├── data/db/meta.sqlite    # Base de données SQLite (votes/historique)
 └── package.json           # Dépendances Node.js
 ```
 
@@ -102,7 +104,8 @@ Dashboard d'administration accessible sur le port 5000, avec double authentifica
 - Canvas (pour générer les images de la roue)
 - GIF Encoder 2 (pour créer les animations GIF)
 - Axios (pour les appels API)
-- Better-SQLite3 (pour la base de données locale)
+- PostgreSQL via pg (pour la persistance des données sur Railway)
+- Better-SQLite3 (pour la base de données locale votes/historique)
 - unb-api (pour l'API UnbelievaBoat)
 - OpenAI via Replit AI Integrations (pour la reformulation style Kaamelott)
 - @vitalets/google-translate-api (pour la traduction gratuite)
@@ -135,6 +138,7 @@ Dashboard d'administration accessible sur le port 5000, avec double authentifica
 5. Accéder au dashboard via le port 5000
 
 ## Changements récents
+- 2026-02-20: Migration PostgreSQL pour persistance sur Railway (pgStore.js, configManager.js, async toutes les opérations d'écriture)
 - 2026-02-19: Double authentification dashboard (admin = accès complet, staff = shop/dinos uniquement)
 - 2026-02-19: Dinos d'épaule (isShoulder) avec catégorie dédiée dans le menu déroulant Discord
 - 2026-02-19: Dinos moddés (catégorie séparée avec avertissement) + Flash Sale (soldes avec calcul prix automatique, publication embed)
