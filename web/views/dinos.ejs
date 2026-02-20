@@ -659,6 +659,20 @@
           </div>
           <button type="button" class="btn btn-sm btn-danger" onclick="removeVariant(${idx})" style="margin-bottom:4px;">\u{1F5D1}\u{FE0F}</button>
         </div>
+        <div class="form-row" style="margin-bottom:8px;">
+          <div class="form-group">
+            <label class="toggle-label">
+              <input type="checkbox" name="variant_notshop_${idx}" value="true" ${notAvailableShop ? 'checked' : ''}>
+              <span class="toggle-text">\u{1F6AB} Non dispo shop</span>
+            </label>
+          </div>
+          <div class="form-group">
+            <label class="toggle-label">
+              <input type="checkbox" name="variant_hidden_${idx}" value="true" ${hidden ? 'checked' : ''}>
+              <span class="toggle-text">\u{1F648} Masqu\u{00E9}</span>
+            </label>
+          </div>
+        </div>
       `;
       document.getElementById('variantsContainer').appendChild(div);
 
