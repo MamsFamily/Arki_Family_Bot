@@ -710,7 +710,6 @@
       const strawberries = parseInt(document.getElementById('dinoPriceStrawberries').value) || 0;
       const unique = document.getElementById('uniquePerTribe').checked;
       const noRed = document.getElementById('dinoNoReduction').checked;
-      const doubleInv = document.getElementById('doubleInventaire').checked;
       const couple = document.getElementById('coupleInventaire').checked;
       const notDona = document.getElementById('notAvailableDona').checked;
       const notShop = document.getElementById('notAvailableShop').checked;
@@ -750,7 +749,6 @@
 
       if (noRed) desc += '> ' + stop + ' <em>R\u00e9ductions non applicables</em>\n';
       if (notDona) desc += '> ' + bang + ' <em>NON DISPONIBLE AVEC LES PACKS DONA OU LES DINOS INVENTAIRES</em>\n';
-      if (doubleInv) desc += '> ' + dino_emoji + ' <em>x2 par paiement inventaire</em>\n';
       if (notShop) desc += '> ' + no + ' <em>Pas encore disponible au shop</em>\n';
 
       document.getElementById('dinoPreviewDesc').innerHTML = desc
@@ -760,7 +758,7 @@
     ['dinoName', 'dinoPriceDiamonds', 'dinoPriceStrawberries'].forEach(id => {
       document.getElementById(id).addEventListener('input', updateDinoPreview);
     });
-    ['uniquePerTribe', 'dinoNoReduction', 'doubleInventaire', 'coupleInventaire', 'notAvailableDona', 'notAvailableShop'].forEach(id => {
+    ['uniquePerTribe', 'dinoNoReduction', 'coupleInventaire', 'notAvailableDona', 'notAvailableShop'].forEach(id => {
       document.getElementById(id).addEventListener('change', updateDinoPreview);
     });
 
