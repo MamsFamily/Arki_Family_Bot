@@ -303,10 +303,22 @@ function createWebServer(discordClient) {
     const guild = configuredGuildId ? discordClient.guilds.cache.get(configuredGuildId) : discordClient.guilds.cache.first();
     let channels = [];
     if (guild) {
-      channels = guild.channels.cache
+      const categories = guild.channels.cache
+        .filter(ch => ch.type === 4)
+        .sort((a, b) => a.position - b.position);
+      const textChannels = guild.channels.cache
         .filter(ch => ch.type === 0)
-        .sort((a, b) => a.position - b.position)
-        .map(ch => ({ id: ch.id, name: ch.name }));
+        .sort((a, b) => {
+          const catA = a.parentId ? (categories.get(a.parentId)?.position ?? 999) : -1;
+          const catB = b.parentId ? (categories.get(b.parentId)?.position ?? 999) : -1;
+          if (catA !== catB) return catA - catB;
+          return a.position - b.position;
+        });
+      channels = textChannels.map(ch => ({
+        id: ch.id,
+        name: ch.name,
+        category: ch.parentId ? (categories.get(ch.parentId)?.name || '') : '',
+      }));
     }
     res.render('shop', { shop, categories: DEFAULT_CATEGORIES, channels, success: req.query.success || null, error: req.query.error || null });
   });
@@ -438,10 +450,22 @@ function createWebServer(discordClient) {
     const guild = configuredGuildId ? discordClient.guilds.cache.get(configuredGuildId) : discordClient.guilds.cache.first();
     let channels = [];
     if (guild) {
-      channels = guild.channels.cache
+      const categories = guild.channels.cache
+        .filter(ch => ch.type === 4)
+        .sort((a, b) => a.position - b.position);
+      const textChannels = guild.channels.cache
         .filter(ch => ch.type === 0)
-        .sort((a, b) => a.position - b.position)
-        .map(ch => ({ id: ch.id, name: ch.name }));
+        .sort((a, b) => {
+          const catA = a.parentId ? (categories.get(a.parentId)?.position ?? 999) : -1;
+          const catB = b.parentId ? (categories.get(b.parentId)?.position ?? 999) : -1;
+          if (catA !== catB) return catA - catB;
+          return a.position - b.position;
+        });
+      channels = textChannels.map(ch => ({
+        id: ch.id,
+        name: ch.name,
+        category: ch.parentId ? (categories.get(ch.parentId)?.name || '') : '',
+      }));
     }
     const letterColors = getLetterColors();
     const moddedDinos = getModdedDinos();
