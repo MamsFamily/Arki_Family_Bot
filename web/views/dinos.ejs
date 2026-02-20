@@ -175,18 +175,11 @@
         <div class="card-body">
           <form method="POST" action="/dinos/settings" class="form-row">
             <div class="form-group" style="flex:1;">
-              <label for="dinoChannelFilter">Salon Discord des dinos</label>
-              <input type="text" id="dinoChannelFilter" class="form-control" placeholder="&#x1F50D; Filtrer les salons..." autocomplete="off" style="margin-bottom:6px;">
-              <select id="dinoChannelId" name="dinoChannelId" class="form-control" size="8" style="height:auto;">
+              <label for="dinoChannelId">Salon Discord des dinos</label>
+              <select id="dinoChannelId" name="dinoChannelId" class="form-control">
                 <option value="">-- S&eacute;lectionner un salon --</option>
-                <% let lastCat = null; %>
-                <% const catGroups = {}; channels.forEach(ch => { const cat = ch.category || 'Sans catégorie'; if (!catGroups[cat]) catGroups[cat] = []; catGroups[cat].push(ch); }); %>
-                <% Object.entries(catGroups).forEach(([cat, chs]) => { %>
-                  <optgroup label="📁 <%= cat %>">
-                    <% chs.forEach(ch => { %>
-                      <option value="<%= ch.id %>" <%= dinoData.dinoChannelId === ch.id ? 'selected' : '' %>># <%= ch.name %></option>
-                    <% }); %>
-                  </optgroup>
+                <% channels.forEach(ch => { %>
+                  <option value="<%= ch.id %>" <%= dinoData.dinoChannelId === ch.id ? 'selected' : '' %>># <%= ch.name %></option>
                 <% }); %>
               </select>
             </div>
@@ -775,26 +768,6 @@
       if (e.target === this) closeDinoModal();
     });
 
-    (function() {
-      const filter = document.getElementById('dinoChannelFilter');
-      const select = document.getElementById('dinoChannelId');
-      if (!filter || !select) return;
-
-      filter.addEventListener('input', function() {
-        const q = this.value.toLowerCase().replace(/^#\s*/, '');
-        const options = select.querySelectorAll('option');
-        const groups = select.querySelectorAll('optgroup');
-        options.forEach(opt => {
-          if (!opt.value && !q) { opt.style.display = ''; return; }
-          if (!opt.value && q) { opt.style.display = 'none'; return; }
-          opt.style.display = opt.textContent.toLowerCase().includes(q) ? '' : 'none';
-        });
-        groups.forEach(g => {
-          const visible = Array.from(g.querySelectorAll('option')).some(o => o.style.display !== 'none');
-          g.style.display = visible ? '' : 'none';
-        });
-      });
-    })();
   </script>
 </body>
 </html>
