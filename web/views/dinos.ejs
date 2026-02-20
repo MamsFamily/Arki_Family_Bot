@@ -239,10 +239,19 @@
           <h2>&#x1F995; Liste des dinos shop</h2>
           <div style="display:flex;gap:8px;justify-content:center;">
             <button class="btn btn-primary" onclick="openDinoModal()" style="flex:1;text-align:center;">+ Nouveau dino</button>
+            <% if (letters.length > 0) { %>
+              <form method="POST" action="/dinos/publish-nav" style="flex:1;">
+                <% if (dinoData.dinoNavMessage && dinoData.dinoNavMessage.messageId) { %>
+                  <button type="submit" class="btn btn-primary" style="width:100%;" onclick="return confirm('Mettre à jour le menu dinos sur Discord ?')">&#x1F504; Mettre &agrave; jour Discord</button>
+                <% } else { %>
+                  <button type="submit" class="btn btn-primary" style="width:100%;" onclick="return confirm('Publier le menu dinos sur Discord ?')">&#x1F996; Publier sur Discord</button>
+                <% } %>
+              </form>
+            <% } %>
             <% if (hasAnyVariant) { %>
               <div style="position:relative;flex:1;" id="variantDropdownWrap">
-                <button type="button" class="btn btn-secondary" onclick="toggleVariantDropdown()" style="width:100%;">&#x1F441;&#xFE0F; Visibilit&eacute; variants</button>
-                <div id="variantDropdown" style="display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);z-index:100;background:#1e1e2e;border:1px solid #3a3a5c;border-radius:8px;padding:12px;min-width:200px;margin-top:4px;box-shadow:0 4px 12px rgba(0,0,0,0.4);">
+                <button type="button" class="btn btn-secondary" onclick="toggleVariantDropdown()" style="width:100%;">&#x1F4E2; Publication variants</button>
+                <div id="variantDropdown" style="display:none;position:absolute;top:100%;right:0;z-index:100;background:#1e1e2e;border:1px solid #3a3a5c;border-radius:8px;padding:12px;min-width:200px;margin-top:4px;box-shadow:0 4px 12px rgba(0,0,0,0.4);">
                   <form method="POST" action="/dinos/toggle-variants">
                     <p style="margin:0 0 8px;color:#ccc;font-size:13px;font-weight:600;">Afficher sur Discord :</p>
                     <% Object.keys(variantLabels).sort().forEach(label => { %>
@@ -259,15 +268,6 @@
                   </form>
                 </div>
               </div>
-            <% } %>
-            <% if (letters.length > 0) { %>
-              <form method="POST" action="/dinos/publish-nav" style="flex:1;">
-                <% if (dinoData.dinoNavMessage && dinoData.dinoNavMessage.messageId) { %>
-                  <button type="submit" class="btn btn-primary" style="width:100%;" onclick="return confirm('Mettre à jour le menu dinos sur Discord ?')">&#x1F504; Mettre &agrave; jour Discord</button>
-                <% } else { %>
-                  <button type="submit" class="btn btn-primary" style="width:100%;" onclick="return confirm('Publier le menu dinos sur Discord ?')">&#x1F996; Publier sur Discord</button>
-                <% } %>
-              </form>
             <% } %>
           </div>
         </div>
