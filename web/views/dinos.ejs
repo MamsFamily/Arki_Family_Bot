@@ -235,14 +235,14 @@
       </div>
 
       <div class="card">
-        <div class="card-header">
-          <h2>&#x1F995; Liste des dinos</h2>
-          <div style="display:flex;gap:8px;">
-            <button class="btn btn-primary" onclick="openDinoModal()">+ Nouveau dino</button>
+        <div class="card-header" style="flex-direction:column;align-items:stretch;gap:12px;">
+          <h2>&#x1F995; Liste des dinos shop</h2>
+          <div style="display:flex;gap:8px;justify-content:center;">
+            <button class="btn btn-primary" onclick="openDinoModal()" style="flex:1;text-align:center;">+ Nouveau dino</button>
             <% if (hasAnyVariant) { %>
-              <div style="position:relative;display:inline-block;" id="variantDropdownWrap">
-                <button type="button" class="btn btn-secondary" onclick="toggleVariantDropdown()">👁️ Visibilité variants</button>
-                <div id="variantDropdown" style="display:none;position:absolute;top:100%;left:0;z-index:100;background:#1e1e2e;border:1px solid #3a3a5c;border-radius:8px;padding:12px;min-width:200px;margin-top:4px;box-shadow:0 4px 12px rgba(0,0,0,0.4);">
+              <div style="position:relative;flex:1;" id="variantDropdownWrap">
+                <button type="button" class="btn btn-secondary" onclick="toggleVariantDropdown()" style="width:100%;">&#x1F441;&#xFE0F; Visibilit&eacute; variants</button>
+                <div id="variantDropdown" style="display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);z-index:100;background:#1e1e2e;border:1px solid #3a3a5c;border-radius:8px;padding:12px;min-width:200px;margin-top:4px;box-shadow:0 4px 12px rgba(0,0,0,0.4);">
                   <form method="POST" action="/dinos/toggle-variants">
                     <p style="margin:0 0 8px;color:#ccc;font-size:13px;font-weight:600;">Afficher sur Discord :</p>
                     <% Object.keys(variantLabels).sort().forEach(label => { %>
@@ -261,11 +261,11 @@
               </div>
             <% } %>
             <% if (letters.length > 0) { %>
-              <form method="POST" action="/dinos/publish-nav" style="display:inline">
+              <form method="POST" action="/dinos/publish-nav" style="flex:1;">
                 <% if (dinoData.dinoNavMessage && dinoData.dinoNavMessage.messageId) { %>
-                  <button type="submit" class="btn btn-primary" onclick="return confirm('Mettre à jour le menu dinos sur Discord ?')">🔄 Mettre à jour Discord</button>
+                  <button type="submit" class="btn btn-primary" style="width:100%;" onclick="return confirm('Mettre à jour le menu dinos sur Discord ?')">&#x1F504; Mettre &agrave; jour Discord</button>
                 <% } else { %>
-                  <button type="submit" class="btn btn-primary" onclick="return confirm('Publier le menu dinos sur Discord ?')">🦖 Publier sur Discord</button>
+                  <button type="submit" class="btn btn-primary" style="width:100%;" onclick="return confirm('Publier le menu dinos sur Discord ?')">&#x1F996; Publier sur Discord</button>
                 <% } %>
               </form>
             <% } %>
@@ -452,63 +452,62 @@
                 </div>
               </div>
 
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="toggle-label">
-                    <input type="checkbox" name="uniquePerTribe" id="uniquePerTribe" value="true">
-                    <span class="toggle-text">&#x26A0;&#xFE0F; Un seul par tribu</span>
-                  </label>
-                </div>
-                <div class="form-group">
-                  <label class="toggle-label">
-                    <input type="checkbox" name="noReduction" id="dinoNoReduction" value="true">
-                    <span class="toggle-text">&#x26D4; R&eacute;ductions non applicables</span>
-                  </label>
-                </div>
-              </div>
-
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="toggle-label">
-                    <input type="checkbox" name="doubleInventaire" id="doubleInventaire" value="true">
-                    <span class="toggle-text">&#x1F996; x2 par paiement inventaire</span>
-                  </label>
-                </div>
-                <div class="form-group">
-                  <label class="toggle-label">
-                    <input type="checkbox" name="coupleInventaire" id="coupleInventaire" value="true">
-                    <span class="toggle-text">&#x1F996; Achat inventaire co&ucirc;te x2</span>
-                  </label>
+              <div style="margin-top:12px;margin-bottom:12px;padding:14px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
+                <p style="margin:0 0 10px;color:#aaa;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">&#x1F3F7;&#xFE0F; Type de dino</p>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="toggle-label">
+                      <input type="checkbox" name="isShoulder" id="isShoulder" value="true">
+                      <span class="toggle-text">&#x1F99C; Dino d'&eacute;paule</span>
+                    </label>
+                  </div>
+                  <div class="form-group">
+                    <label class="toggle-label">
+                      <input type="checkbox" name="isModded" id="isModded" value="true">
+                      <span class="toggle-text">&#x1F527; Dino mod&eacute;</span>
+                    </label>
+                  </div>
                 </div>
               </div>
 
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="toggle-label">
-                    <input type="checkbox" name="notAvailableDona" id="notAvailableDona" value="true">
-                    <span class="toggle-text">&#x274C; Non dispo avec packs dona / dinos inventaires</span>
-                  </label>
+              <div style="margin-bottom:12px;padding:14px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
+                <p style="margin:0 0 10px;color:#aaa;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">&#x2699;&#xFE0F; Options d'achat</p>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="toggle-label">
+                      <input type="checkbox" name="uniquePerTribe" id="uniquePerTribe" value="true">
+                      <span class="toggle-text">&#x26A0;&#xFE0F; Un seul par tribu</span>
+                    </label>
+                  </div>
+                  <div class="form-group">
+                    <label class="toggle-label">
+                      <input type="checkbox" name="coupleInventaire" id="coupleInventaire" value="true">
+                      <span class="toggle-text">&#x1F996; Achat inventaire co&ucirc;te x2</span>
+                    </label>
+                  </div>
                 </div>
-                <div class="form-group">
-                  <label class="toggle-label">
-                    <input type="checkbox" name="notAvailableShop" id="notAvailableShop" value="true">
-                    <span class="toggle-text">&#x1F6AB; Pas encore disponible au shop</span>
-                  </label>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="toggle-label">
+                      <input type="checkbox" name="noReduction" id="dinoNoReduction" value="true">
+                      <span class="toggle-text">&#x26D4; R&eacute;ductions non applicables</span>
+                    </label>
+                  </div>
+                  <div class="form-group">
+                    <label class="toggle-label">
+                      <input type="checkbox" name="notAvailableDona" id="notAvailableDona" value="true">
+                      <span class="toggle-text">&#x274C; Non dispo dona / inventaires</span>
+                    </label>
+                  </div>
                 </div>
-              </div>
-
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="toggle-label">
-                    <input type="checkbox" name="isModded" id="isModded" value="true">
-                    <span class="toggle-text">&#x1F527; Dino mod&eacute; (cat&eacute;gorie s&eacute;par&eacute;e)</span>
-                  </label>
-                </div>
-                <div class="form-group">
-                  <label class="toggle-label">
-                    <input type="checkbox" name="isShoulder" id="isShoulder" value="true">
-                    <span class="toggle-text">&#x1F99C; Dino d'&eacute;paule</span>
-                  </label>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="toggle-label">
+                      <input type="checkbox" name="notAvailableShop" id="notAvailableShop" value="true">
+                      <span class="toggle-text">&#x1F6AB; Pas encore dispo au shop</span>
+                    </label>
+                  </div>
+                  <div class="form-group"></div>
                 </div>
               </div>
 
@@ -595,7 +594,6 @@
         document.getElementById('dinoPriceStrawberries').value = '';
         document.getElementById('uniquePerTribe').checked = false;
         document.getElementById('dinoNoReduction').checked = false;
-        document.getElementById('doubleInventaire').checked = false;
         document.getElementById('coupleInventaire').checked = false;
         document.getElementById('notAvailableDona').checked = false;
         document.getElementById('notAvailableShop').checked = false;
@@ -616,7 +614,6 @@
       document.getElementById('dinoPriceStrawberries').value = dino.priceStrawberries || '';
       document.getElementById('uniquePerTribe').checked = !!dino.uniquePerTribe;
       document.getElementById('dinoNoReduction').checked = !!dino.noReduction;
-      document.getElementById('doubleInventaire').checked = !!dino.doubleInventaire;
       document.getElementById('coupleInventaire').checked = !!dino.coupleInventaire;
       document.getElementById('notAvailableDona').checked = !!dino.notAvailableDona;
       document.getElementById('notAvailableShop').checked = !!dino.notAvailableShop;
