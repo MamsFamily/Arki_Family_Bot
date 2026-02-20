@@ -441,7 +441,10 @@
               <div class="card" style="margin-top:12px;margin-bottom:12px;">
                 <div class="card-header">
                   <h2>&#x1F3A8; Variants</h2>
-                  <button type="button" class="btn btn-sm btn-secondary" onclick="addVariant()">+ Variant</button>
+                  <div style="display:flex;gap:6px;">
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="addVariant()">+ Variant</button>
+                    <button type="button" class="btn btn-sm btn-secondary" id="toggleHiddenBtn" onclick="toggleAllVariantsHidden()">&#x1F441;&#xFE0F; Tout masquer</button>
+                  </div>
                 </div>
                 <div class="card-body" id="variantsContainer">
                   <p class="help-text" id="noVariantsText">Aucun variant. Cliquez sur "+ Variant" pour ajouter (ex: R, A, X).</p>
@@ -705,6 +708,7 @@
 
     function updateToggleHiddenBtn() {
       const btn = document.getElementById('toggleHiddenBtn');
+      if (!btn) return;
       const checkboxes = document.querySelectorAll('input[name^="variant_hidden_"]');
       if (checkboxes.length === 0) {
         btn.textContent = '\u{1F441}\u{FE0F} Tout masquer';
