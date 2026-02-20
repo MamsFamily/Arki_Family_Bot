@@ -1,7 +1,11 @@
 const fs = require('fs');
 const path = require('path');
+const pgStore = require('./pgStore');
 
 const DINO_PATH = path.join(__dirname, 'dinos.json');
+const PG_KEY = 'dinos';
+
+let cachedData = null;
 
 const DEFAULT_LETTER_COLORS = {
   A: '#e74c3c', B: '#e67e22', C: '#f1c40f', D: '#2ecc71', E: '#1abc9c',
@@ -12,7 +16,7 @@ const DEFAULT_LETTER_COLORS = {
   Z: '#ea80fc',
 };
 
-function loadDinos() {
+function loadDinosFromFile() {
   try {
     if (fs.existsSync(DINO_PATH)) {
       return JSON.parse(fs.readFileSync(DINO_PATH, 'utf-8'));
@@ -23,7 +27,7 @@ function loadDinos() {
   return { dinos: [], dinoChannelId: '' };
 }
 
-function saveDinos(data) {
+function saveDinosToFile(data) {
   try {
     fs.writeFileSync(DINO_PATH, JSON.stringify(data, null, 2));
     return true;
@@ -33,8 +37,27 @@ function saveDinos(data) {
   }
 }
 
+async function initDinos() {
+  if (pgStore.isPostgres()) {
+    const pgData = await pgStore.getData(PG_KEY);
+    if (!pgData) {
+      const fileData = loadDinosFromFile();
+      await pgStore.setData(PG_KEY, fileData);
+      console.log('🦖 Dinos migrés vers PostgreSQL');
+    }
+    cachedData = await pgStore.getData(PG_KEY);
+  } else {
+    cachedData = loadDinosFromFile();
+  }
+}
+
 function getDinoData() {
-  const data = loadDinos();
+  let data;
+  if (cachedData) {
+    data = cachedData;
+  } else {
+    data = loadDinosFromFile();
+  }
   if (!data.dinos) data.dinos = [];
   if (!data.dinoChannelId) data.dinoChannelId = '';
   if (!data.letterMessages) data.letterMessages = {};
@@ -42,28 +65,37 @@ function getDinoData() {
   return data;
 }
 
-function addDino(dino) {
+async function saveDinos(data) {
+  cachedData = data;
+  if (pgStore.isPostgres()) {
+    await pgStore.setData(PG_KEY, data);
+  }
+  saveDinosToFile(data);
+  return true;
+}
+
+async function addDino(dino) {
   const data = getDinoData();
   dino.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   dino.createdAt = new Date().toISOString();
   data.dinos.push(dino);
-  saveDinos(data);
+  await saveDinos(data);
   return dino;
 }
 
-function updateDino(dinoId, updates) {
+async function updateDino(dinoId, updates) {
   const data = getDinoData();
   const idx = data.dinos.findIndex(d => d.id === dinoId);
   if (idx === -1) return null;
   data.dinos[idx] = { ...data.dinos[idx], ...updates };
-  saveDinos(data);
+  await saveDinos(data);
   return data.dinos[idx];
 }
 
-function deleteDino(dinoId) {
+async function deleteDino(dinoId) {
   const data = getDinoData();
   data.dinos = data.dinos.filter(d => d.id !== dinoId);
-  saveDinos(data);
+  await saveDinos(data);
   return true;
 }
 
@@ -72,17 +104,17 @@ function getDino(dinoId) {
   return data.dinos.find(d => d.id === dinoId) || null;
 }
 
-function updateDinoChannel(channelId) {
+async function updateDinoChannel(channelId) {
   const data = getDinoData();
   data.dinoChannelId = channelId;
-  saveDinos(data);
+  await saveDinos(data);
 }
 
-function updateLetterMessage(letter, messageId, channelId) {
+async function updateLetterMessage(letter, messageId, channelId) {
   const data = getDinoData();
   if (!data.letterMessages) data.letterMessages = {};
   data.letterMessages[letter] = { messageId, channelId };
-  saveDinos(data);
+  await saveDinos(data);
 }
 
 function getLetterMessages() {
@@ -90,11 +122,11 @@ function getLetterMessages() {
   return data.letterMessages || {};
 }
 
-function updateLetterColor(letter, color) {
+async function updateLetterColor(letter, color) {
   const data = getDinoData();
   if (!data.letterColors) data.letterColors = {};
   data.letterColors[letter] = color;
-  saveDinos(data);
+  await saveDinos(data);
 }
 
 function getLetterColor(letter) {
@@ -152,9 +184,6 @@ function buildShoulderEmbed(shoulderDinos) {
     if (dino.notAvailableDona) {
       dinoLines.push('> ‼️ *( NON DISPONIBLE AVEC LES PACKS DONA OU LES DINOS INVENTAIRES )*');
     }
-    if (dino.doubleInventaire) {
-      dinoLines.push('> 🦖 *x2 par paiement inventaire*');
-    }
 
     blocks.push(dinoLines.join('\n'));
   });
@@ -193,9 +222,6 @@ function buildModdedEmbed(moddedDinos) {
     }
     if (dino.notAvailableDona) {
       dinoLines.push('> ‼️ *( NON DISPONIBLE AVEC LES PACKS DONA OU LES DINOS INVENTAIRES )*');
-    }
-    if (dino.doubleInventaire) {
-      dinoLines.push('> 🦖 *x2 par paiement inventaire*');
     }
 
     blocks.push(dinoLines.join('\n'));
@@ -277,14 +303,9 @@ function buildLetterEmbed(letter, dinos) {
     if (dino.notAvailableDona) {
       dinoLines.push('> ‼️ *( NON DISPONIBLE AVEC LES PACKS DONA OU LES DINOS INVENTAIRES )*');
     }
-    if (dino.doubleInventaire) {
-      dinoLines.push('> 🦖 *x2 par paiement inventaire*');
-    }
 
     blocks.push(dinoLines.join('\n'));
   });
-
-  const content = blocks.join('\n');
 
   const color = getLetterColor(letter);
   const colorInt = parseInt(color.replace('#', ''), 16);
@@ -301,10 +322,10 @@ function getAllLetters() {
   return Object.keys(grouped).sort();
 }
 
-function updateNavMessage(messageId, channelId) {
+async function updateNavMessage(messageId, channelId) {
   const data = getDinoData();
   data.dinoNavMessage = { messageId, channelId };
-  saveDinos(data);
+  await saveDinos(data);
 }
 
 function getNavMessage() {
@@ -361,5 +382,6 @@ module.exports = {
   getNavMessage,
   saveDinos,
   formatNumber,
+  initDinos,
   DEFAULT_LETTER_COLORS,
 };

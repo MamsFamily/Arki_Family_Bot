@@ -6,23 +6,7 @@ const { getSettings, updateSection } = require('../settingsManager');
 const { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, buildPackEmbed, DEFAULT_CATEGORIES } = require('../shopManager');
 const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, buildLetterEmbed, buildModdedEmbed, buildShoulderEmbed, buildSaleEmbed, getAllLetters, updateNavMessage, getNavMessage, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
 
-const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
-
-function readConfig() {
-  try {
-    return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
-  } catch (err) {
-    console.error('Erreur lecture config.json:', err);
-    return { rouletteChoices: [], rouletteTitle: 'ARKI' };
-  }
-}
-
-function saveConfig(updates) {
-  const current = readConfig();
-  const merged = { ...current, ...updates };
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(merged, null, 2));
-  return merged;
-}
+const { getConfig: readConfig, saveConfig } = require('../configManager');
 
 function createWebServer(discordClient) {
   const app = express();
@@ -110,8 +94,8 @@ function createWebServer(discordClient) {
     res.redirect('/login');
   });
 
-  app.get('/', requireAdmin, (req, res) => {
-    const config = readConfig();
+  app.get('/', requireAdmin, async (req, res) => {
+    const config = await readConfig();
     const { getVotesConfig } = require('../votesConfig');
     const votesConfig = getVotesConfig();
 
@@ -127,31 +111,31 @@ function createWebServer(discordClient) {
     });
   });
 
-  app.get('/roulette', requireAdmin, (req, res) => {
-    const config = readConfig();
+  app.get('/roulette', requireAdmin, async (req, res) => {
+    const config = await readConfig();
     res.render('roulette', { config, success: null, error: null });
   });
 
-  app.post('/roulette', requireAdmin, (req, res) => {
+  app.post('/roulette', requireAdmin, async (req, res) => {
     const { title, choices } = req.body;
 
     if (!title || title.trim().length === 0) {
-      return res.render('roulette', { config: readConfig(), success: null, error: 'Le titre ne peut pas être vide.' });
+      return res.render('roulette', { config: await readConfig(), success: null, error: 'Le titre ne peut pas être vide.' });
     }
     if (title.trim().length > 20) {
-      return res.render('roulette', { config: readConfig(), success: null, error: 'Le titre ne doit pas dépasser 20 caractères.' });
+      return res.render('roulette', { config: await readConfig(), success: null, error: 'Le titre ne doit pas dépasser 20 caractères.' });
     }
 
     const choicesArray = choices.split('\n').map(c => c.trim()).filter(c => c.length > 0);
 
     if (choicesArray.length < 2) {
-      return res.render('roulette', { config: readConfig(), success: null, error: 'Minimum 2 choix requis.' });
+      return res.render('roulette', { config: await readConfig(), success: null, error: 'Minimum 2 choix requis.' });
     }
     if (choicesArray.length > 12) {
-      return res.render('roulette', { config: readConfig(), success: null, error: 'Maximum 12 choix autorisés.' });
+      return res.render('roulette', { config: await readConfig(), success: null, error: 'Maximum 12 choix autorisés.' });
     }
 
-    const config = saveConfig({
+    const config = await saveConfig({
       rouletteTitle: title.trim(),
       rouletteChoices: choicesArray,
     });
@@ -187,7 +171,7 @@ function createWebServer(discordClient) {
     res.render('rewards', { settings, success: null, error: null });
   });
 
-  app.post('/rewards', requireAdmin, (req, res) => {
+  app.post('/rewards', requireAdmin, async (req, res) => {
     const { diamondsPerVote, bonus4, bonus5 } = req.body;
 
     const topDiamonds = {};
@@ -212,7 +196,7 @@ function createWebServer(discordClient) {
       topLots[place] = lot;
     }
 
-    updateSection('rewards', {
+    await updateSection('rewards', {
       diamondsPerVote: parseInt(diamondsPerVote) || 100,
       topDiamonds,
       topLots,
@@ -227,10 +211,10 @@ function createWebServer(discordClient) {
     res.render('message', { settings, success: null, error: null });
   });
 
-  app.post('/message', requireAdmin, (req, res) => {
+  app.post('/message', requireAdmin, async (req, res) => {
     const { introText, creditText, pack1Text, pack2Text, pack3Text, memoText, dinoShinyText, dinoTitle, dinoWinText } = req.body;
 
-    updateSection('message', {
+    await updateSection('message', {
       introText: introText || '',
       creditText: creditText || '',
       pack1Text: pack1Text || '',
@@ -251,14 +235,14 @@ function createWebServer(discordClient) {
     res.render('settings', { settings, success: null, error: null });
   });
 
-  app.post('/settings', requireAdmin, (req, res) => {
+  app.post('/settings', requireAdmin, async (req, res) => {
     const {
       guildId, resultsChannelId, adminLogChannelId, topVoterRoleId, modoRoleId,
       logo, fireworks, sparkly, animeArrow, arrow, memoUrl,
       topserveursRankingUrl, timezone, aliases
     } = req.body;
 
-    updateSection('guild', {
+    await updateSection('guild', {
       guildId: guildId || '',
       resultsChannelId: resultsChannelId || '',
       adminLogChannelId: adminLogChannelId || '',
@@ -266,7 +250,7 @@ function createWebServer(discordClient) {
       modoRoleId: modoRoleId || '',
     });
 
-    updateSection('style', {
+    await updateSection('style', {
       everyonePing: req.body.everyonePing === 'true',
       logo: logo || '',
       fireworks: fireworks || '',
@@ -276,7 +260,7 @@ function createWebServer(discordClient) {
       memoUrl: memoUrl || '',
     });
 
-    updateSection('api', {
+    await updateSection('api', {
       topserveursRankingUrl: topserveursRankingUrl || '',
       timezone: timezone || 'Europe/Paris',
     });
@@ -290,7 +274,7 @@ function createWebServer(discordClient) {
         }
       });
     }
-    updateSection('aliases', aliasesObj, true);
+    await updateSection('aliases', aliasesObj, true);
 
     const settings = getSettings();
     res.render('settings', { settings, success: 'Paramètres sauvegardés !', error: null });
@@ -323,13 +307,13 @@ function createWebServer(discordClient) {
     res.render('shop', { shop, categories: DEFAULT_CATEGORIES, channels, success: req.query.success || null, error: req.query.error || null });
   });
 
-  app.post('/shop/settings', requireAuth, (req, res) => {
+  app.post('/shop/settings', requireAuth, async (req, res) => {
     const { shopChannelId } = req.body;
-    updateShopChannel(shopChannelId || '');
+    await updateShopChannel(shopChannelId || '');
     res.redirect('/shop?success=Salon+sauvegard%C3%A9+!');
   });
 
-  app.post('/shop/pack', requireAuth, (req, res) => {
+  app.post('/shop/pack', requireAuth, async (req, res) => {
     const { packId, name, category, priceDiamonds, priceStrawberries, content, note, color, donationAvailable, notCompatible, unavailable, noReduction } = req.body;
 
     const packData = {
@@ -347,15 +331,15 @@ function createWebServer(discordClient) {
     };
 
     if (packId) {
-      updatePack(packId, packData);
+      await updatePack(packId, packData);
       res.redirect('/shop?success=Pack+modifi%C3%A9+!');
     } else {
-      addPack(packData);
+      await addPack(packData);
       res.redirect('/shop?success=Pack+cr%C3%A9%C3%A9+!');
     }
   });
 
-  app.post('/shop/delete/:id', requireAuth, (req, res) => {
+  app.post('/shop/delete/:id', requireAuth, async (req, res) => {
     const pack = getPack(req.params.id);
     if (pack && pack.messageId && pack.channelId) {
       try {
@@ -365,7 +349,7 @@ function createWebServer(discordClient) {
         }
       } catch (e) {}
     }
-    deletePack(req.params.id);
+    await deletePack(req.params.id);
     res.redirect('/shop?success=Pack+supprim%C3%A9+!');
   });
 
@@ -390,12 +374,12 @@ function createWebServer(discordClient) {
           res.redirect('/shop?success=Embed+mis+%C3%A0+jour+!');
         } catch (e) {
           const newMsg = await channel.send({ embeds: [embed] });
-          updatePack(pack.id, { messageId: newMsg.id, channelId: channelId });
+          await updatePack(pack.id, { messageId: newMsg.id, channelId: channelId });
           res.redirect('/shop?success=Embed+republié+!');
         }
       } else {
         const newMsg = await channel.send({ embeds: [embed] });
-        updatePack(pack.id, { messageId: newMsg.id, channelId: channelId });
+        await updatePack(pack.id, { messageId: newMsg.id, channelId: channelId });
         res.redirect('/shop?success=Embed+publi%C3%A9+!');
       }
     } catch (err) {
@@ -422,11 +406,11 @@ function createWebServer(discordClient) {
               await existingMsg.edit({ embeds: [embed] });
             } catch (e) {
               const newMsg = await channel.send({ embeds: [embed] });
-              updatePack(pack.id, { messageId: newMsg.id, channelId: shop.shopChannelId });
+              await updatePack(pack.id, { messageId: newMsg.id, channelId: shop.shopChannelId });
             }
           } else {
             const newMsg = await channel.send({ embeds: [embed] });
-            updatePack(pack.id, { messageId: newMsg.id, channelId: shop.shopChannelId });
+            await updatePack(pack.id, { messageId: newMsg.id, channelId: shop.shopChannelId });
           }
           published++;
         } catch (err) {
@@ -484,20 +468,20 @@ function createWebServer(discordClient) {
     res.render('dinos', { dinoData, grouped, moddedDinos, letterMessages, letterColors, defaultColors: DEFAULT_LETTER_COLORS, channels, variantLabels, hasAnyVariant, success: req.query.success || null, error: req.query.error || null });
   });
 
-  app.post('/dinos/settings', requireAuth, (req, res) => {
-    updateDinoChannel(req.body.dinoChannelId || '');
+  app.post('/dinos/settings', requireAuth, async (req, res) => {
+    await updateDinoChannel(req.body.dinoChannelId || '');
     res.redirect('/dinos?success=Salon+sauvegard%C3%A9+!');
   });
 
-  app.post('/dinos/letter-color', requireAuth, (req, res) => {
+  app.post('/dinos/letter-color', requireAuth, async (req, res) => {
     const { letter, color } = req.body;
     if (letter && color) {
-      updateLetterColor(letter.toUpperCase(), color);
+      await updateLetterColor(letter.toUpperCase(), color);
     }
     res.redirect('/dinos?success=Couleur+mise+%C3%A0+jour+!');
   });
 
-  app.post('/dinos/toggle-variants', requireAuth, (req, res) => {
+  app.post('/dinos/toggle-variants', requireAuth, async (req, res) => {
     const data = getDinoData();
     const visibleLabels = [];
     Object.keys(req.body).forEach(key => {
@@ -512,11 +496,11 @@ function createWebServer(discordClient) {
         });
       }
     });
-    saveDinos(data);
+    await saveDinos(data);
     res.redirect('/dinos?success=Variants+mis+%C3%A0+jour+!');
   });
 
-  app.post('/dinos/save', requireAuth, (req, res) => {
+  app.post('/dinos/save', requireAuth, async (req, res) => {
     const { dinoId, name, priceDiamonds, priceStrawberries, uniquePerTribe, noReduction, coupleInventaire, notAvailableDona, notAvailableShop, isModded, isShoulder } = req.body;
 
     const variants = [];
@@ -552,16 +536,16 @@ function createWebServer(discordClient) {
     };
 
     if (dinoId) {
-      updateDino(dinoId, dinoData);
+      await updateDino(dinoId, dinoData);
       res.redirect('/dinos?success=Dino+modifi%C3%A9+!');
     } else {
-      addDino(dinoData);
+      await addDino(dinoData);
       res.redirect('/dinos?success=Dino+ajout%C3%A9+!');
     }
   });
 
-  app.post('/dinos/delete/:id', requireAuth, (req, res) => {
-    deleteDino(req.params.id);
+  app.post('/dinos/delete/:id', requireAuth, async (req, res) => {
+    await deleteDino(req.params.id);
     res.redirect('/dinos?success=Dino+supprim%C3%A9+!');
   });
 
@@ -596,12 +580,12 @@ function createWebServer(discordClient) {
           res.redirect('/dinos?success=Lettre+' + letter + '+mise+%C3%A0+jour+!');
         } catch (e) {
           const newMsg = await channel.send({ embeds: [embed] });
-          updateLetterMessage(letter, newMsg.id, channelId);
+          await updateLetterMessage(letter, newMsg.id, channelId);
           res.redirect('/dinos?success=Lettre+' + letter + '+republié+!');
         }
       } else {
         const newMsg = await channel.send({ embeds: [embed] });
-        updateLetterMessage(letter, newMsg.id, channelId);
+        await updateLetterMessage(letter, newMsg.id, channelId);
         res.redirect('/dinos?success=Lettre+' + letter + '+publi%C3%A9e+!');
       }
     } catch (err) {
@@ -672,12 +656,12 @@ function createWebServer(discordClient) {
           res.redirect('/dinos?success=Menu+navigable+mis+%C3%A0+jour+!');
         } catch (e) {
           const newMsg = await channel.send({ embeds: [embed], components: [row] });
-          updateNavMessage(newMsg.id, channelId);
+          await updateNavMessage(newMsg.id, channelId);
           res.redirect('/dinos?success=Menu+navigable+republié+!');
         }
       } else {
         const newMsg = await channel.send({ embeds: [embed], components: [row] });
-        updateNavMessage(newMsg.id, channelId);
+        await updateNavMessage(newMsg.id, channelId);
         res.redirect('/dinos?success=Menu+navigable+publi%C3%A9+!');
       }
     } catch (err) {

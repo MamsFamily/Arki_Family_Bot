@@ -1,7 +1,11 @@
 const fs = require('fs');
 const path = require('path');
+const pgStore = require('./pgStore');
 
 const SHOP_PATH = path.join(__dirname, 'shop.json');
+const PG_KEY = 'shop';
+
+let cachedData = null;
 
 const DEFAULT_CATEGORIES = [
   { id: 'packs', name: 'Packs', emoji: '📦', color: '#e74c3c' },
@@ -13,7 +17,7 @@ const DEFAULT_CATEGORIES = [
   { id: 'autres', name: 'Autres', emoji: '🛒', color: '#95a5a6' },
 ];
 
-function loadShop() {
+function loadShopFromFile() {
   try {
     if (fs.existsSync(SHOP_PATH)) {
       return JSON.parse(fs.readFileSync(SHOP_PATH, 'utf-8'));
@@ -24,7 +28,7 @@ function loadShop() {
   return { categories: DEFAULT_CATEGORIES, packs: [], shopChannelId: '' };
 }
 
-function saveShop(data) {
+function saveShopToFile(data) {
   try {
     fs.writeFileSync(SHOP_PATH, JSON.stringify(data, null, 2));
     return true;
@@ -34,8 +38,27 @@ function saveShop(data) {
   }
 }
 
+async function initShop() {
+  if (pgStore.isPostgres()) {
+    const pgData = await pgStore.getData(PG_KEY);
+    if (!pgData) {
+      const fileData = loadShopFromFile();
+      await pgStore.setData(PG_KEY, fileData);
+      console.log('🛒 Shop migré vers PostgreSQL');
+    }
+    cachedData = await pgStore.getData(PG_KEY);
+  } else {
+    cachedData = loadShopFromFile();
+  }
+}
+
 function getShop() {
-  const shop = loadShop();
+  let shop;
+  if (cachedData) {
+    shop = cachedData;
+  } else {
+    shop = loadShopFromFile();
+  }
   if (!shop.categories || shop.categories.length === 0) {
     shop.categories = DEFAULT_CATEGORIES;
   }
@@ -44,30 +67,39 @@ function getShop() {
   return shop;
 }
 
-function addPack(pack) {
+async function saveShop(data) {
+  cachedData = data;
+  if (pgStore.isPostgres()) {
+    await pgStore.setData(PG_KEY, data);
+  }
+  saveShopToFile(data);
+  return true;
+}
+
+async function addPack(pack) {
   const shop = getShop();
   pack.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   pack.createdAt = new Date().toISOString();
   pack.messageId = null;
   pack.channelId = null;
   shop.packs.push(pack);
-  saveShop(shop);
+  await saveShop(shop);
   return pack;
 }
 
-function updatePack(packId, updates) {
+async function updatePack(packId, updates) {
   const shop = getShop();
   const idx = shop.packs.findIndex(p => p.id === packId);
   if (idx === -1) return null;
   shop.packs[idx] = { ...shop.packs[idx], ...updates };
-  saveShop(shop);
+  await saveShop(shop);
   return shop.packs[idx];
 }
 
-function deletePack(packId) {
+async function deletePack(packId) {
   const shop = getShop();
   shop.packs = shop.packs.filter(p => p.id !== packId);
-  saveShop(shop);
+  await saveShop(shop);
   return true;
 }
 
@@ -76,17 +108,17 @@ function getPack(packId) {
   return shop.packs.find(p => p.id === packId) || null;
 }
 
-function updateShopChannel(channelId) {
+async function updateShopChannel(channelId) {
   const shop = getShop();
   shop.shopChannelId = channelId;
-  saveShop(shop);
+  await saveShop(shop);
 }
 
-function addCategory(category) {
+async function addCategory(category) {
   const shop = getShop();
   category.id = category.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
   shop.categories.push(category);
-  saveShop(shop);
+  await saveShop(shop);
   return category;
 }
 
@@ -155,4 +187,4 @@ function buildPackEmbed(pack) {
   };
 }
 
-module.exports = { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, addCategory, buildPackEmbed, DEFAULT_CATEGORIES };
+module.exports = { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, addCategory, buildPackEmbed, initShop, DEFAULT_CATEGORIES };

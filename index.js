@@ -10,6 +10,11 @@ const { translate } = require('@vitalets/google-translate-api');
 const OpenAI = require('openai');
 const { createWebServer } = require('./web/server');
 const { getDinosByLetter, getModdedDinos, getShoulderDinos, buildLetterEmbed, buildModdedEmbed, buildShoulderEmbed, getAllLetters, getLetterColor } = require('./dinoManager');
+const pgStore = require('./pgStore');
+const { getConfig, saveConfig: saveRouletteConfig, initConfig } = require('./configManager');
+const { initSettings } = require('./settingsManager');
+const { initDinos } = require('./dinoManager');
+const { initShop } = require('./shopManager');
 
 const openaiConfig = {};
 if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
@@ -37,11 +42,7 @@ const client = new Client({
   ],
 });
 
-let config = JSON.parse(fs.readFileSync('./config.json', 'utf-8'));
-
-function saveConfig() {
-  fs.writeFileSync('./config.json', JSON.stringify(config, null, 2));
-}
+let config = { rouletteChoices: [], rouletteTitle: 'ARKI' };
 
 function hasRoulettePermission(member) {
   const votesConfig = getVotesConfig();
@@ -50,8 +51,20 @@ function hasRoulettePermission(member) {
          member.roles.cache.has(MODO_ROLE_ID);
 }
 
-client.once('clientReady', () => {
+client.once('clientReady', async () => {
   initDatabase();
+
+  pgStore.initPool();
+  if (pgStore.isPostgres()) {
+    await pgStore.initTables();
+  }
+  await initConfig();
+  await initSettings();
+  await initDinos();
+  await initShop();
+
+  config = getConfig();
+
   createWebServer(client);
   console.log('✅ Bot Discord Arki Roulette est en ligne !');
   console.log(`📝 Connecté en tant que ${client.user.tag}`);
@@ -404,7 +417,7 @@ client.on('interactionCreate', async interaction => {
 
     config.rouletteTitle = newTitle.trim();
     config.rouletteChoices = newChoices;
-    saveConfig();
+    await saveRouletteConfig({ rouletteTitle: config.rouletteTitle, rouletteChoices: config.rouletteChoices });
 
     const embed = new EmbedBuilder()
       .setColor('#00FF00')

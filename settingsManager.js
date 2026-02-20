@@ -1,7 +1,11 @@
 const fs = require('fs');
 const path = require('path');
+const pgStore = require('./pgStore');
 
 const SETTINGS_PATH = path.join(__dirname, 'settings.json');
+const PG_KEY = 'settings';
+
+let cachedSettings = null;
 
 function envOr(envKey, fallback) {
   return process.env[envKey] || fallback;
@@ -67,7 +71,7 @@ function deepMerge(target, source) {
   return result;
 }
 
-function loadSettings() {
+function loadSettingsFromFile() {
   try {
     if (fs.existsSync(SETTINGS_PATH)) {
       const data = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8'));
@@ -79,7 +83,7 @@ function loadSettings() {
   return { ...DEFAULTS };
 }
 
-function saveSettings(settings) {
+function saveSettingsToFile(settings) {
   try {
     fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
     return true;
@@ -89,18 +93,55 @@ function saveSettings(settings) {
   }
 }
 
-function updateSection(section, data, replace = false) {
-  const settings = loadSettings();
+async function loadSettingsFromPg() {
+  if (!pgStore.isPostgres()) return null;
+  const data = await pgStore.getData(PG_KEY);
+  if (data) return deepMerge(DEFAULTS, data);
+  return null;
+}
+
+async function saveSettingsToPg(settings) {
+  if (!pgStore.isPostgres()) return false;
+  return await pgStore.setData(PG_KEY, settings);
+}
+
+async function initSettings() {
+  if (pgStore.isPostgres()) {
+    const pgData = await pgStore.getData(PG_KEY);
+    if (!pgData) {
+      const fileData = loadSettingsFromFile();
+      await saveSettingsToPg(fileData);
+      console.log('📋 Settings migrés vers PostgreSQL');
+    }
+    cachedSettings = await loadSettingsFromPg();
+  } else {
+    cachedSettings = loadSettingsFromFile();
+  }
+}
+
+function getSettings() {
+  if (cachedSettings) return cachedSettings;
+  return loadSettingsFromFile();
+}
+
+async function saveSettings(settings) {
+  cachedSettings = settings;
+  if (pgStore.isPostgres()) {
+    await saveSettingsToPg(settings);
+  }
+  saveSettingsToFile(settings);
+  return true;
+}
+
+async function updateSection(section, data, replace = false) {
+  const settings = getSettings();
   if (replace) {
     settings[section] = data;
   } else {
     settings[section] = { ...settings[section], ...data };
   }
-  return saveSettings(settings) ? settings : null;
+  await saveSettings(settings);
+  return settings;
 }
 
-function getSettings() {
-  return loadSettings();
-}
-
-module.exports = { getSettings, saveSettings, updateSection, DEFAULTS };
+module.exports = { getSettings, saveSettings, updateSection, initSettings, DEFAULTS };
