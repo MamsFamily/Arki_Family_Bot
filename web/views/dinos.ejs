@@ -136,45 +136,6 @@
     .stat-chip .stat-label {
       color: var(--text-secondary);
     }
-    .channel-dropdown {
-      position: absolute;
-      top: 100%;
-      left: 0;
-      right: 0;
-      z-index: 200;
-      background: #1e1e2e;
-      border: 1px solid #3a3a5c;
-      border-radius: 8px;
-      max-height: 280px;
-      overflow-y: auto;
-      margin-top: 4px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-    }
-    .channel-category {
-      padding: 6px 12px;
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      color: #888;
-      letter-spacing: 0.5px;
-      background: #16162a;
-      position: sticky;
-      top: 0;
-    }
-    .channel-option {
-      padding: 8px 16px;
-      cursor: pointer;
-      color: #ccc;
-      font-size: 14px;
-      transition: background 0.15s;
-    }
-    .channel-option:hover, .channel-option.selected {
-      background: #7c3aed33;
-      color: #fff;
-    }
-    .channel-option.hidden {
-      display: none;
-    }
   </style>
 </head>
 <body>
@@ -213,23 +174,21 @@
         </div>
         <div class="card-body">
           <form method="POST" action="/dinos/settings" class="form-row">
-            <div class="form-group" style="flex:1;position:relative;">
-              <label for="dinoChannelSearch">Salon Discord des dinos</label>
-              <input type="hidden" name="dinoChannelId" id="dinoChannelId" value="<%= dinoData.dinoChannelId || '' %>">
-              <input type="text" id="dinoChannelSearch" class="form-control" placeholder="&#x1F50D; Rechercher un salon..." autocomplete="off"
-                value="<%= channels.find(c => c.id === dinoData.dinoChannelId) ? '# ' + channels.find(c => c.id === dinoData.dinoChannelId).name : '' %>">
-              <div id="dinoChannelDropdown" class="channel-dropdown" style="display:none;">
-                <div class="channel-option" data-id="" data-name="">-- Aucun salon --</div>
+            <div class="form-group" style="flex:1;">
+              <label for="dinoChannelFilter">Salon Discord des dinos</label>
+              <input type="text" id="dinoChannelFilter" class="form-control" placeholder="&#x1F50D; Filtrer les salons..." autocomplete="off" style="margin-bottom:6px;">
+              <select id="dinoChannelId" name="dinoChannelId" class="form-control" size="8" style="height:auto;">
+                <option value="">-- S&eacute;lectionner un salon --</option>
                 <% let lastCat = null; %>
-                <% channels.forEach(ch => { %>
-                  <% if (ch.category && ch.category !== lastCat) { lastCat = ch.category; %>
-                    <div class="channel-category"><%= ch.category %></div>
-                  <% } else if (!ch.category && lastCat !== '__none__') { lastCat = '__none__'; %>
-                    <div class="channel-category">Sans cat&eacute;gorie</div>
-                  <% } %>
-                  <div class="channel-option <%= dinoData.dinoChannelId === ch.id ? 'selected' : '' %>" data-id="<%= ch.id %>" data-name="<%= ch.name %>"># <%= ch.name %></div>
+                <% const catGroups = {}; channels.forEach(ch => { const cat = ch.category || 'Sans catégorie'; if (!catGroups[cat]) catGroups[cat] = []; catGroups[cat].push(ch); }); %>
+                <% Object.entries(catGroups).forEach(([cat, chs]) => { %>
+                  <optgroup label="📁 <%= cat %>">
+                    <% chs.forEach(ch => { %>
+                      <option value="<%= ch.id %>" <%= dinoData.dinoChannelId === ch.id ? 'selected' : '' %>># <%= ch.name %></option>
+                    <% }); %>
+                  </optgroup>
                 <% }); %>
-              </div>
+              </select>
             </div>
             <div class="form-group" style="display:flex;align-items:flex-end;">
               <button type="submit" class="btn btn-primary">&#x1F4BE; Sauvegarder</button>
@@ -817,56 +776,23 @@
     });
 
     (function() {
-      const search = document.getElementById('dinoChannelSearch');
-      const dropdown = document.getElementById('dinoChannelDropdown');
-      const hidden = document.getElementById('dinoChannelId');
-      if (!search || !dropdown) return;
+      const filter = document.getElementById('dinoChannelFilter');
+      const select = document.getElementById('dinoChannelId');
+      if (!filter || !select) return;
 
-      search.addEventListener('focus', function() {
-        dropdown.style.display = 'block';
-        filterChannels('');
-      });
-
-      search.addEventListener('input', function() {
-        dropdown.style.display = 'block';
-        filterChannels(this.value);
-      });
-
-      function filterChannels(query) {
-        const q = query.toLowerCase().replace(/^#\s*/, '');
-        const options = dropdown.querySelectorAll('.channel-option');
-        const cats = dropdown.querySelectorAll('.channel-category');
-        cats.forEach(c => c.style.display = 'none');
+      filter.addEventListener('input', function() {
+        const q = this.value.toLowerCase().replace(/^#\s*/, '');
+        const options = select.querySelectorAll('option');
+        const groups = select.querySelectorAll('optgroup');
         options.forEach(opt => {
-          const name = (opt.dataset.name || '').toLowerCase();
-          const match = !q || name.includes(q);
-          opt.classList.toggle('hidden', !match);
+          if (!opt.value && !q) { opt.style.display = ''; return; }
+          if (!opt.value && q) { opt.style.display = 'none'; return; }
+          opt.style.display = opt.textContent.toLowerCase().includes(q) ? '' : 'none';
         });
-        cats.forEach(cat => {
-          let next = cat.nextElementSibling;
-          let hasVisible = false;
-          while (next && !next.classList.contains('channel-category')) {
-            if (next.classList.contains('channel-option') && !next.classList.contains('hidden')) hasVisible = true;
-            next = next.nextElementSibling;
-          }
-          cat.style.display = hasVisible ? '' : 'none';
+        groups.forEach(g => {
+          const visible = Array.from(g.querySelectorAll('option')).some(o => o.style.display !== 'none');
+          g.style.display = visible ? '' : 'none';
         });
-      }
-
-      dropdown.addEventListener('click', function(e) {
-        const opt = e.target.closest('.channel-option');
-        if (!opt) return;
-        hidden.value = opt.dataset.id;
-        search.value = opt.dataset.name ? '# ' + opt.dataset.name : '';
-        dropdown.style.display = 'none';
-        dropdown.querySelectorAll('.channel-option').forEach(o => o.classList.remove('selected'));
-        opt.classList.add('selected');
-      });
-
-      document.addEventListener('click', function(e) {
-        if (!search.contains(e.target) && !dropdown.contains(e.target)) {
-          dropdown.style.display = 'none';
-        }
       });
     })();
   </script>
