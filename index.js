@@ -9,7 +9,7 @@ const { addCashToUser, generateDraftBotCommands } = require('./unbelievaboatServ
 const { translate } = require('@vitalets/google-translate-api');
 const OpenAI = require('openai');
 const { createWebServer } = require('./web/server');
-const { getDinosByLetter, getModdedDinos, getShoulderDinos, buildLetterEmbed, buildModdedEmbed, buildShoulderEmbed, getAllLetters, getLetterColor } = require('./dinoManager');
+const { getDinosByLetter, getModdedDinos, getShoulderDinos, buildLetterEmbed, buildModdedEmbed, buildShoulderEmbed, buildCompactAllEmbeds, getAllLetters, getLetterColor } = require('./dinoManager');
 const pgStore = require('./pgStore');
 const { getConfig, saveConfig: saveRouletteConfig, initConfig } = require('./configManager');
 const { initSettings } = require('./settingsManager');
@@ -120,14 +120,18 @@ client.on('messageReactionAdd', async (reaction, user) => {
     }
   }
 
-  if (reaction.emoji.id === ARTHUR_EMOJI_ID) {
-    if (!openai) return;
+  if (reaction.emoji.id === ARTHUR_EMOJI_ID || reaction.emoji.name === 'arthur') {
+    console.log(`🎭 Réaction Kaamelott détectée! Emoji: ${reaction.emoji.name} (ID: ${reaction.emoji.id})`);
+    if (!openai) {
+      console.log('⚠️ OpenAI non configuré, impossible de reformuler');
+      return;
+    }
     try {
       const messageContent = reaction.message.content;
       if (!messageContent || messageContent.trim() === '') return;
 
       const completion = await openai.chat.completions.create({
-        model: 'gpt-4.1-mini',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
@@ -161,7 +165,7 @@ Reste concis. Ne mets pas de guillemets autour du texte. Ne dis pas quel personn
         await reaction.message.channel.send(response);
       }
     } catch (error) {
-      console.error('Erreur traduction Kaamelott:', error);
+      console.error('Erreur traduction Kaamelott:', error.message || error);
     }
     return;
   }
@@ -246,6 +250,14 @@ client.on('interactionCreate', async interaction => {
   if (interaction.isStringSelectMenu()) {
     if (interaction.customId === 'dino_letter_select') {
       const selectedLetter = interaction.values[0];
+
+      try {
+        await interaction.deferUpdate();
+      } catch (err) {
+        console.error('Erreur defer select menu:', err);
+        return;
+      }
+
       const grouped = getDinosByLetter();
       const letters = Object.keys(grouped).sort();
       const moddedDinos = getModdedDinos();
@@ -254,25 +266,14 @@ client.on('interactionCreate', async interaction => {
 
       let embeds;
       if (selectedLetter === 'ALL') {
-        embeds = letters.map(l => buildLetterEmbed(l, grouped[l]));
-        if (moddedDinos.length > 0) embeds.push(buildModdedEmbed(moddedDinos));
-        if (embeds.length > 10) embeds = embeds.slice(0, 10);
+        embeds = buildCompactAllEmbeds(grouped, moddedDinos, shoulderDinos);
       } else if (selectedLetter === 'MODDED') {
-        if (moddedDinos.length === 0) {
-          return interaction.reply({ content: '❌ Aucun dino moddé.', ephemeral: true });
-        }
-        embeds = [buildModdedEmbed(moddedDinos)];
+        embeds = moddedDinos.length > 0 ? [buildModdedEmbed(moddedDinos)] : [];
       } else if (selectedLetter === 'SHOULDER') {
-        if (shoulderDinos.length === 0) {
-          return interaction.reply({ content: '❌ Aucun dino d\'épaule.', ephemeral: true });
-        }
-        embeds = [buildShoulderEmbed(shoulderDinos)];
+        embeds = shoulderDinos.length > 0 ? [buildShoulderEmbed(shoulderDinos)] : [];
       } else {
         const dinos = grouped[selectedLetter];
-        if (!dinos || dinos.length === 0) {
-          return interaction.reply({ content: `❌ Aucun dino pour la lettre ${selectedLetter}.`, ephemeral: true });
-        }
-        embeds = [buildLetterEmbed(selectedLetter, dinos)];
+        embeds = (dinos && dinos.length > 0) ? [buildLetterEmbed(selectedLetter, dinos)] : [];
       }
 
       const options = [
@@ -312,7 +313,7 @@ client.on('interactionCreate', async interaction => {
       const row = new ActionRowBuilder().addComponents(selectMenu);
 
       try {
-        await interaction.update({ embeds, components: [row] });
+        await interaction.editReply({ content: '', embeds, components: [row] });
       } catch (err) {
         console.error('Erreur select menu dino:', err);
       }

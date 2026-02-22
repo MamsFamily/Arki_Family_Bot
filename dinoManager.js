@@ -284,6 +284,129 @@ function buildVariantLine(variant) {
   return line;
 }
 
+function buildCompactDinoLine(dino) {
+  const diamonds = dino.priceDiamonds || 0;
+  const strawberries = dino.priceStrawberries || 0;
+  if (dino.notAvailableShop) {
+    return `▫️ **${dino.name}** ─ ${formatNumber(diamonds)}💎 + ${formatNumber(strawberries)}🍓 ── 🚫 *Non dispo*`;
+  }
+  let line = `▫️ **${dino.name}** ─ **${formatNumber(diamonds)}**💎 + **${formatNumber(strawberries)}**🍓`;
+  if (dino.uniquePerTribe) line += ' ⚠️';
+  if (dino.coupleInventaire) line += ' 🦖x2';
+  if (dino.noReduction) line += ' ⛔';
+  if (dino.notAvailableDona) line += ' ‼️';
+  return line;
+}
+
+function buildCompactAllEmbeds(grouped, moddedDinos, shoulderDinos) {
+  const letters = Object.keys(grouped).sort();
+  const embeds = [];
+  let currentDesc = '';
+  let embedIndex = 0;
+
+  for (const letter of letters) {
+    const dinos = grouped[letter];
+    let section = `### 【${letter}】\n`;
+    for (const dino of dinos) {
+      section += buildCompactDinoLine(dino) + '\n';
+      if (dino.variants && dino.variants.length > 0) {
+        for (const v of dino.variants.filter(v => !v.hidden)) {
+          const vd = v.priceDiamonds || 0;
+          const vs = v.priceStrawberries || 0;
+          if (v.notAvailableShop) {
+            section += `  ◦ *${v.label}* ─ ${formatNumber(vd)}💎 + ${formatNumber(vs)}🍓 ── 🚫\n`;
+          } else {
+            section += `  ◦ *${v.label}* ─ **${formatNumber(vd)}**💎 + **${formatNumber(vs)}**🍓\n`;
+          }
+        }
+      }
+    }
+
+    if (section.length > 3900) {
+      if (currentDesc.length > 0) {
+        embeds.push({
+          description: currentDesc,
+          color: 0x2ecc71,
+          footer: { text: `Arki' Family ─ Prix Dinos ─ Liste complète (${embedIndex + 1})` },
+        });
+        embedIndex++;
+        currentDesc = '';
+      }
+      const sectionLines = section.split('\n');
+      let chunk = '';
+      for (const line of sectionLines) {
+        if ((chunk + line + '\n').length > 3900 && chunk.length > 0) {
+          embeds.push({
+            description: chunk,
+            color: 0x2ecc71,
+            footer: { text: `Arki' Family ─ Prix Dinos ─ Liste complète (${embedIndex + 1})` },
+          });
+          embedIndex++;
+          chunk = line + '\n';
+        } else {
+          chunk += line + '\n';
+        }
+      }
+      currentDesc = chunk;
+    } else if ((currentDesc + section).length > 3900) {
+      if (currentDesc.length > 0) {
+        embeds.push({
+          description: currentDesc,
+          color: 0x2ecc71,
+          footer: { text: `Arki' Family ─ Prix Dinos ─ Liste complète (${embedIndex + 1})` },
+        });
+        embedIndex++;
+      }
+      currentDesc = section;
+    } else {
+      currentDesc += section;
+    }
+  }
+
+  const extraSections = [];
+  if (shoulderDinos && shoulderDinos.length > 0) {
+    let section = `### 【🦜 ÉPAULE】\n`;
+    for (const dino of shoulderDinos) {
+      section += buildCompactDinoLine(dino) + '\n';
+    }
+    extraSections.push(section);
+  }
+  if (moddedDinos && moddedDinos.length > 0) {
+    let section = `### 【🔧 MODDÉS】\n`;
+    for (const dino of moddedDinos) {
+      section += buildCompactDinoLine(dino) + '\n';
+    }
+    extraSections.push(section);
+  }
+
+  for (const section of extraSections) {
+    if ((currentDesc + section).length > 3900) {
+      if (currentDesc.length > 0) {
+        embeds.push({
+          description: currentDesc,
+          color: 0x2ecc71,
+          footer: { text: `Arki' Family ─ Prix Dinos ─ Liste complète (${embedIndex + 1})` },
+        });
+        embedIndex++;
+      }
+      currentDesc = section;
+    } else {
+      currentDesc += section;
+    }
+  }
+
+  if (currentDesc.length > 0) {
+    embeds.push({
+      description: currentDesc,
+      color: 0x2ecc71,
+      footer: { text: `Arki' Family ─ Prix Dinos ─ Liste complète${embedIndex > 0 ? ` (${embedIndex + 1})` : ''}` },
+    });
+  }
+
+  if (embeds.length > 10) return embeds.slice(0, 10);
+  return embeds;
+}
+
 function buildLetterEmbed(letter, dinos) {
   const blocks = [];
 
@@ -376,6 +499,7 @@ module.exports = {
   buildLetterEmbed,
   buildModdedEmbed,
   buildShoulderEmbed,
+  buildCompactAllEmbeds,
   buildSaleEmbed,
   getAllLetters,
   updateNavMessage,
