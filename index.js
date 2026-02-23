@@ -271,22 +271,69 @@ client.on('interactionCreate', async interaction => {
         embeds = moddedDinos.length > 0 ? [buildModdedEmbed(moddedDinos)] : [];
       } else if (selectedLetter === 'SHOULDER') {
         embeds = shoulderDinos.length > 0 ? [buildShoulderEmbed(shoulderDinos)] : [];
+      } else if (selectedLetter.includes('-')) {
+        const parts = selectedLetter.split('-');
+        const allEmbeds = [];
+        for (const p of parts) {
+          const dinos = grouped[p];
+          if (dinos && dinos.length > 0) {
+            allEmbeds.push(...buildLetterEmbeds(p, dinos));
+          }
+        }
+        embeds = allEmbeds.length > 0 ? allEmbeds : [];
+        if (embeds.length > 10) embeds = embeds.slice(0, 10);
       } else {
         const dinos = grouped[selectedLetter];
         embeds = (dinos && dinos.length > 0) ? buildLetterEmbeds(selectedLetter, dinos) : [];
         if (embeds.length > 10) embeds = embeds.slice(0, 10);
       }
 
+      let specialCount = 0;
+      if (shoulderDinos.length > 0) specialCount++;
+      if (moddedDinos.length > 0) specialCount++;
+      const maxLetters = 25 - 1 - specialCount;
+
       const options = [
         { label: 'Tout afficher', description: `${totalDinos} dinos au total`, value: 'ALL', emoji: '📋', default: selectedLetter === 'ALL' },
-        ...letters.map(l => ({
-          label: `Lettre ${l}`,
-          description: `${grouped[l].length} dino${grouped[l].length > 1 ? 's' : ''}`,
-          value: l,
-          emoji: '📖',
-          default: l === selectedLetter,
-        })),
       ];
+
+      if (letters.length <= maxLetters) {
+        letters.forEach(l => {
+          options.push({
+            label: `Lettre ${l}`,
+            description: `${grouped[l].length} dino${grouped[l].length > 1 ? 's' : ''}`,
+            value: l,
+            emoji: '📖',
+            default: l === selectedLetter,
+          });
+        });
+      } else {
+        for (let i = 0; i < letters.length; i += 2) {
+          if (options.length >= 25 - specialCount) break;
+          const l1 = letters[i];
+          const l2 = letters[i + 1];
+          if (l2) {
+            const count = grouped[l1].length + grouped[l2].length;
+            const val = `${l1}-${l2}`;
+            options.push({
+              label: `Lettres ${l1}-${l2}`,
+              description: `${count} dino${count > 1 ? 's' : ''}`,
+              value: val,
+              emoji: '📖',
+              default: val === selectedLetter || l1 === selectedLetter || l2 === selectedLetter,
+            });
+          } else {
+            options.push({
+              label: `Lettre ${l1}`,
+              description: `${grouped[l1].length} dino${grouped[l1].length > 1 ? 's' : ''}`,
+              value: l1,
+              emoji: '📖',
+              default: l1 === selectedLetter,
+            });
+          }
+        }
+      }
+
       if (shoulderDinos.length > 0) {
         options.push({
           label: 'Dinos d\'épaule',
@@ -305,6 +352,8 @@ client.on('interactionCreate', async interaction => {
           default: selectedLetter === 'MODDED',
         });
       }
+
+      if (options.length > 25) options.length = 25;
 
       const selectMenu = new StringSelectMenuBuilder()
         .setCustomId('dino_letter_select')

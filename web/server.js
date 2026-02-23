@@ -673,16 +673,53 @@ function createWebServer(discordClient) {
       const embed = firstLetter ? buildLetterEmbed(firstLetter, grouped[firstLetter]) : buildModdedEmbed(moddedDinos);
 
       const totalDinos = letters.reduce((sum, l) => sum + grouped[l].length, 0) + moddedDinos.length;
+
+      let specialCount = 0;
+      if (shoulderDinos.length > 0) specialCount++;
+      if (moddedDinos.length > 0) specialCount++;
+      const maxLetters = 25 - 1 - specialCount;
+
       const menuOptions = [
         { label: 'Tout afficher', description: `${totalDinos} dinos au total`, value: 'ALL', emoji: '📋' },
-        ...letters.map(l => ({
-          label: `Lettre ${l}`,
-          description: `${grouped[l].length} dino${grouped[l].length > 1 ? 's' : ''}`,
-          value: l,
-          emoji: '📖',
-          default: l === firstLetter,
-        })),
       ];
+
+      if (letters.length <= maxLetters) {
+        letters.forEach(l => {
+          menuOptions.push({
+            label: `Lettre ${l}`,
+            description: `${grouped[l].length} dino${grouped[l].length > 1 ? 's' : ''}`,
+            value: l,
+            emoji: '📖',
+            default: l === firstLetter,
+          });
+        });
+      } else {
+        const half = Math.floor(maxLetters / 2);
+        for (let i = 0; i < letters.length; i += 2) {
+          if (menuOptions.length >= 25 - specialCount) break;
+          const l1 = letters[i];
+          const l2 = letters[i + 1];
+          if (l2) {
+            const count = grouped[l1].length + grouped[l2].length;
+            menuOptions.push({
+              label: `Lettres ${l1}-${l2}`,
+              description: `${count} dino${count > 1 ? 's' : ''}`,
+              value: `${l1}-${l2}`,
+              emoji: '📖',
+              default: l1 === firstLetter || l2 === firstLetter,
+            });
+          } else {
+            menuOptions.push({
+              label: `Lettre ${l1}`,
+              description: `${grouped[l1].length} dino${grouped[l1].length > 1 ? 's' : ''}`,
+              value: l1,
+              emoji: '📖',
+              default: l1 === firstLetter,
+            });
+          }
+        }
+      }
+
       if (shoulderDinos.length > 0) {
         menuOptions.push({
           label: 'Dinos d\'épaule',
@@ -699,6 +736,8 @@ function createWebServer(discordClient) {
           emoji: '🔧',
         });
       }
+
+      if (menuOptions.length > 25) menuOptions.length = 25;
 
       const selectMenu = new StringSelectMenuBuilder()
         .setCustomId('dino_letter_select')
