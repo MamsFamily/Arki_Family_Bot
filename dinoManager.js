@@ -362,94 +362,58 @@ function buildCompactDinoLine(dino) {
 
 function buildCompactAllEmbeds(grouped, moddedDinos, shoulderDinos) {
   const letters = Object.keys(grouped).sort();
-  const embeds = [];
-  let currentDesc = '';
-  let embedIndex = 0;
+  const allLines = [];
 
   for (const letter of letters) {
     const dinos = grouped[letter];
-    let section = `**【${letter}】**\n`;
-    for (const dino of dinos) {
-      section += buildCompactDinoLine(dino) + '\n';
-      if (dino.variants && dino.variants.length > 0) {
-        for (const v of dino.variants.filter(v => !v.hidden)) {
-          const vd = v.priceDiamonds || 0;
-          const vs = v.priceStrawberries || 0;
-          section += `┗ *${v.label}* ${formatNumber(vd)}💎+${formatNumber(vs)}🍓${v.notAvailableShop ? ' 🚫' : ''}\n`;
-        }
-      }
-    }
-
-    if (section.length > 3900) {
-      if (currentDesc.length > 0) {
-        embeds.push({
-          description: currentDesc,
-          color: 0x2ecc71,
-          footer: { text: `Arki' Family ─ Prix Dinos ─ Liste complète (${embedIndex + 1})` },
-        });
-        embedIndex++;
-        currentDesc = '';
-      }
-      const sectionLines = section.split('\n');
-      let chunk = '';
-      for (const line of sectionLines) {
-        if ((chunk + line + '\n').length > 3900 && chunk.length > 0) {
-          embeds.push({
-            description: chunk,
-            color: 0x2ecc71,
-            footer: { text: `Arki' Family ─ Prix Dinos ─ Liste complète (${embedIndex + 1})` },
-          });
-          embedIndex++;
-          chunk = line + '\n';
-        } else {
-          chunk += line + '\n';
-        }
-      }
-      currentDesc = chunk;
-    } else if ((currentDesc + section).length > 3900) {
-      if (currentDesc.length > 0) {
-        embeds.push({
-          description: currentDesc,
-          color: 0x2ecc71,
-          footer: { text: `Arki' Family ─ Prix Dinos ─ Liste complète (${embedIndex + 1})` },
-        });
-        embedIndex++;
-      }
-      currentDesc = section;
-    } else {
-      currentDesc += section;
-    }
+    allLines.push(`**【${letter}】** ` + dinos.map(d => {
+      const price = `${formatNumber(d.priceDiamonds || 0)}💎+${formatNumber(d.priceStrawberries || 0)}🍓`;
+      let flags = '';
+      if (d.notAvailableShop) flags += '🚫';
+      if (d.uniquePerTribe) flags += '⚠️';
+      if (d.noReduction) flags += '⛔';
+      return `${d.name} (${price}${flags})`;
+    }).join(' · '));
   }
 
-  const extraSections = [];
   if (shoulderDinos && shoulderDinos.length > 0) {
-    let section = `**【🦜 ÉPAULE】**\n`;
-    for (const dino of shoulderDinos) {
-      section += buildCompactDinoLine(dino) + '\n';
-    }
-    extraSections.push(section);
-  }
-  if (moddedDinos && moddedDinos.length > 0) {
-    let section = `**【🔧 MODDÉS】**\n`;
-    for (const dino of moddedDinos) {
-      section += buildCompactDinoLine(dino) + '\n';
-    }
-    extraSections.push(section);
+    allLines.push(`**【🦜 ÉPAULE】** ` + shoulderDinos.map(d => {
+      return `${d.name} (${formatNumber(d.priceDiamonds || 0)}💎+${formatNumber(d.priceStrawberries || 0)}🍓)`;
+    }).join(' · '));
   }
 
-  for (const section of extraSections) {
-    if ((currentDesc + section).length > 3900) {
-      if (currentDesc.length > 0) {
-        embeds.push({
-          description: currentDesc,
-          color: 0x2ecc71,
-          footer: { text: `Arki' Family ─ Prix Dinos ─ Liste complète (${embedIndex + 1})` },
-        });
-        embedIndex++;
-      }
-      currentDesc = section;
+  if (moddedDinos && moddedDinos.length > 0) {
+    allLines.push(`**【🔧 MODDÉS】** ` + moddedDinos.map(d => {
+      return `${d.name} (${formatNumber(d.priceDiamonds || 0)}💎+${formatNumber(d.priceStrawberries || 0)}🍓)`;
+    }).join(' · '));
+  }
+
+  const fullText = allLines.join('\n');
+  const totalDinos = letters.reduce((sum, l) => sum + grouped[l].length, 0) + (moddedDinos ? moddedDinos.length : 0);
+
+  if (fullText.length <= 4000) {
+    return [{
+      description: fullText,
+      color: 0x2ecc71,
+      footer: { text: `Arki' Family ─ ${totalDinos} dinos` },
+    }];
+  }
+
+  const embeds = [];
+  let currentDesc = '';
+  let part = 0;
+
+  for (const line of allLines) {
+    if ((currentDesc + line + '\n').length > 3900 && currentDesc.length > 0) {
+      part++;
+      embeds.push({
+        description: currentDesc,
+        color: 0x2ecc71,
+        footer: { text: `Arki' Family ─ ${totalDinos} dinos (${part})` },
+      });
+      currentDesc = line + '\n';
     } else {
-      currentDesc += section;
+      currentDesc += line + '\n';
     }
   }
 
@@ -457,7 +421,7 @@ function buildCompactAllEmbeds(grouped, moddedDinos, shoulderDinos) {
     embeds.push({
       description: currentDesc,
       color: 0x2ecc71,
-      footer: { text: `Arki' Family ─ Prix Dinos ─ Liste complète${embedIndex > 0 ? ` (${embedIndex + 1})` : ''}` },
+      footer: { text: `Arki' Family ─ ${totalDinos} dinos${part > 0 ? ` (${part + 1})` : ''}` },
     });
   }
 
