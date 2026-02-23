@@ -363,40 +363,27 @@ function buildCompactDinoLine(dino) {
 function buildCompactAllEmbeds(grouped, moddedDinos, shoulderDinos) {
   const letters = Object.keys(grouped).sort();
   const allLines = [];
+  const totalDinos = letters.reduce((sum, l) => sum + grouped[l].length, 0) + (moddedDinos ? moddedDinos.length : 0);
 
   for (const letter of letters) {
-    const dinos = grouped[letter];
-    allLines.push(`**【${letter}】** ` + dinos.map(d => {
-      const price = `${formatNumber(d.priceDiamonds || 0)}💎+${formatNumber(d.priceStrawberries || 0)}🍓`;
-      let flags = '';
-      if (d.notAvailableShop) flags += '🚫';
-      if (d.uniquePerTribe) flags += '⚠️';
-      if (d.noReduction) flags += '⛔';
-      return `${d.name} (${price}${flags})`;
-    }).join(' · '));
+    allLines.push(`**【${letter}】**`);
+    for (const d of grouped[letter]) {
+      allLines.push(buildCompactDinoLine(d));
+    }
   }
 
   if (shoulderDinos && shoulderDinos.length > 0) {
-    allLines.push(`**【🦜 ÉPAULE】** ` + shoulderDinos.map(d => {
-      return `${d.name} (${formatNumber(d.priceDiamonds || 0)}💎+${formatNumber(d.priceStrawberries || 0)}🍓)`;
-    }).join(' · '));
+    allLines.push(`**【🦜 ÉPAULE】**`);
+    for (const d of shoulderDinos) {
+      allLines.push(buildCompactDinoLine(d));
+    }
   }
 
   if (moddedDinos && moddedDinos.length > 0) {
-    allLines.push(`**【🔧 MODDÉS】** ` + moddedDinos.map(d => {
-      return `${d.name} (${formatNumber(d.priceDiamonds || 0)}💎+${formatNumber(d.priceStrawberries || 0)}🍓)`;
-    }).join(' · '));
-  }
-
-  const fullText = allLines.join('\n');
-  const totalDinos = letters.reduce((sum, l) => sum + grouped[l].length, 0) + (moddedDinos ? moddedDinos.length : 0);
-
-  if (fullText.length <= 4000) {
-    return [{
-      description: fullText,
-      color: 0x2ecc71,
-      footer: { text: `Arki' Family ─ ${totalDinos} dinos` },
-    }];
+    allLines.push(`**【🔧 MODDÉS】**`);
+    for (const d of moddedDinos) {
+      allLines.push(buildCompactDinoLine(d));
+    }
   }
 
   const embeds = [];
@@ -404,7 +391,7 @@ function buildCompactAllEmbeds(grouped, moddedDinos, shoulderDinos) {
   let part = 0;
 
   for (const line of allLines) {
-    if ((currentDesc + line + '\n').length > 3900 && currentDesc.length > 0) {
+    if ((currentDesc + line + '\n').length > 4000 && currentDesc.length > 0) {
       part++;
       embeds.push({
         description: currentDesc,
@@ -425,7 +412,7 @@ function buildCompactAllEmbeds(grouped, moddedDinos, shoulderDinos) {
     });
   }
 
-  if (embeds.length > 10) return embeds.slice(0, 10);
+  if (embeds.length > 10) embeds.length = 10;
   return embeds;
 }
 
