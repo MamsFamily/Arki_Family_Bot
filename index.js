@@ -9,7 +9,7 @@ const { addCashToUser, generateDraftBotCommands } = require('./unbelievaboatServ
 const { translate } = require('@vitalets/google-translate-api');
 const OpenAI = require('openai');
 const { createWebServer } = require('./web/server');
-const { getDinosByLetter, getModdedDinos, getShoulderDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildShoulderEmbed, buildCompactAllEmbeds, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, getAllLetters, getLetterColor } = require('./dinoManager');
+const { getDinosByLetter, getModdedDinos, getShoulderDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildShoulderEmbed, buildShoulderEmbeds, buildCompactAllEmbeds, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, buildVariantEmbeds, getAllLetters, getLetterColor } = require('./dinoManager');
 const pgStore = require('./pgStore');
 const { getConfig, saveConfig: saveRouletteConfig, initConfig } = require('./configManager');
 const { initSettings } = require('./settingsManager');
@@ -271,11 +271,13 @@ client.on('interactionCreate', async interaction => {
       } else if (selectedLetter === 'MODDED') {
         embeds = moddedDinos.length > 0 ? [buildModdedEmbed(moddedDinos)] : [];
       } else if (selectedLetter === 'SHOULDER') {
-        embeds = shoulderDinos.length > 0 ? [buildShoulderEmbed(shoulderDinos)] : [];
+        embeds = shoulderDinos.length > 0 ? buildShoulderEmbeds(shoulderDinos) : [];
+        if (embeds.length > 10) embeds = embeds.slice(0, 10);
       } else if (selectedLetter.startsWith('VAR_')) {
         const varLabel = selectedLetter.replace('VAR_', '');
         const dinoVariants = getDinosByVariant(varLabel);
-        embeds = dinoVariants.length > 0 ? [buildVariantEmbed(varLabel, dinoVariants)] : [];
+        embeds = dinoVariants.length > 0 ? buildVariantEmbeds(varLabel, dinoVariants) : [];
+        if (embeds.length > 10) embeds = embeds.slice(0, 10);
       } else if (selectedLetter.includes('-')) {
         const parts = selectedLetter.split('-');
         const allEmbeds = [];

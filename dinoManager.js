@@ -165,7 +165,7 @@ function getShoulderDinos() {
   return data.dinos.filter(d => d.isShoulder).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
 }
 
-function buildShoulderEmbed(shoulderDinos) {
+function buildShoulderEmbeds(shoulderDinos) {
   const blocks = [];
 
   shoulderDinos.forEach(dino => {
@@ -188,10 +188,42 @@ function buildShoulderEmbed(shoulderDinos) {
     blocks.push(dinoLines.join('\n'));
   });
 
-  return {
-    description: `# ━━━ 【🦜 ÉPAULE】 ━━━\n` + blocks.join('\n'),
+  const header = `# ━━━ 【🦜 ÉPAULE】 ━━━\n`;
+  const embeds = [];
+  let currentDesc = header;
+  let partNum = 0;
+
+  for (const block of blocks) {
+    if ((currentDesc + block + '\n').length > 3900 && currentDesc.length > header.length) {
+      partNum++;
+      embeds.push({
+        description: currentDesc,
+        color: 0x2ecc71,
+        footer: { text: `Arki' Family ─ Prix Dinos ─ Épaule (${partNum})` },
+      });
+      currentDesc = header.replace('━━━\n', `━━━ suite\n`) + block + '\n';
+    } else {
+      currentDesc += block + '\n';
+    }
+  }
+
+  if (currentDesc.length > header.length) {
+    embeds.push({
+      description: currentDesc,
+      color: 0x2ecc71,
+      footer: { text: `Arki' Family ─ Prix Dinos ─ Épaule${partNum > 0 ? ` (${partNum + 1})` : ''}` },
+    });
+  }
+
+  return embeds;
+}
+
+function buildShoulderEmbed(shoulderDinos) {
+  const embeds = buildShoulderEmbeds(shoulderDinos);
+  return embeds[0] || {
+    description: `# ━━━ 【🦜 ÉPAULE】 ━━━\n*Aucun dino*`,
     color: 0x2ecc71,
-    footer: { text: `Arki' Family ─ Prix Dinos ─ Dinos d'épaule` },
+    footer: { text: `Arki' Family ─ Prix Dinos ─ Épaule` },
   };
 }
 
@@ -382,7 +414,7 @@ function getDinosByVariant(variantLabel) {
   return results;
 }
 
-function buildVariantEmbed(variantLabel, dinoVariants) {
+function buildVariantEmbeds(variantLabel, dinoVariants) {
   const blocks = [];
   for (const { dino, variant } of dinoVariants) {
     const vd = variant.priceDiamonds || 0;
@@ -396,10 +428,42 @@ function buildVariantEmbed(variantLabel, dinoVariants) {
     blocks.push(line);
   }
 
-  return {
-    description: `# ━━━ 【Variant ${variantLabel}】 ━━━\n` + blocks.join('\n'),
+  const header = `# ━━━ 【Variant ${variantLabel}】 ━━━\n`;
+  const embeds = [];
+  let currentDesc = header;
+  let partNum = 0;
+
+  for (const block of blocks) {
+    if ((currentDesc + block + '\n').length > 3900 && currentDesc.length > header.length) {
+      partNum++;
+      embeds.push({
+        description: currentDesc,
+        color: 0xe67e22,
+        footer: { text: `Arki' Family ─ Prix Dinos ─ Variant ${variantLabel} (${partNum})` },
+      });
+      currentDesc = header.replace('━━━\n', `━━━ suite\n`) + block + '\n';
+    } else {
+      currentDesc += block + '\n';
+    }
+  }
+
+  if (currentDesc.length > header.length) {
+    embeds.push({
+      description: currentDesc,
+      color: 0xe67e22,
+      footer: { text: `Arki' Family ─ Prix Dinos ─ Variant ${variantLabel}${partNum > 0 ? ` (${partNum + 1})` : ''} (${dinoVariants.length} dinos)` },
+    });
+  }
+
+  return embeds;
+}
+
+function buildVariantEmbed(variantLabel, dinoVariants) {
+  const embeds = buildVariantEmbeds(variantLabel, dinoVariants);
+  return embeds[0] || {
+    description: `# ━━━ 【Variant ${variantLabel}】 ━━━\n*Aucun dino*`,
     color: 0xe67e22,
-    footer: { text: `Arki' Family ─ Prix Dinos ─ Variant ${variantLabel} (${dinoVariants.length} dinos)` },
+    footer: { text: `Arki' Family ─ Prix Dinos ─ Variant ${variantLabel}` },
   };
 }
 
@@ -600,10 +664,12 @@ module.exports = {
   buildModdedEmbed,
   buildModdedEmbeds,
   buildShoulderEmbed,
+  buildShoulderEmbeds,
   buildCompactAllEmbeds,
   getVisibleVariantLabels,
   getDinosByVariant,
   buildVariantEmbed,
+  buildVariantEmbeds,
   buildSaleEmbed,
   getAllLetters,
   updateNavMessage,
