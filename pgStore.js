@@ -4,7 +4,7 @@ let pool = null;
 let usePostgres = false;
 
 function initPool() {
-  const dbUrl = process.env.DATABASE_URL;
+  const dbUrl = process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL;
   if (!dbUrl) {
     console.log('⚠️ DATABASE_URL non défini, utilisation des fichiers JSON locaux');
     return false;

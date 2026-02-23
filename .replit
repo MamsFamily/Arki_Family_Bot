@@ -35,6 +35,7 @@ outputType = "webview"
 
 [userenv.shared]
 DASHBOARD_PASSWORD = "arki2024"
+DATABASE_PUBLIC_URL = "postgresql://postgres:cFYlRChDzHhHiGdDJmeFzeoFJVjKBRIq@yamabiko.proxy.rlwy.net:37290/railway"
 
 [[ports]]
 localPort = 5000
