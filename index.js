@@ -267,6 +267,7 @@ client.on('interactionCreate', async interaction => {
       let embeds;
       if (selectedLetter === 'ALL') {
         embeds = buildCompactAllEmbeds(grouped, moddedDinos, shoulderDinos);
+        console.log(`📋 Tout afficher: ${letters.length} lettres, ${totalDinos} dinos, ${embeds.length} embeds générés`);
       } else if (selectedLetter === 'MODDED') {
         embeds = moddedDinos.length > 0 ? [buildModdedEmbed(moddedDinos)] : [];
       } else if (selectedLetter === 'SHOULDER') {
@@ -363,9 +364,12 @@ client.on('interactionCreate', async interaction => {
       const row = new ActionRowBuilder().addComponents(selectMenu);
 
       try {
+        const totalChars = embeds.reduce((sum, e) => sum + (e.description || '').length, 0);
+        console.log(`📤 Envoi: ${embeds.length} embeds, ${totalChars} chars total`);
         await interaction.editReply({ content: '', embeds, components: [row] });
       } catch (err) {
-        console.error('Erreur select menu dino:', err);
+        console.error('Erreur select menu dino:', err.message || err);
+        if (err.rawError) console.error('Discord raw error:', JSON.stringify(err.rawError));
       }
       return;
     }

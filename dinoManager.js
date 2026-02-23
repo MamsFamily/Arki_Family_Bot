@@ -347,17 +347,17 @@ function buildVariantLine(variant) {
 }
 
 function buildCompactDinoLine(dino) {
-  const diamonds = dino.priceDiamonds || 0;
-  const strawberries = dino.priceStrawberries || 0;
+  const d = dino.priceDiamonds || 0;
+  const s = dino.priceStrawberries || 0;
+  let flags = '';
+  if (dino.uniquePerTribe) flags += '⚠️';
+  if (dino.coupleInventaire) flags += '🦖x2';
+  if (dino.noReduction) flags += '⛔';
+  if (dino.notAvailableDona) flags += '‼️';
   if (dino.notAvailableShop) {
-    return `▫️ **${dino.name}** ─ ${formatNumber(diamonds)}💎 + ${formatNumber(strawberries)}🍓 ── 🚫 *Non dispo*`;
+    return `${dino.name} ─ ${formatNumber(d)}💎+${formatNumber(s)}🍓 🚫${flags}`;
   }
-  let line = `▫️ **${dino.name}** ─ **${formatNumber(diamonds)}**💎 + **${formatNumber(strawberries)}**🍓`;
-  if (dino.uniquePerTribe) line += ' ⚠️';
-  if (dino.coupleInventaire) line += ' 🦖x2';
-  if (dino.noReduction) line += ' ⛔';
-  if (dino.notAvailableDona) line += ' ‼️';
-  return line;
+  return `**${dino.name}** ─ ${formatNumber(d)}💎+${formatNumber(s)}🍓${flags ? ' ' + flags : ''}`;
 }
 
 function buildCompactAllEmbeds(grouped, moddedDinos, shoulderDinos) {
@@ -368,18 +368,14 @@ function buildCompactAllEmbeds(grouped, moddedDinos, shoulderDinos) {
 
   for (const letter of letters) {
     const dinos = grouped[letter];
-    let section = `### 【${letter}】\n`;
+    let section = `**【${letter}】**\n`;
     for (const dino of dinos) {
       section += buildCompactDinoLine(dino) + '\n';
       if (dino.variants && dino.variants.length > 0) {
         for (const v of dino.variants.filter(v => !v.hidden)) {
           const vd = v.priceDiamonds || 0;
           const vs = v.priceStrawberries || 0;
-          if (v.notAvailableShop) {
-            section += `  ◦ *${v.label}* ─ ${formatNumber(vd)}💎 + ${formatNumber(vs)}🍓 ── 🚫\n`;
-          } else {
-            section += `  ◦ *${v.label}* ─ **${formatNumber(vd)}**💎 + **${formatNumber(vs)}**🍓\n`;
-          }
+          section += `┗ *${v.label}* ${formatNumber(vd)}💎+${formatNumber(vs)}🍓${v.notAvailableShop ? ' 🚫' : ''}\n`;
         }
       }
     }
@@ -427,14 +423,14 @@ function buildCompactAllEmbeds(grouped, moddedDinos, shoulderDinos) {
 
   const extraSections = [];
   if (shoulderDinos && shoulderDinos.length > 0) {
-    let section = `### 【🦜 ÉPAULE】\n`;
+    let section = `**【🦜 ÉPAULE】**\n`;
     for (const dino of shoulderDinos) {
       section += buildCompactDinoLine(dino) + '\n';
     }
     extraSections.push(section);
   }
   if (moddedDinos && moddedDinos.length > 0) {
-    let section = `### 【🔧 MODDÉS】\n`;
+    let section = `**【🔧 MODDÉS】**\n`;
     for (const dino of moddedDinos) {
       section += buildCompactDinoLine(dino) + '\n';
     }
