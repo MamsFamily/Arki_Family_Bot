@@ -680,11 +680,9 @@ function createWebServer(discordClient) {
       if (shoulderDinos.length > 0) specialCount++;
       if (moddedDinos.length > 0) specialCount++;
       specialCount += visibleVariants.length;
-      const maxLetters = 25 - 1 - specialCount;
+      const maxLetters = 25 - specialCount;
 
-      const menuOptions = [
-        { label: 'Tout afficher', description: `${totalDinos} dinos au total`, value: 'ALL', emoji: '📋' },
-      ];
+      const menuOptions = [];
 
       if (letters.length <= maxLetters) {
         letters.forEach(l => {
