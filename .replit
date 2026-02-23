@@ -8,28 +8,6 @@ channel = "stable-25_05"
 packages = ["libuuid"]
 
 [workflows]
-runButton = "Project"
-
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Bot"
-
-[[workflows.workflow]]
-name = "Bot"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "node index.js"
-waitForPort = 5000
-
-[workflows.workflow.metadata]
-outputType = "webview"
 
 [userenv]
 
