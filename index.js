@@ -386,13 +386,22 @@ client.on('interactionCreate', async interaction => {
         const totalChars = embeds.reduce((sum, e) => sum + (e.description || '').length, 0);
         console.log(`📤 Envoi: ${embeds.length} embeds, ${totalChars} chars total`);
 
+        const channel = interaction.channel;
+        const msgKey = `dino_extra_${interaction.message.id}`;
+        const oldExtraIds = interaction.client._dinoExtraMessages?.[msgKey] || [];
+        for (const id of oldExtraIds) {
+          try { await channel.messages.fetch(id).then(m => m.delete()); } catch (e) {}
+        }
+        if (!interaction.client._dinoExtraMessages) interaction.client._dinoExtraMessages = {};
+        interaction.client._dinoExtraMessages[msgKey] = [];
+
         if (totalChars <= 5900 || embeds.length <= 1) {
           await interaction.editReply({ content: '', embeds, components: [row] });
         } else {
           await interaction.editReply({ content: '', embeds: [embeds[0]], components: [row] });
-          const channel = interaction.channel;
           for (let i = 1; i < embeds.length; i++) {
-            await channel.send({ embeds: [embeds[i]] });
+            const extra = await channel.send({ embeds: [embeds[i]] });
+            interaction.client._dinoExtraMessages[msgKey].push(extra.id);
           }
         }
       } catch (err) {
