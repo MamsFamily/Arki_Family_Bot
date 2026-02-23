@@ -294,6 +294,7 @@ client.on('interactionCreate', async interaction => {
       }
 
       const visibleVariants = getVisibleVariantLabels();
+      console.log(`🧬 Menu dino: ${visibleVariants.length} variants visibles, épaule: ${shoulderDinos.length}, moddés: ${moddedDinos.length}, lettres: ${letters.length}`);
 
       let specialCount = 0;
       if (shoulderDinos.length > 0) specialCount++;

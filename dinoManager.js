@@ -359,10 +359,12 @@ function getVisibleVariantLabels() {
       });
     }
   });
-  return Object.keys(labels)
-    .filter(l => !labels[l].allHidden)
+  const result = Object.keys(labels)
+    .filter(l => l && l.trim() !== '' && !labels[l].allHidden)
     .sort()
     .map(l => ({ label: l, count: labels[l].count }));
+  console.log(`🧬 Variants visibles: ${result.length} types, ${JSON.stringify(result)}`);
+  return result;
 }
 
 function getDinosByVariant(variantLabel) {
