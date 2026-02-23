@@ -346,6 +346,61 @@ function buildVariantLine(variant) {
   return line;
 }
 
+function getVisibleVariantLabels() {
+  const data = getDinoData();
+  const labels = {};
+  data.dinos.forEach(d => {
+    if (d.variants && d.variants.length > 0) {
+      d.variants.forEach(v => {
+        const label = (v.label || '').toUpperCase();
+        if (!labels[label]) labels[label] = { count: 0, allHidden: true };
+        labels[label].count++;
+        if (!v.hidden) labels[label].allHidden = false;
+      });
+    }
+  });
+  return Object.keys(labels)
+    .filter(l => !labels[l].allHidden)
+    .sort()
+    .map(l => ({ label: l, count: labels[l].count }));
+}
+
+function getDinosByVariant(variantLabel) {
+  const data = getDinoData();
+  const results = [];
+  data.dinos.forEach(d => {
+    if (d.variants && d.variants.length > 0) {
+      const match = d.variants.find(v => (v.label || '').toUpperCase() === variantLabel.toUpperCase() && !v.hidden);
+      if (match) {
+        results.push({ dino: d, variant: match });
+      }
+    }
+  });
+  results.sort((a, b) => a.dino.name.localeCompare(b.dino.name, 'fr'));
+  return results;
+}
+
+function buildVariantEmbed(variantLabel, dinoVariants) {
+  const blocks = [];
+  for (const { dino, variant } of dinoVariants) {
+    const vd = variant.priceDiamonds || 0;
+    const vs = variant.priceStrawberries || 0;
+    let line;
+    if (variant.notAvailableShop) {
+      line = `### ▫️ ${toDoubleStruck(dino.name)} ─ ${toDoubleStruck(variantLabel)}\n> *${formatNumber(vd)}💎 + ${formatNumber(vs)}🍓 ── 🚫 Pas encore disponible au shop*`;
+    } else {
+      line = `### ▫️ ${toDoubleStruck(dino.name)} ─ ${toDoubleStruck(variantLabel)}\n> <a:animearrow:1157234686200922152> **${formatNumber(vd)}**<a:SparklyCrystal:1366174439003263087> + **${formatNumber(vs)}**<:fraises:1328148609585123379>`;
+    }
+    blocks.push(line);
+  }
+
+  return {
+    description: `# ━━━ 【Variant ${variantLabel}】 ━━━\n` + blocks.join('\n'),
+    color: 0xe67e22,
+    footer: { text: `Arki' Family ─ Prix Dinos ─ Variant ${variantLabel} (${dinoVariants.length} dinos)` },
+  };
+}
+
 function buildCompactDinoLine(dino) {
   const d = dino.priceDiamonds || 0;
   const s = dino.priceStrawberries || 0;
@@ -544,6 +599,9 @@ module.exports = {
   buildModdedEmbeds,
   buildShoulderEmbed,
   buildCompactAllEmbeds,
+  getVisibleVariantLabels,
+  getDinosByVariant,
+  buildVariantEmbed,
   buildSaleEmbed,
   getAllLetters,
   updateNavMessage,

@@ -9,7 +9,7 @@ const { addCashToUser, generateDraftBotCommands } = require('./unbelievaboatServ
 const { translate } = require('@vitalets/google-translate-api');
 const OpenAI = require('openai');
 const { createWebServer } = require('./web/server');
-const { getDinosByLetter, getModdedDinos, getShoulderDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildShoulderEmbed, buildCompactAllEmbeds, getAllLetters, getLetterColor } = require('./dinoManager');
+const { getDinosByLetter, getModdedDinos, getShoulderDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildShoulderEmbed, buildCompactAllEmbeds, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, getAllLetters, getLetterColor } = require('./dinoManager');
 const pgStore = require('./pgStore');
 const { getConfig, saveConfig: saveRouletteConfig, initConfig } = require('./configManager');
 const { initSettings } = require('./settingsManager');
@@ -272,6 +272,10 @@ client.on('interactionCreate', async interaction => {
         embeds = moddedDinos.length > 0 ? [buildModdedEmbed(moddedDinos)] : [];
       } else if (selectedLetter === 'SHOULDER') {
         embeds = shoulderDinos.length > 0 ? [buildShoulderEmbed(shoulderDinos)] : [];
+      } else if (selectedLetter.startsWith('VAR_')) {
+        const varLabel = selectedLetter.replace('VAR_', '');
+        const dinoVariants = getDinosByVariant(varLabel);
+        embeds = dinoVariants.length > 0 ? [buildVariantEmbed(varLabel, dinoVariants)] : [];
       } else if (selectedLetter.includes('-')) {
         const parts = selectedLetter.split('-');
         const allEmbeds = [];
@@ -289,9 +293,12 @@ client.on('interactionCreate', async interaction => {
         if (embeds.length > 10) embeds = embeds.slice(0, 10);
       }
 
+      const visibleVariants = getVisibleVariantLabels();
+
       let specialCount = 0;
       if (shoulderDinos.length > 0) specialCount++;
       if (moddedDinos.length > 0) specialCount++;
+      specialCount += visibleVariants.length;
       const maxLetters = 25 - 1 - specialCount;
 
       const options = [
@@ -351,6 +358,17 @@ client.on('interactionCreate', async interaction => {
           value: 'MODDED',
           emoji: '🔧',
           default: selectedLetter === 'MODDED',
+        });
+      }
+
+      for (const vl of visibleVariants) {
+        if (options.length >= 25) break;
+        options.push({
+          label: `Variant ${vl.label}`,
+          description: `${vl.count} dino${vl.count > 1 ? 's' : ''}`,
+          value: `VAR_${vl.label}`,
+          emoji: '🧬',
+          default: selectedLetter === `VAR_${vl.label}`,
         });
       }
 

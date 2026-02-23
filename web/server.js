@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { getSettings, updateSection } = require('../settingsManager');
 const { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, buildPackEmbed, DEFAULT_CATEGORIES } = require('../shopManager');
-const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildModdedEmbeds, buildShoulderEmbed, buildSaleEmbed, getAllLetters, updateNavMessage, getNavMessage, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
+const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildModdedEmbeds, buildShoulderEmbed, buildSaleEmbed, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, getAllLetters, updateNavMessage, getNavMessage, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
 
 const { getConfig: readConfig, saveConfig } = require('../configManager');
 
@@ -674,9 +674,12 @@ function createWebServer(discordClient) {
 
       const totalDinos = letters.reduce((sum, l) => sum + grouped[l].length, 0) + moddedDinos.length;
 
+      const visibleVariants = getVisibleVariantLabels();
+
       let specialCount = 0;
       if (shoulderDinos.length > 0) specialCount++;
       if (moddedDinos.length > 0) specialCount++;
+      specialCount += visibleVariants.length;
       const maxLetters = 25 - 1 - specialCount;
 
       const menuOptions = [
@@ -734,6 +737,16 @@ function createWebServer(discordClient) {
           description: `${moddedDinos.length} dino${moddedDinos.length > 1 ? 's' : ''} moddé${moddedDinos.length > 1 ? 's' : ''}`,
           value: 'MODDED',
           emoji: '🔧',
+        });
+      }
+
+      for (const vl of visibleVariants) {
+        if (menuOptions.length >= 25) break;
+        menuOptions.push({
+          label: `Variant ${vl.label}`,
+          description: `${vl.count} dino${vl.count > 1 ? 's' : ''}`,
+          value: `VAR_${vl.label}`,
+          emoji: '🧬',
         });
       }
 
