@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { getSettings, updateSection } = require('../settingsManager');
 const { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, buildPackEmbed, DEFAULT_CATEGORIES } = require('../shopManager');
-const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildShoulderEmbed, buildSaleEmbed, getAllLetters, updateNavMessage, getNavMessage, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
+const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildModdedEmbeds, buildShoulderEmbed, buildSaleEmbed, getAllLetters, updateNavMessage, getNavMessage, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
 
 const { getConfig: readConfig, saveConfig } = require('../configManager');
 
@@ -559,11 +559,11 @@ function createWebServer(discordClient) {
     if (letter === 'MODDED') {
       const moddedDinos = getModdedDinos();
       if (moddedDinos.length === 0) return res.redirect('/dinos?error=Aucun+dino+modd%C3%A9');
-      embeds = [buildModdedEmbed(moddedDinos)];
+      embeds = buildModdedEmbeds(moddedDinos);
     } else if (letter === 'SHOULDER') {
       const shoulderDinos = getShoulderDinos();
       if (shoulderDinos.length === 0) return res.redirect('/dinos?error=Aucun+dino+d\'%C3%A9paule');
-      embeds = [require('../dinoManager').buildShoulderEmbed(shoulderDinos)];
+      embeds = [buildShoulderEmbed(shoulderDinos)];
     } else {
       const grouped = getDinosByLetter();
       const dinos = grouped[letter];
@@ -601,9 +601,14 @@ function createWebServer(discordClient) {
     const channelId = dinoData.dinoChannelId;
     if (!channelId) return res.redirect('/dinos?error=Aucun+salon+configur%C3%A9');
 
+    res.redirect('/dinos?success=Publication+en+cours...+Les+messages+arrivent+sur+Discord');
+
     try {
       const channel = await discordClient.channels.fetch(channelId);
-      if (!channel) return res.redirect('/dinos?error=Salon+introuvable');
+      if (!channel) {
+        console.error('Erreur publish-all: salon introuvable', channelId);
+        return;
+      }
 
       const grouped = getDinosByLetter();
       const letters = Object.keys(grouped).sort();
@@ -624,6 +629,7 @@ function createWebServer(discordClient) {
         }
         await updateLetterMessage(letter, newIds[0], channelId, newIds);
         totalMessages += newIds.length;
+        await new Promise(r => setTimeout(r, 500));
       }
 
       if (moddedDinos.length > 0) {
@@ -631,16 +637,19 @@ function createWebServer(discordClient) {
         for (const oldId of storedIds) {
           try { const msg = await channel.messages.fetch(oldId); await msg.delete(); } catch {}
         }
-        const embed = buildModdedEmbed(moddedDinos);
-        const msg = await channel.send({ embeds: [embed] });
-        await updateLetterMessage('MODDED', msg.id, channelId, [msg.id]);
-        totalMessages++;
+        const moddedEmbeds = buildModdedEmbeds(moddedDinos);
+        const newIds = [];
+        for (const embed of moddedEmbeds) {
+          const msg = await channel.send({ embeds: [embed] });
+          newIds.push(msg.id);
+        }
+        await updateLetterMessage('MODDED', newIds[0], channelId, newIds);
+        totalMessages += newIds.length;
       }
 
-      res.redirect('/dinos?success=Tout+publi%C3%A9+!+(' + totalMessages + '+messages)');
+      console.log(`✅ Publication complète terminée: ${totalMessages} messages envoyés`);
     } catch (err) {
       console.error('Erreur publication tout dinos:', err);
-      res.redirect('/dinos?error=Erreur+de+publication:+' + encodeURIComponent(err.message));
     }
   });
 

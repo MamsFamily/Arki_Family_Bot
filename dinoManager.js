@@ -203,9 +203,7 @@ En cas de dysfonctionnement, d'absence de mise à jour, ou si leur présence ne 
 <a:flche_droite:1438132479385931868> **Merci d'en prendre note lors de l'achat d'un Dino moddé.** <a:flche_gauche:1438122377551548510>`;
 
 function buildModdedEmbed(moddedDinos) {
-  const blocks = [];
-  blocks.push(MODDED_WARNING);
-  blocks.push('');
+  const dinoBlocks = [];
 
   moddedDinos.forEach(dino => {
     const dinoLines = [];
@@ -224,14 +222,78 @@ function buildModdedEmbed(moddedDinos) {
       dinoLines.push('> ‼️ *( NON DISPONIBLE AVEC LES PACKS DONA OU LES DINOS INVENTAIRES )*');
     }
 
-    blocks.push(dinoLines.join('\n'));
+    dinoBlocks.push(dinoLines.join('\n'));
   });
 
+  const header = `# ━━━ 【🔧 MODDÉS】 ━━━\n`;
+  const warningBlock = MODDED_WARNING + '\n\n';
+  const fullDesc = header + warningBlock + dinoBlocks.join('\n');
+
+  if (fullDesc.length <= 4000) {
+    return {
+      description: fullDesc,
+      color: 0x9b59b6,
+      footer: { text: `Arki' Family ─ Prix Dinos ─ Moddés` },
+    };
+  }
+
   return {
-    description: `# ━━━ 【🔧 MODDÉS】 ━━━\n` + blocks.join('\n'),
+    description: header + warningBlock + dinoBlocks.slice(0, Math.ceil(dinoBlocks.length / 2)).join('\n'),
     color: 0x9b59b6,
     footer: { text: `Arki' Family ─ Prix Dinos ─ Moddés` },
   };
+}
+
+function buildModdedEmbeds(moddedDinos) {
+  const dinoBlocks = [];
+
+  moddedDinos.forEach(dino => {
+    const dinoLines = [];
+    dinoLines.push(buildDinoLine(dino));
+    if (dino.variants && dino.variants.length > 0) {
+      dino.variants.filter(v => !v.hidden).forEach(v => {
+        dinoLines.push(buildVariantLine(v));
+      });
+    }
+    if (dino.noReduction) {
+      dinoLines.push('> ⛔ *Réductions fondateur ou donateur non applicables*');
+    }
+    if (dino.notAvailableDona) {
+      dinoLines.push('> ‼️ *( NON DISPONIBLE AVEC LES PACKS DONA OU LES DINOS INVENTAIRES )*');
+    }
+    dinoBlocks.push(dinoLines.join('\n'));
+  });
+
+  const header = `# ━━━ 【🔧 MODDÉS】 ━━━\n`;
+  const headerSuite = `# ━━━ 【🔧 MODDÉS】 ━━━ suite\n`;
+  const warningBlock = MODDED_WARNING + '\n\n';
+  const embeds = [];
+  let currentDesc = header + warningBlock;
+  let partNum = 0;
+
+  for (const block of dinoBlocks) {
+    if ((currentDesc + block + '\n').length > 3900 && currentDesc.length > (header + warningBlock).length) {
+      partNum++;
+      embeds.push({
+        description: currentDesc,
+        color: 0x9b59b6,
+        footer: { text: `Arki' Family ─ Prix Dinos ─ Moddés (${partNum})` },
+      });
+      currentDesc = headerSuite + block + '\n';
+    } else {
+      currentDesc += block + '\n';
+    }
+  }
+
+  if (currentDesc.length > header.length) {
+    embeds.push({
+      description: currentDesc,
+      color: 0x9b59b6,
+      footer: { text: `Arki' Family ─ Prix Dinos ─ Moddés${partNum > 0 ? ` (${partNum + 1})` : ''}` },
+    });
+  }
+
+  return embeds;
 }
 
 function formatNumber(n) {
@@ -531,6 +593,7 @@ module.exports = {
   buildLetterEmbed,
   buildLetterEmbeds,
   buildModdedEmbed,
+  buildModdedEmbeds,
   buildShoulderEmbed,
   buildCompactAllEmbeds,
   buildSaleEmbed,
