@@ -110,10 +110,10 @@ async function updateDinoChannel(channelId) {
   await saveDinos(data);
 }
 
-async function updateLetterMessage(letter, messageId, channelId) {
+async function updateLetterMessage(letter, messageId, channelId, messageIds) {
   const data = getDinoData();
   if (!data.letterMessages) data.letterMessages = {};
-  data.letterMessages[letter] = { messageId, channelId };
+  data.letterMessages[letter] = { messageId, channelId, messageIds: messageIds || [messageId] };
   await saveDinos(data);
 }
 
@@ -407,7 +407,7 @@ function buildCompactAllEmbeds(grouped, moddedDinos, shoulderDinos) {
   return embeds;
 }
 
-function buildLetterEmbed(letter, dinos) {
+function buildLetterEmbeds(letter, dinos) {
   const blocks = [];
 
   dinos.forEach(dino => {
@@ -432,10 +432,42 @@ function buildLetterEmbed(letter, dinos) {
 
   const color = getLetterColor(letter);
   const colorInt = parseInt(color.replace('#', ''), 16);
+  const header = `# ━━━ 【${letter}】 ━━━\n`;
 
-  return {
-    description: `# ━━━ 【${letter}】 ━━━\n` + blocks.join('\n'),
-    color: colorInt,
+  const embeds = [];
+  let currentDesc = header;
+  let partNum = 0;
+
+  for (const block of blocks) {
+    if ((currentDesc + block + '\n').length > 3900 && currentDesc.length > header.length) {
+      partNum++;
+      embeds.push({
+        description: currentDesc,
+        color: colorInt,
+        footer: { text: `Arki' Family ─ Prix Dinos ─ ${letter} (${partNum})` },
+      });
+      currentDesc = header.replace('━━━\n', `━━━ suite\n`) + block + '\n';
+    } else {
+      currentDesc += block + '\n';
+    }
+  }
+
+  if (currentDesc.length > header.length) {
+    embeds.push({
+      description: currentDesc,
+      color: colorInt,
+      footer: { text: `Arki' Family ─ Prix Dinos ─ ${letter}${partNum > 0 ? ` (${partNum + 1})` : ''}` },
+    });
+  }
+
+  return embeds;
+}
+
+function buildLetterEmbed(letter, dinos) {
+  const embeds = buildLetterEmbeds(letter, dinos);
+  return embeds[0] || {
+    description: `# ━━━ 【${letter}】 ━━━\n*Aucun dino*`,
+    color: 0x2ecc71,
     footer: { text: `Arki' Family ─ Prix Dinos ─ ${letter}` },
   };
 }
@@ -497,6 +529,7 @@ module.exports = {
   getModdedDinos,
   getShoulderDinos,
   buildLetterEmbed,
+  buildLetterEmbeds,
   buildModdedEmbed,
   buildShoulderEmbed,
   buildCompactAllEmbeds,

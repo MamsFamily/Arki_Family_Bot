@@ -9,7 +9,7 @@ const { addCashToUser, generateDraftBotCommands } = require('./unbelievaboatServ
 const { translate } = require('@vitalets/google-translate-api');
 const OpenAI = require('openai');
 const { createWebServer } = require('./web/server');
-const { getDinosByLetter, getModdedDinos, getShoulderDinos, buildLetterEmbed, buildModdedEmbed, buildShoulderEmbed, buildCompactAllEmbeds, getAllLetters, getLetterColor } = require('./dinoManager');
+const { getDinosByLetter, getModdedDinos, getShoulderDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildShoulderEmbed, buildCompactAllEmbeds, getAllLetters, getLetterColor } = require('./dinoManager');
 const pgStore = require('./pgStore');
 const { getConfig, saveConfig: saveRouletteConfig, initConfig } = require('./configManager');
 const { initSettings } = require('./settingsManager');
@@ -273,7 +273,8 @@ client.on('interactionCreate', async interaction => {
         embeds = shoulderDinos.length > 0 ? [buildShoulderEmbed(shoulderDinos)] : [];
       } else {
         const dinos = grouped[selectedLetter];
-        embeds = (dinos && dinos.length > 0) ? [buildLetterEmbed(selectedLetter, dinos)] : [];
+        embeds = (dinos && dinos.length > 0) ? buildLetterEmbeds(selectedLetter, dinos) : [];
+        if (embeds.length > 10) embeds = embeds.slice(0, 10);
       }
 
       const options = [

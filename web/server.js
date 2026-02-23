@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { getSettings, updateSection } = require('../settingsManager');
 const { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, buildPackEmbed, DEFAULT_CATEGORIES } = require('../shopManager');
-const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, buildLetterEmbed, buildModdedEmbed, buildShoulderEmbed, buildSaleEmbed, getAllLetters, updateNavMessage, getNavMessage, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
+const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildShoulderEmbed, buildSaleEmbed, getAllLetters, updateNavMessage, getNavMessage, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
 
 const { getConfig: readConfig, saveConfig } = require('../configManager');
 
@@ -555,16 +555,20 @@ function createWebServer(discordClient) {
     const channelId = dinoData.dinoChannelId;
     if (!channelId) return res.redirect('/dinos?error=Aucun+salon+configur%C3%A9');
 
-    let embed;
+    let embeds;
     if (letter === 'MODDED') {
       const moddedDinos = getModdedDinos();
       if (moddedDinos.length === 0) return res.redirect('/dinos?error=Aucun+dino+modd%C3%A9');
-      embed = buildModdedEmbed(moddedDinos);
+      embeds = [buildModdedEmbed(moddedDinos)];
+    } else if (letter === 'SHOULDER') {
+      const shoulderDinos = getShoulderDinos();
+      if (shoulderDinos.length === 0) return res.redirect('/dinos?error=Aucun+dino+d\'%C3%A9paule');
+      embeds = [require('../dinoManager').buildShoulderEmbed(shoulderDinos)];
     } else {
       const grouped = getDinosByLetter();
       const dinos = grouped[letter];
       if (!dinos || dinos.length === 0) return res.redirect('/dinos?error=Aucun+dino+pour+cette+lettre');
-      embed = buildLetterEmbed(letter, dinos);
+      embeds = buildLetterEmbeds(letter, dinos);
     }
 
     try {
@@ -572,25 +576,71 @@ function createWebServer(discordClient) {
       if (!channel) return res.redirect('/dinos?error=Salon+introuvable');
 
       const letterMsgs = getLetterMessages();
+      const storedIds = letterMsgs[letter]?.messageIds || (letterMsgs[letter]?.messageId ? [letterMsgs[letter].messageId] : []);
 
-      if (letterMsgs[letter] && letterMsgs[letter].messageId) {
-        try {
-          const existingMsg = await channel.messages.fetch(letterMsgs[letter].messageId);
-          await existingMsg.edit({ embeds: [embed] });
-          res.redirect('/dinos?success=Lettre+' + letter + '+mise+%C3%A0+jour+!');
-        } catch (e) {
-          const newMsg = await channel.send({ embeds: [embed] });
-          await updateLetterMessage(letter, newMsg.id, channelId);
-          res.redirect('/dinos?success=Lettre+' + letter + '+republié+!');
-        }
-      } else {
-        const newMsg = await channel.send({ embeds: [embed] });
-        await updateLetterMessage(letter, newMsg.id, channelId);
-        res.redirect('/dinos?success=Lettre+' + letter + '+publi%C3%A9e+!');
+      for (const oldId of storedIds) {
+        try { const msg = await channel.messages.fetch(oldId); await msg.delete(); } catch {}
       }
+
+      const newIds = [];
+      for (const embed of embeds) {
+        const msg = await channel.send({ embeds: [embed] });
+        newIds.push(msg.id);
+      }
+
+      await updateLetterMessage(letter, newIds[0], channelId, newIds);
+      res.redirect('/dinos?success=Lettre+' + letter + '+publi%C3%A9e+!+(' + embeds.length + '+message' + (embeds.length > 1 ? 's' : '') + ')');
     } catch (err) {
       console.error('Erreur publication dino:', err);
-      res.redirect('/dinos?error=Erreur+de+publication');
+      res.redirect('/dinos?error=Erreur+de+publication:+' + encodeURIComponent(err.message));
+    }
+  });
+
+  app.post('/dinos/publish-all', requireAuth, async (req, res) => {
+    const dinoData = getDinoData();
+    const channelId = dinoData.dinoChannelId;
+    if (!channelId) return res.redirect('/dinos?error=Aucun+salon+configur%C3%A9');
+
+    try {
+      const channel = await discordClient.channels.fetch(channelId);
+      if (!channel) return res.redirect('/dinos?error=Salon+introuvable');
+
+      const grouped = getDinosByLetter();
+      const letters = Object.keys(grouped).sort();
+      const moddedDinos = getModdedDinos();
+      const letterMsgs = getLetterMessages();
+      let totalMessages = 0;
+
+      for (const letter of letters) {
+        const embeds = buildLetterEmbeds(letter, grouped[letter]);
+        const storedIds = letterMsgs[letter]?.messageIds || (letterMsgs[letter]?.messageId ? [letterMsgs[letter].messageId] : []);
+        for (const oldId of storedIds) {
+          try { const msg = await channel.messages.fetch(oldId); await msg.delete(); } catch {}
+        }
+        const newIds = [];
+        for (const embed of embeds) {
+          const msg = await channel.send({ embeds: [embed] });
+          newIds.push(msg.id);
+        }
+        await updateLetterMessage(letter, newIds[0], channelId, newIds);
+        totalMessages += newIds.length;
+      }
+
+      if (moddedDinos.length > 0) {
+        const storedIds = letterMsgs['MODDED']?.messageIds || (letterMsgs['MODDED']?.messageId ? [letterMsgs['MODDED'].messageId] : []);
+        for (const oldId of storedIds) {
+          try { const msg = await channel.messages.fetch(oldId); await msg.delete(); } catch {}
+        }
+        const embed = buildModdedEmbed(moddedDinos);
+        const msg = await channel.send({ embeds: [embed] });
+        await updateLetterMessage('MODDED', msg.id, channelId, [msg.id]);
+        totalMessages++;
+      }
+
+      res.redirect('/dinos?success=Tout+publi%C3%A9+!+(' + totalMessages + '+messages)');
+    } catch (err) {
+      console.error('Erreur publication tout dinos:', err);
+      res.redirect('/dinos?error=Erreur+de+publication:+' + encodeURIComponent(err.message));
     }
   });
 
