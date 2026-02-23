@@ -366,7 +366,16 @@ client.on('interactionCreate', async interaction => {
       try {
         const totalChars = embeds.reduce((sum, e) => sum + (e.description || '').length, 0);
         console.log(`📤 Envoi: ${embeds.length} embeds, ${totalChars} chars total`);
-        await interaction.editReply({ content: '', embeds, components: [row] });
+
+        if (totalChars <= 5900 || embeds.length <= 1) {
+          await interaction.editReply({ content: '', embeds, components: [row] });
+        } else {
+          await interaction.editReply({ content: '', embeds: [embeds[0]], components: [row] });
+          const channel = interaction.channel;
+          for (let i = 1; i < embeds.length; i++) {
+            await channel.send({ embeds: [embeds[i]] });
+          }
+        }
       } catch (err) {
         console.error('Erreur select menu dino:', err.message || err);
         if (err.rawError) console.error('Discord raw error:', JSON.stringify(err.rawError));

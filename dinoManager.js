@@ -362,57 +362,58 @@ function buildCompactDinoLine(dino) {
 
 function buildCompactAllEmbeds(grouped, moddedDinos, shoulderDinos) {
   const letters = Object.keys(grouped).sort();
-  const allLines = [];
   const totalDinos = letters.reduce((sum, l) => sum + grouped[l].length, 0) + (moddedDinos ? moddedDinos.length : 0);
+  const embeds = [];
+  let currentDesc = '';
 
   for (const letter of letters) {
-    allLines.push(`**【${letter}】**`);
+    let section = `**【${letter}】**\n`;
     for (const d of grouped[letter]) {
-      allLines.push(buildCompactDinoLine(d));
+      section += buildCompactDinoLine(d) + '\n';
+    }
+
+    if ((currentDesc + section).length > 4000 && currentDesc.length > 0) {
+      embeds.push({
+        description: currentDesc,
+        color: 0x2ecc71,
+        footer: { text: `Arki' Family ─ ${totalDinos} dinos` },
+      });
+      currentDesc = section;
+    } else {
+      currentDesc += section;
     }
   }
 
   if (shoulderDinos && shoulderDinos.length > 0) {
-    allLines.push(`**【🦜 ÉPAULE】**`);
+    let section = `**【🦜 ÉPAULE】**\n`;
     for (const d of shoulderDinos) {
-      allLines.push(buildCompactDinoLine(d));
+      section += buildCompactDinoLine(d) + '\n';
+    }
+    if ((currentDesc + section).length > 4000 && currentDesc.length > 0) {
+      embeds.push({ description: currentDesc, color: 0x2ecc71, footer: { text: `Arki' Family ─ ${totalDinos} dinos` } });
+      currentDesc = section;
+    } else {
+      currentDesc += section;
     }
   }
 
   if (moddedDinos && moddedDinos.length > 0) {
-    allLines.push(`**【🔧 MODDÉS】**`);
+    let section = `**【🔧 MODDÉS】**\n`;
     for (const d of moddedDinos) {
-      allLines.push(buildCompactDinoLine(d));
+      section += buildCompactDinoLine(d) + '\n';
     }
-  }
-
-  const embeds = [];
-  let currentDesc = '';
-  let part = 0;
-
-  for (const line of allLines) {
-    if ((currentDesc + line + '\n').length > 4000 && currentDesc.length > 0) {
-      part++;
-      embeds.push({
-        description: currentDesc,
-        color: 0x2ecc71,
-        footer: { text: `Arki' Family ─ ${totalDinos} dinos (${part})` },
-      });
-      currentDesc = line + '\n';
+    if ((currentDesc + section).length > 4000 && currentDesc.length > 0) {
+      embeds.push({ description: currentDesc, color: 0x2ecc71, footer: { text: `Arki' Family ─ ${totalDinos} dinos` } });
+      currentDesc = section;
     } else {
-      currentDesc += line + '\n';
+      currentDesc += section;
     }
   }
 
   if (currentDesc.length > 0) {
-    embeds.push({
-      description: currentDesc,
-      color: 0x2ecc71,
-      footer: { text: `Arki' Family ─ ${totalDinos} dinos${part > 0 ? ` (${part + 1})` : ''}` },
-    });
+    embeds.push({ description: currentDesc, color: 0x2ecc71, footer: { text: `Arki' Family ─ ${totalDinos} dinos` } });
   }
 
-  if (embeds.length > 10) embeds.length = 10;
   return embeds;
 }
 
