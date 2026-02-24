@@ -501,7 +501,7 @@ function createWebServer(discordClient) {
   });
 
   app.post('/dinos/save', requireAuth, async (req, res) => {
-    const { dinoId, name, priceDiamonds, priceStrawberries, uniquePerTribe, noReduction, coupleInventaire, notAvailableDona, notAvailableShop, isModded, isShoulder, isPaidDLC } = req.body;
+    const { dinoId, name, priceDiamonds, priceStrawberries, uniquePerTribe, noReduction, coupleInventaire, notAvailableDona, notAvailableShop, isModded, isShoulder, isPaidDLC, note } = req.body;
 
     const variants = [];
     for (let i = 1; i <= 20; i++) {
@@ -534,6 +534,7 @@ function createWebServer(discordClient) {
       isModded: isModded === 'true',
       isShoulder: isShoulder === 'true',
       isPaidDLC: isPaidDLC === 'true',
+      note: (note || '').trim(),
     };
 
     if (dinoId) {

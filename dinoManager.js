@@ -424,6 +424,9 @@ function buildDinoLine(dino) {
     line = `### ▫️ ${toDoubleStruck(dino.name)}${shoulderTag}${moddedTag}${dlcTag}\n> <a:animearrow:1157234686200922152> **${formatNumber(diamonds)}**<a:SparklyCrystal:1366174439003263087> + **${formatNumber(strawberries)}**<:fraises:1328148609585123379>`;
   }
 
+  if (dino.note) {
+    line += `\n> -# 📝 *${dino.note}*`;
+  }
   if (dino.uniquePerTribe) {
     line += '\n> ⚠️ __*Un seul par tribu*__';
   }
