@@ -143,7 +143,6 @@ function getDinosByLetter(includeModded) {
   const data = getDinoData();
   const grouped = {};
   data.dinos.forEach(dino => {
-    if (!includeModded && dino.isModded) return;
     if (includeModded === 'only' && !dino.isModded) return;
     const letter = (dino.name || '?')[0].toUpperCase();
     if (!grouped[letter]) grouped[letter] = [];
@@ -349,11 +348,12 @@ function buildDinoLine(dino) {
   const diamonds = dino.priceDiamonds || 0;
   const strawberries = dino.priceStrawberries || 0;
   const shoulderTag = dino.isShoulder ? '\n> -# 🦜 *Dino d\'épaule*' : '';
+  const moddedTag = dino.isModded ? '\n> -# 🔧 *Dino moddé*' : '';
   let line;
   if (dino.notAvailableShop) {
-    line = `### ▫️ ${toDoubleStruck(dino.name)}${shoulderTag}\n> *${formatNumber(diamonds)}💎 + ${formatNumber(strawberries)}🍓 ── 🚫 Pas encore disponible au shop*`;
+    line = `### ▫️ ${toDoubleStruck(dino.name)}${shoulderTag}${moddedTag}\n> *${formatNumber(diamonds)}💎 + ${formatNumber(strawberries)}🍓 ── 🚫 Pas encore disponible au shop*`;
   } else {
-    line = `### ▫️ ${toDoubleStruck(dino.name)}${shoulderTag}\n> <a:animearrow:1157234686200922152> **${formatNumber(diamonds)}**<a:SparklyCrystal:1366174439003263087> + **${formatNumber(strawberries)}**<:fraises:1328148609585123379>`;
+    line = `### ▫️ ${toDoubleStruck(dino.name)}${shoulderTag}${moddedTag}\n> <a:animearrow:1157234686200922152> **${formatNumber(diamonds)}**<a:SparklyCrystal:1366174439003263087> + **${formatNumber(strawberries)}**<:fraises:1328148609585123379>`;
   }
 
   if (dino.uniquePerTribe) {
