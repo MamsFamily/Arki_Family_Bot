@@ -164,6 +164,73 @@ function getShoulderDinos() {
   return data.dinos.filter(d => d.isShoulder).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
 }
 
+function getPaidDLCDinos() {
+  const data = getDinoData();
+  return data.dinos.filter(d => d.isPaidDLC).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+}
+
+function buildPaidDLCEmbeds(dlcDinos) {
+  const blocks = [];
+
+  dlcDinos.forEach(dino => {
+    const dinoLines = [];
+    dinoLines.push(buildDinoLine(dino));
+
+    if (dino.variants && dino.variants.length > 0) {
+      dino.variants.filter(v => !v.hidden).forEach(v => {
+        dinoLines.push(buildVariantLine(v));
+      });
+    }
+
+    if (dino.noReduction) {
+      dinoLines.push('> ⛔ *Réductions fondateur ou donateur non applicables*');
+    }
+    if (dino.notAvailableDona) {
+      dinoLines.push('> ‼️ *( NON DISPONIBLE AVEC LES PACKS DONA OU LES DINOS INVENTAIRES )*');
+    }
+
+    blocks.push(dinoLines.join('\n'));
+  });
+
+  const header = `# ━━━ 【💲 DLC PAYANT】 ━━━\n`;
+  const embeds = [];
+  let currentDesc = header;
+  let partNum = 0;
+
+  for (const block of blocks) {
+    if ((currentDesc + block + '\n').length > 3900 && currentDesc.length > header.length) {
+      partNum++;
+      embeds.push({
+        description: currentDesc,
+        color: 0xf39c12,
+        footer: { text: `Arki' Family ─ Prix Dinos ─ DLC payant (${partNum})` },
+      });
+      currentDesc = header.replace('━━━\n', `━━━ suite\n`) + block + '\n';
+    } else {
+      currentDesc += block + '\n';
+    }
+  }
+
+  if (currentDesc.length > header.length) {
+    embeds.push({
+      description: currentDesc,
+      color: 0xf39c12,
+      footer: { text: `Arki' Family ─ Prix Dinos ─ DLC payant${partNum > 0 ? ` (${partNum + 1})` : ''}` },
+    });
+  }
+
+  return embeds;
+}
+
+function buildPaidDLCEmbed(dlcDinos) {
+  const embeds = buildPaidDLCEmbeds(dlcDinos);
+  return embeds[0] || {
+    description: `# ━━━ 【💲 DLC PAYANT】 ━━━\n*Aucun dino*`,
+    color: 0xf39c12,
+    footer: { text: `Arki' Family ─ Prix Dinos ─ DLC payant` },
+  };
+}
+
 function buildShoulderEmbeds(shoulderDinos) {
   const blocks = [];
 
@@ -666,6 +733,9 @@ module.exports = {
   buildModdedEmbeds,
   buildShoulderEmbed,
   buildShoulderEmbeds,
+  getPaidDLCDinos,
+  buildPaidDLCEmbed,
+  buildPaidDLCEmbeds,
   buildCompactAllEmbeds,
   getVisibleVariantLabels,
   getDinosByVariant,

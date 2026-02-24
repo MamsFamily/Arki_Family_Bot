@@ -9,7 +9,7 @@ const { addCashToUser, generateDraftBotCommands } = require('./unbelievaboatServ
 const { translate } = require('@vitalets/google-translate-api');
 const OpenAI = require('openai');
 const { createWebServer } = require('./web/server');
-const { getDinosByLetter, getModdedDinos, getShoulderDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildShoulderEmbed, buildShoulderEmbeds, buildCompactAllEmbeds, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, buildVariantEmbeds, getAllLetters, getLetterColor } = require('./dinoManager');
+const { getDinosByLetter, getModdedDinos, getShoulderDinos, getPaidDLCDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildShoulderEmbed, buildShoulderEmbeds, buildPaidDLCEmbeds, buildCompactAllEmbeds, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, buildVariantEmbeds, getAllLetters, getLetterColor } = require('./dinoManager');
 const pgStore = require('./pgStore');
 const { getConfig, saveConfig: saveRouletteConfig, initConfig } = require('./configManager');
 const { initSettings } = require('./settingsManager');
@@ -262,6 +262,7 @@ client.on('interactionCreate', async interaction => {
       const letters = Object.keys(grouped).sort();
       const moddedDinos = getModdedDinos();
       const shoulderDinos = getShoulderDinos();
+      const paidDLCDinos = getPaidDLCDinos();
       const totalDinos = letters.reduce((sum, l) => sum + grouped[l].length, 0) + moddedDinos.length;
 
       let embeds;
@@ -269,6 +270,8 @@ client.on('interactionCreate', async interaction => {
         embeds = moddedDinos.length > 0 ? [buildModdedEmbed(moddedDinos)] : [];
       } else if (selectedLetter === 'SHOULDER') {
         embeds = shoulderDinos.length > 0 ? buildShoulderEmbeds(shoulderDinos) : [];
+      } else if (selectedLetter === 'PAIDDLC') {
+        embeds = paidDLCDinos.length > 0 ? buildPaidDLCEmbeds(paidDLCDinos) : [];
         if (embeds.length > 10) embeds = embeds.slice(0, 10);
       } else if (selectedLetter.startsWith('VAR_')) {
         const varLabel = selectedLetter.replace('VAR_', '');
@@ -298,6 +301,7 @@ client.on('interactionCreate', async interaction => {
       let specialCount = 0;
       if (shoulderDinos.length > 0) specialCount++;
       if (moddedDinos.length > 0) specialCount++;
+      if (paidDLCDinos.length > 0) specialCount++;
       specialCount += visibleVariants.length;
       const maxLetters = 25 - specialCount;
 
@@ -356,6 +360,15 @@ client.on('interactionCreate', async interaction => {
           value: 'MODDED',
           emoji: '🔧',
           default: selectedLetter === 'MODDED',
+        });
+      }
+      if (paidDLCDinos.length > 0) {
+        options.push({
+          label: 'DLC Payant',
+          description: `${paidDLCDinos.length} dino${paidDLCDinos.length > 1 ? 's' : ''} DLC payant`,
+          value: 'PAIDDLC',
+          emoji: '💲',
+          default: selectedLetter === 'PAIDDLC',
         });
       }
 
