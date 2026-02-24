@@ -338,6 +338,9 @@
                           <% if (dino.isShoulder) { %>
                             <span class="pack-badge badge-donation">&#x1F99C; &Eacute;paule</span>
                           <% } %>
+                          <% if (dino.isPaidDLC) { %>
+                            <span class="pack-badge badge-unavailable">&#x1F4B2; DLC payant</span>
+                          <% } %>
                         </div>
                       </div>
                       <div class="dino-actions">
@@ -464,6 +467,12 @@
                     <label class="toggle-label">
                       <input type="checkbox" name="isModded" id="isModded" value="true">
                       <span class="toggle-text">&#x1F527; Dino mod&eacute;</span>
+                    </label>
+                  </div>
+                  <div class="form-group">
+                    <label class="toggle-label">
+                      <input type="checkbox" name="isPaidDLC" id="isPaidDLC" value="true">
+                      <span class="toggle-text">&#x1F4B2; DLC payant</span>
                     </label>
                   </div>
                 </div>
@@ -598,6 +607,7 @@
         document.getElementById('notAvailableShop').checked = false;
         document.getElementById('isModded').checked = false;
         document.getElementById('isShoulder').checked = false;
+        document.getElementById('isPaidDLC').checked = false;
         document.getElementById('variantsContainer').innerHTML = '<p class="help-text" id="noVariantsText">Aucun variant. Cliquez sur "+ Variant" pour ajouter (ex: R, A, X).</p>';
         variantCount = 0;
       }
@@ -618,6 +628,7 @@
       document.getElementById('notAvailableShop').checked = !!dino.notAvailableShop;
       document.getElementById('isModded').checked = !!dino.isModded;
       document.getElementById('isShoulder').checked = !!dino.isShoulder;
+      document.getElementById('isPaidDLC').checked = !!dino.isPaidDLC;
 
       document.getElementById('variantsContainer').innerHTML = '';
       variantCount = 0;
