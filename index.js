@@ -1,5 +1,6 @@
 const { Client, GatewayIntentBits, Partials, AttachmentBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
 const fs = require('fs');
+const cron = require('node-cron');
 const RouletteWheel = require('./rouletteWheel');
 const { initDatabase } = require('./database');
 const { fetchTopserveursRanking } = require('./topserveursService');
@@ -51,6 +52,164 @@ function hasRoulettePermission(member) {
          member.roles.cache.has(MODO_ROLE_ID);
 }
 
+async function autoPublishVotes() {
+  try {
+    const votesConfig = getVotesConfig();
+    const guildId = votesConfig.GUILD_ID;
+    if (!guildId) {
+      console.error('❌ [AUTO-VOTES] GUILD_ID non configuré');
+      return;
+    }
+
+    let guild;
+    try {
+      guild = await client.guilds.fetch(guildId);
+    } catch (e) {
+      console.error('❌ [AUTO-VOTES] Serveur introuvable:', guildId, e.message);
+      return;
+    }
+
+    console.log('🕐 [AUTO-VOTES] Lancement automatique de la publication des résultats...');
+
+    const ranking = await fetchTopserveursRanking(votesConfig.TOPSERVEURS_RANKING_URL);
+    if (ranking.length === 0) {
+      console.error('❌ [AUTO-VOTES] Impossible de récupérer le classement');
+      return;
+    }
+
+    const memberIndex = await buildMemberIndex(guild);
+
+    const parisMonth = parseInt(new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', month: 'numeric' }).format(new Date()), 10);
+    const lastMonth = parisMonth === 1 ? 11 : parisMonth - 2;
+    const monthName = monthNameFr(lastMonth);
+
+    const distributionResults = { success: 0, failed: 0, notFound: [] };
+    const playerStatus = {};
+
+    for (const player of ranking) {
+      const memberId = resolvePlayer(memberIndex, player.playername);
+      if (memberId) {
+        const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
+        const bonusDiamonds = votesConfig.TOP_DIAMONDS[ranking.indexOf(player) + 1] || 0;
+        const result = await addCashToUser(memberId, totalDiamonds + bonusDiamonds, `Votes ${monthName}`);
+        if (result.success) {
+          distributionResults.success++;
+          playerStatus[player.playername] = 'success';
+        } else {
+          distributionResults.failed++;
+          playerStatus[player.playername] = 'failed';
+        }
+      } else {
+        distributionResults.notFound.push(player.playername);
+        playerStatus[player.playername] = 'notfound';
+      }
+    }
+
+    let resultsMessage = `# ${votesConfig.STYLE.fireworks} Résultats des votes de ${monthName} ${votesConfig.STYLE.fireworks}\n\n`;
+    const msg = votesConfig.MESSAGE || {};
+    resultsMessage += `${msg.introText || ''}\n\n`;
+    resultsMessage += `${votesConfig.STYLE.sparkly} ${msg.creditText || ''}\n\n`;
+
+    const top10 = ranking.slice(0, 10);
+    for (let i = 0; i < top10.length; i++) {
+      const player = top10[i];
+      const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
+      const bonusDiamonds = votesConfig.TOP_DIAMONDS[i + 1] || 0;
+      const status = playerStatus[player.playername];
+      const statusIcon = status === 'success' ? '' : status === 'failed' ? ' ❌' : ' ⚠️';
+
+      resultsMessage += `**${i + 1}** - **${player.playername}**${statusIcon}\n`;
+      resultsMessage += `Votes : ${player.votes} | Gains : ${totalDiamonds.toLocaleString('fr-FR')} ${votesConfig.STYLE.sparkly}\n`;
+
+      if (i === 0) {
+        resultsMessage += `+ ${msg.pack1Text || 'Pack vote 1ère place'} + rôle <@&${votesConfig.TOP_VOTER_ROLE_ID}>\n`;
+      } else if (i === 1) {
+        resultsMessage += `+ ${msg.pack2Text || 'Pack vote 2ème place'}\n`;
+      } else if (i === 2) {
+        resultsMessage += `+ ${msg.pack3Text || 'Pack vote 3ème place'}\n`;
+      } else if (bonusDiamonds > 0) {
+        resultsMessage += `+ ${bonusDiamonds.toLocaleString('fr-FR')} ${votesConfig.STYLE.sparkly}\n`;
+      }
+      resultsMessage += `\n`;
+    }
+
+    resultsMessage += `---\n`;
+    resultsMessage += `${msg.memoText || 'Pour mémo'} ${votesConfig.STYLE.animeArrow} ${votesConfig.STYLE.memoUrl}\n\n`;
+    resultsMessage += `-# ${msg.dinoShinyText || 'Tirage Dino Shiny juste après 🦖'}\n`;
+
+    const fullListData = ranking.filter(p => p.votes >= 10).map(p => {
+      const totalDiamonds = p.votes * votesConfig.DIAMONDS_PER_VOTE;
+      const idx = ranking.indexOf(p);
+      const bonusDiamonds = votesConfig.TOP_DIAMONDS[idx + 1] || 0;
+      const status = playerStatus[p.playername];
+      return { ...p, totalGain: totalDiamonds + bonusDiamonds, status };
+    });
+
+    global.lastVotesFullList = { data: fullListData, monthName, memberIndex };
+
+    const button = new ButtonBuilder()
+      .setCustomId('show_full_votes_list')
+      .setLabel('📋 Voir la liste complète')
+      .setStyle(ButtonStyle.Secondary);
+    const row = new ActionRowBuilder().addComponents(button);
+
+    const resultsChannel = await client.channels.fetch(votesConfig.RESULTS_CHANNEL_ID);
+    if (resultsChannel) {
+      let finalMessage = resultsMessage;
+      if (votesConfig.STYLE.everyonePing) {
+        finalMessage = `|| @everyone ||\n` + finalMessage;
+      }
+      await resultsChannel.send({ content: finalMessage, components: [row] });
+    }
+
+    const dinoTitle = msg.dinoTitle || 'DINO';
+    const rouletteWheel = new RouletteWheel(top10.map(p => p.playername), dinoTitle);
+    const winningIndex = Math.floor(Math.random() * top10.length);
+    const gifBuffer = await rouletteWheel.generateAnimatedGif(winningIndex);
+    const winningChoice = rouletteWheel.getWinningChoice(winningIndex);
+    const attachment = new AttachmentBuilder(gifBuffer, { name: 'dino-shiny-roulette.gif' });
+
+    if (resultsChannel) {
+      await resultsChannel.send({
+        content: `## 🦖 Tirage Dino Shiny du mois !\n\nParticipants :\n${top10.map((p, i) => {
+          return `${i + 1}. **${p.playername}**`;
+        }).join('\n')}\n\n🎰 C'est parti !`,
+        files: [attachment]
+      });
+
+      const dinoWinText = msg.dinoWinText || 'Tu remportes le **Dino Shiny** du mois ! 🦖✨';
+      await resultsChannel.send(`## 🎉 Félicitations **${winningChoice}** !\n\n${dinoWinText}`);
+    }
+
+    const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);
+
+    let adminMessage = `📊 **Rapport de distribution automatique - ${monthName}**\n\n`;
+    adminMessage += `🕐 *Publication automatique du 1er du mois*\n\n`;
+    adminMessage += `💎 **Distribution UnbelievaBoat:**\n`;
+    adminMessage += `   • ${distributionResults.success} joueurs récompensés\n`;
+    if (distributionResults.failed > 0) {
+      adminMessage += `   • ${distributionResults.failed} échecs\n`;
+    }
+    if (distributionResults.notFound.length > 0) {
+      adminMessage += `   • ${distributionResults.notFound.length} joueurs non trouvés: ${distributionResults.notFound.join(', ')}\n`;
+    }
+
+    if (draftBotCommands.length > 0) {
+      adminMessage += `\n🎁 **Commandes DraftBot à copier-coller:**\n\`\`\`\n${draftBotCommands.join('\n')}\n\`\`\``;
+    }
+
+    const adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
+    if (adminChannel) {
+      await adminChannel.send(adminMessage);
+    }
+
+    console.log(`✅ [AUTO-VOTES] Résultats publiés automatiquement - ${distributionResults.success} récompensés, ${distributionResults.notFound.length} non trouvés`);
+
+  } catch (error) {
+    console.error('❌ [AUTO-VOTES] Erreur lors de la publication automatique:', error);
+  }
+}
+
 client.once('clientReady', async () => {
   initDatabase();
 
@@ -75,6 +234,14 @@ client.once('clientReady', async () => {
   console.log('   /show-choices - Affiche les choix actuels');
   console.log('   /votes - Affiche le classement des votes');
   console.log('   /publish-votes - Publie les résultats mensuels');
+
+  cron.schedule('0 0 1 * *', () => {
+    console.log('🕐 [CRON] Déclenchement publication automatique des votes (1er du mois, 00h00)');
+    autoPublishVotes();
+  }, {
+    timezone: 'Europe/Paris'
+  });
+  console.log('⏰ Publication automatique des votes programmée : 1er de chaque mois à 00h00 (Europe/Paris)');
 });
 
 const reactionTracker = new Map();
