@@ -47,6 +47,10 @@ const commands = [
     description: 'Distribue uniquement les diamants sans publier de message (Admin et Modo)',
   },
   {
+    name: 'list-votes',
+    description: 'Publie la liste complète des votes avec récompenses distribuées (Admin et Modo)',
+  },
+  {
     name: 'dino-roulette',
     description: 'Lance la roulette Dino Shiny avec le top 10 des votants (Admin et Modo)',
   },

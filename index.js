@@ -1053,6 +1053,96 @@ client.on('interactionCreate', async interaction => {
     }
   }
 
+  if (commandName === 'list-votes') {
+    if (!hasRoulettePermission(interaction.member)) {
+      return interaction.reply({
+        content: '❌ Seuls les administrateurs et les Modos peuvent utiliser cette commande !',
+        ephemeral: true,
+      });
+    }
+
+    await interaction.deferReply();
+
+    try {
+      const votesConfig = getVotesConfig();
+      const ranking = await fetchTopserveursRanking(votesConfig.TOPSERVEURS_RANKING_URL);
+
+      if (ranking.length === 0) {
+        return interaction.editReply({
+          content: '❌ Impossible de récupérer le classement des votes.',
+        });
+      }
+
+      const guild = interaction.guild;
+      const memberIndex = await buildMemberIndex(guild);
+
+      const now = new Date();
+      const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+      const monthName = monthNameFr(lastMonth);
+
+      let listMessage = `@here\n# 📋 Liste complète des votes de ${monthName}\n\n`;
+
+      for (let i = 0; i < ranking.length; i++) {
+        const player = ranking[i];
+        const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
+        const bonusDiamonds = votesConfig.TOP_DIAMONDS[i + 1] || 0;
+        const totalGain = totalDiamonds + bonusDiamonds;
+        const memberId = resolvePlayer(memberIndex, player.playername);
+
+        let line = `**${i + 1}.** `;
+        if (memberId) {
+          line += `<@${memberId}>`;
+        } else {
+          line += `**${player.playername}**`;
+        }
+        line += ` — ${player.votes} vote${player.votes > 1 ? 's' : ''} — ${totalGain.toLocaleString('fr-FR')} ${votesConfig.STYLE.sparkly}`;
+
+        if (i < 3) {
+          const packTexts = [
+            votesConfig.MESSAGE?.pack1Text || 'Pack vote 1ère place',
+            votesConfig.MESSAGE?.pack2Text || 'Pack vote 2ème place',
+            votesConfig.MESSAGE?.pack3Text || 'Pack vote 3ème place',
+          ];
+          line += ` + ${packTexts[i]}`;
+          if (i === 0) line += ` + <@&${votesConfig.TOP_VOTER_ROLE_ID}>`;
+        }
+
+        listMessage += line + '\n';
+      }
+
+      listMessage += `\n---\n-# Total : **${ranking.length}** votants — **${ranking.reduce((s, p) => s + p.votes, 0)}** votes`;
+
+      const chunks = [];
+      let current = '';
+      for (const line of listMessage.split('\n')) {
+        if ((current + line + '\n').length > 1900) {
+          chunks.push(current);
+          current = line + '\n';
+        } else {
+          current += line + '\n';
+        }
+      }
+      if (current.trim()) chunks.push(current);
+
+      const channel = interaction.channel;
+      for (let i = 0; i < chunks.length; i++) {
+        if (i === 0) {
+          await channel.send({ content: chunks[i], allowedMentions: { parse: ['everyone', 'roles', 'users'] } });
+        } else {
+          await channel.send({ content: chunks[i] });
+        }
+      }
+
+      await interaction.editReply({ content: '✅ Liste complète publiée !' });
+
+    } catch (error) {
+      console.error('Erreur lors de la publication de la liste des votes:', error);
+      await interaction.editReply({
+        content: '❌ Une erreur est survenue.',
+      });
+    }
+  }
+
   if (commandName === 'pay-votes') {
     if (!hasRoulettePermission(interaction.member)) {
       return interaction.reply({
