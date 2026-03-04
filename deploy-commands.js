@@ -47,7 +47,7 @@ const commands = [
     description: 'Distribue uniquement les diamants sans publier de message (Admin et Modo)',
   },
   {
-    name: 'list-votes',
+    name: 'distribution_recompenses',
     description: 'Publie la liste complète des votes avec récompenses distribuées (Admin et Modo)',
   },
   {

@@ -1053,7 +1053,7 @@ client.on('interactionCreate', async interaction => {
     }
   }
 
-  if (commandName === 'list-votes') {
+  if (commandName === 'distribution_recompenses') {
     if (!hasRoulettePermission(interaction.member)) {
       return interaction.reply({
         content: '❌ Seuls les administrateurs et les Modos peuvent utiliser cette commande !',
