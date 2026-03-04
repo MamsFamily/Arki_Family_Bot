@@ -1,5 +1,12 @@
-const { createCanvas } = require('canvas');
+const { createCanvas, registerFont } = require('canvas');
 const GIFEncoder = require('gif-encoder-2');
+const path = require('path');
+
+try {
+  registerFont(path.join(__dirname, 'fonts', 'DejaVuSans-Bold.ttf'), { family: 'DejaVuSans', weight: 'bold' });
+} catch (e) {
+  console.warn('Font registration warning:', e.message);
+}
 
 class RouletteWheel {
   constructor(choices, title = 'ARKI') {
@@ -105,7 +112,7 @@ class RouletteWheel {
       const text = this.choices[i];
       const maxWidth = this.radius * 0.5;
       const fontSize = Math.min(28, Math.max(16, 400 / text.length));
-      ctx.font = `bold ${fontSize}px "Arial Black", "Arial", sans-serif`;
+      ctx.font = `bold ${fontSize}px "DejaVuSans", "Arial Black", "Arial", sans-serif`;
       
       ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
       ctx.lineWidth = 4;
@@ -197,7 +204,7 @@ class RouletteWheel {
     ctx.fillStyle = '#FFFFFF';
     const titleLength = this.title.length;
     const fontSize = Math.min(36, Math.max(20, 120 / titleLength));
-    ctx.font = `bold ${fontSize}px "Arial Black", "Arial", sans-serif`;
+    ctx.font = `bold ${fontSize}px "DejaVuSans", "Arial Black", "Arial", sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     
