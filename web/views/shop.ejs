@@ -150,11 +150,11 @@
               <div class="form-row">
                 <div class="form-group">
                   <label for="priceDiamonds">Prix diamants &#x1F48E;</label>
-                  <input type="number" id="priceDiamonds" name="priceDiamonds" value="0" min="0">
+                  <input type="number" id="priceDiamonds" name="priceDiamonds" value="0" min="0" oninput="autoCalcStrawberries()">
                 </div>
                 <div class="form-group">
-                  <label for="priceStrawberries">Prix fraises &#x1F353;</label>
-                  <input type="number" id="priceStrawberries" name="priceStrawberries" value="0" min="0">
+                  <label for="priceStrawberries">Prix fraises &#x1F353; <span id="autoCalcBadge" style="font-size:11px;color:#888;font-weight:normal;">(auto)</span></label>
+                  <input type="number" id="priceStrawberries" name="priceStrawberries" value="0" min="0" oninput="markManualStrawberries()">
                 </div>
               </div>
 
@@ -247,6 +247,9 @@
         document.getElementById('notCompatible').checked = false;
         document.getElementById('packUnavailable').checked = false;
         document.getElementById('noReduction').checked = false;
+        strawberriesManual = false;
+        document.getElementById('autoCalcBadge').textContent = '(auto)';
+        document.getElementById('autoCalcBadge').style.color = '#888';
       }
       updatePreview();
     }
@@ -267,6 +270,16 @@
       document.getElementById('notCompatible').checked = !!pack.notCompatible;
       document.getElementById('packUnavailable').checked = pack.available === false;
       document.getElementById('noReduction').checked = !!pack.noReduction;
+      const expectedStrawberries = Math.round((pack.priceDiamonds || 0) * 0.3);
+      if ((pack.priceStrawberries || 0) === expectedStrawberries) {
+        strawberriesManual = false;
+        document.getElementById('autoCalcBadge').textContent = '(auto)';
+        document.getElementById('autoCalcBadge').style.color = '#888';
+      } else {
+        strawberriesManual = true;
+        document.getElementById('autoCalcBadge').textContent = '(manuel)';
+        document.getElementById('autoCalcBadge').style.color = '#e67e22';
+      }
       document.getElementById('packModal').classList.add('show');
       updatePreview();
     }
@@ -334,6 +347,33 @@
     document.getElementById('packModal').addEventListener('click', function(e) {
       if (e.target === this) closeModal();
     });
+
+    let strawberriesManual = false;
+    const DIAMOND_TO_STRAWBERRY = 0.3;
+
+    function autoCalcStrawberries() {
+      if (strawberriesManual) return;
+      const diamonds = parseInt(document.getElementById('priceDiamonds').value) || 0;
+      const calc = Math.round(diamonds * DIAMOND_TO_STRAWBERRY);
+      document.getElementById('priceStrawberries').value = calc;
+      document.getElementById('autoCalcBadge').textContent = '(auto)';
+      document.getElementById('autoCalcBadge').style.color = '#888';
+      updatePreview();
+    }
+
+    function markManualStrawberries() {
+      strawberriesManual = true;
+      document.getElementById('autoCalcBadge').textContent = '(manuel)';
+      document.getElementById('autoCalcBadge').style.color = '#e67e22';
+      updatePreview();
+    }
+
+    function resetAutoCalc() {
+      strawberriesManual = false;
+      document.getElementById('autoCalcBadge').textContent = '(auto)';
+      document.getElementById('autoCalcBadge').style.color = '#888';
+      autoCalcStrawberries();
+    }
   </script>
 </body>
 </html>

@@ -436,11 +436,11 @@
               <div class="form-row">
                 <div class="form-group">
                   <label for="dinoPriceDiamonds">Prix diamants &#x1F48E;</label>
-                  <input type="number" id="dinoPriceDiamonds" name="priceDiamonds" min="0" placeholder="0">
+                  <input type="number" id="dinoPriceDiamonds" name="priceDiamonds" min="0" placeholder="0" oninput="dinoAutoCalcStrawberries()">
                 </div>
                 <div class="form-group">
-                  <label for="dinoPriceStrawberries">Prix fraises &#x1F353;</label>
-                  <input type="number" id="dinoPriceStrawberries" name="priceStrawberries" min="0" placeholder="0">
+                  <label for="dinoPriceStrawberries">Prix fraises &#x1F353; <span id="dinoAutoCalcBadge" style="font-size:11px;color:#888;font-weight:normal;">(auto)</span></label>
+                  <input type="number" id="dinoPriceStrawberries" name="priceStrawberries" min="0" placeholder="0" oninput="dinoMarkManualStrawberries()">
                 </div>
               </div>
 
@@ -608,6 +608,9 @@
         document.getElementById('dinoName').value = '';
         document.getElementById('dinoPriceDiamonds').value = '';
         document.getElementById('dinoPriceStrawberries').value = '';
+        dinoStrawberriesManual = false;
+        document.getElementById('dinoAutoCalcBadge').textContent = '(auto)';
+        document.getElementById('dinoAutoCalcBadge').style.color = '#888';
         document.getElementById('uniquePerTribe').checked = false;
         document.getElementById('dinoNoReduction').checked = false;
         document.getElementById('coupleInventaire').checked = false;
@@ -630,6 +633,16 @@
       document.getElementById('dinoName').value = dino.name || '';
       document.getElementById('dinoPriceDiamonds').value = dino.priceDiamonds || '';
       document.getElementById('dinoPriceStrawberries').value = dino.priceStrawberries || '';
+      const expectedDinoStrawberries = Math.round((dino.priceDiamonds || 0) * 0.3);
+      if ((dino.priceStrawberries || 0) === expectedDinoStrawberries) {
+        dinoStrawberriesManual = false;
+        document.getElementById('dinoAutoCalcBadge').textContent = '(auto)';
+        document.getElementById('dinoAutoCalcBadge').style.color = '#888';
+      } else {
+        dinoStrawberriesManual = true;
+        document.getElementById('dinoAutoCalcBadge').textContent = '(manuel)';
+        document.getElementById('dinoAutoCalcBadge').style.color = '#e67e22';
+      }
       document.getElementById('uniquePerTribe').checked = !!dino.uniquePerTribe;
       document.getElementById('dinoNoReduction').checked = !!dino.noReduction;
       document.getElementById('coupleInventaire').checked = !!dino.coupleInventaire;
@@ -675,11 +688,11 @@
           </div>
           <div class="form-group" style="flex:1;">
             <label>\u{1F48E}</label>
-            <input type="number" name="variant_diamonds_${idx}" value="${diamonds !== undefined && diamonds !== null ? diamonds : ''}" min="0" class="variant-input" placeholder="0">
+            <input type="number" name="variant_diamonds_${idx}" value="${diamonds !== undefined && diamonds !== null ? diamonds : ''}" min="0" class="variant-input" placeholder="0" oninput="variantAutoCalc(${idx})">
           </div>
           <div class="form-group" style="flex:1;">
             <label>\u{1F353}</label>
-            <input type="number" name="variant_strawberries_${idx}" value="${strawberries !== undefined && strawberries !== null ? strawberries : ''}" min="0" class="variant-input" placeholder="0">
+            <input type="number" name="variant_strawberries_${idx}" value="${strawberries !== undefined && strawberries !== null ? strawberries : ''}" min="0" class="variant-input" placeholder="0" oninput="variantManualMark(${idx})">
           </div>
           <button type="button" class="btn btn-sm btn-danger" onclick="removeVariant(${idx})" style="margin-bottom:4px;">\u{1F5D1}\u{FE0F}</button>
         </div>
@@ -804,6 +817,43 @@
     document.getElementById('dinoModal').addEventListener('click', function(e) {
       if (e.target === this) closeDinoModal();
     });
+
+    let dinoStrawberriesManual = false;
+    const DINO_DIAMOND_TO_STRAWBERRY = 0.3;
+    const variantManualFlags = {};
+
+    function dinoAutoCalcStrawberries() {
+      if (dinoStrawberriesManual) return;
+      const diamonds = parseInt(document.getElementById('dinoPriceDiamonds').value) || 0;
+      const calc = Math.round(diamonds * DINO_DIAMOND_TO_STRAWBERRY);
+      document.getElementById('dinoPriceStrawberries').value = calc;
+      document.getElementById('dinoAutoCalcBadge').textContent = '(auto)';
+      document.getElementById('dinoAutoCalcBadge').style.color = '#888';
+      updateDinoPreview();
+    }
+
+    function dinoMarkManualStrawberries() {
+      dinoStrawberriesManual = true;
+      document.getElementById('dinoAutoCalcBadge').textContent = '(manuel)';
+      document.getElementById('dinoAutoCalcBadge').style.color = '#e67e22';
+      updateDinoPreview();
+    }
+
+    function variantAutoCalc(idx) {
+      if (variantManualFlags[idx]) return;
+      const dEl = document.querySelector(`[name="variant_diamonds_${idx}"]`);
+      const sEl = document.querySelector(`[name="variant_strawberries_${idx}"]`);
+      if (dEl && sEl) {
+        const d = parseInt(dEl.value) || 0;
+        sEl.value = Math.round(d * DINO_DIAMOND_TO_STRAWBERRY);
+      }
+      updateDinoPreview();
+    }
+
+    function variantManualMark(idx) {
+      variantManualFlags[idx] = true;
+      updateDinoPreview();
+    }
 
   </script>
 </body>
