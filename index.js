@@ -52,6 +52,149 @@ function hasRoulettePermission(member) {
          member.roles.cache.has(MODO_ROLE_ID);
 }
 
+const pendingDistributions = new Map();
+
+function detectDuplicates(ranking, memberIndex) {
+  const memberToPlayers = new Map();
+  for (const player of ranking) {
+    const memberId = resolvePlayer(memberIndex, player.playername);
+    if (memberId) {
+      if (!memberToPlayers.has(memberId)) {
+        memberToPlayers.set(memberId, []);
+      }
+      memberToPlayers.get(memberId).push(player);
+    }
+  }
+  const duplicates = [];
+  for (const [memberId, players] of memberToPlayers) {
+    if (players.length > 1) {
+      duplicates.push({ memberId, players });
+    }
+  }
+  return duplicates;
+}
+
+async function distributeWithChecks(ranking, memberIndex, votesConfig, monthName, adminChannel) {
+  const duplicates = detectDuplicates(ranking, memberIndex);
+  const duplicateMemberIds = new Set(duplicates.map(d => d.memberId));
+  const distributionResults = { success: 0, failed: 0, notFound: [], pendingDuplicates: 0, pendingNotFound: 0 };
+  const playerStatus = {};
+
+  for (const player of ranking) {
+    const memberId = resolvePlayer(memberIndex, player.playername);
+    const rankIdx = ranking.indexOf(player) + 1;
+    const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
+    const bonusDiamonds = votesConfig.TOP_DIAMONDS[rankIdx] || 0;
+    const totalGain = totalDiamonds + bonusDiamonds;
+
+    if (!memberId) {
+      distributionResults.notFound.push(player.playername);
+      playerStatus[player.playername] = 'pending';
+      distributionResults.pendingNotFound++;
+
+      if (adminChannel) {
+        const pendingId = `notfound_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        pendingDistributions.set(pendingId, {
+          type: 'notfound',
+          playername: player.playername,
+          votes: player.votes,
+          totalGain,
+          monthName,
+          resolved: false,
+        });
+
+        const ignoreBtn = new ButtonBuilder()
+          .setCustomId(`vote_ignore_${pendingId}`)
+          .setLabel('Ignorer')
+          .setStyle(ButtonStyle.Secondary);
+        const assignBtn = new ButtonBuilder()
+          .setCustomId(`vote_assign_${pendingId}`)
+          .setLabel('Attribuer à un membre')
+          .setStyle(ButtonStyle.Primary);
+        const row = new ActionRowBuilder().addComponents(assignBtn, ignoreBtn);
+
+        await adminChannel.send({
+          content: `## ⚠️ Joueur non trouvé\n\n**${player.playername}** — ${player.votes} votes — ${totalGain.toLocaleString('fr-FR')} 💎\n\nAucun membre Discord correspondant trouvé.\nVoulez-vous attribuer les récompenses à un membre ou ignorer ?`,
+          components: [row],
+        });
+      }
+    } else if (duplicateMemberIds.has(memberId)) {
+      const dupInfo = duplicates.find(d => d.memberId === memberId);
+      const isFirstOccurrence = dupInfo.players[0].playername === player.playername;
+
+      if (isFirstOccurrence) {
+        playerStatus[player.playername] = 'pending';
+        distributionResults.pendingDuplicates++;
+
+        const pendingId = `dup_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const allEntries = dupInfo.players.map(p => {
+          const ri = ranking.indexOf(p) + 1;
+          const td = p.votes * votesConfig.DIAMONDS_PER_VOTE;
+          const bd = votesConfig.TOP_DIAMONDS[ri] || 0;
+          return { playername: p.playername, votes: p.votes, totalGain: td + bd, rankIdx: ri };
+        });
+
+        pendingDistributions.set(pendingId, {
+          type: 'duplicate',
+          memberId,
+          entries: allEntries,
+          monthName,
+          resolved: false,
+        });
+
+        let dupMsg = `## 🔄 Doublon détecté\n\n<@${memberId}> a été détecté avec **${dupInfo.players.length} entrées** dans le classement :\n\n`;
+        const buttons = [];
+        allEntries.forEach((e, idx) => {
+          dupMsg += `**${idx + 1}.** "${e.playername}" — ${e.votes} votes — ${e.totalGain.toLocaleString('fr-FR')} 💎\n`;
+          buttons.push(
+            new ButtonBuilder()
+              .setCustomId(`vote_dupkeep_${pendingId}_${idx}`)
+              .setLabel(`Garder "${e.playername}"`)
+              .setStyle(ButtonStyle.Primary)
+          );
+        });
+
+        const mergeBtn = new ButtonBuilder()
+          .setCustomId(`vote_dupmerge_${pendingId}`)
+          .setLabel('Fusionner (cumuler les votes)')
+          .setStyle(ButtonStyle.Success);
+        const dupAllBtn = new ButtonBuilder()
+          .setCustomId(`vote_dupall_${pendingId}`)
+          .setLabel('Distribuer les deux')
+          .setStyle(ButtonStyle.Danger);
+
+        const rows = [];
+        if (buttons.length <= 3) {
+          rows.push(new ActionRowBuilder().addComponents(...buttons));
+          rows.push(new ActionRowBuilder().addComponents(mergeBtn, dupAllBtn));
+        } else {
+          rows.push(new ActionRowBuilder().addComponents(...buttons.slice(0, 5)));
+          rows.push(new ActionRowBuilder().addComponents(mergeBtn, dupAllBtn));
+        }
+
+        dupMsg += `\nQue souhaitez-vous faire ?`;
+
+        if (adminChannel) {
+          await adminChannel.send({ content: dupMsg, components: rows });
+        }
+      } else {
+        playerStatus[player.playername] = 'pending';
+      }
+    } else {
+      const result = await addCashToUser(memberId, totalGain, `Votes ${monthName}`);
+      if (result.success) {
+        distributionResults.success++;
+        playerStatus[player.playername] = 'success';
+      } else {
+        distributionResults.failed++;
+        playerStatus[player.playername] = 'failed';
+      }
+    }
+  }
+
+  return { distributionResults, playerStatus };
+}
+
 async function autoPublishVotes() {
   try {
     const votesConfig = getVotesConfig();
@@ -83,27 +226,8 @@ async function autoPublishVotes() {
     const lastMonth = parisMonth === 1 ? 11 : parisMonth - 2;
     const monthName = monthNameFr(lastMonth);
 
-    const distributionResults = { success: 0, failed: 0, notFound: [] };
-    const playerStatus = {};
-
-    for (const player of ranking) {
-      const memberId = resolvePlayer(memberIndex, player.playername);
-      if (memberId) {
-        const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
-        const bonusDiamonds = votesConfig.TOP_DIAMONDS[ranking.indexOf(player) + 1] || 0;
-        const result = await addCashToUser(memberId, totalDiamonds + bonusDiamonds, `Votes ${monthName}`);
-        if (result.success) {
-          distributionResults.success++;
-          playerStatus[player.playername] = 'success';
-        } else {
-          distributionResults.failed++;
-          playerStatus[player.playername] = 'failed';
-        }
-      } else {
-        distributionResults.notFound.push(player.playername);
-        playerStatus[player.playername] = 'notfound';
-      }
-    }
+    const adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
+    const { distributionResults, playerStatus } = await distributeWithChecks(ranking, memberIndex, votesConfig, monthName, adminChannel);
 
     let resultsMessage = `# ${votesConfig.STYLE.fireworks} Résultats des votes de ${monthName} ${votesConfig.STYLE.fireworks}\n\n`;
     const msg = votesConfig.MESSAGE || {};
@@ -190,15 +314,17 @@ async function autoPublishVotes() {
     if (distributionResults.failed > 0) {
       adminMessage += `   • ${distributionResults.failed} échecs\n`;
     }
-    if (distributionResults.notFound.length > 0) {
-      adminMessage += `   • ${distributionResults.notFound.length} joueurs non trouvés: ${distributionResults.notFound.join(', ')}\n`;
+    if (distributionResults.pendingDuplicates > 0) {
+      adminMessage += `   • ⏳ ${distributionResults.pendingDuplicates} doublon(s) en attente de validation (voir messages ci-dessous)\n`;
+    }
+    if (distributionResults.pendingNotFound > 0) {
+      adminMessage += `   • ⏳ ${distributionResults.pendingNotFound} joueur(s) non trouvé(s) en attente (voir messages ci-dessous)\n`;
     }
 
     if (draftBotCommands.length > 0) {
       adminMessage += `\n🎁 **Commandes DraftBot à copier-coller:**\n\`\`\`\n${draftBotCommands.join('\n')}\n\`\`\``;
     }
 
-    const adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
     if (adminChannel) {
       await adminChannel.send(adminMessage);
     }
@@ -397,7 +523,7 @@ client.on('interactionCreate', async interaction => {
       
       for (let i = 0; i < fullList.data.length; i++) {
         const player = fullList.data[i];
-        const statusText = player.status === 'success' ? '✅' : player.status === 'failed' ? '❌ échec' : player.status === 'notfound' ? '⚠️ non trouvé' : '✅';
+        const statusText = player.status === 'success' ? '✅' : player.status === 'pending' ? '⏳ en attente' : player.status === 'failed' ? '❌ échec' : player.status === 'notfound' ? '⚠️ non trouvé' : '✅';
         listMessage += `**${i + 1}.** **${player.playername}** — ${player.votes} votes — 💎 ${player.totalGain} ${statusText}\n`;
       }
 
@@ -410,6 +536,135 @@ client.on('interactionCreate', async interaction => {
       } catch (err) {
         console.log('⚠️ Interaction expirée pour le bouton liste complète');
       }
+      return;
+    }
+
+    const isVoteAdmin = interaction.customId.startsWith('vote_dup') || interaction.customId.startsWith('vote_ignore_') || interaction.customId.startsWith('vote_assign_');
+    if (isVoteAdmin && interaction.member && !hasRoulettePermission(interaction.member)) {
+      return interaction.reply({ content: '❌ Seuls les administrateurs et Modos peuvent valider les distributions.', ephemeral: true });
+    }
+
+    if (interaction.customId.startsWith('vote_dupkeep_')) {
+      const parts = interaction.customId.replace('vote_dupkeep_', '').split('_');
+      const choiceIdx = parseInt(parts.pop(), 10);
+      const pendingId = parts.join('_');
+      const pending = pendingDistributions.get(pendingId);
+      if (!pending || pending.resolved) {
+        return interaction.reply({ content: '❌ Cette demande a déjà été traitée.', ephemeral: true });
+      }
+      pending.resolved = true;
+      const chosen = pending.entries[choiceIdx];
+      const result = await addCashToUser(pending.memberId, chosen.totalGain, `Votes ${pending.monthName}`);
+      const statusText = result.success ? '✅ Distribué' : '❌ Échec';
+      await interaction.update({
+        content: `## ✅ Doublon résolu\n\n<@${pending.memberId}> — Entrée retenue : **"${chosen.playername}"** (${chosen.votes} votes)\n${statusText} : **${chosen.totalGain.toLocaleString('fr-FR')}** 💎`,
+        components: [],
+      });
+      return;
+    }
+
+    if (interaction.customId.startsWith('vote_dupmerge_')) {
+      const pendingId = interaction.customId.replace('vote_dupmerge_', '');
+      const pending = pendingDistributions.get(pendingId);
+      if (!pending || pending.resolved) {
+        return interaction.reply({ content: '❌ Cette demande a déjà été traitée.', ephemeral: true });
+      }
+      pending.resolved = true;
+      const totalVotes = pending.entries.reduce((s, e) => s + e.votes, 0);
+      const votesConfig = getVotesConfig();
+      const bestRank = Math.min(...pending.entries.map(e => e.rankIdx));
+      const totalDiamonds = totalVotes * votesConfig.DIAMONDS_PER_VOTE;
+      const bonusDiamonds = votesConfig.TOP_DIAMONDS[bestRank] || 0;
+      const totalGain = totalDiamonds + bonusDiamonds;
+      const result = await addCashToUser(pending.memberId, totalGain, `Votes ${pending.monthName} (fusionné)`);
+      const statusText = result.success ? '✅ Distribué' : '❌ Échec';
+      const names = pending.entries.map(e => `"${e.playername}"`).join(' + ');
+      await interaction.update({
+        content: `## ✅ Doublon fusionné\n\n<@${pending.memberId}> — ${names} fusionnés\nTotal : **${totalVotes} votes** → ${statusText} : **${totalGain.toLocaleString('fr-FR')}** 💎`,
+        components: [],
+      });
+      return;
+    }
+
+    if (interaction.customId.startsWith('vote_dupall_')) {
+      const pendingId = interaction.customId.replace('vote_dupall_', '');
+      const pending = pendingDistributions.get(pendingId);
+      if (!pending || pending.resolved) {
+        return interaction.reply({ content: '❌ Cette demande a déjà été traitée.', ephemeral: true });
+      }
+      pending.resolved = true;
+      let totalDistributed = 0;
+      let allSuccess = true;
+      for (const entry of pending.entries) {
+        const result = await addCashToUser(pending.memberId, entry.totalGain, `Votes ${pending.monthName} (${entry.playername})`);
+        if (result.success) {
+          totalDistributed += entry.totalGain;
+        } else {
+          allSuccess = false;
+        }
+      }
+      const names = pending.entries.map(e => `"${e.playername}" (${e.totalGain.toLocaleString('fr-FR')} 💎)`).join(' + ');
+      const statusText = allSuccess ? '✅ Tout distribué' : '⚠️ Distribution partielle';
+      await interaction.update({
+        content: `## ✅ Doublon — distribution complète\n\n<@${pending.memberId}> — ${names}\n${statusText} : **${totalDistributed.toLocaleString('fr-FR')}** 💎 au total`,
+        components: [],
+      });
+      return;
+    }
+
+    if (interaction.customId.startsWith('vote_ignore_')) {
+      const pendingId = interaction.customId.replace('vote_ignore_', '');
+      const pending = pendingDistributions.get(pendingId);
+      if (!pending || pending.resolved) {
+        return interaction.reply({ content: '❌ Cette demande a déjà été traitée.', ephemeral: true });
+      }
+      pending.resolved = true;
+      await interaction.update({
+        content: `## ⏭️ Ignoré\n\n**${pending.playername}** — ${pending.votes} votes — ${pending.totalGain.toLocaleString('fr-FR')} 💎\n*Aucune distribution effectuée.*`,
+        components: [],
+      });
+      return;
+    }
+
+    if (interaction.customId.startsWith('vote_assign_')) {
+      const pendingId = interaction.customId.replace('vote_assign_', '');
+      const pending = pendingDistributions.get(pendingId);
+      if (!pending || pending.resolved) {
+        return interaction.reply({ content: '❌ Cette demande a déjà été traitée.', ephemeral: true });
+      }
+      const { UserSelectMenuBuilder } = require('discord.js');
+      const userSelect = new UserSelectMenuBuilder()
+        .setCustomId(`vote_assignuser_${pendingId}`)
+        .setPlaceholder(`Choisir le membre pour "${pending.playername}"`)
+        .setMinValues(1)
+        .setMaxValues(1);
+      const row = new ActionRowBuilder().addComponents(userSelect);
+      await interaction.update({
+        content: `## ⚠️ Joueur non trouvé\n\n**${pending.playername}** — ${pending.votes} votes — ${pending.totalGain.toLocaleString('fr-FR')} 💎\n\n👇 Sélectionnez le membre Discord à qui attribuer les récompenses :`,
+        components: [row],
+      });
+      return;
+    }
+  }
+
+  if (interaction.isUserSelectMenu()) {
+    if (interaction.customId.startsWith('vote_assignuser_')) {
+      if (interaction.member && !hasRoulettePermission(interaction.member)) {
+        return interaction.reply({ content: '❌ Seuls les administrateurs et Modos peuvent valider les distributions.', ephemeral: true });
+      }
+      const pendingId = interaction.customId.replace('vote_assignuser_', '');
+      const pending = pendingDistributions.get(pendingId);
+      if (!pending || pending.resolved) {
+        return interaction.reply({ content: '❌ Cette demande a déjà été traitée.', ephemeral: true });
+      }
+      pending.resolved = true;
+      const selectedUserId = interaction.values[0];
+      const result = await addCashToUser(selectedUserId, pending.totalGain, `Votes ${pending.monthName} (${pending.playername})`);
+      const statusText = result.success ? '✅ Distribué' : '❌ Échec';
+      await interaction.update({
+        content: `## ✅ Joueur attribué\n\n**${pending.playername}** → <@${selectedUserId}>\n${statusText} : **${pending.totalGain.toLocaleString('fr-FR')}** 💎`,
+        components: [],
+      });
       return;
     }
   }
@@ -790,27 +1045,8 @@ client.on('interactionCreate', async interaction => {
       const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
       const monthName = monthNameFr(lastMonth);
 
-      const distributionResults = { success: 0, failed: 0, notFound: [] };
-      const playerStatus = {};
-
-      for (const player of ranking) {
-        const memberId = resolvePlayer(memberIndex, player.playername);
-        if (memberId) {
-          const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
-          const bonusDiamonds = votesConfig.TOP_DIAMONDS[ranking.indexOf(player) + 1] || 0;
-          const result = await addCashToUser(memberId, totalDiamonds + bonusDiamonds, `Votes ${monthName}`);
-          if (result.success) {
-            distributionResults.success++;
-            playerStatus[player.playername] = 'success';
-          } else {
-            distributionResults.failed++;
-            playerStatus[player.playername] = 'failed';
-          }
-        } else {
-          distributionResults.notFound.push(player.playername);
-          playerStatus[player.playername] = 'notfound';
-        }
-      }
+      const adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
+      const { distributionResults, playerStatus } = await distributeWithChecks(ranking, memberIndex, votesConfig, monthName, adminChannel);
 
       let resultsMessage = `# ${votesConfig.STYLE.fireworks} Résultats des votes de ${monthName} ${votesConfig.STYLE.fireworks}\n\n`;
       const msg = votesConfig.MESSAGE || {};
@@ -822,9 +1058,8 @@ client.on('interactionCreate', async interaction => {
         const player = top10[i];
         const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
         const bonusDiamonds = votesConfig.TOP_DIAMONDS[i + 1] || 0;
-        const memberId = resolvePlayer(memberIndex, player.playername);
         const status = playerStatus[player.playername];
-        const statusIcon = status === 'success' ? '' : status === 'failed' ? ' ❌' : ' ⚠️';
+        const statusIcon = status === 'success' ? '' : status === 'pending' ? ' ⏳' : status === 'failed' ? ' ❌' : ' ⚠️';
         
         resultsMessage += `**${i + 1}** - **${player.playername}**${statusIcon}\n`;
         resultsMessage += `Votes : ${player.votes} | Gains : ${totalDiamonds.toLocaleString('fr-FR')} ${votesConfig.STYLE.sparkly}\n`;
@@ -897,20 +1132,26 @@ client.on('interactionCreate', async interaction => {
       if (distributionResults.failed > 0) {
         adminMessage += `   • ${distributionResults.failed} échecs\n`;
       }
-      if (distributionResults.notFound.length > 0) {
-        adminMessage += `   • ${distributionResults.notFound.length} joueurs non trouvés: ${distributionResults.notFound.join(', ')}\n`;
+      if (distributionResults.pendingDuplicates > 0) {
+        adminMessage += `   • ⏳ ${distributionResults.pendingDuplicates} doublon(s) en attente de validation\n`;
+      }
+      if (distributionResults.pendingNotFound > 0) {
+        adminMessage += `   • ⏳ ${distributionResults.pendingNotFound} joueur(s) non trouvé(s) en attente\n`;
       }
 
       if (draftBotCommands.length > 0) {
         adminMessage += `\n🎁 **Commandes DraftBot à copier-coller:**\n\`\`\`\n${draftBotCommands.join('\n')}\n\`\`\``;
       }
 
-      const adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
       if (adminChannel) {
         await adminChannel.send(adminMessage);
       }
 
-      await interaction.editReply({ content: `✅ Résultats publiés dans <#${votesConfig.RESULTS_CHANNEL_ID}> et rapport envoyé dans <#${votesConfig.ADMIN_LOG_CHANNEL_ID}>` });
+      let replyText = `✅ Résultats publiés dans <#${votesConfig.RESULTS_CHANNEL_ID}>`;
+      if (distributionResults.pendingDuplicates > 0 || distributionResults.pendingNotFound > 0) {
+        replyText += ` | ⏳ ${distributionResults.pendingDuplicates + distributionResults.pendingNotFound} distribution(s) en attente dans <#${votesConfig.ADMIN_LOG_CHANNEL_ID}>`;
+      }
+      await interaction.editReply({ content: replyText });
       console.log(`📢 Résultats des votes publiés par ${interaction.user.tag} - ${distributionResults.success} récompensés`);
 
     } catch (error) {
@@ -1170,23 +1411,8 @@ client.on('interactionCreate', async interaction => {
       const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
       const monthName = monthNameFr(lastMonth);
 
-      const distributionResults = { success: 0, failed: 0, notFound: [] };
-
-      for (const player of ranking) {
-        const memberId = resolvePlayer(memberIndex, player.playername);
-        if (memberId) {
-          const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
-          const bonusDiamonds = votesConfig.TOP_DIAMONDS[ranking.indexOf(player) + 1] || 0;
-          const result = await addCashToUser(memberId, totalDiamonds + bonusDiamonds, `Votes ${monthName}`);
-          if (result.success) {
-            distributionResults.success++;
-          } else {
-            distributionResults.failed++;
-          }
-        } else {
-          distributionResults.notFound.push(player.playername);
-        }
-      }
+      const adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
+      const { distributionResults } = await distributeWithChecks(ranking, memberIndex, votesConfig, monthName, adminChannel);
 
       const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);
       
@@ -1196,20 +1422,26 @@ client.on('interactionCreate', async interaction => {
       if (distributionResults.failed > 0) {
         adminMessage += `   • ${distributionResults.failed} échecs\n`;
       }
-      if (distributionResults.notFound.length > 0) {
-        adminMessage += `   • ${distributionResults.notFound.length} joueurs non trouvés: ${distributionResults.notFound.join(', ')}\n`;
+      if (distributionResults.pendingDuplicates > 0) {
+        adminMessage += `   • ⏳ ${distributionResults.pendingDuplicates} doublon(s) en attente de validation\n`;
+      }
+      if (distributionResults.pendingNotFound > 0) {
+        adminMessage += `   • ⏳ ${distributionResults.pendingNotFound} joueur(s) non trouvé(s) en attente\n`;
       }
 
       if (draftBotCommands.length > 0) {
         adminMessage += `\n🎁 **Commandes DraftBot à copier-coller:**\n\`\`\`\n${draftBotCommands.join('\n')}\n\`\`\``;
       }
 
-      const adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
       if (adminChannel) {
         await adminChannel.send(adminMessage);
       }
 
-      await interaction.editReply({ content: `✅ Distribution terminée ! Rapport envoyé dans <#${votesConfig.ADMIN_LOG_CHANNEL_ID}>` });
+      let replyText = `✅ Distribution terminée ! Rapport envoyé dans <#${votesConfig.ADMIN_LOG_CHANNEL_ID}>`;
+      if (distributionResults.pendingDuplicates > 0 || distributionResults.pendingNotFound > 0) {
+        replyText += ` | ⏳ ${distributionResults.pendingDuplicates + distributionResults.pendingNotFound} en attente`;
+      }
+      await interaction.editReply({ content: replyText });
       console.log(`💎 Distribution des votes par ${interaction.user.tag} - ${distributionResults.success} récompensés`);
 
     } catch (error) {

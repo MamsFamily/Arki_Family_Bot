@@ -139,6 +139,8 @@ Dashboard d'administration accessible sur le port 5000, avec double authentifica
 5. Accéder au dashboard via le port 5000
 
 ## Changements récents
+- 2026-03-05: Système de détection de doublons et joueurs non trouvés avec notifications interactives admin (boutons pour résoudre)
+- 2026-03-05: Commande /distribution_recompenses pour publier la liste complète des votes avec @here
 - 2026-03-04: Publication automatique des résultats votes le 1er de chaque mois à 00h00 (Europe/Paris) via node-cron
 - 2026-03-04: Champ note optionnel sur chaque dino (affiché sous le prix dans les embeds Discord)
 - 2026-03-04: Police DejaVu Sans Bold embarquée pour la roue (corrige les carrés sur Railway)
