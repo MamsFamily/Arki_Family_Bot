@@ -270,11 +270,15 @@
       document.getElementById('notCompatible').checked = !!pack.notCompatible;
       document.getElementById('packUnavailable').checked = pack.available === false;
       document.getElementById('noReduction').checked = !!pack.noReduction;
+      const currentStrawberries = pack.priceStrawberries || 0;
       const expectedStrawberries = Math.round((pack.priceDiamonds || 0) * 0.3);
-      if ((pack.priceStrawberries || 0) === expectedStrawberries) {
+      if (currentStrawberries === 0 || currentStrawberries === expectedStrawberries) {
         strawberriesManual = false;
         document.getElementById('autoCalcBadge').textContent = '(auto)';
         document.getElementById('autoCalcBadge').style.color = '#888';
+        if (currentStrawberries === 0 && (pack.priceDiamonds || 0) > 0) {
+          document.getElementById('priceStrawberries').value = expectedStrawberries;
+        }
       } else {
         strawberriesManual = true;
         document.getElementById('autoCalcBadge').textContent = '(manuel)';

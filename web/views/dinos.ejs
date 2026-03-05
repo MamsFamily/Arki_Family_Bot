@@ -633,11 +633,15 @@
       document.getElementById('dinoName').value = dino.name || '';
       document.getElementById('dinoPriceDiamonds').value = dino.priceDiamonds || '';
       document.getElementById('dinoPriceStrawberries').value = dino.priceStrawberries || '';
+      const currentDinoStrawberries = dino.priceStrawberries || 0;
       const expectedDinoStrawberries = Math.round((dino.priceDiamonds || 0) * 0.3);
-      if ((dino.priceStrawberries || 0) === expectedDinoStrawberries) {
+      if (currentDinoStrawberries === 0 || currentDinoStrawberries === expectedDinoStrawberries) {
         dinoStrawberriesManual = false;
         document.getElementById('dinoAutoCalcBadge').textContent = '(auto)';
         document.getElementById('dinoAutoCalcBadge').style.color = '#888';
+        if (currentDinoStrawberries === 0 && (dino.priceDiamonds || 0) > 0) {
+          document.getElementById('dinoPriceStrawberries').value = expectedDinoStrawberries;
+        }
       } else {
         dinoStrawberriesManual = true;
         document.getElementById('dinoAutoCalcBadge').textContent = '(manuel)';
