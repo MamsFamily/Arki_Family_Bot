@@ -99,8 +99,8 @@ function createWebServer(discordClient) {
     const { getVotesConfig } = require('../votesConfig');
     const votesConfig = getVotesConfig();
 
-    const guildCount = discordClient.guilds.cache.size;
-    const memberCount = discordClient.guilds.cache.reduce((acc, g) => acc + g.memberCount, 0);
+    const guildCount = discordClient?.guilds?.cache?.size || 0;
+    const memberCount = discordClient?.guilds?.cache?.reduce((acc, g) => acc + g.memberCount, 0) || 0;
 
     res.render('dashboard', {
       config,
@@ -284,7 +284,7 @@ function createWebServer(discordClient) {
     const shop = getShop();
     const settings = getSettings();
     const configuredGuildId = settings.guild.guildId;
-    const guild = configuredGuildId ? discordClient.guilds.cache.get(configuredGuildId) : discordClient.guilds.cache.first();
+    const guild = discordClient ? (configuredGuildId ? discordClient.guilds.cache.get(configuredGuildId) : discordClient.guilds.cache.first()) : null;
     let channels = [];
     if (guild) {
       const categories = guild.channels.cache
@@ -431,7 +431,7 @@ function createWebServer(discordClient) {
     const letterMessages = getLetterMessages();
     const settings = getSettings();
     const configuredGuildId = settings.guild.guildId;
-    const guild = configuredGuildId ? discordClient.guilds.cache.get(configuredGuildId) : discordClient.guilds.cache.first();
+    const guild = discordClient ? (configuredGuildId ? discordClient.guilds.cache.get(configuredGuildId) : discordClient.guilds.cache.first()) : null;
     let channels = [];
     if (guild) {
       const categories = guild.channels.cache

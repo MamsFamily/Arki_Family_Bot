@@ -102,7 +102,7 @@
                     <% } %>
                   </div>
                   <div class="pack-actions">
-                    <button class="btn btn-sm btn-secondary" onclick='editPack(<%- JSON.stringify(pack) %>)'>&#x270F;&#xFE0F; Modifier</button>
+                    <button class="btn btn-sm btn-secondary" data-pack="<%= JSON.stringify(pack) %>" onclick="editPack(JSON.parse(this.dataset.pack))">&#x270F;&#xFE0F; Modifier</button>
                     <form method="POST" action="/shop/publish/<%= pack.id %>" style="display:inline">
                       <button type="submit" class="btn btn-sm btn-primary"><%= pack.messageId ? '&#x1F504; Mettre &agrave; jour' : '&#x1F4E4; Publier' %></button>
                     </form>
