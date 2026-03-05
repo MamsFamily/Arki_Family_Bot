@@ -60,7 +60,7 @@ function createWebServer(discordClient) {
   }
 
   app.use((req, res, next) => {
-    res.locals.botUser = discordClient.user;
+    res.locals.botUser = discordClient?.user || null;
     res.locals.path = req.path;
     res.locals.role = req.session?.role || null;
     next();
