@@ -2,6 +2,7 @@ const express = require('express');
 const session = require('express-session');
 const path = require('path');
 const fs = require('fs');
+const axios = require('axios');
 const { getSettings, updateSection } = require('../settingsManager');
 const { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, buildPackEmbed, DEFAULT_CATEGORIES } = require('../shopManager');
 const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, getPaidDLCDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildModdedEmbeds, buildShoulderEmbed, buildSaleEmbed, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, getAllLetters, updateNavMessage, getNavMessage, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
@@ -44,50 +45,122 @@ function createWebServer(discordClient) {
   });
 
   function requireAuth(req, res, next) {
-    if (req.session && req.session.authenticated) {
+    if (req.session && req.session.authenticated && req.session.discordUser) {
       return next();
     }
     res.redirect('/login');
   }
 
   function requireAdmin(req, res, next) {
-    if (req.session && req.session.authenticated && req.session.role === 'admin') {
+    if (req.session && req.session.authenticated && req.session.discordUser && req.session.role === 'admin') {
       return next();
     }
-    if (req.session && req.session.authenticated) {
+    if (req.session && req.session.authenticated && req.session.discordUser) {
       return res.redirect('/shop');
     }
     res.redirect('/login');
+  }
+
+  function getBaseUrl(req) {
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const host = req.headers['x-forwarded-host'] || req.headers.host;
+    return `${proto}://${host}`;
+  }
+
+  function getDiscordOAuthUrl(req, state) {
+    const clientId = process.env.DISCORD_CLIENT_ID;
+    const redirectUri = encodeURIComponent(`${getBaseUrl(req)}/auth/discord/callback`);
+    return `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=identify&state=${state}`;
   }
 
   app.use((req, res, next) => {
     res.locals.botUser = discordClient?.user || null;
     res.locals.path = req.path;
     res.locals.role = req.session?.role || null;
+    res.locals.discordUser = req.session?.discordUser || null;
     next();
   });
 
   app.get('/login', (req, res) => {
-    if (req.session && req.session.authenticated) {
+    if (req.session && req.session.authenticated && req.session.discordUser) {
       return res.redirect(req.session.role === 'admin' ? '/' : '/shop');
     }
-    res.render('login', { error: null });
+    res.render('login', { error: req.query.error || null });
   });
 
   app.post('/login', (req, res) => {
     const { password } = req.body;
     const passwords = getPasswords();
+    let role = null;
     if (password === passwords.admin) {
-      req.session.authenticated = true;
-      req.session.role = 'admin';
-      return res.redirect('/');
+      role = 'admin';
+    } else if (password === passwords.staff) {
+      role = 'staff';
     }
-    if (password === passwords.staff) {
-      req.session.authenticated = true;
-      req.session.role = 'staff';
-      return res.redirect('/shop');
+    if (!role) {
+      return res.render('login', { error: 'Mot de passe incorrect' });
     }
-    res.render('login', { error: 'Mot de passe incorrect' });
+    req.session.pendingRole = role;
+    const state = require('crypto').randomBytes(16).toString('hex');
+    req.session.oauthState = state;
+    res.redirect(getDiscordOAuthUrl(req, state));
+  });
+
+  app.get('/auth/discord/callback', async (req, res) => {
+    const { code, state } = req.query;
+    if (!code || !state || state !== req.session?.oauthState) {
+      return res.redirect('/login?error=' + encodeURIComponent('Authentification Discord échouée'));
+    }
+    try {
+      const redirectUri = `${getBaseUrl(req)}/auth/discord/callback`;
+      const tokenRes = await axios.post('https://discord.com/api/oauth2/token', new URLSearchParams({
+        client_id: process.env.DISCORD_CLIENT_ID,
+        client_secret: process.env.DISCORD_CLIENT_SECRET,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+      }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+
+      const userRes = await axios.get('https://discord.com/api/users/@me', {
+        headers: { Authorization: `Bearer ${tokenRes.data.access_token}` }
+      });
+
+      const discordUser = userRes.data;
+      let displayName = discordUser.global_name || discordUser.username;
+      if (discordClient) {
+        try {
+          const settings = getSettings();
+          const guildId = settings.guild.guildId;
+          const guild = guildId ? discordClient.guilds.cache.get(guildId) : discordClient.guilds.cache.first();
+          if (guild) {
+            const member = await guild.members.fetch(discordUser.id).catch(() => null);
+            if (member && member.displayName) {
+              displayName = member.displayName;
+            }
+          }
+        } catch (e) {}
+      }
+
+      req.session.authenticated = true;
+      req.session.role = req.session.pendingRole || 'staff';
+      req.session.discordUser = {
+        id: discordUser.id,
+        username: discordUser.username,
+        displayName,
+        avatar: discordUser.avatar
+          ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=64`
+          : `https://cdn.discordapp.com/embed/avatars/${(BigInt(discordUser.id) >> 22n) % 6n}.png`,
+      };
+      delete req.session.pendingRole;
+      delete req.session.oauthState;
+
+      res.redirect(req.session.role === 'admin' ? '/' : '/shop');
+    } catch (err) {
+      console.error('Erreur OAuth Discord:', err.response?.data || err.message);
+      delete req.session.pendingRole;
+      delete req.session.oauthState;
+      res.redirect('/login?error=' + encodeURIComponent('Erreur lors de la connexion Discord'));
+    }
   });
 
   app.get('/logout', (req, res) => {
@@ -905,14 +978,13 @@ function createWebServer(discordClient) {
     }
   });
 
-  async function sendInventoryLog(action, adminRole, itemType, quantity, playerId) {
+  async function sendInventoryLog(action, adminName, itemType, quantity, playerId) {
     try {
       const settings = getSettings();
       const channelId = settings.guild.inventoryLogChannelId;
       if (!channelId || !discordClient) return;
       const channel = await discordClient.channels.fetch(channelId);
       if (!channel) return;
-      const adminName = adminRole === 'admin' ? 'Admin' : 'Staff';
       const verb = action === 'add' ? 'a ajouté' : 'a retiré';
       const prep = action === 'add' ? 'à l\'inventaire de' : 'de l\'inventaire de';
       await channel.send(`${itemType.emoji} **${adminName}** ${verb} **${quantity} ${itemType.name}** ${prep} <@${playerId}>`);
@@ -931,10 +1003,9 @@ function createWebServer(discordClient) {
     if (!itemType) {
       return res.json({ error: 'Type d\'item introuvable' });
     }
-    const adminRole = req.session.role;
-    const adminLabel = adminRole === 'admin' ? 'Admin' : 'Staff';
-    const result = await inventoryManager.addToInventory(playerId, itemTypeId, parseInt(quantity) || 1, adminLabel, reason || '');
-    sendInventoryLog('add', adminRole, itemType, parseInt(quantity) || 1, playerId);
+    const adminName = req.session.discordUser?.displayName || (req.session.role === 'admin' ? 'Admin' : 'Staff');
+    const result = await inventoryManager.addToInventory(playerId, itemTypeId, parseInt(quantity) || 1, adminName, reason || '');
+    sendInventoryLog('add', adminName, itemType, parseInt(quantity) || 1, playerId);
     res.json({ success: true, newQuantity: result.newQuantity });
   });
 
@@ -948,10 +1019,9 @@ function createWebServer(discordClient) {
     if (!itemType) {
       return res.json({ error: 'Type d\'item introuvable' });
     }
-    const adminRole = req.session.role;
-    const adminLabel = adminRole === 'admin' ? 'Admin' : 'Staff';
-    const result = await inventoryManager.removeFromInventory(playerId, itemTypeId, parseInt(quantity) || 1, adminLabel, reason || '');
-    sendInventoryLog('remove', adminRole, itemType, parseInt(quantity) || 1, playerId);
+    const adminName = req.session.discordUser?.displayName || (req.session.role === 'admin' ? 'Admin' : 'Staff');
+    const result = await inventoryManager.removeFromInventory(playerId, itemTypeId, parseInt(quantity) || 1, adminName, reason || '');
+    sendInventoryLog('remove', adminName, itemType, parseInt(quantity) || 1, playerId);
     res.json({ success: true, newQuantity: result.newQuantity });
   });
 

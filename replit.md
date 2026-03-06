@@ -8,9 +8,11 @@ Bot Discord avec quatre fonctionnalités principales :
 4. **Système d'inventaire joueurs** - Gestion complète des inventaires (items, monnaies, dinos, équipements) avec historique des transactions
 
 ## Dashboard Web
-Dashboard d'administration accessible sur le port 5000, avec double authentification :
+Dashboard d'administration accessible sur le port 5000, avec triple authentification :
+- **Mot de passe** (admin ou staff) puis **Discord OAuth2** pour identifier l'utilisateur
 - **Admin** (mot de passe admin dans settings.json > auth.adminPassword) : accès complet à tout le dashboard
-- **Staff** (mot de passe staff dans settings.json > auth.staffPassword) : accès uniquement au Shop et Prix Dinos
+- **Staff** (mot de passe staff dans settings.json > auth.staffPassword) : accès uniquement au Shop, Prix Dinos et Inventaires joueurs
+- **Identification Discord** : après le mot de passe, redirection vers Discord OAuth2 pour identifier qui se connecte ; le nom Discord apparaît dans la sidebar et dans les logs d'inventaire
 - **Tableau de bord** : Vue d'ensemble (serveurs, membres, uptime, config roulette)
 - **Roulette** : Modifier le titre et les choix depuis le navigateur
 - **Classement Votes** : Voir le classement des votes en temps réel depuis TopServeurs
@@ -123,9 +125,11 @@ Dashboard d'administration accessible sur le port 5000, avec double authentifica
 4. Ajouter les secrets Replit:
    - `DISCORD_TOKEN`: Token du bot Discord
    - `DISCORD_CLIENT_ID`: ID client de l'application Discord
+   - `DISCORD_CLIENT_SECRET`: Secret client Discord (pour OAuth2 dashboard)
    - `UNBELIEVABOAT_TOKEN`: Token API UnbelievaBoat
    - `SESSION_SECRET`: Clé de session pour le dashboard
    - `DASHBOARD_PASSWORD`: Mot de passe du dashboard web
+5. Ajouter l'URL de callback OAuth2 dans Discord Developer Portal → OAuth2 → Redirects : `https://<votre-domaine>/auth/discord/callback`
 
 ## Configuration des votes (votesConfig.js)
 - `GUILD_ID`: ID du serveur Discord (1156256997403000874)
@@ -144,6 +148,7 @@ Dashboard d'administration accessible sur le port 5000, avec double authentifica
 5. Accéder au dashboard via le port 5000
 
 ## Changements récents
+- 2026-03-06: Authentification Discord OAuth2 sur le dashboard (mot de passe + identification Discord, nom réel dans les logs inventaire et sidebar)
 - 2026-03-06: Système d'inventaire joueurs complet (inventoryManager.js) avec types d'items personnalisables, CRUD joueur, historique des transactions
 - 2026-03-06: Commandes Discord /inventaire et /inventaire-admin (ajouter/retirer/reset/historique) avec autocomplete items
 - 2026-03-06: Dashboard inventaires (types d'items, recherche joueur, modification inventaire, historique filtrable)

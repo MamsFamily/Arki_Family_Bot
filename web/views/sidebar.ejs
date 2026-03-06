@@ -55,6 +55,15 @@
     <% } %>
   </nav>
   <div class="sidebar-footer">
+    <% if (discordUser) { %>
+    <div class="sidebar-user">
+      <img src="<%= discordUser.avatar %>" alt="Avatar" class="sidebar-user-avatar">
+      <div class="sidebar-user-info">
+        <span class="sidebar-user-name"><%= discordUser.displayName %></span>
+        <span class="sidebar-user-role"><%= role === 'admin' ? 'Administrateur' : 'Staff' %></span>
+      </div>
+    </div>
+    <% } %>
     <a href="/logout" class="nav-link">
       <span class="icon">🚪</span> Déconnexion
     </a>
