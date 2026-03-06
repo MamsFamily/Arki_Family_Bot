@@ -1,10 +1,11 @@
 # Bot Discord Arki Roulette
 
 ## Vue d'ensemble
-Bot Discord avec trois fonctionnalités principales :
+Bot Discord avec quatre fonctionnalités principales :
 1. **Roulette de la chance** - Roue animée style Nintendo avec choix personnalisables
 2. **Système de votes mensuels** - Suivi et récompenses automatiques des votants via TopServeurs API
 3. **Traduction et reformulation** - Traduction par réaction (🇫🇷/🇬🇧), commande /traduction, et reformulation style Kaamelott via IA (réaction emoji Arthur)
+4. **Système d'inventaire joueurs** - Gestion complète des inventaires (items, monnaies, dinos, équipements) avec historique des transactions
 
 ## Dashboard Web
 Dashboard d'administration accessible sur le port 5000, avec double authentification :
@@ -16,6 +17,7 @@ Dashboard d'administration accessible sur le port 5000, avec double authentifica
 - **Récompenses** : Modifier diamants/vote, bonus top 4-5, lots du top 3 (emojis + quantités)
 - **Message publié** : Personnaliser tous les textes du message de résultats (intro, crédits, packs, mémo, dino shiny) avec aperçu en direct
 - **Paramètres** : Configurer les IDs de canaux, rôles, emojis, URL API, ping @everyone, et aliases joueurs
+- **Inventaires** : Gestion des types d'items, recherche joueur, modification d'inventaire, historique des transactions (admin uniquement)
 
 ## Fonctionnalités
 
@@ -72,6 +74,8 @@ Dashboard d'administration accessible sur le port 5000, avec double authentifica
 ├── shop.json              # Données des packs du shop (généré automatiquement)
 ├── dinoManager.js         # Gestionnaire des dinos (prix, variants, publication par lettre)
 ├── dinos.json             # Données des dinos (généré automatiquement)
+├── inventoryManager.js    # Gestionnaire inventaires joueurs (items, transactions, CRUD)
+├── inventory.json         # Données inventaires (généré automatiquement, fallback JSON)
 ├── votesConfig.js         # Export dynamique getVotesConfig() depuis settingsManager
 ├── topserveursService.js  # Service API TopServeurs
 ├── unbelievaboatService.js# Service API UnbelievaBoat (diamants)
@@ -89,6 +93,7 @@ Dashboard d'administration accessible sur le port 5000, avec double authentifica
 │   │   ├── message.ejs    # Template du message publié
 │   │   ├── shop.ejs       # Gestion du shop (packs, embeds)
 │   │   ├── dinos.ejs      # Gestion des prix dinos (par lettre, variants)
+│   │   ├── inventory.ejs  # Gestion inventaires (types items, joueurs, historique)
 │   │   └── settings.ejs   # Paramètres (canaux, rôles, emojis, aliases)
 │   └── public/css/        # Styles CSS
 ├── pgStore.js             # Module PostgreSQL (connexion, lecture/écriture, fallback JSON)
@@ -139,6 +144,9 @@ Dashboard d'administration accessible sur le port 5000, avec double authentifica
 5. Accéder au dashboard via le port 5000
 
 ## Changements récents
+- 2026-03-06: Système d'inventaire joueurs complet (inventoryManager.js) avec types d'items personnalisables, CRUD joueur, historique des transactions
+- 2026-03-06: Commandes Discord /inventaire et /inventaire-admin (ajouter/retirer/reset/historique) avec autocomplete items
+- 2026-03-06: Dashboard inventaires (types d'items, recherche joueur, modification inventaire, historique filtrable)
 - 2026-03-05: Système de détection de doublons et joueurs non trouvés avec notifications interactives admin (boutons pour résoudre)
 - 2026-03-05: Commande /distribution_recompenses pour publier la liste complète des votes avec @here
 - 2026-03-04: Publication automatique des résultats votes le 1er de chaque mois à 00h00 (Europe/Paris) via node-cron

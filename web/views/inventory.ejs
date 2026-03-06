@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inventaires - Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .inv-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 24px;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 0;
+    }
+    .inv-tab {
+      padding: 12px 20px;
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+    .inv-tab:hover { color: var(--text-primary); }
+    .inv-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    .inv-tab-content { display: none; }
+    .inv-tab-content.active { display: block; }
+    .item-type-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+    }
+    .item-type-card {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: transform 0.2s;
+    }
+    .item-type-card:hover { transform: translateY(-1px); }
+    .item-type-emoji {
+      font-size: 28px;
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(124, 92, 252, 0.1);
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+    .item-type-info { flex: 1; min-width: 0; }
+    .item-type-name { font-weight: 700; font-size: 14px; color: #fff; }
+    .item-type-cat { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+    .item-type-actions { display: flex; gap: 4px; flex-shrink: 0; }
+    .player-search-box {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .player-search-box input {
+      flex: 1;
+      padding: 12px 16px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: inherit;
+    }
+    .player-search-box input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .player-inv-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .player-inv-item {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .player-inv-item .inv-emoji { font-size: 22px; }
+    .player-inv-item .inv-name { font-size: 13px; color: var(--text-secondary); }
+    .player-inv-item .inv-qty { font-size: 18px; font-weight: 700; color: #fff; margin-left: auto; }
+    .tx-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .tx-table th {
+      text-align: left;
+      padding: 10px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .tx-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(58, 61, 92, 0.5);
+      font-size: 13px;
+    }
+    .tx-table tr:hover td { background: var(--accent-light); }
+    .tx-type-add { color: #4caf50; font-weight: 600; }
+    .tx-type-remove { color: #f44336; font-weight: 600; }
+    .tx-type-reset { color: #ff9800; font-weight: 600; }
+    .player-inv-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+    .tx-filters {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+    .tx-filters .form-group {
+      margin-bottom: 0;
+      min-width: 160px;
+    }
+    .tx-filters .form-group label {
+      margin-bottom: 4px;
+      font-size: 12px;
+    }
+    .tx-filters .form-group input,
+    .tx-filters .form-group select {
+      padding: 8px 12px;
+      font-size: 13px;
+    }
+    #playerResult { margin-top: 20px; }
+    .loading-spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>📦 Gestion des Inventaires</h1>
+        <p>G&eacute;rez les types d'items, les inventaires joueurs et consultez l'historique</p>
+      </div>
+
+      <% if (success) { %>
+        <div class="alert alert-success">&#x2705; <%= success %></div>
+      <% } %>
+      <% if (error) { %>
+        <div class="alert alert-error">&#x274C; <%= error %></div>
+      <% } %>
+
+      <div class="inv-tabs">
+        <button class="inv-tab active" onclick="switchTab('itemTypes')">&#x1F3F7;&#xFE0F; Types d'items</button>
+        <button class="inv-tab" onclick="switchTab('players')">&#x1F464; Inventaire joueur</button>
+        <button class="inv-tab" onclick="switchTab('transactions')">&#x1F4DC; Historique</button>
+      </div>
+
+      <div id="tab-itemTypes" class="inv-tab-content active">
+        <div class="card">
+          <div class="card-header">
+            <h2>&#x1F3F7;&#xFE0F; Types d'items</h2>
+            <button class="btn btn-primary" onclick="openItemTypeModal()">+ Nouveau type</button>
+          </div>
+          <div class="card-body">
+            <% if (itemTypes.length === 0) { %>
+              <div class="empty-state">
+                <div class="icon">&#x1F4E6;</div>
+                <p>Aucun type d'item. Cliquez sur "Nouveau type" pour commencer.</p>
+              </div>
+            <% } else { %>
+              <div class="item-type-grid">
+                <% itemTypes.forEach(item => {
+                  const cat = categories.find(c => c.id === item.category) || { name: 'Autre', emoji: '🔮' };
+                %>
+                  <div class="item-type-card">
+                    <div class="item-type-emoji"><%= item.emoji %></div>
+                    <div class="item-type-info">
+                      <div class="item-type-name"><%= item.name %></div>
+                      <div class="item-type-cat"><%= cat.emoji %> <%= cat.name %></div>
+                    </div>
+                    <div class="item-type-actions">
+                      <button class="btn btn-sm btn-secondary" onclick='editItemType(<%- JSON.stringify(item).replace(/'/g, "&#39;") %>)'>&#x270F;&#xFE0F;</button>
+                      <form method="POST" action="/inventory/item-types/delete/<%= item.id %>" style="display:inline" onsubmit="return confirm('Supprimer le type &quot;<%= item.name %>&quot; ?')">
+                        <button type="submit" class="btn btn-sm btn-danger">&#x1F5D1;&#xFE0F;</button>
+                      </form>
+                    </div>
+                  </div>
+                <% }); %>
+              </div>
+            <% } %>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-players" class="inv-tab-content">
+        <div class="card">
+          <div class="card-header">
+            <h2>&#x1F464; Rechercher un joueur</h2>
+          </div>
+          <div class="card-body">
+            <div class="player-search-box">
+              <input type="text" id="playerSearchInput" placeholder="ID Discord du joueur (ex: 123456789012345678)" onkeydown="if(event.key==='Enter')searchPlayer()">
+              <button class="btn btn-primary" onclick="searchPlayer()">&#x1F50D; Rechercher</button>
+            </div>
+            <div id="playerResult"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-transactions" class="inv-tab-content">
+        <div class="card">
+          <div class="card-header">
+            <h2>&#x1F4DC; Historique des transactions</h2>
+          </div>
+          <div class="card-body">
+            <div class="tx-filters">
+              <div class="form-group">
+                <label>Joueur (ID)</label>
+                <input type="text" id="txFilterPlayer" placeholder="ID Discord">
+              </div>
+              <div class="form-group">
+                <label>Type d'item</label>
+                <select id="txFilterItem">
+                  <option value="">Tous</option>
+                  <% itemTypes.forEach(it => { %>
+                    <option value="<%= it.id %>"><%= it.emoji %> <%= it.name %></option>
+                  <% }); %>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Op&eacute;ration</label>
+                <select id="txFilterType">
+                  <option value="">Toutes</option>
+                  <option value="add">Ajout</option>
+                  <option value="remove">Retrait</option>
+                  <option value="reset">Reset</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <button class="btn btn-primary btn-sm" onclick="loadTransactions()">&#x1F50D; Filtrer</button>
+              </div>
+            </div>
+            <div id="transactionsResult">
+              <div style="text-align:center;color:var(--text-muted);padding:30px;">Cliquez sur "Filtrer" pour charger l'historique</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="itemTypeModal">
+        <div class="modal-card" style="max-width:500px;">
+          <div class="modal-header">
+            <h2 id="itemTypeModalTitle">&#x1F4E6; Nouveau type d'item</h2>
+            <button class="modal-close" onclick="closeItemTypeModal()">&times;</button>
+          </div>
+          <form method="POST" action="/inventory/item-types" id="itemTypeForm">
+            <input type="hidden" name="itemId" id="itemTypeId" value="">
+            <div class="modal-body">
+              <div class="form-group">
+                <label for="itemTypeName">Nom</label>
+                <input type="text" id="itemTypeName" name="name" required placeholder="Ex: Diamants">
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="itemTypeEmoji">Emoji</label>
+                  <input type="text" id="itemTypeEmoji" name="emoji" placeholder="Ex: 💎" maxlength="10">
+                </div>
+                <div class="form-group">
+                  <label for="itemTypeCategory">Cat&eacute;gorie</label>
+                  <select id="itemTypeCategory" name="category">
+                    <% categories.forEach(cat => { %>
+                      <option value="<%= cat.id %>"><%= cat.emoji %> <%= cat.name %></option>
+                    <% }); %>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="itemTypeOrder">Ordre d'affichage</label>
+                <input type="number" id="itemTypeOrder" name="order" min="1" value="<%= itemTypes.length + 1 %>">
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" onclick="closeItemTypeModal()">Annuler</button>
+              <button type="submit" class="btn btn-primary" id="itemTypeSubmitBtn">&#x1F4BE; Cr&eacute;er</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="playerEditModal">
+        <div class="modal-card" style="max-width:450px;">
+          <div class="modal-header">
+            <h2 id="playerEditTitle">&#x1F4E6; Modifier l'inventaire</h2>
+            <button class="modal-close" onclick="closePlayerEditModal()">&times;</button>
+          </div>
+          <form id="playerEditForm" onsubmit="return submitPlayerEdit(event)">
+            <input type="hidden" id="editPlayerId" value="">
+            <input type="hidden" id="editAction" value="add">
+            <div class="modal-body">
+              <div class="form-group">
+                <label for="editItemType">Item</label>
+                <select id="editItemType" name="itemTypeId" required>
+                  <% itemTypes.forEach(it => { %>
+                    <option value="<%= it.id %>"><%= it.emoji %> <%= it.name %></option>
+                  <% }); %>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="editQuantity">Quantit&eacute;</label>
+                <input type="number" id="editQuantity" name="quantity" min="1" value="1" required>
+              </div>
+              <div class="form-group">
+                <label for="editReason">Raison (optionnel)</label>
+                <input type="text" id="editReason" name="reason" placeholder="Ex: Achat shop">
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" onclick="closePlayerEditModal()">Annuler</button>
+              <button type="submit" class="btn btn-primary" id="playerEditSubmitBtn">&#x1F4BE; Confirmer</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    var itemTypesData = <%- JSON.stringify(itemTypes).replace(/<\//g, '<\\/') %>;
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.inv-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.inv-tab-content').forEach(t => t.classList.remove('active'));
+      document.getElementById('tab-' + tabId).classList.add('active');
+      document.querySelectorAll('.inv-tab')[['itemTypes','players','transactions'].indexOf(tabId)].classList.add('active');
+    }
+
+    function openItemTypeModal(item) {
+      document.getElementById('itemTypeModal').classList.add('show');
+      if (item) {
+        document.getElementById('itemTypeModalTitle').textContent = '\u270F\uFE0F Modifier : ' + item.name;
+        document.getElementById('itemTypeSubmitBtn').textContent = '\uD83D\uDCBE Sauvegarder';
+        document.getElementById('itemTypeId').value = item.id;
+        document.getElementById('itemTypeName').value = item.name;
+        document.getElementById('itemTypeEmoji').value = item.emoji || '';
+        document.getElementById('itemTypeCategory').value = item.category || 'other';
+        document.getElementById('itemTypeOrder').value = item.order || 1;
+      } else {
+        document.getElementById('itemTypeModalTitle').textContent = '\uD83D\uDCE6 Nouveau type d\'item';
+        document.getElementById('itemTypeSubmitBtn').textContent = '\uD83D\uDCBE Cr\u00e9er';
+        document.getElementById('itemTypeId').value = '';
+        document.getElementById('itemTypeName').value = '';
+        document.getElementById('itemTypeEmoji').value = '';
+        document.getElementById('itemTypeCategory').value = 'other';
+        document.getElementById('itemTypeOrder').value = itemTypesData.length + 1;
+      }
+    }
+
+    function closeItemTypeModal() {
+      document.getElementById('itemTypeModal').classList.remove('show');
+    }
+
+    function editItemType(item) {
+      openItemTypeModal(item);
+    }
+
+    document.getElementById('itemTypeModal').addEventListener('click', function(e) {
+      if (e.target === this) closeItemTypeModal();
+    });
+
+    function searchPlayer() {
+      var playerId = document.getElementById('playerSearchInput').value.trim();
+      if (!playerId) return;
+      var container = document.getElementById('playerResult');
+      container.innerHTML = '<div style="text-align:center;padding:20px;"><div class="loading-spinner"></div> Chargement...</div>';
+
+      fetch('/inventory/api/player/' + encodeURIComponent(playerId))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.error) {
+            container.innerHTML = '<div class="alert alert-error">\u274C ' + data.error + '</div>';
+            return;
+          }
+          renderPlayerInventory(container, data);
+        })
+        .catch(function(err) {
+          container.innerHTML = '<div class="alert alert-error">\u274C Erreur de connexion</div>';
+        });
+    }
+
+    function renderPlayerInventory(container, data) {
+      var inv = data.inventory || {};
+      var player = data.player || {};
+      var playerId = data.playerId;
+      var displayName = player.displayName || player.username || playerId;
+
+      var html = '<div style="margin-bottom:16px;">';
+      html += '<h3 style="color:#fff;margin-bottom:4px;">\uD83D\uDC64 ' + escapeHtml(displayName) + '</h3>';
+      html += '<span style="color:var(--text-muted);font-size:13px;">ID: ' + escapeHtml(playerId) + '</span>';
+      html += '</div>';
+
+      var hasItems = false;
+      html += '<div class="player-inv-grid">';
+      itemTypesData.forEach(function(it) {
+        var qty = inv[it.id] || 0;
+        if (qty > 0) hasItems = true;
+        html += '<div class="player-inv-item">';
+        html += '<span class="inv-emoji">' + it.emoji + '</span>';
+        html += '<span class="inv-name">' + escapeHtml(it.name) + '</span>';
+        html += '<span class="inv-qty">' + qty + '</span>';
+        html += '</div>';
+      });
+      html += '</div>';
+
+      if (!hasItems) {
+        html += '<div style="text-align:center;color:var(--text-muted);padding:12px;margin-top:8px;">Inventaire vide</div>';
+      }
+
+      html += '<div class="player-inv-actions">';
+      html += '<button class="btn btn-sm btn-primary" onclick="openPlayerEdit(\'' + escapeHtml(playerId) + '\', \'add\')">+ Ajouter des items</button>';
+      html += '<button class="btn btn-sm btn-secondary" onclick="openPlayerEdit(\'' + escapeHtml(playerId) + '\', \'remove\')">- Retirer des items</button>';
+      html += '</div>';
+
+      container.innerHTML = html;
+    }
+
+    function openPlayerEdit(playerId, action) {
+      document.getElementById('playerEditModal').classList.add('show');
+      document.getElementById('editPlayerId').value = playerId;
+      document.getElementById('editAction').value = action;
+      document.getElementById('editQuantity').value = 1;
+      document.getElementById('editReason').value = '';
+      if (action === 'add') {
+        document.getElementById('playerEditTitle').textContent = '\u2795 Ajouter des items';
+        document.getElementById('playerEditSubmitBtn').textContent = '\u2795 Ajouter';
+        document.getElementById('playerEditSubmitBtn').className = 'btn btn-primary';
+      } else {
+        document.getElementById('playerEditTitle').textContent = '\u2796 Retirer des items';
+        document.getElementById('playerEditSubmitBtn').textContent = '\u2796 Retirer';
+        document.getElementById('playerEditSubmitBtn').className = 'btn btn-danger';
+      }
+    }
+
+    function closePlayerEditModal() {
+      document.getElementById('playerEditModal').classList.remove('show');
+    }
+
+    document.getElementById('playerEditModal').addEventListener('click', function(e) {
+      if (e.target === this) closePlayerEditModal();
+    });
+
+    function submitPlayerEdit(e) {
+      e.preventDefault();
+      var playerId = document.getElementById('editPlayerId').value;
+      var action = document.getElementById('editAction').value;
+      var itemTypeId = document.getElementById('editItemType').value;
+      var quantity = parseInt(document.getElementById('editQuantity').value) || 1;
+      var reason = document.getElementById('editReason').value;
+
+      var url = '/inventory/player/' + encodeURIComponent(playerId) + '/' + action;
+
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemTypeId: itemTypeId, quantity: quantity, reason: reason })
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.error) {
+            alert('\u274C ' + data.error);
+            return;
+          }
+          closePlayerEditModal();
+          searchPlayer();
+        })
+        .catch(function(err) {
+          alert('\u274C Erreur de connexion');
+        });
+
+      return false;
+    }
+
+    function loadTransactions() {
+      var playerId = document.getElementById('txFilterPlayer').value.trim();
+      var itemTypeId = document.getElementById('txFilterItem').value;
+      var type = document.getElementById('txFilterType').value;
+
+      var params = new URLSearchParams();
+      if (playerId) params.set('playerId', playerId);
+      if (itemTypeId) params.set('itemTypeId', itemTypeId);
+      if (type) params.set('type', type);
+
+      var container = document.getElementById('transactionsResult');
+      container.innerHTML = '<div style="text-align:center;padding:20px;"><div class="loading-spinner"></div> Chargement...</div>';
+
+      fetch('/inventory/api/transactions?' + params.toString())
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          renderTransactions(container, data);
+        })
+        .catch(function(err) {
+          container.innerHTML = '<div class="alert alert-error">\u274C Erreur de connexion</div>';
+        });
+    }
+
+    function renderTransactions(container, data) {
+      var txs = data.transactions || [];
+      var total = data.total || 0;
+
+      if (txs.length === 0) {
+        container.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:30px;">Aucune transaction trouv\u00e9e</div>';
+        return;
+      }
+
+      var itemMap = {};
+      itemTypesData.forEach(function(it) { itemMap[it.id] = it; });
+
+      var html = '<p style="color:var(--text-muted);font-size:13px;margin-bottom:12px;">' + total + ' transaction(s) trouv\u00e9e(s)</p>';
+      html += '<div style="overflow-x:auto;">';
+      html += '<table class="tx-table">';
+      html += '<thead><tr>';
+      html += '<th>Date</th><th>Joueur</th><th>Item</th><th>Op\u00e9ration</th><th>Quantit\u00e9</th><th>Admin</th><th>Raison</th>';
+      html += '</tr></thead><tbody>';
+
+      txs.forEach(function(tx) {
+        var item = itemMap[tx.itemTypeId];
+        var itemLabel = item ? (item.emoji + ' ' + item.name) : tx.itemTypeId;
+        var typeClass = tx.type === 'add' ? 'tx-type-add' : (tx.type === 'remove' ? 'tx-type-remove' : 'tx-type-reset');
+        var typeLabel = tx.type === 'add' ? '+Ajout' : (tx.type === 'remove' ? '-Retrait' : '\u21BB Reset');
+        var date = new Date(tx.timestamp);
+        var dateStr = date.toLocaleDateString('fr-FR') + ' ' + date.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
+
+        html += '<tr>';
+        html += '<td style="white-space:nowrap;">' + dateStr + '</td>';
+        html += '<td><code>' + escapeHtml(tx.playerId) + '</code></td>';
+        html += '<td>' + itemLabel + '</td>';
+        html += '<td><span class="' + typeClass + '">' + typeLabel + '</span></td>';
+        html += '<td style="font-weight:700;">' + (tx.quantity > 0 ? '+' : '') + tx.quantity + '</td>';
+        html += '<td><code>' + escapeHtml(tx.adminId) + '</code></td>';
+        html += '<td>' + escapeHtml(tx.reason || '-') + '</td>';
+        html += '</tr>';
+      });
+
+      html += '</tbody></table></div>';
+      container.innerHTML = html;
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+  </script>
+</body>
+</html>

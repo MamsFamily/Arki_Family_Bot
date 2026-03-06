@@ -7,6 +7,7 @@ const { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, bu
 const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, getPaidDLCDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildModdedEmbeds, buildShoulderEmbed, buildSaleEmbed, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, getAllLetters, updateNavMessage, getNavMessage, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
 
 const { getConfig: readConfig, saveConfig } = require('../configManager');
+const inventoryManager = require('../inventoryManager');
 
 function createWebServer(discordClient) {
   const app = express();
@@ -828,6 +829,113 @@ function createWebServer(discordClient) {
       console.error('Erreur publication promo dino:', err);
       res.redirect('/dinos?error=Erreur+de+publication');
     }
+  });
+
+  app.get('/inventory', requireAdmin, (req, res) => {
+    const itemTypes = inventoryManager.getItemTypes();
+    const categories = inventoryManager.ITEM_CATEGORIES;
+    res.render('inventory', {
+      itemTypes,
+      categories,
+      success: req.query.success || null,
+      error: req.query.error || null,
+    });
+  });
+
+  app.post('/inventory/item-types', requireAdmin, async (req, res) => {
+    const { itemId, name, emoji, category, order } = req.body;
+    if (!name || !name.trim()) {
+      return res.redirect('/inventory?error=Le+nom+est+requis');
+    }
+    if (itemId) {
+      await inventoryManager.updateItemType(itemId, {
+        name: name.trim(),
+        emoji: emoji || '📦',
+        category: category || 'other',
+        order: parseInt(order) || 1,
+      });
+      res.redirect('/inventory?success=Type+modifi%C3%A9+!');
+    } else {
+      await inventoryManager.addItemType({
+        name: name.trim(),
+        emoji: emoji || '📦',
+        category: category || 'other',
+        order: parseInt(order) || 1,
+      });
+      res.redirect('/inventory?success=Type+cr%C3%A9%C3%A9+!');
+    }
+  });
+
+  app.post('/inventory/item-types/delete/:id', requireAdmin, async (req, res) => {
+    const deleted = await inventoryManager.deleteItemType(req.params.id);
+    if (deleted) {
+      res.redirect('/inventory?success=Type+supprim%C3%A9+!');
+    } else {
+      res.redirect('/inventory?error=Type+introuvable');
+    }
+  });
+
+  app.post('/inventory/player/:playerId/add', requireAdmin, async (req, res) => {
+    const { playerId } = req.params;
+    const { itemTypeId, quantity, reason } = req.body;
+    if (!itemTypeId || !quantity) {
+      return res.json({ error: 'Item et quantité requis' });
+    }
+    const itemType = inventoryManager.getItemTypeById(itemTypeId);
+    if (!itemType) {
+      return res.json({ error: 'Type d\'item introuvable' });
+    }
+    const result = await inventoryManager.addToInventory(playerId, itemTypeId, parseInt(quantity) || 1, 'dashboard', reason || '');
+    res.json({ success: true, newQuantity: result.newQuantity });
+  });
+
+  app.post('/inventory/player/:playerId/remove', requireAdmin, async (req, res) => {
+    const { playerId } = req.params;
+    const { itemTypeId, quantity, reason } = req.body;
+    if (!itemTypeId || !quantity) {
+      return res.json({ error: 'Item et quantité requis' });
+    }
+    const itemType = inventoryManager.getItemTypeById(itemTypeId);
+    if (!itemType) {
+      return res.json({ error: 'Type d\'item introuvable' });
+    }
+    const result = await inventoryManager.removeFromInventory(playerId, itemTypeId, parseInt(quantity) || 1, 'dashboard', reason || '');
+    res.json({ success: true, newQuantity: result.newQuantity });
+  });
+
+  app.get('/inventory/api/player/:playerId', requireAdmin, async (req, res) => {
+    const { playerId } = req.params;
+    const inventory = inventoryManager.getPlayerInventory(playerId);
+    let player = {};
+    if (discordClient) {
+      try {
+        const settings = getSettings();
+        const configuredGuildId = settings.guild.guildId;
+        const guild = configuredGuildId ? discordClient.guilds.cache.get(configuredGuildId) : discordClient.guilds.cache.first();
+        if (guild) {
+          const member = await guild.members.fetch(playerId).catch(() => null);
+          if (member) {
+            player = {
+              username: member.user.username,
+              displayName: member.displayName,
+              avatar: member.user.displayAvatarURL({ size: 64 }),
+            };
+          }
+        }
+      } catch (e) {}
+    }
+    res.json({ playerId, inventory, player });
+  });
+
+  app.get('/inventory/api/transactions', requireAdmin, (req, res) => {
+    const filters = {};
+    if (req.query.playerId) filters.playerId = req.query.playerId;
+    if (req.query.itemTypeId) filters.itemTypeId = req.query.itemTypeId;
+    if (req.query.type) filters.type = req.query.type;
+    if (req.query.limit) filters.limit = parseInt(req.query.limit);
+    if (!filters.limit) filters.limit = 100;
+    const result = inventoryManager.getTransactions(filters);
+    res.json(result);
   });
 
   const PORT = 5000;

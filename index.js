@@ -16,6 +16,7 @@ const { getConfig, saveConfig: saveRouletteConfig, initConfig } = require('./con
 const { initSettings } = require('./settingsManager');
 const { initDinos } = require('./dinoManager');
 const { initShop } = require('./shopManager');
+const { initInventory, getItemTypes, getItemTypeById, getPlayerInventory, addToInventory, removeFromInventory, resetPlayerInventory, getPlayerTransactions, ITEM_CATEGORIES } = require('./inventoryManager');
 
 const openaiConfig = {};
 if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
@@ -347,6 +348,7 @@ client.once('clientReady', async () => {
   await initSettings();
   await initDinos();
   await initShop();
+  await initInventory();
 
   config = getConfig();
 
@@ -842,6 +844,25 @@ client.on('interactionCreate', async interaction => {
       }
       return;
     }
+  }
+
+  if (interaction.isAutocomplete()) {
+    const { commandName } = interaction;
+    if (commandName === 'inventaire-admin') {
+      const focusedOption = interaction.options.getFocused(true);
+      if (focusedOption.name === 'item') {
+        const search = focusedOption.value.toLowerCase();
+        const itemTypes = getItemTypes();
+        const filtered = itemTypes
+          .filter(it => it.name.toLowerCase().includes(search) || it.emoji.includes(search))
+          .slice(0, 25)
+          .map(it => ({ name: `${it.emoji} ${it.name}`, value: it.id }));
+        try {
+          await interaction.respond(filtered);
+        } catch (e) {}
+      }
+    }
+    return;
   }
 
   if (!interaction.isChatInputCommand()) return;
@@ -1579,6 +1600,219 @@ client.on('interactionCreate', async interaction => {
       await interaction.editReply({
         content: '❌ Une erreur est survenue lors de la roulette.',
       });
+    }
+  }
+
+  if (commandName === 'inventaire') {
+    const targetUser = interaction.options.getUser('joueur') || interaction.user;
+
+    const inventory = getPlayerInventory(targetUser.id);
+    const itemTypes = getItemTypes();
+
+    const categoryMap = {};
+    for (const cat of ITEM_CATEGORIES) {
+      categoryMap[cat.id] = { ...cat, items: [] };
+    }
+
+    for (const itemType of itemTypes) {
+      const qty = inventory[itemType.id] || 0;
+      const catId = itemType.category || 'other';
+      if (!categoryMap[catId]) {
+        categoryMap[catId] = { id: catId, name: catId, emoji: '📦', items: [] };
+      }
+      categoryMap[catId].items.push({ ...itemType, quantity: qty });
+    }
+
+    let description = '';
+    let hasItems = false;
+
+    const allCatIds = [...new Set([...ITEM_CATEGORIES.map(c => c.id), ...Object.keys(categoryMap)])];
+    for (const catId of allCatIds) {
+      const catData = categoryMap[catId];
+      if (!catData || catData.items.length === 0) continue;
+
+      const itemLines = catData.items
+        .filter(it => it.quantity > 0)
+        .sort((a, b) => a.order - b.order)
+        .map(it => `${it.emoji} **${it.name}** : ${it.quantity}`);
+
+      if (itemLines.length > 0) {
+        hasItems = true;
+        description += `### ${catData.emoji} ${catData.name}\n${itemLines.join('\n')}\n\n`;
+      }
+    }
+
+    if (!hasItems) {
+      description = '*Aucun item dans l\'inventaire.*';
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor('#2ECC71')
+      .setTitle(`📦 Inventaire de ${targetUser.displayName || targetUser.username}`)
+      .setDescription(description.trim())
+      .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
+      .setFooter({ text: `Demandé par ${interaction.user.username}` })
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [embed] });
+  }
+
+  if (commandName === 'inventaire-admin') {
+    if (!hasRoulettePermission(interaction.member)) {
+      return interaction.reply({
+        content: '❌ Seuls les administrateurs et les Modos peuvent gérer les inventaires !',
+        ephemeral: true,
+      });
+    }
+
+    const subcommand = interaction.options.getSubcommand();
+
+    if (subcommand === 'ajouter') {
+      const targetUser = interaction.options.getUser('joueur');
+      const itemId = interaction.options.getString('item');
+      const quantity = interaction.options.getInteger('quantité');
+      const reason = interaction.options.getString('raison') || '';
+
+      const itemType = getItemTypeById(itemId);
+      if (!itemType) {
+        return interaction.reply({ content: '❌ Item introuvable.', ephemeral: true });
+      }
+
+      const result = await addToInventory(targetUser.id, itemId, quantity, interaction.user.id, reason);
+
+      const embed = new EmbedBuilder()
+        .setColor('#2ECC71')
+        .setTitle('✅ Item ajouté')
+        .setDescription(`${itemType.emoji} **${itemType.name}** x${quantity} ajouté à <@${targetUser.id}>`)
+        .addFields(
+          { name: 'Nouvelle quantité', value: `${result.newQuantity}`, inline: true },
+          { name: 'Par', value: `<@${interaction.user.id}>`, inline: true },
+        )
+        .setTimestamp();
+
+      if (reason) {
+        embed.addFields({ name: 'Raison', value: reason, inline: false });
+      }
+
+      await interaction.reply({ embeds: [embed] });
+
+      try {
+        const votesConfig = getVotesConfig();
+        const adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
+        if (adminChannel) {
+          await adminChannel.send(`📦 **Inventaire** | <@${interaction.user.id}> a ajouté ${itemType.emoji} **${itemType.name}** x${quantity} à <@${targetUser.id}>${reason ? ` — Raison: ${reason}` : ''}`);
+        }
+      } catch (e) {}
+    }
+
+    if (subcommand === 'retirer') {
+      const targetUser = interaction.options.getUser('joueur');
+      const itemId = interaction.options.getString('item');
+      const quantity = interaction.options.getInteger('quantité');
+      const reason = interaction.options.getString('raison') || '';
+
+      const itemType = getItemTypeById(itemId);
+      if (!itemType) {
+        return interaction.reply({ content: '❌ Item introuvable.', ephemeral: true });
+      }
+
+      const result = await removeFromInventory(targetUser.id, itemId, quantity, interaction.user.id, reason);
+
+      const embed = new EmbedBuilder()
+        .setColor('#E74C3C')
+        .setTitle('✅ Item retiré')
+        .setDescription(`${itemType.emoji} **${itemType.name}** x${quantity} retiré de <@${targetUser.id}>`)
+        .addFields(
+          { name: 'Nouvelle quantité', value: `${result.newQuantity}`, inline: true },
+          { name: 'Par', value: `<@${interaction.user.id}>`, inline: true },
+        )
+        .setTimestamp();
+
+      if (reason) {
+        embed.addFields({ name: 'Raison', value: reason, inline: false });
+      }
+
+      await interaction.reply({ embeds: [embed] });
+
+      try {
+        const votesConfig = getVotesConfig();
+        const adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
+        if (adminChannel) {
+          await adminChannel.send(`📦 **Inventaire** | <@${interaction.user.id}> a retiré ${itemType.emoji} **${itemType.name}** x${quantity} de <@${targetUser.id}>${reason ? ` — Raison: ${reason}` : ''}`);
+        }
+      } catch (e) {}
+    }
+
+    if (subcommand === 'reset') {
+      const targetUser = interaction.options.getUser('joueur');
+
+      const result = await resetPlayerInventory(targetUser.id, interaction.user.id, 'reset par commande');
+
+      const embed = new EmbedBuilder()
+        .setColor('#E67E22')
+        .setTitle('🔄 Inventaire réinitialisé')
+        .setDescription(`L'inventaire de <@${targetUser.id}> a été vidé.`)
+        .addFields(
+          { name: 'Items supprimés', value: `${result.itemsCleared}`, inline: true },
+          { name: 'Par', value: `<@${interaction.user.id}>`, inline: true },
+        )
+        .setTimestamp();
+
+      await interaction.reply({ embeds: [embed] });
+
+      try {
+        const votesConfig = getVotesConfig();
+        const adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
+        if (adminChannel) {
+          await adminChannel.send(`📦 **Inventaire** | <@${interaction.user.id}> a réinitialisé l'inventaire de <@${targetUser.id}> (${result.itemsCleared} items supprimés)`);
+        }
+      } catch (e) {}
+    }
+
+    if (subcommand === 'historique') {
+      const targetUser = interaction.options.getUser('joueur');
+
+      const { transactions, total } = getPlayerTransactions(targetUser.id, 20);
+      const itemTypes = getItemTypes();
+
+      if (transactions.length === 0) {
+        return interaction.reply({
+          embeds: [
+            new EmbedBuilder()
+              .setColor('#95A5A6')
+              .setTitle(`📜 Historique de ${targetUser.displayName || targetUser.username}`)
+              .setDescription('*Aucune transaction enregistrée.*')
+              .setTimestamp(),
+          ],
+          ephemeral: true,
+        });
+      }
+
+      let description = '';
+      for (const tx of transactions) {
+        const itemType = itemTypes.find(it => it.id === tx.itemTypeId);
+        const itemName = itemType ? `${itemType.emoji} ${itemType.name}` : tx.itemTypeId;
+        const sign = tx.quantity >= 0 ? '+' : '';
+        const typeLabel = tx.type === 'reset' ? '🔄' : tx.quantity >= 0 ? '📥' : '📤';
+        const date = new Date(tx.timestamp).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+        description += `${typeLabel} ${sign}${tx.quantity} ${itemName} — <@${tx.adminId}> — ${date}`;
+        if (tx.reason) description += ` — *${tx.reason}*`;
+        description += '\n';
+      }
+
+      if (description.length > 4000) {
+        description = description.substring(0, 3990) + '\n...';
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor('#3498DB')
+        .setTitle(`📜 Historique de ${targetUser.displayName || targetUser.username}`)
+        .setDescription(description.trim())
+        .setFooter({ text: `${total} transaction(s) au total` })
+        .setTimestamp();
+
+      await interaction.reply({ embeds: [embed], ephemeral: true });
     }
   }
 });
