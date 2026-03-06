@@ -102,7 +102,7 @@
                     <% } %>
                   </div>
                   <div class="pack-actions">
-                    <button class="btn btn-sm btn-secondary" data-pack="<%= JSON.stringify(pack) %>" onclick="editPack(JSON.parse(this.dataset.pack))">&#x270F;&#xFE0F; Modifier</button>
+                    <button class="btn btn-sm btn-secondary" onclick="editPack(packsData['<%= pack.id %>'])">&#x270F;&#xFE0F; Modifier</button>
                     <form method="POST" action="/shop/publish/<%= pack.id %>" style="display:inline">
                       <button type="submit" class="btn btn-sm btn-primary"><%= pack.messageId ? '&#x1F504; Mettre &agrave; jour' : '&#x1F4E4; Publier' %></button>
                     </form>
@@ -116,7 +116,7 @@
 
             <div style="margin-top: 20px;">
               <form method="POST" action="/shop/publish-all">
-                <button type="submit" class="btn btn-primary" onclick="return confirm('Publier/mettre &agrave; jour tous les packs ?')">&#x1F4E2; Publier tous les packs</button>
+                <button type="submit" class="btn btn-primary" onclick="return confirm('Publier ou mettre &agrave; jour tous les packs ?')">&#x1F4E2; Publier / Mettre &agrave; jour tous les packs</button>
               </form>
             </div>
           <% } %>
@@ -229,6 +229,8 @@
   </div>
 
   <script>
+    var packsData = <%- JSON.stringify(shop.packs.reduce((acc, p) => { acc[p.id] = p; return acc; }, {})).replace(/<\//g, '<\\/') %>;
+
     function openModal(pack) {
       document.getElementById('packModal').classList.add('show');
       if (!pack) {

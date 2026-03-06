@@ -354,6 +354,7 @@ function createWebServer(discordClient) {
   });
 
   app.post('/shop/publish/:id', requireAuth, async (req, res) => {
+    if (!discordClient) return res.redirect('/shop?error=Bot+non+connect%C3%A9');
     const shop = getShop();
     const pack = getPack(req.params.id);
     if (!pack) return res.redirect('/shop?error=Pack+introuvable');
@@ -389,6 +390,7 @@ function createWebServer(discordClient) {
   });
 
   app.post('/shop/publish-all', requireAuth, async (req, res) => {
+    if (!discordClient) return res.redirect('/shop?error=Bot+non+connect%C3%A9');
     const shop = getShop();
     if (!shop.shopChannelId) return res.redirect('/shop?error=Aucun+salon+configur%C3%A9');
 
