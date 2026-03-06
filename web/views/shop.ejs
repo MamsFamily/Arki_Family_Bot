@@ -102,12 +102,16 @@
                     <% } %>
                   </div>
                   <div class="pack-actions">
-                    <button class="btn btn-sm btn-secondary" onclick="editPack(packsData['<%= pack.id %>'])">&#x270F;&#xFE0F; Modifier</button>
+                    <button class="btn btn-sm btn-secondary" onclick="editPack(packsData['<%= pack.id %>'])">✏️ Modifier</button>
                     <form method="POST" action="/shop/publish/<%= pack.id %>" style="display:inline">
-                      <button type="submit" class="btn btn-sm btn-primary"><%= pack.messageId ? '&#x1F504; Mettre &agrave; jour' : '&#x1F4E4; Publier' %></button>
+                      <% if (pack.messageId) { %>
+                        <button type="submit" class="btn btn-sm btn-primary">🔄 Mettre à jour</button>
+                      <% } else { %>
+                        <button type="submit" class="btn btn-sm btn-primary">📤 Publier</button>
+                      <% } %>
                     </form>
                     <form method="POST" action="/shop/delete/<%= pack.id %>" style="display:inline" onsubmit="return confirm('Supprimer ce pack ?')">
-                      <button type="submit" class="btn btn-sm btn-danger">&#x1F5D1;&#xFE0F;</button>
+                      <button type="submit" class="btn btn-sm btn-danger">🗑️</button>
                     </form>
                   </div>
                 </div>
@@ -116,7 +120,7 @@
 
             <div style="margin-top: 20px;">
               <form method="POST" action="/shop/publish-all">
-                <button type="submit" class="btn btn-primary" onclick="return confirm('Publier ou mettre &agrave; jour tous les packs ?')">&#x1F4E2; Publier / Mettre &agrave; jour tous les packs</button>
+                <button type="submit" class="btn btn-primary" onclick="return confirm('Publier ou mettre à jour tous les packs ?')">📢 Publier / Mettre à jour tous les packs</button>
               </form>
             </div>
           <% } %>
@@ -229,7 +233,12 @@
   </div>
 
   <script>
-    var packsData = <%- JSON.stringify(shop.packs.reduce((acc, p) => { acc[p.id] = p; return acc; }, {})).replace(/<\//g, '<\\/') %>;
+    var packsData = {};
+    try {
+      packsData = <%- JSON.stringify(shop.packs.reduce((acc, p) => { acc[p.id] = p; return acc; }, {})).replace(/<\//g, '<\\/').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
+    } catch(e) {
+      console.error('Erreur chargement packsData:', e);
+    }
 
     function openModal(pack) {
       document.getElementById('packModal').classList.add('show');
@@ -256,36 +265,45 @@
     }
 
     function editPack(pack) {
-      document.getElementById('modalTitle').textContent = '\u{270F}\u{FE0F} Modifier : ' + pack.name;
-      document.getElementById('submitBtn').textContent = '\u{1F4BE} Sauvegarder';
-      document.getElementById('packForm').action = '/shop/pack';
-      document.getElementById('packId').value = pack.id;
-      document.getElementById('packName').value = pack.name || '';
-      document.getElementById('packCategory').value = pack.category || 'packs';
-      document.getElementById('priceDiamonds').value = pack.priceDiamonds || 0;
-      document.getElementById('priceStrawberries').value = pack.priceStrawberries || 0;
-      document.getElementById('packContent').value = pack.content || '';
-      document.getElementById('packNote').value = pack.note || '';
-      document.getElementById('packColor').value = pack.color || '#e74c3c';
-      document.getElementById('donationAvailable').checked = !!pack.donationAvailable;
-      document.getElementById('notCompatible').checked = !!pack.notCompatible;
-      document.getElementById('packUnavailable').checked = pack.available === false;
-      document.getElementById('noReduction').checked = !!pack.noReduction;
-      const currentStrawberries = parseInt(pack.priceStrawberries) || 0;
-      const currentDiamonds = parseInt(pack.priceDiamonds) || 0;
-      const expectedStrawberries = calcStrawberries(currentDiamonds);
-      if (currentStrawberries === 0 || currentStrawberries === expectedStrawberries) {
-        strawberriesManual = false;
-        setAutoBadge(true);
-        if (currentStrawberries === 0 && currentDiamonds > 0) {
-          document.getElementById('priceStrawberries').value = expectedStrawberries;
+      try {
+        if (!pack) {
+          alert('Erreur : pack introuvable. Rechargez la page.');
+          return;
         }
-      } else {
-        strawberriesManual = true;
-        setAutoBadge(false);
+        document.getElementById('modalTitle').textContent = '✏️ Modifier : ' + pack.name;
+        document.getElementById('submitBtn').textContent = '\u{1F4BE} Sauvegarder';
+        document.getElementById('packForm').action = '/shop/pack';
+        document.getElementById('packId').value = pack.id;
+        document.getElementById('packName').value = pack.name || '';
+        document.getElementById('packCategory').value = pack.category || 'packs';
+        document.getElementById('priceDiamonds').value = pack.priceDiamonds || 0;
+        document.getElementById('priceStrawberries').value = pack.priceStrawberries || 0;
+        document.getElementById('packContent').value = pack.content || '';
+        document.getElementById('packNote').value = pack.note || '';
+        document.getElementById('packColor').value = pack.color || '#e74c3c';
+        document.getElementById('donationAvailable').checked = !!pack.donationAvailable;
+        document.getElementById('notCompatible').checked = !!pack.notCompatible;
+        document.getElementById('packUnavailable').checked = pack.available === false;
+        document.getElementById('noReduction').checked = !!pack.noReduction;
+        const currentStrawberries = parseInt(pack.priceStrawberries) || 0;
+        const currentDiamonds = parseInt(pack.priceDiamonds) || 0;
+        const expectedStrawberries = calcStrawberries(currentDiamonds);
+        if (currentStrawberries === 0 || currentStrawberries === expectedStrawberries) {
+          strawberriesManual = false;
+          setAutoBadge(true);
+          if (currentStrawberries === 0 && currentDiamonds > 0) {
+            document.getElementById('priceStrawberries').value = expectedStrawberries;
+          }
+        } else {
+          strawberriesManual = true;
+          setAutoBadge(false);
+        }
+        document.getElementById('packModal').classList.add('show');
+        updatePreview();
+      } catch(e) {
+        console.error('Erreur editPack:', e);
+        alert('Erreur lors de l\'ouverture du pack : ' + e.message);
       }
-      document.getElementById('packModal').classList.add('show');
-      updatePreview();
     }
 
     function closeModal() {

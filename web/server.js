@@ -399,7 +399,10 @@ function createWebServer(discordClient) {
       if (!channel) return res.redirect('/shop?error=Salon+introuvable');
 
       let published = 0;
-      for (const pack of shop.packs) {
+      let failed = 0;
+      const failedNames = [];
+      const packsCopy = [...shop.packs];
+      for (const pack of packsCopy) {
         const embed = buildPackEmbed(pack);
         try {
           if (pack.messageId) {
@@ -416,11 +419,17 @@ function createWebServer(discordClient) {
           }
           published++;
         } catch (err) {
-          console.error(`Erreur publication pack ${pack.name}:`, err);
+          failed++;
+          failedNames.push(pack.name);
+          console.error(`Erreur publication pack ${pack.name}:`, err.message || err);
         }
       }
 
-      res.redirect(`/shop?success=${published}+packs+publiés+!`);
+      if (failed > 0) {
+        res.redirect(`/shop?success=${published}+publiés&error=${failed}+échec(s):+${encodeURIComponent(failedNames.join(', '))}`);
+      } else {
+        res.redirect(`/shop?success=${published}+packs+publiés+!`);
+      }
     } catch (err) {
       console.error('Erreur publication shop:', err);
       res.redirect('/shop?error=Erreur+de+publication');
