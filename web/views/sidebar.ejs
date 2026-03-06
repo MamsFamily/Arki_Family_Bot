@@ -42,12 +42,12 @@
       <span class="icon">🦖</span> Prix Dinos
     </a>
 
-    <% if (role === 'admin') { %>
     <div class="nav-section">Inventaires</div>
     <a href="/inventory" class="nav-link <%= path === '/inventory' ? 'active' : '' %>">
       <span class="icon">📦</span> Inventaires
     </a>
 
+    <% if (role === 'admin') { %>
     <div class="nav-section">Système</div>
     <a href="/settings" class="nav-link <%= path === '/settings' ? 'active' : '' %>">
       <span class="icon">⚙️</span> Paramètres

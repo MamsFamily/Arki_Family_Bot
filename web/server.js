@@ -238,7 +238,7 @@ function createWebServer(discordClient) {
 
   app.post('/settings', requireAdmin, async (req, res) => {
     const {
-      guildId, resultsChannelId, adminLogChannelId, topVoterRoleId, modoRoleId,
+      guildId, resultsChannelId, adminLogChannelId, inventoryLogChannelId, topVoterRoleId, modoRoleId,
       logo, fireworks, sparkly, animeArrow, arrow, memoUrl,
       topserveursRankingUrl, timezone, aliases
     } = req.body;
@@ -247,6 +247,7 @@ function createWebServer(discordClient) {
       guildId: guildId || '',
       resultsChannelId: resultsChannelId || '',
       adminLogChannelId: adminLogChannelId || '',
+      inventoryLogChannelId: inventoryLogChannelId || '',
       topVoterRoleId: topVoterRoleId || '',
       modoRoleId: modoRoleId || '',
     });
@@ -831,12 +832,41 @@ function createWebServer(discordClient) {
     }
   });
 
-  app.get('/inventory', requireAdmin, (req, res) => {
+  app.get('/inventory/api/members/search', requireAuth, async (req, res) => {
+    const query = (req.query.q || '').toLowerCase().trim();
+    if (!query || query.length < 2) {
+      return res.json([]);
+    }
+    if (!discordClient) {
+      return res.json([]);
+    }
+    try {
+      const settings = getSettings();
+      const guildId = settings.guild.guildId;
+      const guild = guildId ? discordClient.guilds.cache.get(guildId) : discordClient.guilds.cache.first();
+      if (!guild) return res.json([]);
+
+      const members = await guild.members.fetch({ query, limit: 15 });
+      const results = members.map(m => ({
+        id: m.user.id,
+        username: m.user.username,
+        displayName: m.displayName,
+        avatar: m.user.displayAvatarURL({ size: 32 }),
+      }));
+      res.json(results);
+    } catch (e) {
+      console.error('Erreur recherche membres:', e.message);
+      res.json([]);
+    }
+  });
+
+  app.get('/inventory', requireAuth, (req, res) => {
     const itemTypes = inventoryManager.getItemTypes();
     const categories = inventoryManager.ITEM_CATEGORIES;
     res.render('inventory', {
       itemTypes,
       categories,
+      userRole: req.session.role,
       success: req.query.success || null,
       error: req.query.error || null,
     });
@@ -875,7 +905,23 @@ function createWebServer(discordClient) {
     }
   });
 
-  app.post('/inventory/player/:playerId/add', requireAdmin, async (req, res) => {
+  async function sendInventoryLog(action, adminRole, itemType, quantity, playerId) {
+    try {
+      const settings = getSettings();
+      const channelId = settings.guild.inventoryLogChannelId;
+      if (!channelId || !discordClient) return;
+      const channel = await discordClient.channels.fetch(channelId);
+      if (!channel) return;
+      const adminName = adminRole === 'admin' ? 'Admin' : 'Staff';
+      const verb = action === 'add' ? 'a ajouté' : 'a retiré';
+      const prep = action === 'add' ? 'à l\'inventaire de' : 'de l\'inventaire de';
+      await channel.send(`${itemType.emoji} **${adminName}** ${verb} **${quantity} ${itemType.name}** ${prep} <@${playerId}>`);
+    } catch (e) {
+      console.error('Erreur log inventaire Discord:', e.message);
+    }
+  }
+
+  app.post('/inventory/player/:playerId/add', requireAuth, async (req, res) => {
     const { playerId } = req.params;
     const { itemTypeId, quantity, reason } = req.body;
     if (!itemTypeId || !quantity) {
@@ -885,11 +931,14 @@ function createWebServer(discordClient) {
     if (!itemType) {
       return res.json({ error: 'Type d\'item introuvable' });
     }
-    const result = await inventoryManager.addToInventory(playerId, itemTypeId, parseInt(quantity) || 1, 'dashboard', reason || '');
+    const adminRole = req.session.role;
+    const adminLabel = adminRole === 'admin' ? 'Admin' : 'Staff';
+    const result = await inventoryManager.addToInventory(playerId, itemTypeId, parseInt(quantity) || 1, adminLabel, reason || '');
+    sendInventoryLog('add', adminRole, itemType, parseInt(quantity) || 1, playerId);
     res.json({ success: true, newQuantity: result.newQuantity });
   });
 
-  app.post('/inventory/player/:playerId/remove', requireAdmin, async (req, res) => {
+  app.post('/inventory/player/:playerId/remove', requireAuth, async (req, res) => {
     const { playerId } = req.params;
     const { itemTypeId, quantity, reason } = req.body;
     if (!itemTypeId || !quantity) {
@@ -899,11 +948,14 @@ function createWebServer(discordClient) {
     if (!itemType) {
       return res.json({ error: 'Type d\'item introuvable' });
     }
-    const result = await inventoryManager.removeFromInventory(playerId, itemTypeId, parseInt(quantity) || 1, 'dashboard', reason || '');
+    const adminRole = req.session.role;
+    const adminLabel = adminRole === 'admin' ? 'Admin' : 'Staff';
+    const result = await inventoryManager.removeFromInventory(playerId, itemTypeId, parseInt(quantity) || 1, adminLabel, reason || '');
+    sendInventoryLog('remove', adminRole, itemType, parseInt(quantity) || 1, playerId);
     res.json({ success: true, newQuantity: result.newQuantity });
   });
 
-  app.get('/inventory/api/player/:playerId', requireAdmin, async (req, res) => {
+  app.get('/inventory/api/player/:playerId', requireAuth, async (req, res) => {
     const { playerId } = req.params;
     const inventory = inventoryManager.getPlayerInventory(playerId);
     let player = {};
@@ -927,7 +979,7 @@ function createWebServer(discordClient) {
     res.json({ playerId, inventory, player });
   });
 
-  app.get('/inventory/api/transactions', requireAdmin, (req, res) => {
+  app.get('/inventory/api/transactions', requireAuth, (req, res) => {
     const filters = {};
     if (req.query.playerId) filters.playerId = req.query.playerId;
     if (req.query.itemTypeId) filters.itemTypeId = req.query.itemTypeId;

@@ -151,6 +151,46 @@
       font-size: 13px;
     }
     #playerResult { margin-top: 20px; }
+    .player-suggestions {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+      max-height: 280px;
+      overflow-y: auto;
+      z-index: 100;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    .player-suggestion {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .player-suggestion:hover, .player-suggestion.selected {
+      background: rgba(124, 92, 252, 0.15);
+    }
+    .player-suggestion img {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .player-suggestion .ps-name {
+      font-weight: 600;
+      color: #fff;
+      font-size: 13px;
+    }
+    .player-suggestion .ps-username {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
     .loading-spinner {
       display: inline-block;
       width: 20px;
@@ -180,12 +220,14 @@
       <% } %>
 
       <div class="inv-tabs">
-        <button class="inv-tab active" onclick="switchTab('itemTypes')">&#x1F3F7;&#xFE0F; Types d'items</button>
-        <button class="inv-tab" onclick="switchTab('players')">&#x1F464; Inventaire joueur</button>
-        <button class="inv-tab" onclick="switchTab('transactions')">&#x1F4DC; Historique</button>
+        <% if (userRole === 'admin') { %>
+        <button class="inv-tab" onclick="switchTab('itemTypes')">🏷️ Types d'items</button>
+        <% } %>
+        <button class="inv-tab active" onclick="switchTab('players')">👤 Inventaire joueur</button>
+        <button class="inv-tab" onclick="switchTab('transactions')">📜 Historique</button>
       </div>
 
-      <div id="tab-itemTypes" class="inv-tab-content active">
+      <div id="tab-itemTypes" class="inv-tab-content">
         <div class="card">
           <div class="card-header">
             <h2>&#x1F3F7;&#xFE0F; Types d'items</h2>
@@ -222,15 +264,19 @@
         </div>
       </div>
 
-      <div id="tab-players" class="inv-tab-content">
+      <div id="tab-players" class="inv-tab-content active">
         <div class="card">
           <div class="card-header">
-            <h2>&#x1F464; Rechercher un joueur</h2>
+            <h2>👤 Rechercher un joueur</h2>
           </div>
           <div class="card-body">
-            <div class="player-search-box">
-              <input type="text" id="playerSearchInput" placeholder="ID Discord du joueur (ex: 123456789012345678)" onkeydown="if(event.key==='Enter')searchPlayer()">
-              <button class="btn btn-primary" onclick="searchPlayer()">&#x1F50D; Rechercher</button>
+            <div class="player-search-box" style="position:relative;">
+              <div style="flex:1;position:relative;">
+                <input type="text" id="playerSearchInput" placeholder="Tapez un pseudo Discord ou un ID..." autocomplete="off" oninput="onPlayerSearchInput()" onkeydown="onPlayerSearchKeydown(event)">
+                <input type="hidden" id="playerSearchId" value="">
+                <div id="playerSuggestions" class="player-suggestions" style="display:none;"></div>
+              </div>
+              <button class="btn btn-primary" onclick="searchPlayer()">🔍 Rechercher</button>
             </div>
             <div id="playerResult"></div>
           </div>
@@ -357,12 +403,15 @@
 
   <script>
     var itemTypesData = <%- JSON.stringify(itemTypes).replace(/<\//g, '<\\/') %>;
+    var userRole = '<%= userRole %>';
+    var tabList = userRole === 'admin' ? ['itemTypes','players','transactions'] : ['players','transactions'];
 
     function switchTab(tabId) {
       document.querySelectorAll('.inv-tab').forEach(t => t.classList.remove('active'));
       document.querySelectorAll('.inv-tab-content').forEach(t => t.classList.remove('active'));
       document.getElementById('tab-' + tabId).classList.add('active');
-      document.querySelectorAll('.inv-tab')[['itemTypes','players','transactions'].indexOf(tabId)].classList.add('active');
+      var idx = tabList.indexOf(tabId);
+      if (idx >= 0) document.querySelectorAll('.inv-tab')[idx].classList.add('active');
     }
 
     function openItemTypeModal(item) {
@@ -398,9 +447,106 @@
       if (e.target === this) closeItemTypeModal();
     });
 
+    var searchTimeout = null;
+    var selectedSuggestion = -1;
+
+    function onPlayerSearchInput() {
+      var input = document.getElementById('playerSearchInput');
+      var val = input.value.trim();
+      document.getElementById('playerSearchId').value = '';
+
+      if (searchTimeout) clearTimeout(searchTimeout);
+
+      if (/^\d{15,}$/.test(val)) {
+        hideSuggestions();
+        return;
+      }
+
+      if (val.length < 2) {
+        hideSuggestions();
+        return;
+      }
+
+      searchTimeout = setTimeout(function() {
+        fetch('/inventory/api/members/search?q=' + encodeURIComponent(val))
+          .then(function(r) { return r.json(); })
+          .then(function(members) {
+            showSuggestions(members);
+          })
+          .catch(function() { hideSuggestions(); });
+      }, 300);
+    }
+
+    function onPlayerSearchKeydown(e) {
+      var suggestions = document.getElementById('playerSuggestions');
+      var items = suggestions.querySelectorAll('.player-suggestion');
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedSuggestion = Math.min(selectedSuggestion + 1, items.length - 1);
+        updateSuggestionSelection(items);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedSuggestion = Math.max(selectedSuggestion - 1, 0);
+        updateSuggestionSelection(items);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (selectedSuggestion >= 0 && items[selectedSuggestion]) {
+          items[selectedSuggestion].click();
+        } else {
+          searchPlayer();
+        }
+      } else if (e.key === 'Escape') {
+        hideSuggestions();
+      }
+    }
+
+    function showSuggestions(members) {
+      var container = document.getElementById('playerSuggestions');
+      selectedSuggestion = -1;
+      if (!members || members.length === 0) {
+        hideSuggestions();
+        return;
+      }
+      var html = '';
+      members.forEach(function(m) {
+        html += '<div class="player-suggestion" onclick="selectMember(\'' + escapeHtml(m.id) + '\', \'' + escapeHtml(m.displayName || m.username) + '\')">';
+        html += '<img src="' + escapeHtml(m.avatar) + '" alt="">';
+        html += '<div><div class="ps-name">' + escapeHtml(m.displayName || m.username) + '</div>';
+        if (m.displayName && m.displayName !== m.username) {
+          html += '<div class="ps-username">@' + escapeHtml(m.username) + '</div>';
+        }
+        html += '</div></div>';
+      });
+      container.innerHTML = html;
+      container.style.display = 'block';
+    }
+
+    function hideSuggestions() {
+      document.getElementById('playerSuggestions').style.display = 'none';
+      selectedSuggestion = -1;
+    }
+
+    function updateSuggestionSelection(items) {
+      items.forEach(function(el, i) {
+        el.classList.toggle('selected', i === selectedSuggestion);
+      });
+    }
+
+    function selectMember(id, name) {
+      document.getElementById('playerSearchInput').value = name;
+      document.getElementById('playerSearchId').value = id;
+      hideSuggestions();
+      searchPlayer();
+    }
+
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.player-search-box')) hideSuggestions();
+    });
+
     function searchPlayer() {
-      var playerId = document.getElementById('playerSearchInput').value.trim();
+      var playerId = document.getElementById('playerSearchId').value || document.getElementById('playerSearchInput').value.trim();
       if (!playerId) return;
+      hideSuggestions();
       var container = document.getElementById('playerResult');
       container.innerHTML = '<div style="text-align:center;padding:20px;"><div class="loading-spinner"></div> Chargement...</div>';
 

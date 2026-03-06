@@ -13,7 +13,7 @@ const { createWebServer } = require('./web/server');
 const { getDinosByLetter, getModdedDinos, getShoulderDinos, getPaidDLCDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildShoulderEmbed, buildShoulderEmbeds, buildPaidDLCEmbeds, buildCompactAllEmbeds, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, buildVariantEmbeds, getAllLetters, getLetterColor } = require('./dinoManager');
 const pgStore = require('./pgStore');
 const { getConfig, saveConfig: saveRouletteConfig, initConfig } = require('./configManager');
-const { initSettings } = require('./settingsManager');
+const { initSettings, getSettings } = require('./settingsManager');
 const { initDinos } = require('./dinoManager');
 const { initShop } = require('./shopManager');
 const { initInventory, getItemTypes, getItemTypeById, getPlayerInventory, addToInventory, removeFromInventory, resetPlayerInventory, getPlayerTransactions, ITEM_CATEGORIES } = require('./inventoryManager');
@@ -1697,10 +1697,15 @@ client.on('interactionCreate', async interaction => {
       await interaction.reply({ embeds: [embed] });
 
       try {
-        const votesConfig = getVotesConfig();
-        const adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
-        if (adminChannel) {
-          await adminChannel.send(`📦 **Inventaire** | <@${interaction.user.id}> a ajouté ${itemType.emoji} **${itemType.name}** x${quantity} à <@${targetUser.id}>${reason ? ` — Raison: ${reason}` : ''}`);
+        const settings = getSettings();
+        const logChannelId = settings.guild.inventoryLogChannelId;
+        if (logChannelId) {
+          const logChannel = await client.channels.fetch(logChannelId);
+          if (logChannel) {
+            const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+            const adminName = member ? member.displayName : interaction.user.username;
+            await logChannel.send(`${itemType.emoji} **${adminName}** a ajouté **${quantity} ${itemType.name}** à l'inventaire de <@${targetUser.id}>`);
+          }
         }
       } catch (e) {}
     }
@@ -1735,10 +1740,15 @@ client.on('interactionCreate', async interaction => {
       await interaction.reply({ embeds: [embed] });
 
       try {
-        const votesConfig = getVotesConfig();
-        const adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
-        if (adminChannel) {
-          await adminChannel.send(`📦 **Inventaire** | <@${interaction.user.id}> a retiré ${itemType.emoji} **${itemType.name}** x${quantity} de <@${targetUser.id}>${reason ? ` — Raison: ${reason}` : ''}`);
+        const settings = getSettings();
+        const logChannelId = settings.guild.inventoryLogChannelId;
+        if (logChannelId) {
+          const logChannel = await client.channels.fetch(logChannelId);
+          if (logChannel) {
+            const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+            const adminName = member ? member.displayName : interaction.user.username;
+            await logChannel.send(`${itemType.emoji} **${adminName}** a retiré **${quantity} ${itemType.name}** de l'inventaire de <@${targetUser.id}>`);
+          }
         }
       } catch (e) {}
     }
@@ -1761,10 +1771,15 @@ client.on('interactionCreate', async interaction => {
       await interaction.reply({ embeds: [embed] });
 
       try {
-        const votesConfig = getVotesConfig();
-        const adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
-        if (adminChannel) {
-          await adminChannel.send(`📦 **Inventaire** | <@${interaction.user.id}> a réinitialisé l'inventaire de <@${targetUser.id}> (${result.itemsCleared} items supprimés)`);
+        const settings = getSettings();
+        const logChannelId = settings.guild.inventoryLogChannelId;
+        if (logChannelId) {
+          const logChannel = await client.channels.fetch(logChannelId);
+          if (logChannel) {
+            const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+            const adminName = member ? member.displayName : interaction.user.username;
+            await logChannel.send(`🔄 **${adminName}** a réinitialisé l'inventaire de <@${targetUser.id}> (${result.itemsCleared} items supprimés)`);
+          }
         }
       } catch (e) {}
     }

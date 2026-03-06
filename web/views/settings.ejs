@@ -46,6 +46,13 @@
             </div>
             <div class="form-row">
               <div class="form-group">
+                <label for="inventoryLogChannelId">Canal logs inventaire</label>
+                <input type="text" id="inventoryLogChannelId" name="inventoryLogChannelId" value="<%= settings.guild.inventoryLogChannelId || '' %>">
+                <p class="help-text">ID du canal o&ugrave; seront publi&eacute;s les ajouts/retraits d'inventaire</p>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
                 <label for="topVoterRoleId">Rôle Top Votant</label>
                 <input type="text" id="topVoterRoleId" name="topVoterRoleId" value="<%= settings.guild.topVoterRoleId %>" required>
                 <p class="help-text">ID du rôle attribué au 1er votant</p>

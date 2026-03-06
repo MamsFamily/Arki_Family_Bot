@@ -16,6 +16,7 @@ const DEFAULTS = {
     guildId: envOr('GUILD_ID', '1156256997403000874'),
     resultsChannelId: envOr('RESULTS_CHANNEL_ID', '1157994586774442085'),
     adminLogChannelId: envOr('ADMIN_LOG_CHANNEL_ID', '1457048610939207769'),
+    inventoryLogChannelId: '',
     topVoterRoleId: envOr('TOP_VOTER_ROLE_ID', '1180440383784759346'),
     modoRoleId: '1157803768893689877',
   },
