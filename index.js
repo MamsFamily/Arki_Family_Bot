@@ -856,7 +856,11 @@ client.on('interactionCreate', async interaction => {
         const filtered = itemTypes
           .filter(it => it.name.toLowerCase().includes(search) || it.emoji.includes(search))
           .slice(0, 25)
-          .map(it => ({ name: `${it.emoji} ${it.name}`, value: it.id }));
+          .map(it => {
+            const isCustom = /^<a?:\w+:\d+>$/.test(it.emoji);
+            const label = isCustom ? it.name : `${it.emoji} ${it.name}`;
+            return { name: label.slice(0, 100), value: it.id };
+          });
         try {
           await interaction.respond(filtered);
         } catch (e) {}
