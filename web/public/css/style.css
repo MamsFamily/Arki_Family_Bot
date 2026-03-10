@@ -522,6 +522,29 @@ body {
   padding: 14px;
 }
 
+.discord-emoji {
+  width: 1.2em;
+  height: 1.2em;
+  vertical-align: middle;
+  display: inline;
+  object-fit: contain;
+}
+
+.item-type-emoji .discord-emoji {
+  width: 28px;
+  height: 28px;
+}
+
+.inv-emoji .discord-emoji {
+  width: 22px;
+  height: 22px;
+}
+
+.tx-table .discord-emoji {
+  width: 16px;
+  height: 16px;
+}
+
 .login-discord-note {
   text-align: center;
   color: var(--text-muted);

@@ -73,11 +73,33 @@ function createWebServer(discordClient) {
     return `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=identify&state=${state}`;
   }
 
+  function renderEmoji(emoji) {
+    if (!emoji) return '';
+    const match = emoji.match(/^<(a?):(\w+):(\d+)>$/);
+    if (match) {
+      const animated = match[1] === 'a';
+      const name = match[2];
+      const id = match[3];
+      const ext = animated ? 'gif' : 'png';
+      return `<img src="https://cdn.discordapp.com/emojis/${id}.${ext}" alt="${name}" class="discord-emoji">`;
+    }
+    return emoji.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function plainEmoji(emoji) {
+    if (!emoji) return '';
+    const match = emoji.match(/^<a?:(\w+):\d+>$/);
+    if (match) return ':' + match[1] + ':';
+    return emoji;
+  }
+
   app.use((req, res, next) => {
     res.locals.botUser = discordClient?.user || null;
     res.locals.path = req.path;
     res.locals.role = req.session?.role || null;
     res.locals.discordUser = req.session?.discordUser || null;
+    res.locals.renderEmoji = renderEmoji;
+    res.locals.plainEmoji = plainEmoji;
     next();
   });
 

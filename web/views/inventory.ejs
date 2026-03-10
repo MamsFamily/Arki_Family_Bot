@@ -245,10 +245,10 @@
                   const cat = categories.find(c => c.id === item.category) || { name: 'Autre', emoji: '🔮' };
                 %>
                   <div class="item-type-card">
-                    <div class="item-type-emoji"><%= item.emoji %></div>
+                    <div class="item-type-emoji"><%- renderEmoji(item.emoji) %></div>
                     <div class="item-type-info">
                       <div class="item-type-name"><%= item.name %></div>
-                      <div class="item-type-cat"><%= cat.emoji %> <%= cat.name %></div>
+                      <div class="item-type-cat"><%- renderEmoji(cat.emoji) %> <%= cat.name %></div>
                     </div>
                     <div class="item-type-actions">
                       <button class="btn btn-sm btn-secondary" onclick='editItemType(<%- JSON.stringify(item).replace(/'/g, "&#39;") %>)'>&#x270F;&#xFE0F;</button>
@@ -299,7 +299,7 @@
                 <select id="txFilterItem">
                   <option value="">Tous</option>
                   <% itemTypes.forEach(it => { %>
-                    <option value="<%= it.id %>"><%= it.emoji %> <%= it.name %></option>
+                    <option value="<%= it.id %>"><%= plainEmoji(it.emoji) %> <%= it.name %></option>
                   <% }); %>
                 </select>
               </div>
@@ -339,13 +339,13 @@
               <div class="form-row">
                 <div class="form-group">
                   <label for="itemTypeEmoji">Emoji</label>
-                  <input type="text" id="itemTypeEmoji" name="emoji" placeholder="Ex: 💎" maxlength="10">
+                  <input type="text" id="itemTypeEmoji" name="emoji" placeholder="Ex: 💎 ou <:nom:id>" maxlength="60">
                 </div>
                 <div class="form-group">
                   <label for="itemTypeCategory">Cat&eacute;gorie</label>
                   <select id="itemTypeCategory" name="category">
                     <% categories.forEach(cat => { %>
-                      <option value="<%= cat.id %>"><%= cat.emoji %> <%= cat.name %></option>
+                      <option value="<%= cat.id %>"><%= plainEmoji(cat.emoji) %> <%= cat.name %></option>
                     <% }); %>
                   </select>
                 </div>
@@ -377,7 +377,7 @@
                 <label for="editItemType">Item</label>
                 <select id="editItemType" name="itemTypeId" required>
                   <% itemTypes.forEach(it => { %>
-                    <option value="<%= it.id %>"><%= it.emoji %> <%= it.name %></option>
+                    <option value="<%= it.id %>"><%= plainEmoji(it.emoji) %> <%= it.name %></option>
                   <% }); %>
                 </select>
               </div>
@@ -405,6 +405,21 @@
     var itemTypesData = <%- JSON.stringify(itemTypes).replace(/<\//g, '<\\/') %>;
     var userRole = '<%= userRole %>';
     var tabList = userRole === 'admin' ? ['itemTypes','players','transactions'] : ['players','transactions'];
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function renderEmoji(emoji) {
+      if (!emoji) return '';
+      var m = emoji.match(/^<(a?):(\w+):(\d+)>$/);
+      if (m) {
+        var ext = m[1] === 'a' ? 'gif' : 'png';
+        return '<img src="https://cdn.discordapp.com/emojis/' + m[3] + '.' + ext + '" alt="' + m[2] + '" class="discord-emoji">';
+      }
+      return escapeHtml(emoji);
+    }
 
     function switchTab(tabId) {
       document.querySelectorAll('.inv-tab').forEach(t => t.classList.remove('active'));
@@ -581,7 +596,7 @@
         var qty = inv[it.id] || 0;
         if (qty > 0) hasItems = true;
         html += '<div class="player-inv-item">';
-        html += '<span class="inv-emoji">' + it.emoji + '</span>';
+        html += '<span class="inv-emoji">' + renderEmoji(it.emoji) + '</span>';
         html += '<span class="inv-name">' + escapeHtml(it.name) + '</span>';
         html += '<span class="inv-qty">' + qty + '</span>';
         html += '</div>';
@@ -700,7 +715,7 @@
 
       txs.forEach(function(tx) {
         var item = itemMap[tx.itemTypeId];
-        var itemLabel = item ? (item.emoji + ' ' + item.name) : tx.itemTypeId;
+        var itemLabel = item ? (renderEmoji(item.emoji) + ' ' + escapeHtml(item.name)) : escapeHtml(tx.itemTypeId);
         var typeClass = tx.type === 'add' ? 'tx-type-add' : (tx.type === 'remove' ? 'tx-type-remove' : 'tx-type-reset');
         var typeLabel = tx.type === 'add' ? '+Ajout' : (tx.type === 'remove' ? '-Retrait' : '\u21BB Reset');
         var date = new Date(tx.timestamp);
@@ -721,10 +736,6 @@
       container.innerHTML = html;
     }
 
-    function escapeHtml(str) {
-      if (!str) return '';
-      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    }
   </script>
 </body>
 </html>
