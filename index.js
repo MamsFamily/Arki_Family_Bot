@@ -16,7 +16,7 @@ const { getConfig, saveConfig: saveRouletteConfig, initConfig } = require('./con
 const { initSettings, getSettings } = require('./settingsManager');
 const { initDinos } = require('./dinoManager');
 const { initShop } = require('./shopManager');
-const { initInventory, getItemTypes, getItemTypeById, getPlayerInventory, addToInventory, removeFromInventory, resetPlayerInventory, getPlayerTransactions, ITEM_CATEGORIES } = require('./inventoryManager');
+const { initInventory, getItemTypes, getItemTypeById, getPlayerInventory, addToInventory, removeFromInventory, resetPlayerInventory, getPlayerTransactions, getCategories } = require('./inventoryManager');
 
 const openaiConfig = {};
 if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
@@ -1614,7 +1614,8 @@ client.on('interactionCreate', async interaction => {
     const itemTypes = getItemTypes();
 
     const categoryMap = {};
-    for (const cat of ITEM_CATEGORIES) {
+    const categories = getCategories();
+    for (const cat of categories) {
       categoryMap[cat.id] = { ...cat, items: [] };
     }
 
@@ -1630,7 +1631,7 @@ client.on('interactionCreate', async interaction => {
     let description = '';
     let hasItems = false;
 
-    const allCatIds = [...new Set([...ITEM_CATEGORIES.map(c => c.id), ...Object.keys(categoryMap)])];
+    const allCatIds = [...new Set([...categories.map(c => c.id), ...Object.keys(categoryMap)])];
     for (const catId of allCatIds) {
       const catData = categoryMap[catId];
       if (!catData || catData.items.length === 0) continue;

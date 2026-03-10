@@ -969,7 +969,7 @@ function createWebServer(discordClient) {
 
   app.get('/inventory', requireAuth, (req, res) => {
     const itemTypes = inventoryManager.getItemTypes();
-    const categories = inventoryManager.ITEM_CATEGORIES;
+    const categories = inventoryManager.getCategories();
     res.render('inventory', {
       itemTypes,
       categories,
@@ -1009,6 +1009,37 @@ function createWebServer(discordClient) {
       res.redirect('/inventory?success=Type+supprim%C3%A9+!');
     } else {
       res.redirect('/inventory?error=Type+introuvable');
+    }
+  });
+
+  app.post('/inventory/categories', requireAdmin, async (req, res) => {
+    const { catId, name, emoji, order } = req.body;
+    if (!name || !name.trim()) {
+      return res.redirect('/inventory?error=Le+nom+est+requis');
+    }
+    if (catId) {
+      await inventoryManager.updateCategory(catId, {
+        name: name.trim(),
+        emoji: emoji || '📦',
+        order: parseInt(order) || 1,
+      });
+      res.redirect('/inventory?success=Cat%C3%A9gorie+modifi%C3%A9e+!');
+    } else {
+      await inventoryManager.addCategory({
+        name: name.trim(),
+        emoji: emoji || '📦',
+        order: parseInt(order) || 1,
+      });
+      res.redirect('/inventory?success=Cat%C3%A9gorie+cr%C3%A9%C3%A9e+!');
+    }
+  });
+
+  app.post('/inventory/categories/delete/:id', requireAdmin, async (req, res) => {
+    const deleted = await inventoryManager.deleteCategory(req.params.id);
+    if (deleted) {
+      res.redirect('/inventory?success=Cat%C3%A9gorie+supprim%C3%A9e+!');
+    } else {
+      res.redirect('/inventory?error=Cat%C3%A9gorie+introuvable');
     }
   });
 

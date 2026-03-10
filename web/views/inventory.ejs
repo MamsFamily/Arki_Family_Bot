@@ -262,6 +262,32 @@
             <% } %>
           </div>
         </div>
+
+        <div class="card" style="margin-top:20px;">
+          <div class="card-header">
+            <h2>&#x1F4C1; Cat&eacute;gories</h2>
+            <button class="btn btn-primary" onclick="openCategoryModal()">+ Nouvelle cat&eacute;gorie</button>
+          </div>
+          <div class="card-body">
+            <div class="item-type-grid">
+              <% categories.forEach(cat => { %>
+                <div class="item-type-card">
+                  <div class="item-type-emoji"><%- renderEmoji(cat.emoji) %></div>
+                  <div class="item-type-info">
+                    <div class="item-type-name"><%= cat.name %></div>
+                    <div class="item-type-cat" style="color:var(--text-muted);">Ordre : <%= cat.order || '-' %></div>
+                  </div>
+                  <div class="item-type-actions">
+                    <button class="btn btn-sm btn-secondary" onclick='editCategory(<%- JSON.stringify(cat).replace(/\x27/g, "&#39;") %>)'>&#x270F;&#xFE0F;</button>
+                    <form method="POST" action="/inventory/categories/delete/<%= cat.id %>" style="display:inline" onsubmit="return confirm('Supprimer la cat\u00e9gorie &quot;<%= cat.name %>&quot; ?')">
+                      <button type="submit" class="btn btn-sm btn-danger">&#x1F5D1;&#xFE0F;</button>
+                    </form>
+                  </div>
+                </div>
+              <% }); %>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div id="tab-players" class="inv-tab-content active">
@@ -363,6 +389,38 @@
         </div>
       </div>
 
+      <div class="modal-overlay" id="categoryModal">
+        <div class="modal-card" style="max-width:450px;">
+          <div class="modal-header">
+            <h2 id="categoryModalTitle">&#x1F4C1; Nouvelle cat&eacute;gorie</h2>
+            <button class="modal-close" onclick="closeCategoryModal()">&times;</button>
+          </div>
+          <form method="POST" action="/inventory/categories" id="categoryForm">
+            <input type="hidden" name="catId" id="categoryId" value="">
+            <div class="modal-body">
+              <div class="form-group">
+                <label for="categoryName">Nom</label>
+                <input type="text" id="categoryName" name="name" required placeholder="Ex: Monnaie">
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="categoryEmoji">Emoji</label>
+                  <input type="text" id="categoryEmoji" name="emoji" placeholder="Ex: &#x1F4B0; ou <:nom:id>" maxlength="60">
+                </div>
+                <div class="form-group">
+                  <label for="categoryOrder">Ordre</label>
+                  <input type="number" id="categoryOrder" name="order" min="1" value="<%= categories.length + 1 %>">
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" onclick="closeCategoryModal()">Annuler</button>
+              <button type="submit" class="btn btn-primary" id="categorySubmitBtn">&#x1F4BE; Cr&eacute;er</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
       <div class="modal-overlay" id="playerEditModal">
         <div class="modal-card" style="max-width:450px;">
           <div class="modal-header">
@@ -452,6 +510,33 @@
 
     function closeItemTypeModal() {
       document.getElementById('itemTypeModal').classList.remove('show');
+    }
+
+    function openCategoryModal(cat) {
+      document.getElementById('categoryModal').classList.add('show');
+      if (cat) {
+        document.getElementById('categoryModalTitle').textContent = '\u270F\uFE0F Modifier : ' + cat.name;
+        document.getElementById('categorySubmitBtn').textContent = '\uD83D\uDCBE Sauvegarder';
+        document.getElementById('categoryId').value = cat.id;
+        document.getElementById('categoryName').value = cat.name;
+        document.getElementById('categoryEmoji').value = cat.emoji || '';
+        document.getElementById('categoryOrder').value = cat.order || 1;
+      } else {
+        document.getElementById('categoryModalTitle').textContent = '\uD83D\uDCC1 Nouvelle cat\u00e9gorie';
+        document.getElementById('categorySubmitBtn').textContent = '\uD83D\uDCBE Cr\u00e9er';
+        document.getElementById('categoryId').value = '';
+        document.getElementById('categoryName').value = '';
+        document.getElementById('categoryEmoji').value = '';
+        document.getElementById('categoryOrder').value = '';
+      }
+    }
+
+    function closeCategoryModal() {
+      document.getElementById('categoryModal').classList.remove('show');
+    }
+
+    function editCategory(cat) {
+      openCategoryModal(cat);
     }
 
     function editItemType(item) {

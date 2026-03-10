@@ -6,10 +6,12 @@ const INVENTORY_PATH = path.join(__dirname, 'inventory.json');
 const PG_KEY_ITEM_TYPES = 'inventory_item_types';
 const PG_KEY_INVENTORIES = 'inventory_data';
 const PG_KEY_TRANSACTIONS = 'inventory_transactions';
+const PG_KEY_CATEGORIES = 'inventory_categories';
 
 let cachedItemTypes = null;
 let cachedInventories = null;
 let cachedTransactions = null;
+let cachedCategories = null;
 
 const DEFAULT_ITEM_TYPES = [
   { id: 'diamants', name: 'Diamants', emoji: '💎', category: 'currency', order: 1 },
@@ -27,12 +29,12 @@ const DEFAULT_ITEM_TYPES = [
   { id: 'dino_dona', name: 'Dino Dona', emoji: '🦕', category: 'dino', order: 13 },
 ];
 
-const ITEM_CATEGORIES = [
-  { id: 'currency', name: 'Monnaie', emoji: '💰' },
-  { id: 'consumable', name: 'Consommable', emoji: '📦' },
-  { id: 'dino', name: 'Dino', emoji: '🦕' },
-  { id: 'equipment', name: 'Équipement', emoji: '🛡️' },
-  { id: 'other', name: 'Autre', emoji: '🔮' },
+const DEFAULT_CATEGORIES = [
+  { id: 'currency', name: 'Monnaie', emoji: '💰', order: 1 },
+  { id: 'consumable', name: 'Consommable', emoji: '📦', order: 2 },
+  { id: 'dino', name: 'Dino', emoji: '🦕', order: 3 },
+  { id: 'equipment', name: 'Équipement', emoji: '🛡️', order: 4 },
+  { id: 'other', name: 'Autre', emoji: '🔮', order: 5 },
 ];
 
 function loadFromFile() {
@@ -43,7 +45,7 @@ function loadFromFile() {
   } catch (err) {
     console.error('Erreur lecture inventory.json:', err);
   }
-  return { itemTypes: DEFAULT_ITEM_TYPES, inventories: {}, transactions: [] };
+  return { itemTypes: DEFAULT_ITEM_TYPES, inventories: {}, transactions: [], categories: DEFAULT_CATEGORIES };
 }
 
 function saveToFile(data) {
@@ -64,39 +66,89 @@ async function initInventory() {
       await pgStore.setData(PG_KEY_ITEM_TYPES, fileData.itemTypes || DEFAULT_ITEM_TYPES);
       await pgStore.setData(PG_KEY_INVENTORIES, fileData.inventories || {});
       await pgStore.setData(PG_KEY_TRANSACTIONS, fileData.transactions || []);
+      await pgStore.setData(PG_KEY_CATEGORIES, fileData.categories || DEFAULT_CATEGORIES);
       console.log('📦 Inventaire migré vers PostgreSQL');
     }
     cachedItemTypes = await pgStore.getData(PG_KEY_ITEM_TYPES) || DEFAULT_ITEM_TYPES;
     cachedInventories = await pgStore.getData(PG_KEY_INVENTORIES) || {};
     cachedTransactions = await pgStore.getData(PG_KEY_TRANSACTIONS) || [];
+    cachedCategories = await pgStore.getData(PG_KEY_CATEGORIES) || DEFAULT_CATEGORIES;
   } else {
     const fileData = loadFromFile();
     cachedItemTypes = fileData.itemTypes || DEFAULT_ITEM_TYPES;
     cachedInventories = fileData.inventories || {};
     cachedTransactions = fileData.transactions || [];
+    cachedCategories = fileData.categories || DEFAULT_CATEGORIES;
   }
-  console.log(`📦 Inventaire chargé: ${cachedItemTypes.length} types d'items`);
+  console.log(`📦 Inventaire chargé: ${cachedItemTypes.length} types d'items, ${cachedCategories.length} catégories`);
+}
+
+function getFileData() {
+  return { itemTypes: cachedItemTypes, inventories: cachedInventories, transactions: cachedTransactions, categories: cachedCategories };
 }
 
 async function saveItemTypes() {
   if (pgStore.isPostgres()) {
     await pgStore.setData(PG_KEY_ITEM_TYPES, cachedItemTypes);
   }
-  saveToFile({ itemTypes: cachedItemTypes, inventories: cachedInventories, transactions: cachedTransactions });
+  saveToFile(getFileData());
 }
 
 async function saveInventories() {
   if (pgStore.isPostgres()) {
     await pgStore.setData(PG_KEY_INVENTORIES, cachedInventories);
   }
-  saveToFile({ itemTypes: cachedItemTypes, inventories: cachedInventories, transactions: cachedTransactions });
+  saveToFile(getFileData());
 }
 
 async function saveTransactions() {
   if (pgStore.isPostgres()) {
     await pgStore.setData(PG_KEY_TRANSACTIONS, cachedTransactions);
   }
-  saveToFile({ itemTypes: cachedItemTypes, inventories: cachedInventories, transactions: cachedTransactions });
+  saveToFile(getFileData());
+}
+
+async function saveCategories() {
+  if (pgStore.isPostgres()) {
+    await pgStore.setData(PG_KEY_CATEGORIES, cachedCategories);
+  }
+  saveToFile(getFileData());
+}
+
+function getCategories() {
+  return (cachedCategories || DEFAULT_CATEGORIES).sort((a, b) => (a.order || 0) - (b.order || 0));
+}
+
+function getCategoryById(catId) {
+  return (cachedCategories || []).find(c => c.id === catId) || null;
+}
+
+async function addCategory(data) {
+  const cat = {
+    id: data.id || generateId(),
+    name: data.name,
+    emoji: data.emoji || '📦',
+    order: data.order || (cachedCategories.length + 1),
+  };
+  cachedCategories.push(cat);
+  await saveCategories();
+  return cat;
+}
+
+async function updateCategory(catId, data) {
+  const idx = cachedCategories.findIndex(c => c.id === catId);
+  if (idx === -1) return null;
+  cachedCategories[idx] = { ...cachedCategories[idx], ...data, id: catId };
+  await saveCategories();
+  return cachedCategories[idx];
+}
+
+async function deleteCategory(catId) {
+  const idx = cachedCategories.findIndex(c => c.id === catId);
+  if (idx === -1) return false;
+  cachedCategories.splice(idx, 1);
+  await saveCategories();
+  return true;
 }
 
 function getItemTypes() {
@@ -326,6 +378,11 @@ module.exports = {
   resetPlayerInventory,
   getTransactions,
   getPlayerTransactions,
-  ITEM_CATEGORIES,
+  getCategories,
+  getCategoryById,
+  addCategory,
+  updateCategory,
+  deleteCategory,
+  DEFAULT_CATEGORIES,
   DEFAULT_ITEM_TYPES,
 };
