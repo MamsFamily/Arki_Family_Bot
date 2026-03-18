@@ -203,19 +203,25 @@ function createWebServer(discordClient) {
   });
 
   app.get('/', requireAdmin, async (req, res) => {
-    const config = await readConfig();
     const { getVotesConfig } = require('../votesConfig');
+    const { fetchTopserveursRanking } = require('../topserveursService');
     const votesConfig = getVotesConfig();
 
-    const guildCount = discordClient?.guilds?.cache?.size || 0;
     const memberCount = discordClient?.guilds?.cache?.reduce((acc, g) => acc + g.memberCount, 0) || 0;
 
+    let top5 = [];
+    try {
+      const rankingUrl = votesConfig.TOPSERVEURS_RANKING_URL || 'https://api.top-serveurs.net/v1/servers/4ROMAU33GJTY/players-ranking';
+      const allPlayers = await fetchTopserveursRanking(rankingUrl);
+      top5 = allPlayers.slice(0, 5);
+    } catch (e) {
+      console.error('Erreur fetch top5 dashboard:', e.message);
+    }
+
     res.render('dashboard', {
-      config,
-      votesConfig,
-      guildCount,
       memberCount,
       uptime: process.uptime(),
+      top5,
     });
   });
 

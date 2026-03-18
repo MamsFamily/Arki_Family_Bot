@@ -285,6 +285,74 @@ body {
   letter-spacing: 0.5px;
 }
 
+/* Top 5 voteurs */
+.top5-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.top5-row {
+  display: grid;
+  grid-template-columns: 40px 1fr auto 120px;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-input);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  border-left: 4px solid transparent;
+  transition: background 0.15s;
+}
+
+.top5-row:hover {
+  background: var(--accent-light);
+}
+
+.top5-rank {
+  font-size: 22px;
+  text-align: center;
+}
+
+.top5-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.top5-votes {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.top5-votes-count {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.top5-votes-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+.top5-bar-wrap {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.top5-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+  opacity: 0.8;
+}
+
 .card {
   background: var(--bg-card);
   border-radius: var(--radius);

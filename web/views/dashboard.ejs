@@ -21,60 +21,60 @@
 
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-icon">🖥️</div>
-          <div class="stat-value"><%= guildCount %></div>
-          <div class="stat-label">Serveurs</div>
-        </div>
-        <div class="stat-card">
           <div class="stat-icon">👥</div>
           <div class="stat-value"><%= memberCount.toLocaleString('fr-FR') %></div>
           <div class="stat-label">Membres</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">🎰</div>
-          <div class="stat-value"><%= config.rouletteChoices.length %></div>
-          <div class="stat-label">Choix roulette</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon">⏱️</div>
           <div class="stat-value"><%= Math.floor(uptime / 3600) %>h<%= Math.floor((uptime % 3600) / 60).toString().padStart(2, '0') %></div>
           <div class="stat-label">Uptime</div>
         </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <h2>🎰 Roulette actuelle</h2>
+        <div class="stat-card">
+          <div class="stat-icon">🏆</div>
+          <div class="stat-value"><%= top5.length > 0 ? top5[0].votes : '—' %></div>
+          <div class="stat-label">Votes – 1er du mois</div>
         </div>
-        <div class="card-body">
-          <p style="margin-bottom: 12px; color: var(--text-secondary);">Titre : <strong style="color: var(--text-primary);"><%= config.rouletteTitle || 'ARKI' %></strong></p>
-          <div class="choice-list">
-            <% config.rouletteChoices.forEach(c => { %>
-              <span class="choice-tag"><%= c %></span>
-            <% }) %>
-          </div>
+        <div class="stat-card">
+          <div class="stat-icon">🗳️</div>
+          <div class="stat-value"><%= top5.reduce((s, p) => s + p.votes, 0).toLocaleString('fr-FR') %></div>
+          <div class="stat-label">Total votes top 5</div>
         </div>
       </div>
 
       <div class="card">
         <div class="card-header">
-          <h2>💎 Configuration votes</h2>
+          <h2>🏆 Top 5 voteurs du mois</h2>
+          <span style="font-size:13px;color:var(--text-muted)">Via Top-Serveurs</span>
         </div>
         <div class="card-body">
-          <div class="config-item">
-            <span class="config-label">Diamants par vote</span>
-            <span class="config-value"><%= votesConfig.DIAMONDS_PER_VOTE %></span>
-          </div>
-          <div class="config-item">
-            <span class="config-label">Bonus 4ème place</span>
-            <span class="config-value"><%= votesConfig.TOP_DIAMONDS[4] || 0 %> 💎</span>
-          </div>
-          <div class="config-item">
-            <span class="config-label">Bonus 5ème place</span>
-            <span class="config-value"><%= votesConfig.TOP_DIAMONDS[5] || 0 %> 💎</span>
-          </div>
+          <% if (top5.length === 0) { %>
+            <div class="empty-state">
+              <div class="icon">🗳️</div>
+              <p>Impossible de récupérer le classement.<br>Vérifiez l'URL API dans les paramètres.</p>
+            </div>
+          <% } else { %>
+            <div class="top5-list">
+              <% const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣']; %>
+              <% const colors = ['#ffd700', '#c0c0c0', '#cd7f32', 'var(--text-secondary)', 'var(--text-secondary)']; %>
+              <% top5.forEach((player, i) => { %>
+                <div class="top5-row <%= i < 3 ? 'top5-podium' : '' %>" style="<% if(i < 3) { %>border-left: 4px solid <%= colors[i] %>;<% } %>">
+                  <div class="top5-rank" style="color: <%= colors[i] %>"><%= medals[i] %></div>
+                  <div class="top5-name"><%= player.playername %></div>
+                  <div class="top5-votes">
+                    <span class="top5-votes-count"><%= player.votes %></span>
+                    <span class="top5-votes-label">vote<%= player.votes > 1 ? 's' : '' %></span>
+                  </div>
+                  <div class="top5-bar-wrap">
+                    <div class="top5-bar" style="width: <%= top5[0].votes > 0 ? Math.round((player.votes / top5[0].votes) * 100) : 0 %>%; background: <%= colors[i] %>"></div>
+                  </div>
+                </div>
+              <% }); %>
+            </div>
+          <% } %>
         </div>
       </div>
+
     </main>
   </div>
 </body>

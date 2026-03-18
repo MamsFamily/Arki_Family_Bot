@@ -148,6 +148,9 @@ Dashboard d'administration accessible sur le port 5000, avec triple authentifica
 5. Accéder au dashboard via le port 5000
 
 ## Changements récents
+- 2026-03-18: Dashboard simplifié : suppression nombre de serveurs, choix roulette, roulette actuelle, config votes ; ajout top 5 voteurs du mois via TopServeurs API avec barre de progression et médailles
+- 2026-03-18: Gestion des catégories shop (CRUD complet depuis le dashboard, persisté PostgreSQL) avec sélecteur de couleur
+- 2026-03-18: Bouton toggle mode clair/sombre en haut à droite du dashboard, persisté dans localStorage
 - 2026-03-06: Authentification Discord OAuth2 sur le dashboard (mot de passe + identification Discord, nom réel dans les logs inventaire et sidebar)
 - 2026-03-06: Système d'inventaire joueurs complet (inventoryManager.js) avec types d'items personnalisables, CRUD joueur, historique des transactions
 - 2026-03-06: Commandes Discord /inventaire et /inventaire-admin (ajouter/retirer/reset/historique) avec autocomplete items
