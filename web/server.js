@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
 const { getSettings, updateSection } = require('../settingsManager');
-const { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, buildPackEmbed, DEFAULT_CATEGORIES } = require('../shopManager');
+const { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, addCategory, updateCategory, deleteCategory, getCategories, buildPackEmbed, DEFAULT_CATEGORIES } = require('../shopManager');
 const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, getPaidDLCDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildModdedEmbeds, buildShoulderEmbed, buildSaleEmbed, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, getAllLetters, updateNavMessage, getNavMessage, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
 
 const { getConfig: readConfig, saveConfig } = require('../configManager');
@@ -413,13 +413,31 @@ function createWebServer(discordClient) {
         category: ch.parentId ? (categories.get(ch.parentId)?.name || '') : '',
       }));
     }
-    res.render('shop', { shop, categories: DEFAULT_CATEGORIES, channels, success: req.query.success || null, error: req.query.error || null });
+    const shopCategories = getCategories();
+    res.render('shop', { shop, categories: shopCategories, channels, success: req.query.success || null, error: req.query.error || null });
   });
 
   app.post('/shop/settings', requireAuth, async (req, res) => {
     const { shopChannelId } = req.body;
     await updateShopChannel(shopChannelId || '');
     res.redirect('/shop?success=Salon+sauvegard%C3%A9+!');
+  });
+
+  app.post('/shop/categories', requireAuth, async (req, res) => {
+    const { catId, name, emoji, color } = req.body;
+    if (!name || !name.trim()) return res.redirect('/shop?error=Nom+de+cat%C3%A9gorie+requis');
+    if (catId) {
+      await updateCategory(catId, { name: name.trim(), emoji: emoji || '📦', color: color || '#7c5cfc' });
+      return res.redirect('/shop?success=Cat%C3%A9gorie+modifi%C3%A9e+!');
+    } else {
+      await addCategory({ name: name.trim(), emoji: emoji || '📦', color: color || '#7c5cfc' });
+      return res.redirect('/shop?success=Cat%C3%A9gorie+ajout%C3%A9e+!');
+    }
+  });
+
+  app.post('/shop/categories/delete/:id', requireAuth, async (req, res) => {
+    await deleteCategory(req.params.id);
+    res.redirect('/shop?success=Cat%C3%A9gorie+supprim%C3%A9e+!');
   });
 
   app.post('/shop/pack', requireAuth, async (req, res) => {

@@ -47,6 +47,40 @@
 
       <div class="card">
         <div class="card-header">
+          <h2>🏷️ Catégories</h2>
+          <button class="btn btn-primary" onclick="openCatModal()">+ Nouvelle catégorie</button>
+        </div>
+        <div class="card-body">
+          <% if (categories.length === 0) { %>
+            <div class="empty-state"><p>Aucune catégorie. Créez-en une !</p></div>
+          <% } else { %>
+            <table class="data-table" style="margin-bottom:0">
+              <thead><tr><th>Emoji</th><th>Nom</th><th>Couleur</th><th>Packs</th><th>Actions</th></tr></thead>
+              <tbody>
+                <% categories.forEach(cat => {
+                  const packCount = shop.packs.filter(p => p.category === cat.id).length;
+                %>
+                <tr>
+                  <td style="font-size:1.4em;text-align:center"><%= cat.emoji %></td>
+                  <td><strong><%= cat.name %></strong></td>
+                  <td><span style="display:inline-block;width:24px;height:24px;border-radius:4px;background:<%= cat.color %>;vertical-align:middle;margin-right:6px;border:1px solid var(--border)"></span><code style="font-size:12px"><%= cat.color %></code></td>
+                  <td><span class="pack-badge badge-draft"><%= packCount %> pack<%= packCount !== 1 ? 's' : '' %></span></td>
+                  <td>
+                    <button class="btn btn-sm btn-secondary" onclick="editCat(<%- JSON.stringify(cat).replace(/<\//g,'<\\/') %>)">✏️</button>
+                    <form method="POST" action="/shop/categories/delete/<%= cat.id %>" style="display:inline" onsubmit="return confirm('Supprimer la catégorie « <%= cat.name %> » ? Les packs associés conserveront leur catégorie par ID.')">
+                      <button type="submit" class="btn btn-sm btn-danger">🗑️</button>
+                    </form>
+                  </td>
+                </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          <% } %>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
           <h2>&#x1F4E6; Packs du shop</h2>
           <button class="btn btn-primary" onclick="openModal()">+ Nouveau pack</button>
         </div>
@@ -124,6 +158,41 @@
               </form>
             </div>
           <% } %>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="catModal">
+        <div class="modal-card" style="max-width:420px">
+          <div class="modal-header">
+            <h2 id="catModalTitle">🏷️ Nouvelle catégorie</h2>
+            <button class="modal-close" onclick="closeCatModal()">&times;</button>
+          </div>
+          <form method="POST" action="/shop/categories" id="catForm">
+            <input type="hidden" name="catId" id="catId" value="">
+            <div class="modal-body">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="catEmoji">Emoji</label>
+                  <input type="text" id="catEmoji" name="emoji" maxlength="60" placeholder="📦" style="width:80px">
+                </div>
+                <div class="form-group" style="flex:1">
+                  <label for="catName">Nom de la catégorie</label>
+                  <input type="text" id="catName" name="name" required placeholder="Ex: Packs Dinos">
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="catColor">Couleur (embed Discord)</label>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <input type="color" id="catColor" name="color" value="#7c5cfc" style="width:60px;height:40px;padding:2px;cursor:pointer;">
+                  <span id="catColorHex" style="font-size:13px;color:var(--text-secondary)">#7c5cfc</span>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" onclick="closeCatModal()">Annuler</button>
+              <button type="submit" class="btn btn-primary" id="catSubmitBtn">💾 Créer</button>
+            </div>
+          </form>
         </div>
       </div>
 
@@ -233,6 +302,40 @@
   </div>
 
   <script>
+    function openCatModal() {
+      document.getElementById('catModal').classList.add('show');
+      document.getElementById('catModalTitle').textContent = '🏷️ Nouvelle catégorie';
+      document.getElementById('catSubmitBtn').textContent = '💾 Créer';
+      document.getElementById('catId').value = '';
+      document.getElementById('catEmoji').value = '';
+      document.getElementById('catName').value = '';
+      document.getElementById('catColor').value = '#7c5cfc';
+      document.getElementById('catColorHex').textContent = '#7c5cfc';
+    }
+
+    function editCat(cat) {
+      document.getElementById('catModal').classList.add('show');
+      document.getElementById('catModalTitle').textContent = '✏️ Modifier : ' + cat.name;
+      document.getElementById('catSubmitBtn').textContent = '💾 Sauvegarder';
+      document.getElementById('catId').value = cat.id;
+      document.getElementById('catEmoji').value = cat.emoji || '';
+      document.getElementById('catName').value = cat.name || '';
+      document.getElementById('catColor').value = cat.color || '#7c5cfc';
+      document.getElementById('catColorHex').textContent = cat.color || '#7c5cfc';
+    }
+
+    function closeCatModal() {
+      document.getElementById('catModal').classList.remove('show');
+    }
+
+    document.getElementById('catModal').addEventListener('click', function(e) {
+      if (e.target === this) closeCatModal();
+    });
+
+    document.getElementById('catColor').addEventListener('input', function() {
+      document.getElementById('catColorHex').textContent = this.value;
+    });
+
     var packsData = {};
     try {
       packsData = <%- JSON.stringify(shop.packs.reduce((acc, p) => { acc[p.id] = p; return acc; }, {})).replace(/<\//g, '<\\/').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;

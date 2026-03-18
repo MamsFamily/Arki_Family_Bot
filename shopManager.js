@@ -116,10 +116,31 @@ async function updateShopChannel(channelId) {
 
 async function addCategory(category) {
   const shop = getShop();
-  category.id = category.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+  category.id = Date.now().toString(36);
   shop.categories.push(category);
   await saveShop(shop);
   return category;
+}
+
+async function updateCategory(catId, updates) {
+  const shop = getShop();
+  const idx = shop.categories.findIndex(c => c.id === catId);
+  if (idx === -1) return null;
+  shop.categories[idx] = { ...shop.categories[idx], ...updates };
+  await saveShop(shop);
+  return shop.categories[idx];
+}
+
+async function deleteCategory(catId) {
+  const shop = getShop();
+  shop.categories = shop.categories.filter(c => c.id !== catId);
+  await saveShop(shop);
+  return true;
+}
+
+function getCategories() {
+  const shop = getShop();
+  return (shop.categories && shop.categories.length > 0) ? shop.categories : DEFAULT_CATEGORIES;
 }
 
 function formatNumber(n) {
@@ -178,7 +199,8 @@ function buildPackEmbed(pack) {
     lines.push(`> 📝 *${pack.note}*`);
   }
 
-  const category = DEFAULT_CATEGORIES.find(c => c.id === pack.category) || DEFAULT_CATEGORIES[0];
+  const cats = getCategories();
+  const category = cats.find(c => c.id === pack.category) || cats[0] || { color: '#e74c3c' };
 
   return {
     title: pack.name.toUpperCase(),
@@ -187,4 +209,4 @@ function buildPackEmbed(pack) {
   };
 }
 
-module.exports = { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, addCategory, buildPackEmbed, initShop, DEFAULT_CATEGORIES };
+module.exports = { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, addCategory, updateCategory, deleteCategory, getCategories, buildPackEmbed, initShop, DEFAULT_CATEGORIES };
