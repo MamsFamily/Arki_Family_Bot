@@ -117,6 +117,15 @@
                       <div class="top5-bar" style="width:<%= Math.round((srv.playersOnline / srv.playersMax) * 100) %>%; background: var(--accent)"></div>
                     </div>
                   <% } %>
+                  <% if (isOnline && srv.playerNames && srv.playerNames.length > 0) { %>
+                    <div class="nitrado-playerlist">
+                      <% srv.playerNames.forEach(name => { %>
+                        <span class="nitrado-player-tag">👤 <%= name %></span>
+                      <% }); %>
+                    </div>
+                  <% } else if (isOnline && srv.playersOnline > 0) { %>
+                    <div class="nitrado-playerlist-empty">Noms non disponibles</div>
+                  <% } %>
                 </div>
               <% }); %>
             </div>

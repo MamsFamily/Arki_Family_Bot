@@ -437,6 +437,30 @@ body {
   color: var(--text-muted);
 }
 
+.nitrado-playerlist {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.nitrado-player-tag {
+  font-size: 11px;
+  background: var(--accent-light);
+  color: var(--text-primary);
+  border-radius: 4px;
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.nitrado-playerlist-empty {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 .card {
   background: var(--bg-card);
   border-radius: var(--radius);
