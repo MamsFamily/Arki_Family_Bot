@@ -1,3 +1,30 @@
+<button class="theme-toggle" id="themeToggle" title="Mode clair / sombre">🌙</button>
+
+<script>
+  (function() {
+    var saved = localStorage.getItem('theme');
+    if (saved === 'light') {
+      document.body.classList.add('light-mode');
+    }
+    function updateIcon() {
+      var btn = document.getElementById('themeToggle');
+      if (btn) btn.textContent = document.body.classList.contains('light-mode') ? '☀️' : '🌙';
+    }
+    updateIcon();
+    document.addEventListener('DOMContentLoaded', function() {
+      updateIcon();
+      var btn = document.getElementById('themeToggle');
+      if (btn) {
+        btn.addEventListener('click', function() {
+          document.body.classList.toggle('light-mode');
+          localStorage.setItem('theme', document.body.classList.contains('light-mode') ? 'light' : 'dark');
+          updateIcon();
+        });
+      }
+    });
+  })();
+</script>
+
 <button class="mobile-menu-btn" onclick="document.querySelector('.sidebar').classList.add('open');document.querySelector('.sidebar-overlay').classList.add('show')" aria-label="Menu">
   <img src="/images/logo-brut.png" alt="Menu" class="mobile-menu-logo">
 </button>
