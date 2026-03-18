@@ -15,9 +15,25 @@ async function fetchPlayerNames(serviceId) {
       headers: getHeaders(),
       timeout: 6000,
     });
-    const players = res.data?.data?.players || [];
-    return players.map(p => p.name || p.playername || p.player_name || String(p)).filter(Boolean);
+    const raw = res.data?.data?.players;
+    console.log(`[Nitrado] /games/players svc=${serviceId} raw:`, JSON.stringify(raw));
+
+    let players = [];
+    if (Array.isArray(raw)) {
+      players = raw;
+    } else if (raw && typeof raw === 'object') {
+      // Certaines réponses Nitrado encapsulent un objet unique ou un dict { "0": {...}, "1": {...} }
+      players = Object.values(raw);
+    }
+
+    return players
+      .map(p => {
+        if (typeof p === 'string') return p;
+        return p.name || p.playername || p.player_name || p.playerName || p.username || null;
+      })
+      .filter(Boolean);
   } catch (err) {
+    console.error(`[Nitrado] fetchPlayerNames svc=${serviceId} error:`, err.message);
     return [];
   }
 }
@@ -55,8 +71,12 @@ async function fetchNitradoServers() {
         let playerNames = [];
         if (isOnline && playersOnline > 0) {
           const fromQuery = gs?.query?.players;
-          if (Array.isArray(fromQuery) && fromQuery.length > 0) {
-            playerNames = fromQuery.map(p => (typeof p === 'string' ? p : (p.name || p.playername || ''))).filter(Boolean);
+          console.log(`[Nitrado] svc=${svc.id} query.players:`, JSON.stringify(fromQuery));
+          if (fromQuery) {
+            const arr = Array.isArray(fromQuery) ? fromQuery : Object.values(fromQuery);
+            playerNames = arr
+              .map(p => (typeof p === 'string' ? p : (p.name || p.playername || p.player_name || p.playerName || null)))
+              .filter(Boolean);
           }
           if (playerNames.length === 0) {
             playerNames = await fetchPlayerNames(svc.id);
