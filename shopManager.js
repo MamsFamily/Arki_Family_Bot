@@ -147,19 +147,35 @@ function formatNumber(n) {
   return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
 
+const OPTION_NUMBERS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+
 function buildPackEmbed(pack) {
   const lines = [];
+  const hasOptions = Array.isArray(pack.options) && pack.options.length > 0;
 
-  if (pack.priceDiamonds > 0 || pack.priceStrawberries > 0) {
-    const priceLine = [];
-    if (pack.priceDiamonds > 0) {
-      priceLine.push(`**${formatNumber(pack.priceDiamonds)}** <a:SparklyCrystal:1366174439003263087>`);
+  if (hasOptions) {
+    lines.push('**📋 Choisissez votre formule :**\n');
+    pack.options.forEach((opt, i) => {
+      const num = OPTION_NUMBERS[i] || `${i + 1}.`;
+      lines.push(`${num}  **${opt.name}**`);
+      const priceParts = [];
+      if (opt.priceDiamonds > 0) priceParts.push(`**${formatNumber(opt.priceDiamonds)}** <a:SparklyCrystal:1366174439003263087>`);
+      if (opt.priceStrawberries > 0) priceParts.push(`**${formatNumber(opt.priceStrawberries)}** <:fraises:1328148609585123379>`);
+      if (priceParts.length > 0) lines.push('> ' + priceParts.join('  +  '));
+      lines.push('');
+    });
+  } else {
+    if (pack.priceDiamonds > 0 || pack.priceStrawberries > 0) {
+      const priceLine = [];
+      if (pack.priceDiamonds > 0) {
+        priceLine.push(`**${formatNumber(pack.priceDiamonds)}** <a:SparklyCrystal:1366174439003263087>`);
+      }
+      if (pack.priceStrawberries > 0) {
+        priceLine.push(`**${formatNumber(pack.priceStrawberries)}** <:fraises:1328148609585123379>`);
+      }
+      lines.push('\n> ' + priceLine.join('  +  '));
+      lines.push('');
     }
-    if (pack.priceStrawberries > 0) {
-      priceLine.push(`**${formatNumber(pack.priceStrawberries)}** <:fraises:1328148609585123379>`);
-    }
-    lines.push('\n> ' + priceLine.join('  +  '));
-    lines.push('');
   }
 
   if (pack.donationAvailable) {
@@ -178,11 +194,8 @@ function buildPackEmbed(pack) {
     lines.push('> ⛔ *Réductions fondateur ou donateur non applicables*');
   }
 
-  if (lines.length > 0) {
+  if (!hasOptions && pack.content && pack.content.trim()) {
     lines.push('');
-  }
-
-  if (pack.content && pack.content.trim()) {
     const contentLines = pack.content.split('\n').filter(l => l.trim());
     contentLines.forEach(line => {
       const trimmed = line.trim();

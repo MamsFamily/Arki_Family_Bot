@@ -452,13 +452,28 @@ function createWebServer(discordClient) {
   });
 
   app.post('/shop/pack', requireAuth, async (req, res) => {
-    const { packId, name, category, priceDiamonds, priceStrawberries, content, note, color, donationAvailable, notCompatible, unavailable, noReduction } = req.body;
+    const { packId, name, category, priceDiamonds, priceStrawberries, content, note, color, donationAvailable, notCompatible, unavailable, noReduction, optionsJson } = req.body;
+
+    let options = [];
+    if (optionsJson) {
+      try {
+        const parsed = JSON.parse(optionsJson);
+        if (Array.isArray(parsed)) {
+          options = parsed.filter(o => o.name && o.name.trim()).map(o => ({
+            name: o.name.trim(),
+            priceDiamonds: parseInt(o.priceDiamonds) || 0,
+            priceStrawberries: parseInt(o.priceStrawberries) || 0,
+          }));
+        }
+      } catch (e) {}
+    }
 
     const packData = {
       name: name || 'Pack sans nom',
       category: category || 'packs',
-      priceDiamonds: parseInt(priceDiamonds) || 0,
-      priceStrawberries: parseInt(priceStrawberries) || 0,
+      priceDiamonds: options.length > 0 ? 0 : (parseInt(priceDiamonds) || 0),
+      priceStrawberries: options.length > 0 ? 0 : (parseInt(priceStrawberries) || 0),
+      options,
       content: content || '',
       note: note || '',
       color: color || '#e74c3c',

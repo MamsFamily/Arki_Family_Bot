@@ -127,12 +127,27 @@
                     <% } %>
                   </div>
                   <div class="pack-content-preview">
-                    <% const lines = (pack.content || '').split('\n').filter(l => l.trim()).slice(0, 4); %>
-                    <% lines.forEach(line => { %>
-                      <div class="pack-item">&bull; <%= line.trim().replace(/^[-*•]\s*/, '') %></div>
-                    <% }); %>
-                    <% if ((pack.content || '').split('\n').filter(l => l.trim()).length > 4) { %>
-                      <div class="pack-item pack-more">+ <%= (pack.content || '').split('\n').filter(l => l.trim()).length - 4 %> autres...</div>
+                    <% if (pack.options && pack.options.length > 0) { %>
+                      <% const nums = ['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣']; %>
+                      <% pack.options.slice(0, 4).forEach((opt, oi) => { %>
+                        <div class="pack-item"><%= nums[oi] || (oi+1+'.') %> <strong><%= opt.name %></strong>
+                          <span style="color:var(--text-muted);font-size:11px">
+                            <% if (opt.priceDiamonds > 0) { %>💎 <%= opt.priceDiamonds.toLocaleString('fr-FR') %><% } %>
+                            <% if (opt.priceStrawberries > 0) { %> 🍓 <%= opt.priceStrawberries.toLocaleString('fr-FR') %><% } %>
+                          </span>
+                        </div>
+                      <% }); %>
+                      <% if (pack.options.length > 4) { %>
+                        <div class="pack-item pack-more">+ <%= pack.options.length - 4 %> formule(s)...</div>
+                      <% } %>
+                    <% } else { %>
+                      <% const lines = (pack.content || '').split('\n').filter(l => l.trim()).slice(0, 4); %>
+                      <% lines.forEach(line => { %>
+                        <div class="pack-item">&bull; <%= line.trim().replace(/^[-*•]\s*/, '') %></div>
+                      <% }); %>
+                      <% if ((pack.content || '').split('\n').filter(l => l.trim()).length > 4) { %>
+                        <div class="pack-item pack-more">+ <%= (pack.content || '').split('\n').filter(l => l.trim()).length - 4 %> autres...</div>
+                      <% } %>
                     <% } %>
                   </div>
                   <div class="pack-actions">
@@ -220,20 +235,41 @@
                 </div>
               </div>
 
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="priceDiamonds">Prix diamants &#x1F48E;</label>
-                  <input type="number" id="priceDiamonds" name="priceDiamonds" value="0" min="0" oninput="autoCalcStrawberries()">
-                </div>
-                <div class="form-group">
-                  <label for="priceStrawberries">Prix fraises &#x1F353; <span id="autoCalcBadge" style="font-size:11px;color:#888;font-weight:normal;cursor:pointer;" onclick="resetAutoCalc()" title="Cliquer pour revenir en mode auto">(auto)</span></label>
-                  <input type="number" id="priceStrawberries" name="priceStrawberries" value="0" min="0" oninput="markManualStrawberries()">
+              <div class="form-group" style="margin-bottom:8px">
+                <label class="toggle-label" style="background:var(--accent-light);border:1px solid var(--accent);border-radius:8px;padding:10px 14px;">
+                  <input type="checkbox" id="multiOption" onchange="toggleMultiOption()">
+                  <span class="toggle-text">🔀 <strong>Mode multi-options</strong> — plusieurs formules avec prix différents</span>
+                </label>
+              </div>
+
+              <div id="singlePriceSection">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="priceDiamonds">Prix diamants &#x1F48E;</label>
+                    <input type="number" id="priceDiamonds" name="priceDiamonds" value="0" min="0" oninput="autoCalcStrawberries()">
+                  </div>
+                  <div class="form-group">
+                    <label for="priceStrawberries">Prix fraises &#x1F353; <span id="autoCalcBadge" style="font-size:11px;color:#888;font-weight:normal;cursor:pointer;" onclick="resetAutoCalc()" title="Cliquer pour revenir en mode auto">(auto)</span></label>
+                    <input type="number" id="priceStrawberries" name="priceStrawberries" value="0" min="0" oninput="markManualStrawberries()">
+                  </div>
                 </div>
               </div>
 
-              <div class="form-group">
-                <label for="packContent">Contenu du pack (un item par ligne)</label>
-                <textarea id="packContent" name="content" rows="6" placeholder="1 Pioche mythique&#10;1 Hache mythique&#10;1 Faucille mythique"></textarea>
+              <div id="multiOptionsSection" style="display:none">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                  <label style="font-weight:600;font-size:14px">Formules disponibles</label>
+                  <button type="button" class="btn btn-sm btn-primary" onclick="addOption()">+ Ajouter une formule</button>
+                </div>
+                <div id="optionsList" style="display:flex;flex-direction:column;gap:8px"></div>
+                <p class="help-text" style="margin-top:6px">Chaque formule apparaîtra numérotée dans l'embed Discord avec son prix.</p>
+              </div>
+              <input type="hidden" name="optionsJson" id="optionsJson" value="[]">
+
+              <div id="singleContentSection">
+                <div class="form-group">
+                  <label for="packContent">Contenu du pack (un item par ligne)</label>
+                  <textarea id="packContent" name="content" rows="6" placeholder="1 Pioche mythique&#10;1 Hache mythique&#10;1 Faucille mythique"></textarea>
+                </div>
               </div>
 
               <div class="form-group">
@@ -343,7 +379,67 @@
       console.error('Erreur chargement packsData:', e);
     }
 
+    /* ── Multi-options state ── */
+    let currentOptions = [];
+    const OPTION_NUMS = ['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟'];
+
+    function toggleMultiOption() {
+      const on = document.getElementById('multiOption').checked;
+      document.getElementById('singlePriceSection').style.display = on ? 'none' : '';
+      document.getElementById('singleContentSection').style.display = on ? 'none' : '';
+      document.getElementById('multiOptionsSection').style.display = on ? '' : 'none';
+      if (on && currentOptions.length === 0) addOption();
+      updatePreview();
+    }
+
+    function renderOptions() {
+      const list = document.getElementById('optionsList');
+      list.innerHTML = '';
+      currentOptions.forEach((opt, i) => {
+        const row = document.createElement('div');
+        row.className = 'option-row';
+        row.innerHTML = `
+          <span class="option-num">${OPTION_NUMS[i] || (i+1+'.')}</span>
+          <input type="text" class="form-control option-name" placeholder="Nom de la formule" value="${escHtml(opt.name)}" oninput="currentOptions[${i}].name=this.value;updatePreview()">
+          <div class="option-prices">
+            <div class="option-price-field">
+              <span class="option-price-icon">💎</span>
+              <input type="number" min="0" class="form-control" value="${opt.priceDiamonds||0}" placeholder="Diamants" oninput="currentOptions[${i}].priceDiamonds=parseInt(this.value)||0;updatePreview()">
+            </div>
+            <div class="option-price-field">
+              <span class="option-price-icon">🍓</span>
+              <input type="number" min="0" class="form-control" value="${opt.priceStrawberries||0}" placeholder="Fraises" oninput="currentOptions[${i}].priceStrawberries=parseInt(this.value)||0;updatePreview()">
+            </div>
+          </div>
+          <button type="button" class="btn btn-sm btn-danger" onclick="removeOption(${i})" title="Supprimer">✕</button>
+        `;
+        list.appendChild(row);
+      });
+      document.getElementById('optionsJson').value = JSON.stringify(currentOptions);
+      updatePreview();
+    }
+
+    function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    function addOption() {
+      currentOptions.push({ name: '', priceDiamonds: 0, priceStrawberries: 0 });
+      renderOptions();
+    }
+
+    function removeOption(i) {
+      currentOptions.splice(i, 1);
+      renderOptions();
+    }
+
     function openModal(pack) {
+      currentOptions = [];
+      document.getElementById('multiOption').checked = false;
+      document.getElementById('singlePriceSection').style.display = '';
+      document.getElementById('singleContentSection').style.display = '';
+      document.getElementById('multiOptionsSection').style.display = 'none';
+      document.getElementById('optionsList').innerHTML = '';
+      document.getElementById('optionsJson').value = '[]';
+
       document.getElementById('packModal').classList.add('show');
       if (!pack) {
         document.getElementById('modalTitle').textContent = '\u{1F4E6} Nouveau pack';
@@ -369,10 +465,18 @@
 
     function editPack(pack) {
       try {
-        if (!pack) {
-          alert('Erreur : pack introuvable. Rechargez la page.');
-          return;
-        }
+        if (!pack) { alert('Erreur : pack introuvable. Rechargez la page.'); return; }
+
+        const hasOptions = Array.isArray(pack.options) && pack.options.length > 0;
+        currentOptions = hasOptions ? JSON.parse(JSON.stringify(pack.options)) : [];
+
+        document.getElementById('multiOption').checked = hasOptions;
+        document.getElementById('singlePriceSection').style.display = hasOptions ? 'none' : '';
+        document.getElementById('singleContentSection').style.display = hasOptions ? 'none' : '';
+        document.getElementById('multiOptionsSection').style.display = hasOptions ? '' : 'none';
+        if (hasOptions) renderOptions();
+        else { document.getElementById('optionsList').innerHTML = ''; document.getElementById('optionsJson').value = '[]'; }
+
         document.getElementById('modalTitle').textContent = '✏️ Modifier : ' + pack.name;
         document.getElementById('submitBtn').textContent = '\u{1F4BE} Sauvegarder';
         document.getElementById('packForm').action = '/shop/pack';
@@ -388,19 +492,16 @@
         document.getElementById('notCompatible').checked = !!pack.notCompatible;
         document.getElementById('packUnavailable').checked = pack.available === false;
         document.getElementById('noReduction').checked = !!pack.noReduction;
-        const currentStrawberries = parseInt(pack.priceStrawberries) || 0;
-        const currentDiamonds = parseInt(pack.priceDiamonds) || 0;
-        const expectedStrawberries = calcStrawberries(currentDiamonds);
-        if (currentStrawberries === 0 || currentStrawberries === expectedStrawberries) {
-          strawberriesManual = false;
-          setAutoBadge(true);
-          if (currentStrawberries === 0 && currentDiamonds > 0) {
-            document.getElementById('priceStrawberries').value = expectedStrawberries;
-          }
-        } else {
-          strawberriesManual = true;
-          setAutoBadge(false);
+
+        if (!hasOptions) {
+          const cd = parseInt(pack.priceDiamonds) || 0;
+          const cs = parseInt(pack.priceStrawberries) || 0;
+          const es = calcStrawberries(cd);
+          strawberriesManual = cs !== 0 && cs !== es;
+          setAutoBadge(!strawberriesManual);
+          if (!strawberriesManual && cs === 0 && cd > 0) document.getElementById('priceStrawberries').value = es;
         }
+
         document.getElementById('packModal').classList.add('show');
         updatePreview();
       } catch(e) {
@@ -408,6 +509,10 @@
         alert('Erreur lors de l\'ouverture du pack : ' + e.message);
       }
     }
+
+    document.getElementById('packForm').addEventListener('submit', function() {
+      document.getElementById('optionsJson').value = JSON.stringify(currentOptions);
+    });
 
     function closeModal() {
       document.getElementById('packModal').classList.remove('show');
@@ -418,45 +523,61 @@
       const catSelect = document.getElementById('packCategory');
       const catEmoji = catSelect.options[catSelect.selectedIndex]?.textContent.split(' ')[0] || '\u{1F4E6}';
       const color = document.getElementById('packColor').value;
-      const diamonds = parseInt(document.getElementById('priceDiamonds').value) || 0;
-      const strawberries = parseInt(document.getElementById('priceStrawberries').value) || 0;
-      const content = document.getElementById('packContent').value;
       const donation = document.getElementById('donationAvailable').checked;
       const notCompat = document.getElementById('notCompatible').checked;
       const unavailable = document.getElementById('packUnavailable').checked;
       const noRed = document.getElementById('noReduction').checked;
       const note = document.getElementById('packNote').value;
+      const isMulti = document.getElementById('multiOption').checked;
 
       document.getElementById('previewTitle').textContent = catEmoji + ' ' + name;
       document.getElementById('embedBar').style.background = color;
 
       let desc = '';
-      if (diamonds > 0 || strawberries > 0) {
-        let parts = [];
-        if (diamonds > 0) parts.push('**' + diamonds.toLocaleString('fr-FR') + '** \u{1F48E}');
-        if (strawberries > 0) parts.push('**' + strawberries.toLocaleString('fr-FR') + '** \u{1F353}');
-        desc += '> \u{1F3F7}\u{FE0F} ' + parts.join(' + ') + '\n';
-      }
-      if (donation) desc += '> \u2705 **Compatible Pack Inventaire \u{1F4E6}**\n';
-      if (notCompat) desc += '> \u274C **Non compatible avec les pack inventaires**\n';
-      if (unavailable) desc += '> \u{26A0}\u{FE0F} *Pas encore disponible*\n';
-      if (noRed) desc += '> \u{26D4} *R\u00e9ductions non applicables*\n';
-      if (desc) desc += '\n';
 
-      if (content.trim()) {
-        content.split('\n').filter(l => l.trim()).forEach(line => {
-          const t = line.trim().replace(/^[-*\u2022]\s*/, '');
-          desc += '\u2022 ' + t + '\n';
+      if (isMulti && currentOptions.length > 0) {
+        desc += '<strong>📋 Choisissez votre formule :</strong><br><br>';
+        currentOptions.forEach((opt, i) => {
+          const num = OPTION_NUMS[i] || (i+1+'.');
+          desc += num + '  <strong>' + escHtml(opt.name || '…') + '</strong><br>';
+          const parts = [];
+          if (opt.priceDiamonds > 0) parts.push('<strong>' + opt.priceDiamonds.toLocaleString('fr-FR') + '</strong> 💎');
+          if (opt.priceStrawberries > 0) parts.push('<strong>' + opt.priceStrawberries.toLocaleString('fr-FR') + '</strong> 🍓');
+          if (parts.length) desc += '<span class="embed-quote">' + parts.join(' + ') + '</span><br>';
+          desc += '<br>';
         });
+      } else {
+        const diamonds = parseInt(document.getElementById('priceDiamonds').value) || 0;
+        const strawberries = parseInt(document.getElementById('priceStrawberries').value) || 0;
+        if (diamonds > 0 || strawberries > 0) {
+          let parts = [];
+          if (diamonds > 0) parts.push('<strong>' + diamonds.toLocaleString('fr-FR') + '</strong> 💎');
+          if (strawberries > 0) parts.push('<strong>' + strawberries.toLocaleString('fr-FR') + '</strong> 🍓');
+          desc += '<span class="embed-quote">🏷️ ' + parts.join(' + ') + '</span><br>';
+        }
+        const content = document.getElementById('packContent').value;
+        if (donation) desc += '<span class="embed-quote">✅ <strong>Compatible Pack Inventaire 📦</strong></span><br>';
+        if (notCompat) desc += '<span class="embed-quote">❌ <strong>Non compatible avec les pack inventaires</strong></span><br>';
+        if (unavailable) desc += '<span class="embed-quote">⚠️ <em>Pas encore disponible</em></span><br>';
+        if (noRed) desc += '<span class="embed-quote">⛔ <em>Réductions non applicables</em></span><br>';
+        if (desc) desc += '<br>';
+        if (content.trim()) {
+          content.split('\n').filter(l => l.trim()).forEach(line => {
+            desc += '• ' + line.trim().replace(/^[-*•]\s*/,'') + '<br>';
+          });
+        }
       }
 
-      if (note) desc += '\n> \u{1F4DD} *' + note + '*';
+      if (isMulti) {
+        if (donation) desc += '<span class="embed-quote">✅ <strong>Compatible Pack Inventaire 📦</strong></span><br>';
+        if (notCompat) desc += '<span class="embed-quote">❌ <strong>Non compatible avec les pack inventaires</strong></span><br>';
+        if (unavailable) desc += '<span class="embed-quote">⚠️ <em>Pas encore disponible</em></span><br>';
+        if (noRed) desc += '<span class="embed-quote">⛔ <em>Réductions non applicables</em></span><br>';
+      }
 
-      document.getElementById('previewDesc').innerHTML = desc
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        .replace(/^> (.*)$/gm, '<span class="embed-quote">$1</span>')
-        .replace(/\n/g, '<br>') || 'Ajoutez du contenu pour voir l\'aper\u00e7u';
+      if (note) desc += '<br><span class="embed-quote">📝 <em>' + escHtml(note) + '</em></span>';
+
+      document.getElementById('previewDesc').innerHTML = desc || 'Ajoutez du contenu pour voir l\'aper\u00e7u';
     }
 
     ['packName', 'priceDiamonds', 'priceStrawberries', 'packContent', 'packNote'].forEach(id => {

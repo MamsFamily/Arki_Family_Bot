@@ -461,6 +461,46 @@ body {
   font-style: italic;
 }
 
+/* Multi-option rows in pack form */
+.option-row {
+  display: grid;
+  grid-template-columns: 36px 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+
+.option-num {
+  font-size: 20px;
+  text-align: center;
+}
+
+.option-name {
+  font-weight: 600;
+}
+
+.option-prices {
+  display: flex;
+  gap: 8px;
+}
+
+.option-price-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.option-price-field input {
+  width: 100px;
+}
+
+.option-price-icon {
+  font-size: 16px;
+}
+
 .card {
   background: var(--bg-card);
   border-radius: var(--radius);
