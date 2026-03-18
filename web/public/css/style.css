@@ -353,6 +353,90 @@ body {
   opacity: 0.8;
 }
 
+/* Nitrado servers grid */
+.nitrado-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.nitrado-card {
+  background: var(--bg-input);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  border: 1px solid var(--border);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.nitrado-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+
+.nitrado-online {
+  border-left: 4px solid var(--success);
+}
+
+.nitrado-offline {
+  border-left: 4px solid #555;
+  opacity: 0.7;
+}
+
+.nitrado-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.nitrado-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.nitrado-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nitrado-status-label {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.nitrado-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nitrado-players {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.nitrado-players-count {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.nitrado-players-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 .card {
   background: var(--bg-card);
   border-radius: var(--radius);

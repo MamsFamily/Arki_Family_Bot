@@ -205,23 +205,28 @@ function createWebServer(discordClient) {
   app.get('/', requireAdmin, async (req, res) => {
     const { getVotesConfig } = require('../votesConfig');
     const { fetchTopserveursRanking } = require('../topserveursService');
+    const { fetchNitradoServers } = require('../nitradoService');
     const votesConfig = getVotesConfig();
 
     const memberCount = discordClient?.guilds?.cache?.reduce((acc, g) => acc + g.memberCount, 0) || 0;
 
-    let top5 = [];
-    try {
-      const rankingUrl = votesConfig.TOPSERVEURS_RANKING_URL || 'https://api.top-serveurs.net/v1/servers/4ROMAU33GJTY/players-ranking';
-      const allPlayers = await fetchTopserveursRanking(rankingUrl);
-      top5 = allPlayers.slice(0, 5);
-    } catch (e) {
-      console.error('Erreur fetch top5 dashboard:', e.message);
-    }
+    const [top5Result, nitradoResult] = await Promise.allSettled([
+      (async () => {
+        const rankingUrl = votesConfig.TOPSERVEURS_RANKING_URL || 'https://api.top-serveurs.net/v1/servers/4ROMAU33GJTY/players-ranking';
+        const all = await fetchTopserveursRanking(rankingUrl);
+        return all.slice(0, 5);
+      })(),
+      fetchNitradoServers(),
+    ]);
+
+    const top5 = top5Result.status === 'fulfilled' ? top5Result.value : [];
+    const nitradoServers = nitradoResult.status === 'fulfilled' ? nitradoResult.value : [];
 
     res.render('dashboard', {
       memberCount,
       uptime: process.uptime(),
       top5,
+      nitradoServers,
     });
   });
 
