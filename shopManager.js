@@ -64,6 +64,9 @@ function getShop() {
   }
   if (!shop.packs) shop.packs = [];
   if (!shop.shopChannelId) shop.shopChannelId = '';
+  if (!shop.shopUnitaireChannelId) shop.shopUnitaireChannelId = '';
+  if (!shop.shopIndexChannelId) shop.shopIndexChannelId = '';
+  if (!shop.shopTicketChannelId) shop.shopTicketChannelId = '';
   return shop;
 }
 
@@ -108,9 +111,22 @@ function getPack(packId) {
   return shop.packs.find(p => p.id === packId) || null;
 }
 
-async function updateShopChannel(channelId) {
+async function updateShopChannels(fields) {
   const shop = getShop();
-  shop.shopChannelId = channelId;
+  if ('shopChannelId' in fields) shop.shopChannelId = fields.shopChannelId;
+  if ('shopUnitaireChannelId' in fields) shop.shopUnitaireChannelId = fields.shopUnitaireChannelId;
+  if ('shopIndexChannelId' in fields) shop.shopIndexChannelId = fields.shopIndexChannelId;
+  if ('shopTicketChannelId' in fields) shop.shopTicketChannelId = fields.shopTicketChannelId;
+  await saveShop(shop);
+}
+
+async function updateShopChannel(channelId) {
+  await updateShopChannels({ shopChannelId: channelId });
+}
+
+async function saveShopIndexMessage(messageId) {
+  const shop = getShop();
+  shop.shopIndexMessageId = messageId;
   await saveShop(shop);
 }
 
@@ -215,11 +231,15 @@ function buildPackEmbed(pack) {
   const cats = getCategories();
   const category = cats.find(c => c.id === pack.category) || cats[0] || { color: '#e74c3c' };
 
-  return {
+  const result = {
     title: pack.name.toUpperCase(),
     description: lines.join('\n') + '\n\n*Arki\' Family Shop*',
     color: parseInt(pack.color ? pack.color.replace('#', '') : category.color.replace('#', ''), 16),
   };
+  if (pack.imageUrl && pack.imageUrl.trim()) {
+    result.thumbnail = { url: pack.imageUrl.trim() };
+  }
+  return result;
 }
 
-module.exports = { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, addCategory, updateCategory, deleteCategory, getCategories, buildPackEmbed, initShop, DEFAULT_CATEGORIES };
+module.exports = { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, updateShopChannels, saveShopIndexMessage, addCategory, updateCategory, deleteCategory, getCategories, buildPackEmbed, initShop, DEFAULT_CATEGORIES };

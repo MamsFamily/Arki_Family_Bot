@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
 const { getSettings, updateSection } = require('../settingsManager');
-const { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, addCategory, updateCategory, deleteCategory, getCategories, buildPackEmbed, DEFAULT_CATEGORIES } = require('../shopManager');
+const { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, updateShopChannels, saveShopIndexMessage, addCategory, updateCategory, deleteCategory, getCategories, buildPackEmbed, DEFAULT_CATEGORIES } = require('../shopManager');
 const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, getPaidDLCDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildModdedEmbeds, buildShoulderEmbed, buildSaleEmbed, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, getAllLetters, updateNavMessage, getNavMessage, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
 
 const { getConfig: readConfig, saveConfig } = require('../configManager');
@@ -429,9 +429,14 @@ function createWebServer(discordClient) {
   });
 
   app.post('/shop/settings', requireAuth, async (req, res) => {
-    const { shopChannelId } = req.body;
-    await updateShopChannel(shopChannelId || '');
-    res.redirect('/shop?success=Salon+sauvegard%C3%A9+!');
+    const { shopChannelId, shopUnitaireChannelId, shopIndexChannelId, shopTicketChannelId } = req.body;
+    await updateShopChannels({
+      shopChannelId: shopChannelId || '',
+      shopUnitaireChannelId: shopUnitaireChannelId || '',
+      shopIndexChannelId: shopIndexChannelId || '',
+      shopTicketChannelId: shopTicketChannelId || '',
+    });
+    res.redirect('/shop?success=Param%C3%A8tres+sauvegard%C3%A9s+!');
   });
 
   app.post('/shop/categories', requireAuth, async (req, res) => {
@@ -452,7 +457,7 @@ function createWebServer(discordClient) {
   });
 
   app.post('/shop/pack', requireAuth, async (req, res) => {
-    const { packId, name, category, priceDiamonds, priceStrawberries, content, note, color, donationAvailable, notCompatible, unavailable, noReduction, optionsJson } = req.body;
+    const { packId, name, category, priceDiamonds, priceStrawberries, content, note, color, donationAvailable, notCompatible, unavailable, noReduction, optionsJson, type, imageUrl } = req.body;
 
     let options = [];
     if (optionsJson) {
@@ -470,10 +475,12 @@ function createWebServer(discordClient) {
 
     const packData = {
       name: name || 'Pack sans nom',
+      type: type === 'unitaire' ? 'unitaire' : 'pack',
       category: category || 'packs',
       priceDiamonds: options.length > 0 ? 0 : (parseInt(priceDiamonds) || 0),
       priceStrawberries: options.length > 0 ? 0 : (parseInt(priceStrawberries) || 0),
       options,
+      imageUrl: imageUrl || '',
       content: content || '',
       note: note || '',
       color: color || '#e74c3c',
@@ -506,86 +513,129 @@ function createWebServer(discordClient) {
     res.redirect('/shop?success=Pack+supprim%C3%A9+!');
   });
 
+  function getPublishChannelId(shop, pack) {
+    if ((pack.type || 'pack') === 'unitaire' && shop.shopUnitaireChannelId) {
+      return shop.shopUnitaireChannelId;
+    }
+    return shop.shopChannelId;
+  }
+
+  async function publishOrUpdatePack(pack, discordClient, shop) {
+    const channelId = getPublishChannelId(shop, pack);
+    if (!channelId) throw new Error('Aucun salon configuré pour ce type de produit');
+    const channel = await discordClient.channels.fetch(channelId);
+    if (!channel) throw new Error('Salon introuvable');
+    const raw = buildPackEmbed(pack);
+    const { EmbedBuilder } = require('discord.js');
+    const embed = new EmbedBuilder()
+      .setTitle(raw.title)
+      .setDescription(raw.description)
+      .setColor(raw.color);
+    if (raw.thumbnail) embed.setThumbnail(raw.thumbnail.url);
+    if (pack.messageId) {
+      try {
+        const existingMsg = await channel.messages.fetch(pack.messageId);
+        await existingMsg.edit({ embeds: [embed] });
+        return { updated: true, channelId };
+      } catch (e) {
+        const newMsg = await channel.send({ embeds: [embed] });
+        await updatePack(pack.id, { messageId: newMsg.id, channelId });
+        return { updated: false, channelId };
+      }
+    } else {
+      const newMsg = await channel.send({ embeds: [embed] });
+      await updatePack(pack.id, { messageId: newMsg.id, channelId });
+      return { updated: false, channelId };
+    }
+  }
+
   app.post('/shop/publish/:id', requireAuth, async (req, res) => {
     if (!discordClient) return res.redirect('/shop?error=Bot+non+connect%C3%A9');
     const shop = getShop();
     const pack = getPack(req.params.id);
     if (!pack) return res.redirect('/shop?error=Pack+introuvable');
-
-    const channelId = shop.shopChannelId;
-    if (!channelId) return res.redirect('/shop?error=Aucun+salon+configur%C3%A9');
-
     try {
-      const channel = await discordClient.channels.fetch(channelId);
-      if (!channel) return res.redirect('/shop?error=Salon+introuvable');
-
-      const embed = buildPackEmbed(pack);
-
-      if (pack.messageId) {
-        try {
-          const existingMsg = await channel.messages.fetch(pack.messageId);
-          await existingMsg.edit({ embeds: [embed] });
-          res.redirect('/shop?success=Embed+mis+%C3%A0+jour+!');
-        } catch (e) {
-          const newMsg = await channel.send({ embeds: [embed] });
-          await updatePack(pack.id, { messageId: newMsg.id, channelId: channelId });
-          res.redirect('/shop?success=Embed+republié+!');
-        }
-      } else {
-        const newMsg = await channel.send({ embeds: [embed] });
-        await updatePack(pack.id, { messageId: newMsg.id, channelId: channelId });
-        res.redirect('/shop?success=Embed+publi%C3%A9+!');
-      }
+      const { updated } = await publishOrUpdatePack(pack, discordClient, shop);
+      res.redirect(`/shop?success=${updated ? 'Embed+mis+%C3%A0+jour' : 'Embed+publi%C3%A9'}+!`);
     } catch (err) {
       console.error('Erreur publication shop:', err);
-      res.redirect('/shop?error=Erreur+de+publication');
+      res.redirect('/shop?error=' + encodeURIComponent(err.message || 'Erreur de publication'));
     }
   });
 
   app.post('/shop/publish-all', requireAuth, async (req, res) => {
     if (!discordClient) return res.redirect('/shop?error=Bot+non+connect%C3%A9');
     const shop = getShop();
-    if (!shop.shopChannelId) return res.redirect('/shop?error=Aucun+salon+configur%C3%A9');
+    let published = 0, failed = 0;
+    const failedNames = [];
+    for (const pack of [...shop.packs]) {
+      try {
+        await publishOrUpdatePack(pack, discordClient, shop);
+        published++;
+      } catch (err) {
+        failed++;
+        failedNames.push(pack.name);
+        console.error(`Erreur publication pack ${pack.name}:`, err.message || err);
+      }
+    }
+    if (failed > 0) {
+      res.redirect(`/shop?success=${published}+publi%C3%A9s&error=${failed}+%C3%A9chec(s):+${encodeURIComponent(failedNames.join(', '))}`);
+    } else {
+      res.redirect(`/shop?success=${published}+produits+publi%C3%A9s+!`);
+    }
+  });
 
+  app.post('/shop/publish-index', requireAuth, async (req, res) => {
+    if (!discordClient) return res.redirect('/shop?error=Bot+non+connect%C3%A9');
+    const shop = getShop();
+    if (!shop.shopIndexChannelId) return res.redirect('/shop?error=Salon+accueil+shop+non+configur%C3%A9');
     try {
-      const channel = await discordClient.channels.fetch(shop.shopChannelId);
-      if (!channel) return res.redirect('/shop?error=Salon+introuvable');
+      const channel = await discordClient.channels.fetch(shop.shopIndexChannelId);
+      if (!channel) return res.redirect('/shop?error=Salon+accueil+introuvable');
 
-      let published = 0;
-      let failed = 0;
-      const failedNames = [];
-      const packsCopy = [...shop.packs];
-      for (const pack of packsCopy) {
-        const embed = buildPackEmbed(pack);
-        try {
-          if (pack.messageId) {
-            try {
-              const existingMsg = await channel.messages.fetch(pack.messageId);
-              await existingMsg.edit({ embeds: [embed] });
-            } catch (e) {
-              const newMsg = await channel.send({ embeds: [embed] });
-              await updatePack(pack.id, { messageId: newMsg.id, channelId: shop.shopChannelId });
-            }
-          } else {
-            const newMsg = await channel.send({ embeds: [embed] });
-            await updatePack(pack.id, { messageId: newMsg.id, channelId: shop.shopChannelId });
-          }
-          published++;
-        } catch (err) {
-          failed++;
-          failedNames.push(pack.name);
-          console.error(`Erreur publication pack ${pack.name}:`, err.message || err);
+      const { EmbedBuilder } = require('discord.js');
+      const packs = shop.packs.filter(p => p.available !== false);
+      const packItems = packs.filter(p => (p.type || 'pack') === 'pack');
+      const unitItems = packs.filter(p => p.type === 'unitaire');
+      const cats = getCategories();
+      const guildId = discordClient.guilds.cache.first()?.id || '';
+
+      function packLine(p) {
+        const cat = cats.find(c => c.id === p.category);
+        const emoji = cat?.emoji || '🛒';
+        if (p.messageId && p.channelId) {
+          return `${emoji} [${p.name}](https://discord.com/channels/${guildId}/${p.channelId}/${p.messageId})`;
         }
+        return `${emoji} ${p.name}`;
       }
 
-      if (failed > 0) {
-        res.redirect(`/shop?success=${published}+publiés&error=${failed}+échec(s):+${encodeURIComponent(failedNames.join(', '))}`);
-      } else {
-        res.redirect(`/shop?success=${published}+packs+publiés+!`);
+      const packDesc = packItems.length > 0 ? packItems.map(packLine).join('\n') : '*Aucun pack disponible pour le moment*';
+      const unitDesc = unitItems.length > 0 ? unitItems.map(packLine).join('\n') : '*Aucun produit unitaire disponible pour le moment*';
+
+      const embed = new EmbedBuilder()
+        .setTitle('🛒 Arki\'s Family Shop — Index')
+        .setColor(0x7c5cfc)
+        .setDescription('Retrouvez ci-dessous tous nos produits disponibles avec des liens directs.\nUtilise la commande `/shop` pour naviguer et commander directement !')
+        .addFields(
+          { name: '📦 Packs', value: packDesc.slice(0, 1020) },
+          { name: '💎 Produits unitaires', value: unitDesc.slice(0, 1020) }
+        )
+        .setFooter({ text: `${packs.length} produit(s) disponible(s) • Arki's Family Shop` })
+        .setTimestamp();
+
+      if (shop.shopIndexMessageId) {
+        try {
+          const oldMsg = await channel.messages.fetch(shop.shopIndexMessageId);
+          await oldMsg.edit({ embeds: [embed] });
+          return res.redirect('/shop?success=Message+index+mis+%C3%A0+jour+!');
+        } catch (e) {}
       }
+      const msg = await channel.send({ embeds: [embed] });
+      await saveShopIndexMessage(msg.id);
+      res.redirect('/shop?success=Message+index+publi%C3%A9+!');
     } catch (err) {
-      console.error('Erreur publication shop:', err);
-      res.redirect('/shop?error=Erreur+de+publication');
+      console.error('Erreur publication index:', err);
+      res.redirect('/shop?error=' + encodeURIComponent(err.message || 'Erreur de publication'));
     }
   });
 

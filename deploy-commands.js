@@ -79,6 +79,10 @@ const commands = [
     ],
   },
   {
+    name: 'shop',
+    description: 'Parcourir et commander dans le shop Arki (éphémère)',
+  },
+  {
     name: 'inventaire-admin',
     description: 'Gestion des inventaires (Admin et Modo)',
     options: [

@@ -17,6 +17,7 @@ const { initSettings, getSettings } = require('./settingsManager');
 const { initDinos } = require('./dinoManager');
 const { initShop } = require('./shopManager');
 const { initInventory, getItemTypes, getItemTypeById, getPlayerInventory, addToInventory, removeFromInventory, resetPlayerInventory, getPlayerTransactions, getCategories } = require('./inventoryManager');
+const { handleShopCommand, handleShopInteraction } = require('./shopCommand');
 
 const openaiConfig = {};
 if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
@@ -513,6 +514,29 @@ Reste concis. Ne mets pas de guillemets autour du texte. Ne dis pas quel personn
 });
 
 client.on('interactionCreate', async interaction => {
+  // ── Shop interactions (buttons + select menus) ──
+  if (interaction.isButton() || interaction.isStringSelectMenu()) {
+    const id = interaction.customId;
+    if (
+      id === 'shop_type' || id === 'shop_back_home' ||
+      id.startsWith('shop_product::') || id.startsWith('shop_back_type::') ||
+      id.startsWith('shop_order::') || id.startsWith('shop_addcart::') ||
+      id.startsWith('shop_cartadd::') || id.startsWith('shop_closecart::')
+    ) {
+      try {
+        await handleShopInteraction(interaction);
+      } catch (err) {
+        console.error('[Shop] Erreur interaction:', err);
+        try {
+          const reply = { content: '❌ Une erreur est survenue.', ephemeral: true };
+          if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
+          else await interaction.reply(reply);
+        } catch (e) {}
+      }
+      return;
+    }
+  }
+
   if (interaction.isButton()) {
     if (interaction.customId === 'show_full_votes_list') {
       const fullList = global.lastVotesFullList;
@@ -872,6 +896,20 @@ client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
   const { commandName } = interaction;
+
+  if (commandName === 'shop') {
+    try {
+      await handleShopCommand(interaction);
+    } catch (err) {
+      console.error('[Shop] Erreur commande /shop:', err);
+      try {
+        const reply = { content: '❌ Impossible d\'ouvrir le shop. Réessaie.', ephemeral: true };
+        if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
+        else await interaction.reply(reply);
+      } catch (e) {}
+    }
+    return;
+  }
 
   if (commandName === 'roulette') {
     if (!hasRoulettePermission(interaction.member)) {

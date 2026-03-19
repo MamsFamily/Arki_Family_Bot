@@ -27,20 +27,55 @@
           <h2>&#x2699;&#xFE0F; Param&egrave;tres de publication</h2>
         </div>
         <div class="card-body">
-          <form method="POST" action="/shop/settings" class="form-row">
-            <div class="form-group">
-              <label for="shopChannelId">Salon Discord de publication</label>
-              <select id="shopChannelId" name="shopChannelId" class="form-control">
-                <option value="">-- S&eacute;lectionner un salon --</option>
-                <% channels.forEach(ch => { %>
-                  <option value="<%= ch.id %>" <%= shop.shopChannelId === ch.id ? 'selected' : '' %>># <%= ch.name %></option>
-                <% }); %>
-              </select>
-              <p class="help-text">Le salon o&ugrave; seront publi&eacute;s les embeds du shop</p>
+          <form method="POST" action="/shop/settings">
+            <div class="form-row" style="gap:16px;flex-wrap:wrap">
+              <div class="form-group" style="flex:1;min-width:200px">
+                <label for="shopChannelId">📦 Salon Packs</label>
+                <select id="shopChannelId" name="shopChannelId" class="form-control">
+                  <option value="">-- Sélectionner --</option>
+                  <% channels.forEach(ch => { %>
+                    <option value="<%= ch.id %>" <%= shop.shopChannelId === ch.id ? 'selected' : '' %>><% if(ch.category) { %>[<%= ch.category %>] <% } %># <%= ch.name %></option>
+                  <% }); %>
+                </select>
+                <p class="help-text">Salon pour les embeds packs</p>
+              </div>
+              <div class="form-group" style="flex:1;min-width:200px">
+                <label for="shopUnitaireChannelId">💎 Salon Produits unitaires</label>
+                <select id="shopUnitaireChannelId" name="shopUnitaireChannelId" class="form-control">
+                  <option value="">-- Sélectionner --</option>
+                  <% channels.forEach(ch => { %>
+                    <option value="<%= ch.id %>" <%= shop.shopUnitaireChannelId === ch.id ? 'selected' : '' %>><% if(ch.category) { %>[<%= ch.category %>] <% } %># <%= ch.name %></option>
+                  <% }); %>
+                </select>
+                <p class="help-text">Salon pour les embeds unitaires</p>
+              </div>
+              <div class="form-group" style="flex:1;min-width:200px">
+                <label for="shopIndexChannelId">🏠 Salon Accueil shop (index)</label>
+                <select id="shopIndexChannelId" name="shopIndexChannelId" class="form-control">
+                  <option value="">-- Sélectionner --</option>
+                  <% channels.forEach(ch => { %>
+                    <option value="<%= ch.id %>" <%= shop.shopIndexChannelId === ch.id ? 'selected' : '' %>><% if(ch.category) { %>[<%= ch.category %>] <% } %># <%= ch.name %></option>
+                  <% }); %>
+                </select>
+                <p class="help-text">Salon où publier le message index</p>
+              </div>
+              <div class="form-group" style="flex:1;min-width:200px">
+                <label for="shopTicketChannelId">🎫 Salon Tickets commandes</label>
+                <select id="shopTicketChannelId" name="shopTicketChannelId" class="form-control">
+                  <option value="">-- Sélectionner --</option>
+                  <% channels.forEach(ch => { %>
+                    <option value="<%= ch.id %>" <%= shop.shopTicketChannelId === ch.id ? 'selected' : '' %>><% if(ch.category) { %>[<%= ch.category %>] <% } %># <%= ch.name %></option>
+                  <% }); %>
+                </select>
+                <p class="help-text">Salon où les tickets /shop seront créés</p>
+              </div>
             </div>
-            <div class="form-group" style="display:flex;align-items:flex-end;">
-              <button type="submit" class="btn btn-primary">&#x1F4BE; Sauvegarder</button>
+            <div style="display:flex;gap:12px;align-items:center;margin-top:8px">
+              <button type="submit" class="btn btn-primary">💾 Sauvegarder</button>
             </div>
+          </form>
+          <form method="POST" action="/shop/publish-index" style="margin-top:10px">
+            <button type="submit" class="btn btn-secondary" onclick="return confirm('Publier / mettre à jour le message index dans le salon accueil shop ?')">🏠 Publier le message index</button>
           </form>
         </div>
       </div>
@@ -81,8 +116,8 @@
 
       <div class="card">
         <div class="card-header">
-          <h2>&#x1F4E6; Packs du shop</h2>
-          <button class="btn btn-primary" onclick="openModal()">+ Nouveau pack</button>
+          <h2>&#x1F6D2; Produits du shop</h2>
+          <button class="btn btn-primary" onclick="openModal()">+ Nouveau produit</button>
         </div>
         <div class="card-body">
           <% if (shop.packs.length === 0) { %>
@@ -97,7 +132,7 @@
               %>
                 <div class="shop-pack-card" style="border-left: 4px solid <%= pack.color || cat.color %>">
                   <div class="pack-header-row">
-                    <h3><%= cat.emoji %> <%= pack.name %></h3>
+                    <h3><%= cat.emoji %> <%= pack.name %> <span style="font-size:11px;font-weight:normal;color:var(--text-muted);background:var(--bg-input);padding:2px 6px;border-radius:4px;border:1px solid var(--border)"><%= pack.type === 'unitaire' ? '💎 Unitaire' : '📦 Pack' %></span></h3>
                     <div class="pack-badges">
                       <% if (pack.donationAvailable) { %>
                         <span class="pack-badge badge-donation">&#x2705; Pack Inventaire</span>
@@ -222,8 +257,15 @@
             <div class="modal-body">
               <div class="form-row">
                 <div class="form-group">
-                  <label for="packName">Nom du pack</label>
+                  <label for="packName">Nom du produit</label>
                   <input type="text" id="packName" name="name" required placeholder="Ex: Farm Pack">
+                </div>
+                <div class="form-group" style="max-width:160px">
+                  <label for="packType">Type</label>
+                  <select id="packType" name="type" class="form-control" onchange="updatePreview()">
+                    <option value="pack">📦 Pack</option>
+                    <option value="unitaire">💎 Unitaire</option>
+                  </select>
                 </div>
                 <div class="form-group">
                   <label for="packCategory">Cat&eacute;gorie</label>
@@ -233,6 +275,15 @@
                     <% }); %>
                   </select>
                 </div>
+              </div>
+
+              <div class="form-group" style="margin-bottom:8px">
+                <label for="packImageUrl">🖼️ Image / Thumbnail (URL)</label>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <input type="url" id="packImageUrl" name="imageUrl" placeholder="https://..." class="form-control" style="flex:1" oninput="updateImagePreview()">
+                  <img id="imagePreviewThumb" src="" alt="" style="width:48px;height:48px;border-radius:6px;object-fit:cover;display:none;border:1px solid var(--border)">
+                </div>
+                <p class="help-text">Apparaît en miniature en haut à droite de l'embed Discord</p>
               </div>
 
               <div class="form-group" style="margin-bottom:8px">
@@ -431,6 +482,13 @@
       renderOptions();
     }
 
+    function updateImagePreview() {
+      const url = document.getElementById('packImageUrl').value.trim();
+      const img = document.getElementById('imagePreviewThumb');
+      if (url) { img.src = url; img.style.display = ''; }
+      else img.style.display = 'none';
+    }
+
     function openModal(pack) {
       currentOptions = [];
       document.getElementById('multiOption').checked = false;
@@ -442,12 +500,15 @@
 
       document.getElementById('packModal').classList.add('show');
       if (!pack) {
-        document.getElementById('modalTitle').textContent = '\u{1F4E6} Nouveau pack';
-        document.getElementById('submitBtn').textContent = '\u{1F4BE} Cr\u00e9er le pack';
+        document.getElementById('modalTitle').textContent = '\u{1F4E6} Nouveau produit';
+        document.getElementById('submitBtn').textContent = '\u{1F4BE} Cr\u00e9er le produit';
         document.getElementById('packForm').action = '/shop/pack';
         document.getElementById('packId').value = '';
         document.getElementById('packName').value = '';
+        document.getElementById('packType').value = 'pack';
         document.getElementById('packCategory').value = 'packs';
+        document.getElementById('packImageUrl').value = '';
+        document.getElementById('imagePreviewThumb').style.display = 'none';
         document.getElementById('priceDiamonds').value = '0';
         document.getElementById('priceStrawberries').value = '0';
         document.getElementById('packContent').value = '';
@@ -482,7 +543,11 @@
         document.getElementById('packForm').action = '/shop/pack';
         document.getElementById('packId').value = pack.id;
         document.getElementById('packName').value = pack.name || '';
+        document.getElementById('packType').value = pack.type || 'pack';
         document.getElementById('packCategory').value = pack.category || 'packs';
+        document.getElementById('packImageUrl').value = pack.imageUrl || '';
+        const thumb = document.getElementById('imagePreviewThumb');
+        if (pack.imageUrl) { thumb.src = pack.imageUrl; thumb.style.display = ''; } else thumb.style.display = 'none';
         document.getElementById('priceDiamonds').value = pack.priceDiamonds || 0;
         document.getElementById('priceStrawberries').value = pack.priceStrawberries || 0;
         document.getElementById('packContent').value = pack.content || '';
