@@ -1,4 +1,5 @@
-const { Client, GatewayIntentBits, Partials, AttachmentBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, AttachmentBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, REST, Routes } = require('discord.js');
+const commands = require('./commands');
 const fs = require('fs');
 const cron = require('node-cron');
 const RouletteWheel = require('./rouletteWheel');
@@ -356,6 +357,14 @@ client.once('clientReady', async () => {
   createWebServer(client);
   console.log('✅ Bot Discord Arki Roulette est en ligne !');
   console.log(`📝 Connecté en tant que ${client.user.tag}`);
+
+  try {
+    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+    await rest.put(Routes.applicationCommands(process.env.DISCORD_CLIENT_ID), { body: commands });
+    console.log('✅ Commandes slash enregistrées automatiquement');
+  } catch (err) {
+    console.error('⚠️ Enregistrement commandes slash échoué:', err.message);
+  }
   console.log(`🎰 ${config.rouletteChoices.length} choix de roulette chargés`);
   console.log('\n💡 Commandes disponibles:');
   console.log('   /roulette - Lance la roue de la chance');
