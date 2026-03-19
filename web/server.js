@@ -609,29 +609,87 @@ function createWebServer(discordClient) {
         return `${emoji} ${p.name}`;
       }
 
-      const packDesc = packItems.length > 0 ? packItems.map(packLine).join('\n') : '*Aucun pack disponible pour le moment*';
-      const unitDesc = unitItems.length > 0 ? unitItems.map(packLine).join('\n') : '*Aucun produit unitaire disponible pour le moment*';
+      // Découpe une liste de lignes en champs Discord (max 1024 chars chacun)
+      function toFields(items, sectionEmoji, sectionName) {
+        if (items.length === 0) {
+          return [{ name: `${sectionEmoji} ${sectionName}`, value: '*Aucun produit pour le moment*' }];
+        }
+        const lines = items.map(packLine);
+        const fields = [];
+        let current = '';
+        for (const line of lines) {
+          const sep = current ? '\n' : '';
+          if (current.length + sep.length + line.length > 1020) {
+            fields.push({
+              name: fields.length === 0 ? `${sectionEmoji} ${sectionName}` : `${sectionEmoji} ${sectionName} (suite)`,
+              value: current,
+            });
+            current = line;
+          } else {
+            current += sep + line;
+          }
+        }
+        if (current) {
+          fields.push({
+            name: fields.length === 0 ? `${sectionEmoji} ${sectionName}` : `${sectionEmoji} ${sectionName} (suite)`,
+            value: current,
+          });
+        }
+        return fields;
+      }
 
-      const embed = new EmbedBuilder()
-        .setTitle('🛒 Arki\'s Family Shop — Index')
-        .setColor(0x7c5cfc)
-        .setDescription('Retrouvez ci-dessous tous nos produits disponibles avec des liens directs.\nUtilise la commande `/shop` pour naviguer et commander directement !')
-        .addFields(
-          { name: '📦 Packs', value: packDesc.slice(0, 1020) },
-          { name: '💎 Produits unitaires', value: unitDesc.slice(0, 1020) }
-        )
-        .setFooter({ text: `${packs.length} produit(s) disponible(s) • Arki's Family Shop` })
-        .setTimestamp();
+      const packFields = toFields(packItems, '📦', 'Packs');
+      const unitFields = toFields(unitItems, '💎', 'Produits unitaires');
+      const allFields = [...packFields, ...unitFields];
 
+      // Discord limite à 25 champs et ~6000 chars par embed — on découpe en plusieurs embeds si besoin
+      function chunkFields(fields, maxFields = 25, maxChars = 5800) {
+        const chunks = [];
+        let chunk = [];
+        let chars = 0;
+        for (const f of fields) {
+          const fChars = f.name.length + f.value.length;
+          if (chunk.length >= maxFields || (chunk.length > 0 && chars + fChars > maxChars)) {
+            chunks.push(chunk);
+            chunk = [];
+            chars = 0;
+          }
+          chunk.push(f);
+          chars += fChars;
+        }
+        if (chunk.length > 0) chunks.push(chunk);
+        return chunks.length > 0 ? chunks : [[]];
+      }
+
+      const fieldChunks = chunkFields(allFields);
+      const embeds = fieldChunks.map((fields, i) => {
+        const e = new EmbedBuilder().setColor(0x7c5cfc);
+        if (i === 0) {
+          e.setTitle('🛒 Arki\'s Family Shop — Index')
+           .setDescription('Retrouvez ci-dessous tous nos produits disponibles avec des liens directs.\nUtilise `/shop` pour naviguer et commander directement !');
+        }
+        if (fields.length > 0) e.addFields(fields);
+        if (i === fieldChunks.length - 1) {
+          e.setFooter({ text: `${shop.packs.length} produit(s) au total • Arki's Family Shop` }).setTimestamp();
+        }
+        return e;
+      });
+
+      // Supprime l'ancien message index s'il existe
       if (shop.shopIndexMessageId) {
         try {
           const oldMsg = await channel.messages.fetch(shop.shopIndexMessageId);
-          await oldMsg.edit({ embeds: [embed] });
-          return res.redirect('/shop?success=Message+index+mis+%C3%A0+jour+!');
+          await oldMsg.delete();
         } catch (e) {}
       }
-      const msg = await channel.send({ embeds: [embed] });
-      await saveShopIndexMessage(msg.id);
+
+      // Envoie le ou les nouveaux embeds
+      let firstMsgId = null;
+      for (let i = 0; i < embeds.length; i++) {
+        const msg = await channel.send({ embeds: [embeds[i]] });
+        if (i === 0) firstMsgId = msg.id;
+      }
+      await saveShopIndexMessage(firstMsgId);
       res.redirect('/shop?success=Message+index+publi%C3%A9+!');
     } catch (err) {
       console.error('Erreur publication index:', err);
