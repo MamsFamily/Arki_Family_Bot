@@ -3,6 +3,23 @@ const session = require('express-session');
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
+const multer = require('multer');
+
+const uploadStorage = multer.diskStorage({
+  destination: path.join(__dirname, 'public/uploads'),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '.png';
+    cb(null, `shop_${Date.now()}${ext}`);
+  },
+});
+const upload = multer({
+  storage: uploadStorage,
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Fichier non supporté'));
+  },
+});
 const { getSettings, updateSection } = require('../settingsManager');
 const { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, updateShopChannels, saveShopIndexMessage, addCategory, updateCategory, deleteCategory, getCategories, buildPackEmbed, DEFAULT_CATEGORIES } = require('../shopManager');
 const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, getPaidDLCDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildModdedEmbeds, buildShoulderEmbed, buildSaleEmbed, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, getAllLetters, updateNavMessage, getNavMessage, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
@@ -695,6 +712,12 @@ function createWebServer(discordClient) {
       console.error('Erreur publication index:', err);
       res.redirect('/shop?error=' + encodeURIComponent(err.message || 'Erreur de publication'));
     }
+  });
+
+  app.post('/shop/upload-image', requireAuth, upload.single('image'), (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'Aucun fichier reçu' });
+    const url = `/uploads/${req.file.filename}`;
+    res.json({ url });
   });
 
   app.get('/dinos', requireAuth, (req, res) => {
