@@ -537,7 +537,15 @@ function createWebServer(discordClient) {
     return shop.shopChannelId;
   }
 
-  async function publishOrUpdatePack(pack, discordClient, shop) {
+  function resolveAbsoluteUrl(url, req) {
+    if (!url || url.startsWith('http://') || url.startsWith('https://')) return url || null;
+    const proto = (req && (req.headers['x-forwarded-proto'] || req.protocol)) || 'https';
+    const host = req && (req.headers['x-forwarded-host'] || req.headers.host);
+    if (!host) return null;
+    return `${proto}://${host}${url.startsWith('/') ? '' : '/'}${url}`;
+  }
+
+  async function publishOrUpdatePack(pack, discordClient, shop, req) {
     const channelId = getPublishChannelId(shop, pack);
     if (!channelId) throw new Error('Aucun salon configuré pour ce type de produit');
     const channel = await discordClient.channels.fetch(channelId);
@@ -548,7 +556,10 @@ function createWebServer(discordClient) {
       .setTitle(raw.title)
       .setDescription(raw.description)
       .setColor(raw.color);
-    if (raw.thumbnail) embed.setThumbnail(raw.thumbnail.url);
+    if (raw.thumbnail) {
+      const thumbUrl = resolveAbsoluteUrl(raw.thumbnail.url, req);
+      if (thumbUrl) embed.setThumbnail(thumbUrl);
+    }
     if (pack.messageId) {
       try {
         const existingMsg = await channel.messages.fetch(pack.messageId);
@@ -572,7 +583,7 @@ function createWebServer(discordClient) {
     const pack = getPack(req.params.id);
     if (!pack) return res.redirect('/shop?error=Pack+introuvable');
     try {
-      const { updated } = await publishOrUpdatePack(pack, discordClient, shop);
+      const { updated } = await publishOrUpdatePack(pack, discordClient, shop, req);
       res.redirect(`/shop?success=${updated ? 'Embed+mis+%C3%A0+jour' : 'Embed+publi%C3%A9'}+!`);
     } catch (err) {
       console.error('Erreur publication shop:', err);
@@ -587,7 +598,7 @@ function createWebServer(discordClient) {
     const failedNames = [];
     for (const pack of [...shop.packs]) {
       try {
-        await publishOrUpdatePack(pack, discordClient, shop);
+        await publishOrUpdatePack(pack, discordClient, shop, req);
         published++;
       } catch (err) {
         failed++;
@@ -716,7 +727,10 @@ function createWebServer(discordClient) {
 
   app.post('/shop/upload-image', requireAuth, upload.single('image'), (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'Aucun fichier reçu' });
-    const url = `/uploads/${req.file.filename}`;
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    const host = req.headers['x-forwarded-host'] || req.headers.host;
+    const baseUrl = `${proto}://${host}`;
+    const url = `${baseUrl}/uploads/${req.file.filename}`;
     res.json({ url });
   });
 
