@@ -1152,6 +1152,156 @@ function createWebServer(discordClient) {
     }
   });
 
+  // Route combinée : publie tous les embeds puis l'index en séquence
+  app.post('/dinos/publish-all-and-index', requireAuth, async (req, res) => {
+    if (!discordClient) return res.redirect('/dinos?error=Bot+non+connect%C3%A9');
+    const dinoData = getDinoData();
+    const channelId = dinoData.dinoChannelId;
+    if (!channelId) return res.redirect('/dinos?error=Aucun+salon+dinos+configur%C3%A9');
+    const { channelId: indexChannelId } = getDinoIndexInfo();
+    if (!indexChannelId) return res.redirect('/dinos?error=Salon+index+dinos+non+configur%C3%A9');
+
+    res.redirect('/dinos?success=Publication+en+cours...+Embeds+puis+index+seront+mis+%C3%A0+jour');
+
+    try {
+      const { EmbedBuilder } = require('discord.js');
+      const channel = await discordClient.channels.fetch(channelId);
+      if (!channel) { console.error('publish-all-and-index: salon dinos introuvable'); return; }
+
+      // ── 1. Publier toutes les lettres ──
+      const grouped = getDinosByLetter();
+      const letters = Object.keys(grouped).sort();
+      const moddedDinos = getModdedDinos();
+      const letterMsgs = getLetterMessages();
+
+      for (const letter of letters) {
+        const embeds = buildLetterEmbeds(letter, grouped[letter]);
+        const storedIds = letterMsgs[letter]?.messageIds || (letterMsgs[letter]?.messageId ? [letterMsgs[letter].messageId] : []);
+        for (const oldId of storedIds) { try { const m = await channel.messages.fetch(oldId); await m.delete(); } catch {} }
+        const newIds = [];
+        for (const embed of embeds) { const m = await channel.send({ embeds: [embed] }); newIds.push(m.id); }
+        await updateLetterMessage(letter, newIds[0], channelId, newIds);
+        await new Promise(r => setTimeout(r, 500));
+      }
+      if (moddedDinos.length > 0) {
+        const storedIds = letterMsgs['MODDED']?.messageIds || (letterMsgs['MODDED']?.messageId ? [letterMsgs['MODDED'].messageId] : []);
+        for (const oldId of storedIds) { try { const m = await channel.messages.fetch(oldId); await m.delete(); } catch {} }
+        const moddedEmbeds = buildModdedEmbeds(moddedDinos);
+        const newIds = [];
+        for (const embed of moddedEmbeds) { const m = await channel.send({ embeds: [embed] }); newIds.push(m.id); }
+        await updateLetterMessage('MODDED', newIds[0], channelId, newIds);
+        await new Promise(r => setTimeout(r, 500));
+      }
+      const shoulderDinosAll = getShoulderDinos();
+      if (shoulderDinosAll.length > 0) {
+        const storedIds = letterMsgs['SHOULDER']?.messageIds || (letterMsgs['SHOULDER']?.messageId ? [letterMsgs['SHOULDER'].messageId] : []);
+        for (const oldId of storedIds) { try { const m = await channel.messages.fetch(oldId); await m.delete(); } catch {} }
+        const shoulderEmbed = buildShoulderEmbed(shoulderDinosAll);
+        const m = await channel.send({ embeds: [shoulderEmbed] });
+        await updateLetterMessage('SHOULDER', m.id, channelId, [m.id]);
+        await new Promise(r => setTimeout(r, 500));
+      }
+      const dlcDinos = getPaidDLCDinos();
+      if (dlcDinos.length > 0) {
+        const storedIds = letterMsgs['PAIDDLC']?.messageIds || (letterMsgs['PAIDDLC']?.messageId ? [letterMsgs['PAIDDLC'].messageId] : []);
+        for (const oldId of storedIds) { try { const m = await channel.messages.fetch(oldId); await m.delete(); } catch {} }
+        const dlcEmbeds = buildPaidDLCEmbeds(dlcDinos);
+        const newIds = [];
+        for (const embed of dlcEmbeds) { const m = await channel.send({ embeds: [embed] }); newIds.push(m.id); }
+        await updateLetterMessage('PAIDDLC', newIds[0], channelId, newIds);
+        await new Promise(r => setTimeout(r, 500));
+      }
+
+      // ── 2. Publier l'index avec les IDs frais ──
+      const freshLetterMessages = getLetterMessages();
+      const allDinosData = getDinoData();
+      const settings = getSettings();
+      const guildId = settings.guild?.guildId || discordClient.guilds.cache.first()?.id || '';
+      const dinoChannelForLinks = channelId;
+
+      function dinoLineLocal(dino, letterKey) {
+        const lm = freshLetterMessages[letterKey];
+        if (lm && lm.messageId && dinoChannelForLinks) {
+          return `[${dino.name}](https://discord.com/channels/${guildId}/${dinoChannelForLinks}/${lm.messageId})`;
+        }
+        return dino.name;
+      }
+      function toFieldsLocal(lines, sectionTitle) {
+        if (lines.length === 0) return [];
+        const fields = [];
+        let current = '';
+        for (const line of lines) {
+          const sep = current ? '\n' : '';
+          if (current.length + sep.length + line.length > 1020) {
+            fields.push({ name: fields.length === 0 ? sectionTitle : '⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯', value: current });
+            current = line;
+          } else { current += sep + line; }
+        }
+        if (current) fields.push({ name: fields.length === 0 ? sectionTitle : '⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯', value: current });
+        return fields;
+      }
+
+      const regularDinos2 = [...allDinosData.dinos].filter(d => !d.isShoulder && !d.isPaidDLC).sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+      const shoulderDinos2 = [...allDinosData.dinos].filter(d => d.isShoulder).sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+      const dlcDinos2 = [...allDinosData.dinos].filter(d => d.isPaidDLC).sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+
+      const regLines = regularDinos2.map(d => dinoLineLocal(d, (d.name || '?')[0].toUpperCase()));
+      const shLines = shoulderDinos2.map(d => {
+        const lm = freshLetterMessages['SHOULDER'];
+        return lm?.messageId ? `[${d.name}](https://discord.com/channels/${guildId}/${dinoChannelForLinks}/${lm.messageId})` : dinoLineLocal(d, (d.name || '?')[0].toUpperCase());
+      });
+      const dlcLines2 = dlcDinos2.map(d => {
+        const lm = freshLetterMessages['PAIDDLC'];
+        return lm?.messageId ? `[${d.name}](https://discord.com/channels/${guildId}/${dinoChannelForLinks}/${lm.messageId})` : dinoLineLocal(d, (d.name || '?')[0].toUpperCase());
+      });
+
+      const allFields2 = [
+        ...toFieldsLocal(regLines, '🦕 Dinos disponibles'),
+        ...toFieldsLocal(shLines, '🦜 Dinos d\'épaule'),
+        ...toFieldsLocal(dlcLines2, '💰 Dinos DLC Payant'),
+      ];
+      if (allFields2.length === 0) allFields2.push({ name: '🦕 Dinos', value: '*Aucun dino pour le moment*' });
+
+      function chunkFields2(fields, maxFields = 25, maxChars = 5800) {
+        const chunks = [];
+        let chunk = [], chars = 0;
+        for (const f of fields) {
+          const fChars = f.name.length + f.value.length;
+          if (chunk.length >= maxFields || (chunk.length > 0 && chars + fChars > maxChars)) { chunks.push(chunk); chunk = []; chars = 0; }
+          chunk.push(f); chars += fChars;
+        }
+        if (chunk.length > 0) chunks.push(chunk);
+        return chunks.length > 0 ? chunks : [[]];
+      }
+
+      const indexChannel = await discordClient.channels.fetch(indexChannelId);
+      if (!indexChannel) { console.error('publish-all-and-index: salon index introuvable'); return; }
+
+      const totalDinos2 = allDinosData.dinos.length;
+      const fieldChunks2 = chunkFields2(allFields2);
+      const indexEmbeds = fieldChunks2.map((fields, i) => {
+        const e = new EmbedBuilder().setColor(0x7c5cfc);
+        if (i === 0) e.setTitle('🦕 Dino Shop - Index').setDescription('Retrouvez ci-dessous tous nos dinos disponibles.\nCliquez sur un nom pour accéder directement à sa fiche de prix !');
+        if (fields.length > 0) e.addFields(fields);
+        if (i === fieldChunks2.length - 1) e.setFooter({ text: `${totalDinos2} dino(s) au total • Arki\'s Family` }).setTimestamp();
+        return e;
+      });
+
+      const { messageId: oldIndexId } = getDinoIndexInfo();
+      if (oldIndexId) { try { const old = await indexChannel.messages.fetch(oldIndexId); await old.delete(); } catch {} }
+
+      let firstIndexId = null;
+      for (let i = 0; i < indexEmbeds.length; i++) {
+        const m = await indexChannel.send({ embeds: [indexEmbeds[i]] });
+        if (i === 0) firstIndexId = m.id;
+      }
+      await updateDinoIndexMessage(firstIndexId);
+      console.log('✅ Publish-all-and-index terminé — index mis à jour avec les IDs frais');
+    } catch (err) {
+      console.error('Erreur publish-all-and-index:', err);
+    }
+  });
+
   app.post('/dinos/publish-nav', requireAuth, async (req, res) => {
     const { ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
     const dinoData = getDinoData();
