@@ -678,9 +678,10 @@ function createWebServer(discordClient) {
         return fields;
       }
 
-      const unitFields = unitItems.length > 0 ? toFields(unitItems, '💎', 'Produits à l\'unité') : [];
-      const packFields = packItems.length > 0 ? toFields(packItems, '📦', 'Packs') : [];
-      const inventoryFields = inventoryItems.length > 0 ? toFields(inventoryItems, '✅', 'Packs compatibles inventaire') : [];
+      const alpha = arr => [...arr].sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+      const unitFields = unitItems.length > 0 ? toFields(alpha(unitItems), '💎', 'Produits à l\'unité') : [];
+      const packFields = packItems.length > 0 ? toFields(alpha(packItems), '📦', 'Packs') : [];
+      const inventoryFields = inventoryItems.length > 0 ? toFields(alpha(inventoryItems), '✅', 'Packs compatibles inventaire') : [];
       const allFields = [...unitFields, ...packFields, ...inventoryFields];
       if (allFields.length === 0) allFields.push({ name: '🛒 Shop', value: '*Aucun produit disponible pour le moment*' });
 
