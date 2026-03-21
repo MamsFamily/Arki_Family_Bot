@@ -106,6 +106,16 @@ async function deletePack(packId) {
   return true;
 }
 
+async function reorderPacks(orderedIds) {
+  const shop = getShop();
+  const idMap = new Map(shop.packs.map(p => [p.id, p]));
+  const reordered = orderedIds.map(id => idMap.get(id)).filter(Boolean);
+  const remaining = shop.packs.filter(p => !orderedIds.includes(p.id));
+  shop.packs = [...reordered, ...remaining];
+  await saveShop(shop);
+  return true;
+}
+
 function getPack(packId) {
   const shop = getShop();
   return shop.packs.find(p => p.id === packId) || null;
@@ -242,4 +252,4 @@ function buildPackEmbed(pack) {
   return result;
 }
 
-module.exports = { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, updateShopChannels, saveShopIndexMessage, addCategory, updateCategory, deleteCategory, getCategories, buildPackEmbed, initShop, DEFAULT_CATEGORIES };
+module.exports = { getShop, addPack, updatePack, deletePack, reorderPacks, getPack, updateShopChannel, updateShopChannels, saveShopIndexMessage, addCategory, updateCategory, deleteCategory, getCategories, buildPackEmbed, initShop, DEFAULT_CATEGORIES };

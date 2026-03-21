@@ -21,7 +21,7 @@ const upload = multer({
   },
 });
 const { getSettings, updateSection } = require('../settingsManager');
-const { getShop, addPack, updatePack, deletePack, getPack, updateShopChannel, updateShopChannels, saveShopIndexMessage, addCategory, updateCategory, deleteCategory, getCategories, buildPackEmbed, DEFAULT_CATEGORIES } = require('../shopManager');
+const { getShop, addPack, updatePack, deletePack, reorderPacks, getPack, updateShopChannel, updateShopChannels, saveShopIndexMessage, addCategory, updateCategory, deleteCategory, getCategories, buildPackEmbed, DEFAULT_CATEGORIES } = require('../shopManager');
 const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, getPaidDLCDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildModdedEmbeds, buildShoulderEmbed, buildSaleEmbed, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, getAllLetters, updateNavMessage, getNavMessage, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
 
 const { getConfig: readConfig, saveConfig } = require('../configManager');
@@ -513,6 +513,17 @@ function createWebServer(discordClient) {
     } else {
       await addPack(packData);
       res.redirect('/shop?success=Pack+cr%C3%A9%C3%A9+!');
+    }
+  });
+
+  app.post('/shop/reorder', requireAuth, async (req, res) => {
+    try {
+      const { order } = req.body;
+      if (!Array.isArray(order)) return res.status(400).json({ error: 'Format invalide' });
+      await reorderPacks(order);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   });
 

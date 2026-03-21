@@ -1019,12 +1019,47 @@ code {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 20px;
+  padding-top: 12px;
   transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
+  cursor: default;
 }
 
 .shop-pack-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow);
+}
+
+.shop-pack-card.dragging {
+  opacity: 0.4;
+  transform: scale(0.98);
+}
+
+.shop-pack-card.drag-over {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.pack-drag-handle {
+  display: block;
+  text-align: center;
+  font-size: 18px;
+  letter-spacing: 2px;
+  color: var(--text-muted);
+  cursor: grab;
+  margin-bottom: 8px;
+  user-select: none;
+  opacity: 0.4;
+  transition: opacity 0.15s;
+  line-height: 1;
+}
+
+.shop-pack-card:hover .pack-drag-handle {
+  opacity: 1;
+}
+
+.pack-drag-handle:active {
+  cursor: grabbing;
 }
 
 .pack-header-row {

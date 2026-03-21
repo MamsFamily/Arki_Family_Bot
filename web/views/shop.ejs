@@ -130,7 +130,8 @@
               <% shop.packs.forEach(pack => {
                 const cat = categories.find(c => c.id === pack.category) || categories[0];
               %>
-                <div class="shop-pack-card" style="border-left: 4px solid <%= pack.color || cat.color %>">
+                <div class="shop-pack-card" data-id="<%= pack.id %>" style="border-left: 4px solid <%= pack.color || cat.color %>">
+                  <div class="pack-drag-handle" title="Glisser pour réordonner">⠿</div>
                   <div class="pack-header-row">
                     <div style="flex:1;min-width:0">
                       <h3 style="margin:0 0 4px"><%= cat.emoji %> <%= pack.name %> <span style="font-size:11px;font-weight:normal;color:var(--text-muted);background:var(--bg-input);padding:2px 6px;border-radius:4px;border:1px solid var(--border)"><%= pack.type === 'unitaire' ? '💎 Unitaire' : '📦 Pack' %></span></h3>
@@ -737,6 +738,81 @@
       document.getElementById('priceStrawberries').value = calcStrawberries(diamonds);
       updatePreview();
     }
+
+    // ── Drag & Drop réordonnancement ────────────────────────────────────────
+    (function() {
+      const grid = document.querySelector('.shop-grid');
+      if (!grid) return;
+
+      let dragging = null;
+
+      // Active le drag uniquement depuis la poignée
+      grid.querySelectorAll('.pack-drag-handle').forEach(handle => {
+        handle.addEventListener('pointerdown', () => {
+          const card = handle.closest('.shop-pack-card');
+          if (card) card.draggable = true;
+        });
+      });
+
+      grid.addEventListener('dragstart', e => {
+        const card = e.target.closest('.shop-pack-card');
+        if (!card) return;
+        dragging = card;
+        setTimeout(() => card.classList.add('dragging'), 0);
+        e.dataTransfer.effectAllowed = 'move';
+      });
+
+      grid.addEventListener('dragend', e => {
+        if (dragging) {
+          dragging.classList.remove('dragging');
+          dragging.draggable = false;
+        }
+        grid.querySelectorAll('.shop-pack-card').forEach(c => c.classList.remove('drag-over'));
+        dragging = null;
+      });
+
+      grid.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const card = e.target.closest('.shop-pack-card');
+        if (!card || card === dragging) return;
+        grid.querySelectorAll('.shop-pack-card').forEach(c => c.classList.remove('drag-over'));
+        const rect = card.getBoundingClientRect();
+        const after = e.clientY > rect.top + rect.height / 2;
+        card.classList.add('drag-over');
+        card.dataset.dropAfter = after ? '1' : '0';
+      });
+
+      grid.addEventListener('dragleave', e => {
+        const card = e.target.closest('.shop-pack-card');
+        if (card) card.classList.remove('drag-over');
+      });
+
+      grid.addEventListener('drop', async e => {
+        e.preventDefault();
+        const target = e.target.closest('.shop-pack-card');
+        if (!target || !dragging || target === dragging) return;
+        const after = target.dataset.dropAfter === '1';
+        if (after) {
+          target.after(dragging);
+        } else {
+          target.before(dragging);
+        }
+        grid.querySelectorAll('.shop-pack-card').forEach(c => c.classList.remove('drag-over'));
+
+        const order = [...grid.querySelectorAll('.shop-pack-card')].map(c => c.dataset.id);
+        try {
+          const r = await fetch('/shop/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order }),
+          });
+          if (!r.ok) console.error('Erreur sauvegarde ordre');
+        } catch (err) {
+          console.error('Erreur sauvegarde ordre:', err);
+        }
+      });
+    })();
   </script>
 </body>
 </html>
