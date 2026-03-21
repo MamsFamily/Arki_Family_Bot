@@ -819,15 +819,12 @@ function createWebServer(discordClient) {
       const guildId = settings.guild?.guildId || discordClient.guilds.cache.first()?.id || '';
       const letterMessages = getLetterMessages();
       const allDinosData = getDinoData();
-      const currentDinoChannelId = allDinosData.dinoChannelId || '';
 
-      // Construit une ligne par dino avec lien vers l'embed de sa lettre.
-      // On ne génère le lien que si le salon stocké correspond au salon dinos actuel,
-      // pour éviter les liens vers un ancien salon.
+      // Construit une ligne par dino avec lien vers l'embed de sa lettre
       function dinoLine(dino, letterKey) {
         const lm = letterMessages[letterKey];
         const name = dino.name;
-        if (lm && lm.messageId && lm.channelId && lm.channelId === currentDinoChannelId) {
+        if (lm && lm.messageId && lm.channelId) {
           return `[${name}](https://discord.com/channels/${guildId}/${lm.channelId}/${lm.messageId})`;
         }
         return name;
@@ -905,7 +902,7 @@ function createWebServer(discordClient) {
       const embeds = fieldChunks.map((fields, i) => {
         const e = new EmbedBuilder().setColor(0x7c5cfc);
         if (i === 0) {
-          e.setTitle('🦕 Liste des Prix — Dino Shop')
+          e.setTitle('🦕 Dino Shop - Index')
            .setDescription('Retrouvez ci-dessous tous nos dinos disponibles.\nCliquez sur un nom pour accéder directement à sa fiche de prix !');
         }
         if (fields.length > 0) e.addFields(fields);
