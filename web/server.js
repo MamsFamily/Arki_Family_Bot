@@ -22,7 +22,7 @@ const upload = multer({
 });
 const { getSettings, updateSection } = require('../settingsManager');
 const { getShop, addPack, updatePack, deletePack, reorderPacks, getPack, updateShopChannel, updateShopChannels, saveShopIndexMessage, addCategory, updateCategory, deleteCategory, getCategories, buildPackEmbed, DEFAULT_CATEGORIES } = require('../shopManager');
-const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, getPaidDLCDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildModdedEmbeds, buildShoulderEmbed, buildSaleEmbed, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, getAllLetters, updateNavMessage, getNavMessage, updateDinoIndexChannel, updateDinoIndexMessage, getDinoIndexInfo, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
+const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, getPaidDLCDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildModdedEmbeds, buildShoulderEmbed, buildPaidDLCEmbeds, buildSaleEmbed, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, getAllLetters, updateNavMessage, getNavMessage, updateDinoIndexChannel, updateDinoIndexMessage, getDinoIndexInfo, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
 
 const { getConfig: readConfig, saveConfig } = require('../configManager');
 const inventoryManager = require('../inventoryManager');
@@ -791,7 +791,9 @@ function createWebServer(discordClient) {
     });
     const hasAnyVariant = Object.keys(variantLabels).length > 0;
     const dinoIndexInfo = getDinoIndexInfo();
-    res.render('dinos', { dinoData, grouped, moddedDinos, letterMessages, letterColors, defaultColors: DEFAULT_LETTER_COLORS, channels, variantLabels, hasAnyVariant, dinoIndexInfo, success: req.query.success || null, error: req.query.error || null });
+    const shoulderDinos = getShoulderDinos();
+    const paidDLCDinos = getPaidDLCDinos();
+    res.render('dinos', { dinoData, grouped, moddedDinos, shoulderDinos, paidDLCDinos, letterMessages, letterColors, defaultColors: DEFAULT_LETTER_COLORS, channels, variantLabels, hasAnyVariant, dinoIndexInfo, success: req.query.success || null, error: req.query.error || null });
   });
 
   app.post('/dinos/settings', requireAuth, async (req, res) => {
@@ -1023,6 +1025,10 @@ function createWebServer(discordClient) {
       const shoulderDinos = getShoulderDinos();
       if (shoulderDinos.length === 0) return res.redirect('/dinos?error=Aucun+dino+d\'%C3%A9paule');
       embeds = [buildShoulderEmbed(shoulderDinos)];
+    } else if (letter === 'PAIDDLC') {
+      const dlcDinos = getPaidDLCDinos();
+      if (dlcDinos.length === 0) return res.redirect('/dinos?error=Aucun+dino+DLC+payant');
+      embeds = buildPaidDLCEmbeds(dlcDinos);
     } else {
       const grouped = getDinosByLetter();
       const dinos = grouped[letter];
@@ -1103,6 +1109,23 @@ function createWebServer(discordClient) {
           newIds.push(msg.id);
         }
         await updateLetterMessage('MODDED', newIds[0], channelId, newIds);
+        totalMessages += newIds.length;
+        await new Promise(r => setTimeout(r, 500));
+      }
+
+      const dlcDinos = getPaidDLCDinos();
+      if (dlcDinos.length > 0) {
+        const storedIds = letterMsgs['PAIDDLC']?.messageIds || (letterMsgs['PAIDDLC']?.messageId ? [letterMsgs['PAIDDLC'].messageId] : []);
+        for (const oldId of storedIds) {
+          try { const msg = await channel.messages.fetch(oldId); await msg.delete(); } catch {}
+        }
+        const dlcEmbeds = buildPaidDLCEmbeds(dlcDinos);
+        const newIds = [];
+        for (const embed of dlcEmbeds) {
+          const msg = await channel.send({ embeds: [embed] });
+          newIds.push(msg.id);
+        }
+        await updateLetterMessage('PAIDDLC', newIds[0], channelId, newIds);
         totalMessages += newIds.length;
       }
 
