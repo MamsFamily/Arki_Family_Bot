@@ -188,25 +188,27 @@
             </div>
           </form>
           <hr style="border:none;border-top:1px solid rgba(255,255,255,0.07);margin:12px 0;">
-          <form method="POST" action="/dinos/index-channel" class="form-row" style="margin-bottom:0;">
-            <div class="form-group" style="flex:1;">
-              <label for="dinoIndexChannelId">Salon de l&apos;index dinos (liste r&eacute;capitulative)</label>
-              <select id="dinoIndexChannelId" name="dinoIndexChannelId" class="form-control">
-                <option value="">-- S&eacute;lectionner un salon --</option>
-                <% channels.forEach(ch => { %>
-                  <option value="<%= ch.id %>" <%= dinoIndexInfo.channelId === ch.id ? 'selected' : '' %>># <%= ch.name %></option>
-                <% }); %>
-              </select>
-            </div>
-            <div class="form-group" style="display:flex;align-items:flex-end;gap:8px;">
-              <button type="submit" class="btn btn-primary">&#x1F4BE; Sauvegarder</button>
-              <% if (dinoIndexInfo.channelId) { %>
-                <form method="POST" action="/dinos/publish-index" style="margin:0;" onsubmit="return confirm('Publier ou mettre à jour l\'index des dinos sur Discord ?')">
-                  <button type="submit" class="btn btn-success">&#x1F4E4; Publier l&apos;index</button>
-                </form>
-              <% } %>
-            </div>
-          </form>
+          <div style="display:flex;gap:8px;align-items:flex-end;">
+            <form method="POST" action="/dinos/index-channel" class="form-row" style="margin-bottom:0;flex:1;">
+              <div class="form-group" style="flex:1;margin-bottom:0;">
+                <label for="dinoIndexChannelId">Salon de l&apos;index dinos (liste r&eacute;capitulative)</label>
+                <select id="dinoIndexChannelId" name="dinoIndexChannelId" class="form-control">
+                  <option value="">-- S&eacute;lectionner un salon --</option>
+                  <% channels.forEach(ch => { %>
+                    <option value="<%= ch.id %>" <%= dinoIndexInfo.channelId === ch.id ? 'selected' : '' %>># <%= ch.name %></option>
+                  <% }); %>
+                </select>
+              </div>
+              <div class="form-group" style="display:flex;align-items:flex-end;margin-bottom:0;">
+                <button type="submit" class="btn btn-primary">&#x1F4BE; Sauvegarder</button>
+              </div>
+            </form>
+            <% if (dinoIndexInfo.channelId) { %>
+              <form method="POST" action="/dinos/publish-index" style="margin:0;display:flex;align-items:flex-end;" onsubmit="return confirm('Publier ou mettre à jour l\'index des dinos sur Discord ?')">
+                <button type="submit" class="btn btn-success">&#x1F4E4; Publier l&apos;index</button>
+              </form>
+            <% } %>
+          </div>
           <% if (dinoIndexInfo.messageId) { %>
             <p style="margin:8px 0 0;font-size:12px;color:var(--text-secondary);">&#x2705; Index d&eacute;j&agrave; publi&eacute; &mdash; le bouton met &agrave; jour l&apos;embed existant.</p>
           <% } %>
