@@ -441,6 +441,57 @@
               </div>
             <% } %>
 
+            <% if (shoulderDinos && shoulderDinos.length > 0) { %>
+              <div class="dino-letter-section">
+                <div class="dino-letter-header" style="background: linear-gradient(135deg, #00bcd422, #00bcd408);">
+                  <div class="letter-header-left">
+                    <div class="letter-badge" style="background: linear-gradient(135deg, #00bcd4, #00bcd4cc);">&#x1F99C;</div>
+                    <div>
+                      <strong style="font-size:1.1em;color:#fff;"><%= shoulderDinos.length %> dino<%= shoulderDinos.length > 1 ? 's' : '' %> d'&eacute;paule</strong>
+                      <div class="letter-count">Cat&eacute;gorie &Eacute;paule<% if (letterMessages['SHOULDER']) { %> &bull; <span style="color:#4ade80;">&#x2713; publi&eacute;</span><% } %></div>
+                    </div>
+                  </div>
+                  <div class="letter-actions">
+                    <form method="POST" action="/dinos/publish-letter/SHOULDER" style="display:inline">
+                      <button type="submit" class="btn btn-sm btn-primary">
+                        <%= letterMessages['SHOULDER'] ? '&#x1F504; MAJ' : '&#x1F4E4; Publier' %>
+                      </button>
+                    </form>
+                  </div>
+                </div>
+                <div class="dino-list">
+                  <% shoulderDinos.forEach(dino => { %>
+                    <div class="dino-item">
+                      <div class="dino-info">
+                        <div class="dino-name-row">
+                          <span class="dino-name-main" style="border-left: 3px solid #00bcd4; padding-left: 8px;"><%= dino.name %></span>
+                          <span class="dino-price-inline">&#x1F48E; <%= (dino.priceDiamonds || 0).toLocaleString('fr-FR') %> + &#x1F353; <%= (dino.priceStrawberries || 0).toLocaleString('fr-FR') %></span>
+                        </div>
+                        <% if (dino.variants && dino.variants.length > 0) { %>
+                          <div class="dino-variants">
+                            <% dino.variants.forEach(v => { %>
+                              <div class="dino-variant">&#x25E6; <strong><%= v.label %></strong> : &#x1F48E; <%= (v.priceDiamonds || 0).toLocaleString('fr-FR') %> + &#x1F353; <%= (v.priceStrawberries || 0).toLocaleString('fr-FR') %></div>
+                            <% }); %>
+                          </div>
+                        <% } %>
+                        <div class="dino-badges">
+                          <span class="pack-badge" style="background:rgba(0,188,212,0.15);color:#00bcd4;border:1px solid rgba(0,188,212,0.3);">&#x1F99C; &Eacute;paule</span>
+                          <% if (dino.uniquePerTribe) { %><span class="pack-badge badge-unavailable">&#x26A0;&#xFE0F; 1 par tribu</span><% } %>
+                          <% if (dino.noReduction) { %><span class="pack-badge badge-nored">&#x26D4; Pas de r&eacute;duc</span><% } %>
+                        </div>
+                      </div>
+                      <div class="dino-actions">
+                        <button class="btn btn-sm btn-secondary" data-dino="<%= encodeURIComponent(JSON.stringify(dino)) %>" onclick="editDino(JSON.parse(decodeURIComponent(this.dataset.dino)))">&#x270F;&#xFE0F;</button>
+                        <form method="POST" action="/dinos/delete/<%= dino.id %>" style="display:inline" onsubmit="return confirm('Supprimer <%= dino.name %> ?')">
+                          <button type="submit" class="btn btn-sm btn-danger">&#x1F5D1;&#xFE0F;</button>
+                        </form>
+                      </div>
+                    </div>
+                  <% }); %>
+                </div>
+              </div>
+            <% } %>
+
             <% if (paidDLCDinos && paidDLCDinos.length > 0) { %>
               <div class="dino-letter-section">
                 <div class="dino-letter-header" style="background: linear-gradient(135deg, #f39c1222, #f39c1208);">

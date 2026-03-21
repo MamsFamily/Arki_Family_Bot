@@ -820,9 +820,12 @@ function createWebServer(discordClient) {
       const letterMessages = getLetterMessages();
       const allDinosData = getDinoData();
 
-      // Construit une ligne par dino avec lien vers l'embed de sa lettre
+      // Construit une ligne par dino avec lien vers l'embed de sa catégorie.
+      // Si l'embed dédié (SHOULDER, PAIDDLC) n'est pas publié, on tombe en fallback
+      // sur l'embed de la première lettre du nom (qui contient aussi ces dinos).
       function dinoLine(dino, letterKey) {
-        const lm = letterMessages[letterKey];
+        const firstLetter = (dino.name || '?')[0].toUpperCase();
+        const lm = letterMessages[letterKey] || (letterKey !== firstLetter ? letterMessages[firstLetter] : null);
         const name = dino.name;
         if (lm && lm.messageId && lm.channelId) {
           return `[${name}](https://discord.com/channels/${guildId}/${lm.channelId}/${lm.messageId})`;
@@ -1110,6 +1113,19 @@ function createWebServer(discordClient) {
         }
         await updateLetterMessage('MODDED', newIds[0], channelId, newIds);
         totalMessages += newIds.length;
+        await new Promise(r => setTimeout(r, 500));
+      }
+
+      const shoulderDinosAll = getShoulderDinos();
+      if (shoulderDinosAll.length > 0) {
+        const storedIds = letterMsgs['SHOULDER']?.messageIds || (letterMsgs['SHOULDER']?.messageId ? [letterMsgs['SHOULDER'].messageId] : []);
+        for (const oldId of storedIds) {
+          try { const msg = await channel.messages.fetch(oldId); await msg.delete(); } catch {}
+        }
+        const shoulderEmbed = buildShoulderEmbed(shoulderDinosAll);
+        const msg = await channel.send({ embeds: [shoulderEmbed] });
+        await updateLetterMessage('SHOULDER', msg.id, channelId, [msg.id]);
+        totalMessages += 1;
         await new Promise(r => setTimeout(r, 500));
       }
 
