@@ -26,6 +26,7 @@ const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel
 
 const { getConfig: readConfig, saveConfig } = require('../configManager');
 const inventoryManager = require('../inventoryManager');
+const { getSpecialPacks, getSpecialPack, addSpecialPack, updateSpecialPack, deleteSpecialPack } = require('../specialPacksManager');
 
 function createWebServer(discordClient) {
   const app = express();
@@ -1171,6 +1172,49 @@ function createWebServer(discordClient) {
     }
   });
 
+  // ── Packs Spéciaux ──────────────────────────────────────────────────────
+  app.get('/special-packs', requireAuth, (req, res) => {
+    const data = getSpecialPacks();
+    const itemTypes = inventoryManager.getItemTypes();
+    res.render('special-packs', {
+      path: '/special-packs',
+      packs: data.packs || [],
+      itemTypes,
+      success: req.query.success || null,
+      error: req.query.error || null,
+      botUser: discordClient?.user || null,
+      discordUser: req.session.discordUser || null,
+      role: req.session.role || 'staff',
+    });
+  });
+
+  app.post('/special-packs/save', requireAuth, async (req, res) => {
+    const { packId, packType, name, color, note, itemsJson } = req.body;
+    let items = [];
+    try { items = JSON.parse(itemsJson || '[]'); } catch (e) {}
+    items = items.filter(i => i.itemId && i.quantity > 0);
+    const packData = {
+      type: packType || 'donation',
+      name: name || 'Pack sans nom',
+      color: color || '#7c5cfc',
+      note: note || '',
+      items,
+    };
+    if (packId) {
+      await updateSpecialPack(packId, packData);
+      res.redirect('/special-packs?success=Pack+modifié+!');
+    } else {
+      await addSpecialPack(packData);
+      res.redirect('/special-packs?success=Pack+créé+!');
+    }
+  });
+
+  app.post('/special-packs/delete/:id', requireAuth, async (req, res) => {
+    await deleteSpecialPack(req.params.id);
+    res.redirect('/special-packs?success=Pack+supprimé+!');
+  });
+
+  // ── Inventaires ──────────────────────────────────────────────────────────
   app.get('/inventory', requireAuth, (req, res) => {
     const itemTypes = inventoryManager.getItemTypes();
     const categories = inventoryManager.getCategories();

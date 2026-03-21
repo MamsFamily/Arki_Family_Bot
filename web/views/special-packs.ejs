@@ -1,0 +1,186 @@
+<%- include('sidebar') %>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Packs Spéciaux — Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<%- include('sidebar') %>
+
+<div class="main-content">
+  <div class="page-header">
+    <h1>🎁 Packs Spéciaux</h1>
+    <p>Gestion des packs donation et votes — attribution directe à l'inventaire via <strong>/attribuer-pack</strong></p>
+  </div>
+
+  <% if (success) { %>
+    <div class="alert alert-success">✅ <%= success %></div>
+  <% } %>
+  <% if (error) { %>
+    <div class="alert alert-error">❌ <%= error %></div>
+  <% } %>
+
+  <% ['donation','vote'].forEach(type => { %>
+  <div class="card" style="margin-bottom:24px">
+    <div class="card-header">
+      <h2><%= type === 'donation' ? '💸 Packs Donation' : '🗳️ Packs Votes' %></h2>
+      <button class="btn btn-primary" onclick="openModal(null,'<%= type %>')">+ Nouveau</button>
+    </div>
+    <div class="card-body">
+      <% const typePacks = packs.filter(p => p.type === type); %>
+      <% if (typePacks.length === 0) { %>
+        <div class="empty-state"><div class="icon"><%= type === 'donation' ? '💸' : '🗳️' %></div><p>Aucun pack <%= type %> pour l'instant</p></div>
+      <% } else { %>
+        <div class="shop-grid">
+          <% typePacks.forEach(pack => { %>
+            <div class="shop-pack-card" style="border-left:4px solid <%= pack.color || '#7c5cfc' %>">
+              <div class="pack-header-row">
+                <div style="flex:1">
+                  <h3 style="margin:0 0 6px"><%= pack.name %></h3>
+                  <% if (pack.note) { %><p style="font-size:12px;color:var(--text-muted);margin:0 0 8px"><%= pack.note %></p><% } %>
+                </div>
+              </div>
+              <div style="margin-bottom:10px">
+                <% if (!pack.items || pack.items.length === 0) { %>
+                  <em style="color:var(--text-muted);font-size:13px">Aucun item défini</em>
+                <% } else { %>
+                  <% pack.items.forEach(item => { %>
+                    <% const it = itemTypes.find(t => t.id === item.itemId); %>
+                    <% if (it) { %>
+                      <span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:13px;margin:2px">
+                        <%= it.emoji %> <%= it.name %> ×<strong><%= item.quantity %></strong>
+                      </span>
+                    <% } %>
+                  <% }); %>
+                <% } %>
+              </div>
+              <div class="pack-actions">
+                <button class="btn btn-sm btn-secondary" onclick="openModal(<%= JSON.stringify(pack).replace(/</g,'&lt;') %>,'<%= type %>')">✏️ Modifier</button>
+                <form method="POST" action="/special-packs/delete/<%= pack.id %>" style="display:inline" onsubmit="return confirm('Supprimer ce pack ?')">
+                  <button type="submit" class="btn btn-sm btn-danger">🗑️</button>
+                </form>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+      <% } %>
+    </div>
+  </div>
+  <% }); %>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="packModal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <h3 id="modalTitle">Nouveau pack</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <form method="POST" action="/special-packs/save" id="packForm">
+      <input type="hidden" name="packId" id="packId">
+      <input type="hidden" name="packType" id="packType">
+      <div class="modal-body">
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Nom du pack</label>
+            <input type="text" name="name" id="packName" class="form-control" required placeholder="Arki'Survi">
+          </div>
+          <div class="form-group" style="max-width:110px">
+            <label>Couleur</label>
+            <input type="color" name="color" id="packColor" class="form-control" value="#7c5cfc" style="height:40px;padding:2px 4px">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Note (ex: Pack 10€)</label>
+          <input type="text" name="note" id="packNote" class="form-control" placeholder="Optionnel">
+        </div>
+
+        <div class="form-group">
+          <label>📦 Items du pack</label>
+          <div id="itemsContainer" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px"></div>
+          <button type="button" class="btn btn-sm btn-secondary" onclick="addItemRow()">+ Ajouter un item</button>
+        </div>
+
+        <input type="hidden" name="itemsJson" id="itemsJson">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary" onclick="serializeItems()">💾 Sauvegarder</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const ITEM_TYPES = <%- JSON.stringify(itemTypes) %>;
+  let currentItems = [];
+
+  function openModal(pack, type) {
+    currentItems = [];
+    document.getElementById('packId').value = pack ? pack.id : '';
+    document.getElementById('packType').value = type;
+    document.getElementById('packName').value = pack ? pack.name : '';
+    document.getElementById('packColor').value = pack ? (pack.color || '#7c5cfc') : '#7c5cfc';
+    document.getElementById('packNote').value = pack ? (pack.note || '') : '';
+    document.getElementById('modalTitle').textContent = pack ? 'Modifier le pack' : 'Nouveau pack ' + type;
+    if (pack && pack.items) currentItems = pack.items.map(i => ({ ...i }));
+    renderItems();
+    document.getElementById('packModal').classList.add('show');
+  }
+
+  function closeModal() {
+    document.getElementById('packModal').classList.remove('show');
+  }
+
+  function renderItems() {
+    const container = document.getElementById('itemsContainer');
+    container.innerHTML = '';
+    currentItems.forEach((item, idx) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:8px;align-items:center';
+      const sel = document.createElement('select');
+      sel.className = 'form-control';
+      sel.style.flex = '1';
+      ITEM_TYPES.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        opt.textContent = t.emoji + ' ' + t.name;
+        if (t.id === item.itemId) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.onchange = () => { currentItems[idx].itemId = sel.value; };
+      const qty = document.createElement('input');
+      qty.type = 'number';
+      qty.min = 1;
+      qty.value = item.quantity || 1;
+      qty.className = 'form-control';
+      qty.style.width = '80px';
+      qty.oninput = () => { currentItems[idx].quantity = parseInt(qty.value) || 1; };
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.textContent = '🗑️';
+      del.className = 'btn btn-sm btn-danger';
+      del.onclick = () => { currentItems.splice(idx, 1); renderItems(); };
+      row.appendChild(sel);
+      row.appendChild(qty);
+      row.appendChild(del);
+      container.appendChild(row);
+    });
+  }
+
+  function addItemRow() {
+    currentItems.push({ itemId: ITEM_TYPES[0]?.id || '', quantity: 1 });
+    renderItems();
+  }
+
+  function serializeItems() {
+    document.getElementById('itemsJson').value = JSON.stringify(currentItems);
+  }
+</script>
+</body>
+</html>

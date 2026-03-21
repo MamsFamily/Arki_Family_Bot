@@ -18,6 +18,7 @@ const { initSettings, getSettings } = require('./settingsManager');
 const { initDinos } = require('./dinoManager');
 const { initShop } = require('./shopManager');
 const { initInventory, getItemTypes, getItemTypeById, getPlayerInventory, addToInventory, removeFromInventory, resetPlayerInventory, getPlayerTransactions, getCategories } = require('./inventoryManager');
+const { initSpecialPacks, getSpecialPacks, getSpecialPack } = require('./specialPacksManager');
 const { handleShopCommand, handleShopInteraction } = require('./shopCommand');
 
 const openaiConfig = {};
@@ -351,6 +352,7 @@ client.once('clientReady', async () => {
   await initDinos();
   await initShop();
   await initInventory();
+  await initSpecialPacks();
 
   config = getConfig();
 
@@ -881,6 +883,16 @@ client.on('interactionCreate', async interaction => {
 
   if (interaction.isAutocomplete()) {
     const { commandName } = interaction;
+    if (commandName === 'attribuer-pack') {
+      const search = interaction.options.getFocused().toLowerCase();
+      const data = getSpecialPacks();
+      const choices = (data.packs || [])
+        .filter(p => p.name.toLowerCase().includes(search))
+        .slice(0, 25)
+        .map(p => ({ name: `${p.type === 'donation' ? '💸' : '🗳️'} ${p.name}`, value: p.id }));
+      try { await interaction.respond(choices); } catch (e) {}
+      return;
+    }
     if (commandName === 'inventaire-admin') {
       const focusedOption = interaction.options.getFocused(true);
       if (focusedOption.name === 'item') {
@@ -916,6 +928,51 @@ client.on('interactionCreate', async interaction => {
         if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
         else await interaction.reply(reply);
       } catch (e) {}
+    }
+    return;
+  }
+
+  if (commandName === 'attribuer-pack') {
+    if (!hasRoulettePermission(interaction.member)) {
+      return interaction.reply({ content: '❌ Réservé aux administrateurs et Modos.', ephemeral: true });
+    }
+    const targetUser = interaction.options.getUser('joueur');
+    const packId = interaction.options.getString('pack');
+    const pack = getSpecialPack(packId);
+    if (!pack) return interaction.reply({ content: '❌ Pack introuvable.', ephemeral: true });
+    if (!pack.items || pack.items.length === 0) {
+      return interaction.reply({ content: '❌ Ce pack ne contient aucun item.', ephemeral: true });
+    }
+    await interaction.deferReply({ ephemeral: false });
+    try {
+      const itemTypes = getItemTypes();
+      const lines = [];
+      for (const item of pack.items) {
+        const it = itemTypes.find(t => t.id === item.itemId);
+        if (!it) continue;
+        await addToInventory(
+          targetUser.id,
+          item.itemId,
+          item.quantity,
+          interaction.user.id,
+          `Pack ${pack.name}`
+        );
+        const isCustom = /^<a?:\w+:\d+>$/.test(it.emoji);
+        const emojiStr = isCustom ? it.emoji : it.emoji;
+        lines.push(`${emojiStr} **${it.name}** ×${item.quantity}`);
+      }
+      const embed = new EmbedBuilder()
+        .setColor(pack.color || '#7c5cfc')
+        .setTitle(`🎁 Pack ${pack.name} attribué !`)
+        .setDescription(
+          `${targetUser} a reçu les items suivants :\n\n${lines.join('\n')}`
+        )
+        .setFooter({ text: `Attribué par ${interaction.user.displayName || interaction.user.username}` })
+        .setTimestamp();
+      await interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error('[attribuer-pack]', err);
+      await interaction.editReply({ content: `❌ Erreur : ${err.message}` });
     }
     return;
   }

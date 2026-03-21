@@ -58,6 +58,14 @@ const commands = [
     description: 'Parcourir et commander dans le shop Arki (éphémère)',
   },
   {
+    name: 'attribuer-pack',
+    description: 'Attribue les items d\'un pack spécial à un joueur (Admin et Modo)',
+    options: [
+      { name: 'joueur', type: 6, description: 'Le joueur qui reçoit le pack', required: true },
+      { name: 'pack', type: 3, description: 'Le pack à attribuer', required: true, autocomplete: true },
+    ],
+  },
+  {
     name: 'inventaire-admin',
     description: 'Gestion des inventaires (Admin et Modo)',
     options: [
