@@ -819,12 +819,15 @@ function createWebServer(discordClient) {
       const guildId = settings.guild?.guildId || discordClient.guilds.cache.first()?.id || '';
       const letterMessages = getLetterMessages();
       const allDinosData = getDinoData();
+      // On force le channelId des liens à utiliser le salon dinos configuré actuellement,
+      // pour éviter les liens vers un ancien salon si le channelId stocké est obsolète.
+      const dinoChannelForLinks = allDinosData.dinoChannelId || '';
 
-      // Construit une ligne par dino avec lien vers l'embed de sa lettre
-      function dinoLine(dino, letter) {
-        const lm = letterMessages[letter];
-        if (lm && lm.messageId && lm.channelId) {
-          return `[${dino.name}](https://discord.com/channels/${guildId}/${lm.channelId}/${lm.messageId})`;
+      // Construit une ligne par dino avec lien vers l'embed de sa lettre/catégorie
+      function dinoLine(dino, letterKey) {
+        const lm = letterMessages[letterKey];
+        if (lm && lm.messageId && dinoChannelForLinks) {
+          return `[${dino.name}](https://discord.com/channels/${guildId}/${dinoChannelForLinks}/${lm.messageId})`;
         }
         return dino.name;
       }
@@ -847,16 +850,41 @@ function createWebServer(discordClient) {
         return fields;
       }
 
-      // Tous les dinos triés alphabétiquement, en une seule liste
-      const allDinosSorted = [...allDinosData.dinos]
+      // Dinos normaux (hors épaule et DLC) triés alphabétiquement
+      const regularDinos = [...allDinosData.dinos]
+        .filter(d => !d.isShoulder && !d.isPaidDLC)
         .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
 
-      const allLines = allDinosSorted.map(d => {
-        const letter = (d.name || '?')[0].toUpperCase();
-        return dinoLine(d, letter);
+      const shoulderDinosIdx = [...allDinosData.dinos]
+        .filter(d => d.isShoulder)
+        .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+
+      const paidDLCDinosIdx = [...allDinosData.dinos]
+        .filter(d => d.isPaidDLC)
+        .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+
+      const regularLines = regularDinos.map(d => dinoLine(d, (d.name || '?')[0].toUpperCase()));
+      const shoulderLines = shoulderDinosIdx.map(d => {
+        const lm = letterMessages['SHOULDER'];
+        if (lm && lm.messageId && dinoChannelForLinks) {
+          return `[${d.name}](https://discord.com/channels/${guildId}/${dinoChannelForLinks}/${lm.messageId})`;
+        }
+        return dinoLine(d, (d.name || '?')[0].toUpperCase());
+      });
+      const paidDLCLines = paidDLCDinosIdx.map(d => {
+        const lm = letterMessages['PAIDDLC'];
+        if (lm && lm.messageId && dinoChannelForLinks) {
+          return `[${d.name}](https://discord.com/channels/${guildId}/${dinoChannelForLinks}/${lm.messageId})`;
+        }
+        return dinoLine(d, (d.name || '?')[0].toUpperCase());
       });
 
-      const allFields = allLines.length > 0 ? toFields(allLines, '🦕 Dinos disponibles') : [{ name: '🦕 Dinos', value: '*Aucun dino pour le moment*' }];
+      const regularFields = regularLines.length > 0 ? toFields(regularLines, '🦕 Dinos disponibles') : [];
+      const shoulderFields = shoulderLines.length > 0 ? toFields(shoulderLines, '🦜 Dinos d\'épaule') : [];
+      const paidDLCFields = paidDLCLines.length > 0 ? toFields(paidDLCLines, '💰 Dinos DLC Payant') : [];
+
+      const allFields = [...regularFields, ...shoulderFields, ...paidDLCFields];
+      if (allFields.length === 0) allFields.push({ name: '🦕 Dinos', value: '*Aucun dino pour le moment*' });
 
       // Découpe en plusieurs embeds si > 25 champs ou > 5800 chars
       function chunkFields(fields, maxFields = 25, maxChars = 5800) {
