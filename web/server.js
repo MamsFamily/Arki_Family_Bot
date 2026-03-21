@@ -641,7 +641,8 @@ function createWebServer(discordClient) {
       const packItems = packs.filter(p => (p.type || 'pack') === 'pack' && !p.donationAvailable);
       const inventoryItems = packs.filter(p => (p.type || 'pack') === 'pack' && p.donationAvailable);
       const cats = getCategories();
-      const guildId = discordClient.guilds.cache.first()?.id || '';
+      const settings = getSettings();
+      const guildId = settings.guild?.guildId || discordClient.guilds.cache.first()?.id || '';
 
       function packLine(p) {
         const cat = cats.find(c => c.id === p.category);
