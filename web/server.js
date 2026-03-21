@@ -22,7 +22,9 @@ const upload = multer({
 });
 const { getSettings, updateSection } = require('../settingsManager');
 const { getShop, addPack, updatePack, deletePack, reorderPacks, getPack, updateShopChannel, updateShopChannels, saveShopIndexMessage, addCategory, updateCategory, deleteCategory, getCategories, buildPackEmbed, DEFAULT_CATEGORIES } = require('../shopManager');
-const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, getPaidDLCDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildModdedEmbeds, buildShoulderEmbed, buildPaidDLCEmbeds, buildSaleEmbed, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, getAllLetters, updateNavMessage, getNavMessage, updateDinoIndexChannel, updateDinoIndexMessage, getDinoIndexInfo, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
+const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, getPaidDLCDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildModdedEmbeds, buildShoulderEmbed, buildPaidDLCEmbeds, buildVariantEmbeds, buildSaleEmbed, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, getAllLetters, updateNavMessage, getNavMessage, updateDinoIndexChannel, updateDinoIndexMessage, getDinoIndexInfo, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
+// Variantes publiables comme catégories dédiées dans l'index
+const VARIANT_KEYS = { VARIANT_A: 'A', VARIANT_TEK: 'Tek' };
 
 const { getConfig: readConfig, saveConfig } = require('../configManager');
 const inventoryManager = require('../inventoryManager');
@@ -793,7 +795,9 @@ function createWebServer(discordClient) {
     const dinoIndexInfo = getDinoIndexInfo();
     const shoulderDinos = getShoulderDinos();
     const paidDLCDinos = getPaidDLCDinos();
-    res.render('dinos', { dinoData, grouped, moddedDinos, shoulderDinos, paidDLCDinos, letterMessages, letterColors, defaultColors: DEFAULT_LETTER_COLORS, channels, variantLabels, hasAnyVariant, dinoIndexInfo, success: req.query.success || null, error: req.query.error || null });
+    const variantADinos = getDinosByVariant('A');
+    const variantTekDinos = getDinosByVariant('Tek');
+    res.render('dinos', { dinoData, grouped, moddedDinos, shoulderDinos, paidDLCDinos, variantADinos, variantTekDinos, letterMessages, letterColors, defaultColors: DEFAULT_LETTER_COLORS, channels, variantLabels, hasAnyVariant, dinoIndexInfo, success: req.query.success || null, error: req.query.error || null });
   });
 
   app.post('/dinos/settings', requireAuth, async (req, res) => {
@@ -879,11 +883,32 @@ function createWebServer(discordClient) {
         return dinoLine(d, (d.name || '?')[0].toUpperCase());
       });
 
+      // Dinos avec variant Alpha
+      const alphaVariants = getDinosByVariant('A');
+      const alphaLines = alphaVariants.map(({ dino }) => {
+        const lm = letterMessages['VARIANT_A'];
+        if (lm && lm.messageId && dinoChannelForLinks) {
+          return `[${dino.name}](https://discord.com/channels/${guildId}/${dinoChannelForLinks}/${lm.messageId})`;
+        }
+        return dinoLine(dino, (dino.name || '?')[0].toUpperCase());
+      });
+      // Dinos avec variant Tek
+      const tekVariants = getDinosByVariant('Tek');
+      const tekLines = tekVariants.map(({ dino }) => {
+        const lm = letterMessages['VARIANT_TEK'];
+        if (lm && lm.messageId && dinoChannelForLinks) {
+          return `[${dino.name}](https://discord.com/channels/${guildId}/${dinoChannelForLinks}/${lm.messageId})`;
+        }
+        return dinoLine(dino, (dino.name || '?')[0].toUpperCase());
+      });
+
       const regularFields = regularLines.length > 0 ? toFields(regularLines, '🦕 Dinos disponibles') : [];
       const shoulderFields = shoulderLines.length > 0 ? toFields(shoulderLines, '🦜 Dinos d\'épaule') : [];
       const paidDLCFields = paidDLCLines.length > 0 ? toFields(paidDLCLines, '💰 Dinos DLC Payant') : [];
+      const alphaFields = alphaLines.length > 0 ? toFields(alphaLines, '🅰️ Variants Alpha') : [];
+      const tekFields = tekLines.length > 0 ? toFields(tekLines, '⚙️ Variants Tek') : [];
 
-      const allFields = [...regularFields, ...shoulderFields, ...paidDLCFields];
+      const allFields = [...regularFields, ...shoulderFields, ...paidDLCFields, ...alphaFields, ...tekFields];
       if (allFields.length === 0) allFields.push({ name: '🦕 Dinos', value: '*Aucun dino pour le moment*' });
 
       // Découpe en plusieurs embeds si > 25 champs ou > 5800 chars
@@ -1033,6 +1058,11 @@ function createWebServer(discordClient) {
       const dlcDinos = getPaidDLCDinos();
       if (dlcDinos.length === 0) return res.redirect('/dinos?error=Aucun+dino+DLC+payant');
       embeds = buildPaidDLCEmbeds(dlcDinos);
+    } else if (VARIANT_KEYS[letter]) {
+      const variantLabel = VARIANT_KEYS[letter];
+      const variantDinos = getDinosByVariant(variantLabel);
+      if (variantDinos.length === 0) return res.redirect('/dinos?error=Aucun+dino+avec+ce+variant');
+      embeds = buildVariantEmbeds(variantLabel, variantDinos);
     } else {
       const grouped = getDinosByLetter();
       const dinos = grouped[letter];
@@ -1211,6 +1241,28 @@ function createWebServer(discordClient) {
         await updateLetterMessage('PAIDDLC', newIds[0], channelId, newIds);
         await new Promise(r => setTimeout(r, 500));
       }
+      // Variant Alpha (A)
+      const alphaVariantDinos = getDinosByVariant('A');
+      if (alphaVariantDinos.length > 0) {
+        const storedIds = letterMsgs['VARIANT_A']?.messageIds || (letterMsgs['VARIANT_A']?.messageId ? [letterMsgs['VARIANT_A'].messageId] : []);
+        for (const oldId of storedIds) { try { const m = await channel.messages.fetch(oldId); await m.delete(); } catch {} }
+        const aEmbeds = buildVariantEmbeds('A', alphaVariantDinos);
+        const newIds = [];
+        for (const embed of aEmbeds) { const m = await channel.send({ embeds: [embed] }); newIds.push(m.id); }
+        await updateLetterMessage('VARIANT_A', newIds[0], channelId, newIds);
+        await new Promise(r => setTimeout(r, 500));
+      }
+      // Variant Tek
+      const tekVariantDinos = getDinosByVariant('Tek');
+      if (tekVariantDinos.length > 0) {
+        const storedIds = letterMsgs['VARIANT_TEK']?.messageIds || (letterMsgs['VARIANT_TEK']?.messageId ? [letterMsgs['VARIANT_TEK'].messageId] : []);
+        for (const oldId of storedIds) { try { const m = await channel.messages.fetch(oldId); await m.delete(); } catch {} }
+        const tekEmbeds = buildVariantEmbeds('Tek', tekVariantDinos);
+        const newIds = [];
+        for (const embed of tekEmbeds) { const m = await channel.send({ embeds: [embed] }); newIds.push(m.id); }
+        await updateLetterMessage('VARIANT_TEK', newIds[0], channelId, newIds);
+        await new Promise(r => setTimeout(r, 500));
+      }
 
       // ── 2. Publier l'index avec les IDs frais ──
       const freshLetterMessages = getLetterMessages();
@@ -1255,10 +1307,23 @@ function createWebServer(discordClient) {
         return lm?.messageId ? `[${d.name}](https://discord.com/channels/${guildId}/${dinoChannelForLinks}/${lm.messageId})` : dinoLineLocal(d, (d.name || '?')[0].toUpperCase());
       });
 
+      const alphaVariantDinos2 = getDinosByVariant('A');
+      const tekVariantDinos2 = getDinosByVariant('Tek');
+      const alphaLines2 = alphaVariantDinos2.map(({ dino }) => {
+        const lm = freshLetterMessages['VARIANT_A'];
+        return lm?.messageId ? `[${dino.name}](https://discord.com/channels/${guildId}/${dinoChannelForLinks}/${lm.messageId})` : dino.name;
+      });
+      const tekLines2 = tekVariantDinos2.map(({ dino }) => {
+        const lm = freshLetterMessages['VARIANT_TEK'];
+        return lm?.messageId ? `[${dino.name}](https://discord.com/channels/${guildId}/${dinoChannelForLinks}/${lm.messageId})` : dino.name;
+      });
+
       const allFields2 = [
         ...toFieldsLocal(regLines, '🦕 Dinos disponibles'),
         ...toFieldsLocal(shLines, '🦜 Dinos d\'épaule'),
         ...toFieldsLocal(dlcLines2, '💰 Dinos DLC Payant'),
+        ...toFieldsLocal(alphaLines2, '🅰️ Variants Alpha'),
+        ...toFieldsLocal(tekLines2, '⚙️ Variants Tek'),
       ];
       if (allFields2.length === 0) allFields2.push({ name: '🦕 Dinos', value: '*Aucun dino pour le moment*' });
 

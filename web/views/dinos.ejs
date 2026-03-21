@@ -546,6 +546,74 @@
               </div>
             <% } %>
 
+            <% if (variantADinos && variantADinos.length > 0) { %>
+              <div class="dino-letter-group">
+                <div class="dino-letter-header" style="background: linear-gradient(135deg, #e74c3c22, #e74c3c08);">
+                  <div class="letter-header-left">
+                    <div class="letter-badge" style="background: linear-gradient(135deg, #e74c3c, #e74c3ccc);">A</div>
+                    <div>
+                      <strong style="font-size:1.1em;color:#fff;"><%= variantADinos.length %> dino<%= variantADinos.length > 1 ? 's' : '' %> Variant Alpha</strong>
+                      <div class="letter-count">Embed d&eacute;di&eacute; Variant A<% if (letterMessages['VARIANT_A']) { %> &bull; <span style="color:#4ade80;">&#x2713; publi&eacute;</span><% } %></div>
+                    </div>
+                  </div>
+                  <div class="letter-actions">
+                    <form method="POST" action="/dinos/publish-letter/VARIANT_A" style="display:inline">
+                      <button type="submit" class="btn btn-sm btn-primary">
+                        <%= letterMessages['VARIANT_A'] ? '&#x1F504; MAJ' : '&#x1F4E4; Publier' %>
+                      </button>
+                    </form>
+                  </div>
+                </div>
+                <div class="dino-list">
+                  <% variantADinos.forEach(({ dino, variant }) => { %>
+                    <div class="dino-item">
+                      <div class="dino-info">
+                        <div class="dino-name-row">
+                          <span class="dino-name-main" style="border-left: 3px solid #e74c3c; padding-left: 8px;"><%= dino.name %></span>
+                          <span class="dino-price-inline">&#x1F48E; <%= (variant.priceDiamonds || 0).toLocaleString('fr-FR') %> + &#x1F353; <%= (variant.priceStrawberries || 0).toLocaleString('fr-FR') %></span>
+                        </div>
+                        <div class="dino-badges"><span class="pack-badge" style="background:rgba(231,76,60,0.15);color:#e74c3c;border:1px solid rgba(231,76,60,0.3);">&#x1F170;&#xFE0F; Alpha</span></div>
+                      </div>
+                    </div>
+                  <% }); %>
+                </div>
+              </div>
+            <% } %>
+
+            <% if (variantTekDinos && variantTekDinos.length > 0) { %>
+              <div class="dino-letter-group">
+                <div class="dino-letter-header" style="background: linear-gradient(135deg, #9b59b622, #9b59b608);">
+                  <div class="letter-header-left">
+                    <div class="letter-badge" style="background: linear-gradient(135deg, #9b59b6, #9b59b6cc);">Tek</div>
+                    <div>
+                      <strong style="font-size:1.1em;color:#fff;"><%= variantTekDinos.length %> dino<%= variantTekDinos.length > 1 ? 's' : '' %> Variant Tek</strong>
+                      <div class="letter-count">Embed d&eacute;di&eacute; Variant Tek<% if (letterMessages['VARIANT_TEK']) { %> &bull; <span style="color:#4ade80;">&#x2713; publi&eacute;</span><% } %></div>
+                    </div>
+                  </div>
+                  <div class="letter-actions">
+                    <form method="POST" action="/dinos/publish-letter/VARIANT_TEK" style="display:inline">
+                      <button type="submit" class="btn btn-sm btn-primary">
+                        <%= letterMessages['VARIANT_TEK'] ? '&#x1F504; MAJ' : '&#x1F4E4; Publier' %>
+                      </button>
+                    </form>
+                  </div>
+                </div>
+                <div class="dino-list">
+                  <% variantTekDinos.forEach(({ dino, variant }) => { %>
+                    <div class="dino-item">
+                      <div class="dino-info">
+                        <div class="dino-name-row">
+                          <span class="dino-name-main" style="border-left: 3px solid #9b59b6; padding-left: 8px;"><%= dino.name %></span>
+                          <span class="dino-price-inline">&#x1F48E; <%= (variant.priceDiamonds || 0).toLocaleString('fr-FR') %> + &#x1F353; <%= (variant.priceStrawberries || 0).toLocaleString('fr-FR') %></span>
+                        </div>
+                        <div class="dino-badges"><span class="pack-badge" style="background:rgba(155,89,182,0.15);color:#9b59b6;border:1px solid rgba(155,89,182,0.3);">&#x2699;&#xFE0F; Tek</span></div>
+                      </div>
+                    </div>
+                  <% }); %>
+                </div>
+              </div>
+            <% } %>
+
           <% } %>
         </div>
       </div>
