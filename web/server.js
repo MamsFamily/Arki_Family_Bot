@@ -819,12 +819,15 @@ function createWebServer(discordClient) {
       const guildId = settings.guild?.guildId || discordClient.guilds.cache.first()?.id || '';
       const letterMessages = getLetterMessages();
       const allDinosData = getDinoData();
+      const currentDinoChannelId = allDinosData.dinoChannelId || '';
 
-      // Construit une ligne par dino avec lien vers l'embed de sa lettre
+      // Construit une ligne par dino avec lien vers l'embed de sa lettre.
+      // On ne génère le lien que si le salon stocké correspond au salon dinos actuel,
+      // pour éviter les liens vers un ancien salon.
       function dinoLine(dino, letterKey) {
         const lm = letterMessages[letterKey];
         const name = dino.name;
-        if (lm && lm.messageId && lm.channelId) {
+        if (lm && lm.messageId && lm.channelId && lm.channelId === currentDinoChannelId) {
           return `[${name}](https://discord.com/channels/${guildId}/${lm.channelId}/${lm.messageId})`;
         }
         return name;
