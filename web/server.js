@@ -634,8 +634,9 @@ function createWebServer(discordClient) {
 
       const { EmbedBuilder } = require('discord.js');
       const packs = shop.packs.filter(p => p.available !== false);
-      const packItems = packs.filter(p => (p.type || 'pack') === 'pack');
       const unitItems = packs.filter(p => p.type === 'unitaire');
+      const packItems = packs.filter(p => (p.type || 'pack') === 'pack' && !p.donationAvailable);
+      const inventoryItems = packs.filter(p => (p.type || 'pack') === 'pack' && p.donationAvailable);
       const cats = getCategories();
       const guildId = discordClient.guilds.cache.first()?.id || '';
 
@@ -677,9 +678,11 @@ function createWebServer(discordClient) {
         return fields;
       }
 
-      const packFields = toFields(packItems, '📦', 'Packs');
-      const unitFields = toFields(unitItems, '💎', 'Produits unitaires');
-      const allFields = [...packFields, ...unitFields];
+      const unitFields = unitItems.length > 0 ? toFields(unitItems, '💎', 'Produits à l\'unité') : [];
+      const packFields = packItems.length > 0 ? toFields(packItems, '📦', 'Packs') : [];
+      const inventoryFields = inventoryItems.length > 0 ? toFields(inventoryItems, '✅', 'Packs compatibles inventaire') : [];
+      const allFields = [...unitFields, ...packFields, ...inventoryFields];
+      if (allFields.length === 0) allFields.push({ name: '🛒 Shop', value: '*Aucun produit disponible pour le moment*' });
 
       // Discord limite à 25 champs et ~6000 chars par embed — on découpe en plusieurs embeds si besoin
       function chunkFields(fields, maxFields = 25, maxChars = 5800) {
