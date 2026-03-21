@@ -22,7 +22,7 @@ const upload = multer({
 });
 const { getSettings, updateSection } = require('../settingsManager');
 const { getShop, addPack, updatePack, deletePack, reorderPacks, getPack, updateShopChannel, updateShopChannels, saveShopIndexMessage, addCategory, updateCategory, deleteCategory, getCategories, buildPackEmbed, DEFAULT_CATEGORIES } = require('../shopManager');
-const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, getPaidDLCDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildModdedEmbeds, buildShoulderEmbed, buildSaleEmbed, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, getAllLetters, updateNavMessage, getNavMessage, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
+const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, getPaidDLCDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildModdedEmbeds, buildShoulderEmbed, buildSaleEmbed, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, getAllLetters, updateNavMessage, getNavMessage, updateDinoIndexChannel, updateDinoIndexMessage, getDinoIndexInfo, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
 
 const { getConfig: readConfig, saveConfig } = require('../configManager');
 const inventoryManager = require('../inventoryManager');
@@ -790,12 +790,150 @@ function createWebServer(discordClient) {
       }
     });
     const hasAnyVariant = Object.keys(variantLabels).length > 0;
-    res.render('dinos', { dinoData, grouped, moddedDinos, letterMessages, letterColors, defaultColors: DEFAULT_LETTER_COLORS, channels, variantLabels, hasAnyVariant, success: req.query.success || null, error: req.query.error || null });
+    const dinoIndexInfo = getDinoIndexInfo();
+    res.render('dinos', { dinoData, grouped, moddedDinos, letterMessages, letterColors, defaultColors: DEFAULT_LETTER_COLORS, channels, variantLabels, hasAnyVariant, dinoIndexInfo, success: req.query.success || null, error: req.query.error || null });
   });
 
   app.post('/dinos/settings', requireAuth, async (req, res) => {
     await updateDinoChannel(req.body.dinoChannelId || '');
     res.redirect('/dinos?success=Salon+sauvegard%C3%A9+!');
+  });
+
+  app.post('/dinos/index-channel', requireAuth, async (req, res) => {
+    await updateDinoIndexChannel(req.body.dinoIndexChannelId || '');
+    res.redirect('/dinos?success=Salon+index+sauvegard%C3%A9+!');
+  });
+
+  app.post('/dinos/publish-index', requireAuth, async (req, res) => {
+    if (!discordClient) return res.redirect('/dinos?error=Bot+non+connect%C3%A9');
+    const { channelId: indexChannelId } = getDinoIndexInfo();
+    if (!indexChannelId) return res.redirect('/dinos?error=Salon+index+dinos+non+configur%C3%A9');
+    try {
+      const { EmbedBuilder } = require('discord.js');
+      const channel = await discordClient.channels.fetch(indexChannelId);
+      if (!channel) return res.redirect('/dinos?error=Salon+index+introuvable');
+
+      const settings = getSettings();
+      const guildId = settings.guild?.guildId || discordClient.guilds.cache.first()?.id || '';
+      const letterMessages = getLetterMessages();
+      const grouped = getDinosByLetter();
+      const moddedDinos = getModdedDinos();
+      const shoulderDinos = getShoulderDinos();
+      const paidDLCDinos = getPaidDLCDinos();
+
+      const letters = Object.keys(grouped).sort();
+
+      // Construit une ligne par lettre avec lien si un embed Discord existe
+      function letterLine(letter) {
+        const lm = letterMessages[letter];
+        const count = (grouped[letter] || []).length;
+        const label = `**${letter}** *(${count} dino${count > 1 ? 's' : ''})*`;
+        if (lm && lm.messageId && lm.channelId) {
+          return `[${letter}](https://discord.com/channels/${guildId}/${lm.channelId}/${lm.messageId}) *(${count})*`;
+        }
+        return `${label}`;
+      }
+
+      // Découpe en champs Discord (max 1024 chars)
+      function toFields(lines, title) {
+        if (lines.length === 0) return [];
+        const fields = [];
+        let current = '';
+        for (const line of lines) {
+          const sep = current ? '\n' : '';
+          if (current.length + sep.length + line.length > 1020) {
+            fields.push({ name: fields.length === 0 ? title : '⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯', value: current });
+            current = line;
+          } else {
+            current += sep + line;
+          }
+        }
+        if (current) fields.push({ name: fields.length === 0 ? title : '⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯', value: current });
+        return fields;
+      }
+
+      const mainLines = letters.map(letterLine);
+      const mainFields = toFields(mainLines, '🦕 Dinos disponibles par lettre');
+
+      const specialFields = [];
+      if (moddedDinos.length > 0) {
+        const lm = letterMessages['MODDED'];
+        let line = `🧬 **Dinos Moddés** *(${moddedDinos.length} dino${moddedDinos.length > 1 ? 's' : ''})*`;
+        if (lm?.messageId && lm?.channelId) line = `[🧬 Dinos Moddés](https://discord.com/channels/${guildId}/${lm.channelId}/${lm.messageId}) *(${moddedDinos.length})*`;
+        specialFields.push({ name: '📂 Catégories spéciales', value: line });
+      }
+      if (shoulderDinos.length > 0) {
+        const lm = letterMessages['SHOULDER'];
+        let line = `🦜 **Dinos d'épaule** *(${shoulderDinos.length})*`;
+        if (lm?.messageId && lm?.channelId) line = `[🦜 Dinos d'épaule](https://discord.com/channels/${guildId}/${lm.channelId}/${lm.messageId}) *(${shoulderDinos.length})*`;
+        if (specialFields.length > 0) {
+          specialFields[specialFields.length - 1].value += '\n' + line;
+        } else {
+          specialFields.push({ name: '📂 Catégories spéciales', value: line });
+        }
+      }
+      if (paidDLCDinos.length > 0) {
+        const lm = letterMessages['PAIDDLC'];
+        let line = `💰 **Dinos DLC Payant** *(${paidDLCDinos.length})*`;
+        if (lm?.messageId && lm?.channelId) line = `[💰 Dinos DLC Payant](https://discord.com/channels/${guildId}/${lm.channelId}/${lm.messageId}) *(${paidDLCDinos.length})*`;
+        if (specialFields.length > 0) {
+          specialFields[specialFields.length - 1].value += '\n' + line;
+        } else {
+          specialFields.push({ name: '📂 Catégories spéciales', value: line });
+        }
+      }
+
+      const allFields = [...mainFields, ...specialFields];
+      if (allFields.length === 0) allFields.push({ name: '🦕 Dinos', value: '*Aucun dino pour le moment*' });
+
+      // Découpe en plusieurs embeds si > 25 champs
+      function chunkFields(fields, maxFields = 25, maxChars = 5800) {
+        const chunks = [];
+        let chunk = [], chars = 0;
+        for (const f of fields) {
+          const fChars = f.name.length + f.value.length;
+          if (chunk.length >= maxFields || (chunk.length > 0 && chars + fChars > maxChars)) {
+            chunks.push(chunk); chunk = []; chars = 0;
+          }
+          chunk.push(f); chars += fChars;
+        }
+        if (chunk.length > 0) chunks.push(chunk);
+        return chunks.length > 0 ? chunks : [[]];
+      }
+
+      const totalDinos = getDinoData().dinos.length;
+      const fieldChunks = chunkFields(allFields);
+      const embeds = fieldChunks.map((fields, i) => {
+        const e = new EmbedBuilder().setColor(0x7c5cfc);
+        if (i === 0) {
+          e.setTitle('🦕 Liste des Prix — Dino Shop')
+           .setDescription('Retrouvez ci-dessous tous nos dinos disponibles.\nCliquez sur une lettre pour accéder directement à la liste de prix !');
+        }
+        if (fields.length > 0) e.addFields(fields);
+        if (i === fieldChunks.length - 1) {
+          e.setFooter({ text: `${totalDinos} dino(s) au total • Arki's Family` }).setTimestamp();
+        }
+        return e;
+      });
+
+      // Supprime l'ancien message index
+      const { messageId: oldMsgId } = getDinoIndexInfo();
+      if (oldMsgId) {
+        try { const old = await channel.messages.fetch(oldMsgId); await old.delete(); } catch (e) {}
+      }
+
+      // Envoie le ou les nouveaux embeds
+      let firstMsgId = null;
+      for (let i = 0; i < embeds.length; i++) {
+        const msg = await channel.send({ embeds: [embeds[i]] });
+        if (i === 0) firstMsgId = msg.id;
+      }
+      await updateDinoIndexMessage(firstMsgId);
+      res.redirect('/dinos?success=Index+dinos+publi%C3%A9+!');
+    } catch (err) {
+      console.error('Erreur publication index dinos:', err);
+      res.redirect('/dinos?error=' + encodeURIComponent(err.message || 'Erreur de publication'));
+    }
   });
 
   app.post('/dinos/letter-color', requireAuth, async (req, res) => {

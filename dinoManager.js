@@ -60,6 +60,8 @@ function getDinoData() {
   }
   if (!data.dinos) data.dinos = [];
   if (!data.dinoChannelId) data.dinoChannelId = '';
+  if (!data.dinoIndexChannelId) data.dinoIndexChannelId = '';
+  if (!data.dinoIndexMessageId) data.dinoIndexMessageId = '';
   if (!data.letterMessages) data.letterMessages = {};
   if (!data.letterColors) data.letterColors = {};
   return data;
@@ -690,6 +692,23 @@ function getNavMessage() {
   return data.dinoNavMessage || null;
 }
 
+async function updateDinoIndexChannel(channelId) {
+  const data = getDinoData();
+  data.dinoIndexChannelId = channelId;
+  await saveDinos(data);
+}
+
+async function updateDinoIndexMessage(messageId) {
+  const data = getDinoData();
+  data.dinoIndexMessageId = messageId;
+  await saveDinos(data);
+}
+
+function getDinoIndexInfo() {
+  const data = getDinoData();
+  return { channelId: data.dinoIndexChannelId || '', messageId: data.dinoIndexMessageId || '' };
+}
+
 function buildSaleEmbed(dino, percent) {
   const diamonds = dino.priceDiamonds || 0;
   const strawberries = dino.priceStrawberries || 0;
@@ -748,6 +767,9 @@ module.exports = {
   getAllLetters,
   updateNavMessage,
   getNavMessage,
+  updateDinoIndexChannel,
+  updateDinoIndexMessage,
+  getDinoIndexInfo,
   saveDinos,
   formatNumber,
   initDinos,
