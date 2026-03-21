@@ -660,7 +660,7 @@ function createWebServer(discordClient) {
           const sep = current ? '\n' : '';
           if (current.length + sep.length + line.length > 1020) {
             fields.push({
-              name: fields.length === 0 ? `${sectionEmoji} ${sectionName}` : `${sectionEmoji} ${sectionName} (suite)`,
+              name: fields.length === 0 ? `${sectionEmoji} ${sectionName}` : '⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯',
               value: current,
             });
             current = line;
@@ -670,7 +670,7 @@ function createWebServer(discordClient) {
         }
         if (current) {
           fields.push({
-            name: fields.length === 0 ? `${sectionEmoji} ${sectionName}` : `${sectionEmoji} ${sectionName} (suite)`,
+            name: fields.length === 0 ? `${sectionEmoji} ${sectionName}` : '⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯',
             value: current,
           });
         }
