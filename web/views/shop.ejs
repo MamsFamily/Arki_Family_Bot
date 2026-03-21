@@ -131,7 +131,11 @@
                 const cat = categories.find(c => c.id === pack.category) || categories[0];
               %>
                 <div class="shop-pack-card" data-id="<%= pack.id %>" style="border-left: 4px solid <%= pack.color || cat.color %>">
-                  <div class="pack-drag-handle" title="Glisser pour réordonner">⠿</div>
+                  <div class="pack-drag-handle" title="Glisser pour réordonner">
+                    <button class="move-btn" onclick="moveCard(this,-1)" title="Monter">▲</button>
+                    <span class="drag-dots">⠿</span>
+                    <button class="move-btn" onclick="moveCard(this,1)" title="Descendre">▼</button>
+                  </div>
                   <div class="pack-header-row">
                     <div style="flex:1;min-width:0">
                       <h3 style="margin:0 0 4px"><%= cat.emoji %> <%= pack.name %> <span style="font-size:11px;font-weight:normal;color:var(--text-muted);background:var(--bg-input);padding:2px 6px;border-radius:4px;border:1px solid var(--border)"><%= pack.type === 'unitaire' ? '💎 Unitaire' : '📦 Pack' %></span></h3>
@@ -739,6 +743,26 @@
       updatePreview();
     }
 
+    // ── Boutons ▲/▼ réordonnancement ────────────────────────────────────────
+    async function moveCard(btn, direction) {
+      const grid = document.querySelector('.shop-grid');
+      const card = btn.closest('.shop-pack-card');
+      if (!card || !grid) return;
+      const cards = [...grid.querySelectorAll('.shop-pack-card')];
+      const idx = cards.indexOf(card);
+      const target = cards[idx + direction];
+      if (!target) return;
+      if (direction === -1) target.before(card); else target.after(card);
+      const order = [...grid.querySelectorAll('.shop-pack-card')].map(c => c.dataset.id);
+      try {
+        await fetch('/shop/reorder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order }),
+        });
+      } catch (e) {}
+    }
+
     // ── Drag & Drop réordonnancement ────────────────────────────────────────
     (function() {
       const grid = document.querySelector('.shop-grid');
@@ -746,10 +770,10 @@
 
       let dragging = null;
 
-      // Active le drag uniquement depuis la poignée
-      grid.querySelectorAll('.pack-drag-handle').forEach(handle => {
-        handle.addEventListener('pointerdown', () => {
-          const card = handle.closest('.shop-pack-card');
+      // Active le drag uniquement depuis les points ⠿
+      grid.querySelectorAll('.drag-dots').forEach(dots => {
+        dots.addEventListener('pointerdown', () => {
+          const card = dots.closest('.shop-pack-card');
           if (card) card.draggable = true;
         });
       });

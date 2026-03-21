@@ -1041,25 +1041,48 @@ code {
 }
 
 .pack-drag-handle {
-  display: block;
-  text-align: center;
-  font-size: 18px;
-  letter-spacing: 2px;
-  color: var(--text-muted);
-  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   margin-bottom: 8px;
-  user-select: none;
-  opacity: 0.4;
+  opacity: 0.35;
   transition: opacity 0.15s;
-  line-height: 1;
+  user-select: none;
 }
 
 .shop-pack-card:hover .pack-drag-handle {
   opacity: 1;
 }
 
-.pack-drag-handle:active {
+.drag-dots {
+  font-size: 18px;
+  color: var(--text-muted);
+  cursor: grab;
+  line-height: 1;
+  letter-spacing: 2px;
+}
+
+.drag-dots:active {
   cursor: grabbing;
+}
+
+.move-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 2px 7px;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: background 0.12s, color 0.12s;
+}
+
+.move-btn:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
 }
 
 .pack-header-row {
