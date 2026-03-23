@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Partials, AttachmentBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, AttachmentBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, REST, Routes } = require('discord.js');
 const commands = require('./commands');
 const fs = require('fs');
 const cron = require('node-cron');
@@ -48,6 +48,9 @@ const client = new Client({
 });
 
 let config = { rouletteChoices: [], rouletteTitle: 'ARKI' };
+
+// Stocke temporairement le contexte des modaux d'item libre
+const pendingLibreItems = new Map();
 
 function hasRoulettePermission(member) {
   const votesConfig = getVotesConfig();
@@ -881,6 +884,49 @@ client.on('interactionCreate', async interaction => {
     }
   }
 
+  if (interaction.isModalSubmit()) {
+    if (interaction.customId.startsWith('inv_libre_')) {
+      const context = pendingLibreItems.get(interaction.customId);
+      if (!context) {
+        return interaction.reply({ content: '❌ Session expirée. Relance la commande.', ephemeral: true });
+      }
+      pendingLibreItems.delete(interaction.customId);
+
+      const itemName = interaction.fields.getTextInputValue('item_name').trim();
+      const itemLabel = `📦 ${itemName}`;
+      const itemTypeId = `[libre] ${itemName}`;
+
+      await addToInventory(context.targetUserId, itemTypeId, context.quantity, context.adminId, context.reason);
+
+      const embed = new EmbedBuilder()
+        .setColor('#2ECC71')
+        .setTitle('✅ Item ajouté')
+        .setDescription(`**${itemLabel}** x${context.quantity} ajouté à <@${context.targetUserId}>`)
+        .setFooter({ text: '📌 Item temporaire — non enregistré dans la liste' })
+        .setTimestamp();
+
+      if (context.reason) {
+        embed.addFields({ name: 'Raison', value: context.reason, inline: false });
+      }
+
+      await interaction.reply({ embeds: [embed] });
+
+      try {
+        const settings = getSettings();
+        const logChannelId = settings.guild?.inventoryLogChannelId;
+        if (logChannelId) {
+          const logChannel = await client.channels.fetch(logChannelId);
+          if (logChannel) {
+            const member = await interaction.guild.members.fetch(context.adminId).catch(() => null);
+            const adminName = member ? member.displayName : context.adminId;
+            await logChannel.send(`**${adminName}** a ajouté **${context.quantity}x ${itemLabel}** à l'inventaire de <@${context.targetUserId}>`);
+          }
+        }
+      } catch (e) {}
+      return;
+    }
+  }
+
   if (interaction.isAutocomplete()) {
     const { commandName } = interaction;
     if (commandName === 'attribuer-pack') {
@@ -911,7 +957,7 @@ client.on('interactionCreate', async interaction => {
 
         const filtered = itemTypes
           .filter(it => it.name.toLowerCase().includes(search) || it.emoji.includes(search))
-          .slice(0, 25)
+          .slice(0, 24)
           .map(it => {
             const isCustom = /^<a?:\w+:\d+>$/.test(it.emoji);
             const baseName = isCustom ? it.name : `${it.emoji} ${it.name}`;
@@ -922,6 +968,12 @@ client.on('interactionCreate', async interaction => {
             }
             return { name: label.slice(0, 100), value: it.id };
           });
+
+        // Ajouter l'option item temporaire en bas (pour le sous-commande ajouter uniquement)
+        if (subcommand === 'ajouter' && '+ ajouter item temporaire'.includes(search)) {
+          filtered.push({ name: '➕ Ajouter item temporaire', value: '__libre__' });
+        }
+
         try {
           await interaction.respond(filtered);
         } catch (e) {}
@@ -1844,10 +1896,37 @@ client.on('interactionCreate', async interaction => {
       const quantity = interaction.options.getInteger('quantité');
       const reason = interaction.options.getString('raison') || '';
 
+      // Si l'item temporaire est sélectionné → ouvrir une modale de saisie
+      if (itemId === '__libre__') {
+        const modalKey = `inv_libre_${interaction.id}`;
+        pendingLibreItems.set(modalKey, {
+          targetUserId: targetUser.id,
+          quantity,
+          reason,
+          adminId: interaction.user.id,
+          guildId: interaction.guild.id,
+        });
+        // Nettoyer après 10 minutes
+        setTimeout(() => pendingLibreItems.delete(modalKey), 10 * 60 * 1000);
+
+        const modal = new ModalBuilder()
+          .setCustomId(modalKey)
+          .setTitle('Ajouter un item temporaire');
+        const input = new TextInputBuilder()
+          .setCustomId('item_name')
+          .setLabel(`Nom de l'item (x${quantity} pour ${targetUser.username})`)
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('Ex: Pack Boss Gamma, Selle Dragon Tek...')
+          .setRequired(true)
+          .setMaxLength(100);
+        modal.addComponents(new ActionRowBuilder().addComponents(input));
+        return interaction.showModal(modal);
+      }
+
       let itemLabel, itemTypeId;
 
       if (itemLibre) {
-        // Item occasionnel : stocké tel quel comme identifiant, non enregistré
+        // Item occasionnel via champ texte (ancien comportement)
         itemLabel = `📦 ${itemLibre}`;
         itemTypeId = `[libre] ${itemLibre}`;
       } else if (itemId) {
@@ -1859,7 +1938,7 @@ client.on('interactionCreate', async interaction => {
         itemLabel = isCustom ? itemType.name : `${itemType.emoji} ${itemType.name}`;
         itemTypeId = itemId;
       } else {
-        return interaction.reply({ content: '❌ Indique un item de la liste ou remplis le champ **item-libre**.', ephemeral: true });
+        return interaction.reply({ content: '❌ Indique un item de la liste.', ephemeral: true });
       }
 
       await addToInventory(targetUser.id, itemTypeId, quantity, interaction.user.id, reason);
