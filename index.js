@@ -1854,9 +1854,6 @@ client.on('interactionCreate', async interaction => {
         .setColor('#2ECC71')
         .setTitle('✅ Item ajouté')
         .setDescription(`${itemType.emoji} **${itemType.name}** x${quantity} ajouté à <@${targetUser.id}>`)
-        .addFields(
-          { name: 'Nouvelle quantité', value: `${result.newQuantity}`, inline: true },
-        )
         .setTimestamp();
 
       if (reason) {
@@ -1896,9 +1893,6 @@ client.on('interactionCreate', async interaction => {
         .setColor('#E74C3C')
         .setTitle('➖ Item retiré')
         .setDescription(`${itemType.emoji} **${itemType.name}** x${quantity} retiré de <@${targetUser.id}>`)
-        .addFields(
-          { name: 'Nouvelle quantité', value: `${result.newQuantity}`, inline: true },
-        )
         .setTimestamp();
 
       if (reason) {
