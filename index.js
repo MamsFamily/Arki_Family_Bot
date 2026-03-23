@@ -1911,7 +1911,6 @@ client.on('interactionCreate', async interaction => {
     if (subcommand === 'ajouter') {
       const targetUser = interaction.options.getUser('joueur');
       const itemId = interaction.options.getString('item');
-      const itemLibre = interaction.options.getString('item-libre');
       const quantity = interaction.options.getInteger('quantité');
       const reason = interaction.options.getString('raison') || '';
 
@@ -1951,27 +1950,17 @@ client.on('interactionCreate', async interaction => {
         return interaction.showModal(modal);
       }
 
-      let itemLabel, itemTypeId;
-
-      if (itemLibre) {
-        // Item occasionnel via champ texte (fallback)
-        itemLabel = `📦 ${itemLibre}`;
-        itemTypeId = `[libre] ${itemLibre}`;
-      } else if (itemId) {
-        const itemType = getItemTypeById(itemId);
-        if (!itemType) {
-          return interaction.reply({ content: '❌ Item introuvable.', ephemeral: true });
-        }
-        const isCustom = /^<a?:\w+:\d+>$/.test(itemType.emoji);
-        itemLabel = isCustom ? itemType.name : `${itemType.emoji} ${itemType.name}`;
-        itemTypeId = itemId;
-      } else {
-        return interaction.reply({ content: '❌ Indique un item de la liste ou sélectionne **➕ Ajouter item occasionnel**.', ephemeral: true });
+      const itemType = getItemTypeById(itemId);
+      if (!itemType) {
+        return interaction.reply({ content: '❌ Item introuvable.', ephemeral: true });
       }
-
       if (!quantity) {
         return interaction.reply({ content: '❌ Indique une quantité.', ephemeral: true });
       }
+
+      const isCustom = /^<a?:\w+:\d+>$/.test(itemType.emoji);
+      const itemLabel = isCustom ? itemType.name : `${itemType.emoji} ${itemType.name}`;
+      const itemTypeId = itemId;
 
       await addToInventory(targetUser.id, itemTypeId, quantity, interaction.user.id, reason);
 
@@ -1980,10 +1969,6 @@ client.on('interactionCreate', async interaction => {
         .setTitle('✅ Item ajouté')
         .setDescription(`**${itemLabel}** x${quantity} ajouté à <@${targetUser.id}>`)
         .setTimestamp();
-
-      if (itemLibre) {
-        embed.setFooter({ text: '📌 Item occasionnel — non enregistré dans la liste' });
-      }
 
       if (reason) {
         embed.addFields({ name: 'Raison', value: reason, inline: false });
