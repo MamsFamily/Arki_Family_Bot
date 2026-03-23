@@ -54,7 +54,7 @@ const commands = [
     ],
   },
   {
-    name: 'mon-historique',
+    name: 'inventaire-historique',
     description: "Affiche ton historique de transactions (visible uniquement par toi)",
     options: [],
   },
