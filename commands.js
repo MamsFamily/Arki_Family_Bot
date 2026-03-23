@@ -48,23 +48,15 @@ const commands = [
   },
   {
     name: 'inventaire',
-    description: "Consulte un inventaire ou son historique",
+    description: "Affiche l'inventaire d'un joueur",
     options: [
-      {
-        name: 'voir',
-        type: 1,
-        description: "Affiche l'inventaire d'un joueur",
-        options: [
-          { name: 'joueur', type: 6, description: 'Le joueur dont vous voulez voir l\'inventaire (par défaut: vous-même)', required: false },
-        ],
-      },
-      {
-        name: 'historique',
-        type: 1,
-        description: "Affiche ton historique de transactions",
-        options: [],
-      },
+      { name: 'joueur', type: 6, description: 'Le joueur dont vous voulez voir l\'inventaire (par défaut: vous-même)', required: false },
     ],
+  },
+  {
+    name: 'mon-historique',
+    description: "Affiche ton historique de transactions (visible uniquement par toi)",
+    options: [],
   },
   {
     name: 'shop',
