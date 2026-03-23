@@ -897,13 +897,29 @@ client.on('interactionCreate', async interaction => {
       const focusedOption = interaction.options.getFocused(true);
       if (focusedOption.name === 'item') {
         const search = focusedOption.value.toLowerCase();
+        const subcommand = interaction.options.getSubcommand(false);
         const itemTypes = getItemTypes();
+
+        // Pour le retrait, afficher la quantité disponible du joueur ciblé
+        let playerInventory = null;
+        if (subcommand === 'retirer') {
+          const joueurId = interaction.options.get('joueur')?.value;
+          if (joueurId) {
+            playerInventory = getPlayerInventory(joueurId);
+          }
+        }
+
         const filtered = itemTypes
           .filter(it => it.name.toLowerCase().includes(search) || it.emoji.includes(search))
           .slice(0, 25)
           .map(it => {
             const isCustom = /^<a?:\w+:\d+>$/.test(it.emoji);
-            const label = isCustom ? it.name : `${it.emoji} ${it.name}`;
+            const baseName = isCustom ? it.name : `${it.emoji} ${it.name}`;
+            let label = baseName;
+            if (playerInventory !== null) {
+              const qty = playerInventory[it.id] || 0;
+              label = `${baseName} (dispo: ${qty})`;
+            }
             return { name: label.slice(0, 100), value: it.id };
           });
         try {
@@ -1840,7 +1856,6 @@ client.on('interactionCreate', async interaction => {
         .setDescription(`${itemType.emoji} **${itemType.name}** x${quantity} ajouté à <@${targetUser.id}>`)
         .addFields(
           { name: 'Nouvelle quantité', value: `${result.newQuantity}`, inline: true },
-          { name: 'Par', value: `<@${interaction.user.id}>`, inline: true },
         )
         .setTimestamp();
 
@@ -1883,7 +1898,6 @@ client.on('interactionCreate', async interaction => {
         .setDescription(`${itemType.emoji} **${itemType.name}** x${quantity} retiré de <@${targetUser.id}>`)
         .addFields(
           { name: 'Nouvelle quantité', value: `${result.newQuantity}`, inline: true },
-          { name: 'Par', value: `<@${interaction.user.id}>`, inline: true },
         )
         .setTimestamp();
 
