@@ -975,6 +975,19 @@ client.on('interactionCreate', async interaction => {
             return { name: label.slice(0, 100), value: it.id };
           });
 
+        // Pour le retrait, ajouter les items occasionnels du joueur ([libre] ...)
+        if (subcommand === 'retirer' && playerInventory) {
+          for (const [key, qty] of Object.entries(playerInventory)) {
+            if (key.startsWith('[libre] ') && qty > 0) {
+              const name = key.slice('[libre] '.length);
+              if (name.toLowerCase().includes(search) || search === '') {
+                const label = `📦 ${name} (dispo: ${qty})`;
+                filtered.push({ name: label.slice(0, 100), value: key });
+              }
+            }
+          }
+        }
+
         // Ajouter l'option item occasionnel en bas (pour le sous-commande ajouter uniquement)
         if (subcommand === 'ajouter' && '+ ajouter item occasionnel'.includes(search)) {
           filtered.push({ name: '➕ Ajouter item occasionnel', value: '__libre__' });
@@ -1996,17 +2009,27 @@ client.on('interactionCreate', async interaction => {
       const quantity = interaction.options.getInteger('quantité');
       const reason = interaction.options.getString('raison') || '';
 
-      const itemType = getItemTypeById(itemId);
-      if (!itemType) {
-        return interaction.reply({ content: '❌ Item introuvable.', ephemeral: true });
+      let itemLabel;
+
+      if (itemId.startsWith('[libre] ')) {
+        // Item occasionnel
+        const name = itemId.slice('[libre] '.length);
+        itemLabel = `📦 ${name}`;
+      } else {
+        const itemType = getItemTypeById(itemId);
+        if (!itemType) {
+          return interaction.reply({ content: '❌ Item introuvable.', ephemeral: true });
+        }
+        const isCustom = /^<a?:\w+:\d+>$/.test(itemType.emoji);
+        itemLabel = isCustom ? itemType.name : `${itemType.emoji} ${itemType.name}`;
       }
 
-      const result = await removeFromInventory(targetUser.id, itemId, quantity, interaction.user.id, reason);
+      await removeFromInventory(targetUser.id, itemId, quantity, interaction.user.id, reason);
 
       const embed = new EmbedBuilder()
         .setColor('#E74C3C')
         .setTitle('➖ Item retiré')
-        .setDescription(`${itemType.emoji} **${itemType.name}** x${quantity} retiré de <@${targetUser.id}>`)
+        .setDescription(`**${itemLabel}** x${quantity} retiré de <@${targetUser.id}>`)
         .setTimestamp();
 
       if (reason) {
@@ -2023,7 +2046,7 @@ client.on('interactionCreate', async interaction => {
           if (logChannel) {
             const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
             const adminName = member ? member.displayName : interaction.user.username;
-            await logChannel.send(`${itemType.emoji} **${adminName}** a retiré **${quantity} ${itemType.name}** de l'inventaire de <@${targetUser.id}>`);
+            await logChannel.send(`**${adminName}** a retiré **${quantity}x ${itemLabel}** de l'inventaire de <@${targetUser.id}>`);
           }
         }
       } catch (e) {}
