@@ -1894,7 +1894,7 @@ client.on('interactionCreate', async interaction => {
 
       const embed = new EmbedBuilder()
         .setColor('#E74C3C')
-        .setTitle('✅ Item retiré')
+        .setTitle('➖ Item retiré')
         .setDescription(`${itemType.emoji} **${itemType.name}** x${quantity} retiré de <@${targetUser.id}>`)
         .addFields(
           { name: 'Nouvelle quantité', value: `${result.newQuantity}`, inline: true },
