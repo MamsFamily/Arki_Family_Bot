@@ -82,7 +82,7 @@ const commands = [
           { name: 'joueur', type: 6, description: 'Le joueur', required: true },
           { name: 'item', type: 3, description: "L'item à ajouter (liste enregistrée)", required: false, autocomplete: true },
           { name: 'item-libre', type: 3, description: "Item occasionnel non enregistré (ex: Pack Boss Gamma)", required: false },
-          { name: 'quantité', type: 4, description: 'La quantité à ajouter', required: true, min_value: 1 },
+          { name: 'quantité', type: 4, description: 'La quantité à ajouter (ignorée pour item occasionnel, saisie dans la fenêtre)', required: false, min_value: 1 },
           { name: 'raison', type: 3, description: "Raison de l'ajout", required: false },
         ],
       },

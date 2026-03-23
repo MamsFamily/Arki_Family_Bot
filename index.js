@@ -893,16 +893,22 @@ client.on('interactionCreate', async interaction => {
       pendingLibreItems.delete(interaction.customId);
 
       const itemName = interaction.fields.getTextInputValue('item_name').trim();
+      const qtyRaw = interaction.fields.getTextInputValue('item_qty').trim();
+      const modalQty = parseInt(qtyRaw, 10);
+      if (!modalQty || modalQty < 1) {
+        return interaction.reply({ content: '❌ Quantité invalide. Saisis un nombre entier supérieur à 0.', ephemeral: true });
+      }
+
       const itemLabel = `📦 ${itemName}`;
       const itemTypeId = `[libre] ${itemName}`;
 
-      await addToInventory(context.targetUserId, itemTypeId, context.quantity, context.adminId, context.reason);
+      await addToInventory(context.targetUserId, itemTypeId, modalQty, context.adminId, context.reason);
 
       const embed = new EmbedBuilder()
-        .setColor('#2ECC71')
+        .setColor('#00BFFF')
         .setTitle('✅ Item ajouté')
-        .setDescription(`**${itemLabel}** x${context.quantity} ajouté à <@${context.targetUserId}>`)
-        .setFooter({ text: '📌 Item temporaire — non enregistré dans la liste' })
+        .setDescription(`**${itemLabel}** x${modalQty} ajouté à <@${context.targetUserId}>`)
+        .setFooter({ text: '📌 Item occasionnel — non enregistré dans la liste' })
         .setTimestamp();
 
       if (context.reason) {
@@ -919,7 +925,7 @@ client.on('interactionCreate', async interaction => {
           if (logChannel) {
             const member = await interaction.guild.members.fetch(context.adminId).catch(() => null);
             const adminName = member ? member.displayName : context.adminId;
-            await logChannel.send(`**${adminName}** a ajouté **${context.quantity}x ${itemLabel}** à l'inventaire de <@${context.targetUserId}>`);
+            await logChannel.send(`**${adminName}** a ajouté **${modalQty}x ${itemLabel}** à l'inventaire de <@${context.targetUserId}>`);
           }
         }
       } catch (e) {}
@@ -969,9 +975,9 @@ client.on('interactionCreate', async interaction => {
             return { name: label.slice(0, 100), value: it.id };
           });
 
-        // Ajouter l'option item temporaire en bas (pour le sous-commande ajouter uniquement)
-        if (subcommand === 'ajouter' && '+ ajouter item temporaire'.includes(search)) {
-          filtered.push({ name: '➕ Ajouter item temporaire', value: '__libre__' });
+        // Ajouter l'option item occasionnel en bas (pour le sous-commande ajouter uniquement)
+        if (subcommand === 'ajouter' && '+ ajouter item occasionnel'.includes(search)) {
+          filtered.push({ name: '➕ Ajouter item occasionnel', value: '__libre__' });
         }
 
         try {
@@ -1819,6 +1825,19 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
+    // Section items occasionnels (clés commençant par "[libre]")
+    const occasionnelLines = [];
+    for (const [key, qty] of Object.entries(inventory)) {
+      if (key.startsWith('[libre] ') && qty > 0) {
+        const name = key.slice('[libre] '.length);
+        occasionnelLines.push(`📦 **${name}** : ${qty}`);
+      }
+    }
+    if (occasionnelLines.length > 0) {
+      hasItems = true;
+      description += `### 📌 Occasionnel\n${occasionnelLines.join('\n')}\n\n`;
+    }
+
     if (!hasItems) {
       description = '*Aucun item dans l\'inventaire.*';
     }
@@ -1896,12 +1915,11 @@ client.on('interactionCreate', async interaction => {
       const quantity = interaction.options.getInteger('quantité');
       const reason = interaction.options.getString('raison') || '';
 
-      // Si l'item temporaire est sélectionné → ouvrir une modale de saisie
+      // Si l'item occasionnel est sélectionné → ouvrir une modale de saisie (nom + quantité)
       if (itemId === '__libre__') {
         const modalKey = `inv_libre_${interaction.id}`;
         pendingLibreItems.set(modalKey, {
           targetUserId: targetUser.id,
-          quantity,
           reason,
           adminId: interaction.user.id,
           guildId: interaction.guild.id,
@@ -1911,22 +1929,32 @@ client.on('interactionCreate', async interaction => {
 
         const modal = new ModalBuilder()
           .setCustomId(modalKey)
-          .setTitle('Ajouter un item temporaire');
-        const input = new TextInputBuilder()
+          .setTitle(`Item occasionnel → ${targetUser.username}`);
+        const nameInput = new TextInputBuilder()
           .setCustomId('item_name')
-          .setLabel(`Nom de l'item (x${quantity} pour ${targetUser.username})`)
+          .setLabel('Nom de l\'item')
           .setStyle(TextInputStyle.Short)
           .setPlaceholder('Ex: Pack Boss Gamma, Selle Dragon Tek...')
           .setRequired(true)
           .setMaxLength(100);
-        modal.addComponents(new ActionRowBuilder().addComponents(input));
+        const qtyInput = new TextInputBuilder()
+          .setCustomId('item_qty')
+          .setLabel('Quantité')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('Ex: 1')
+          .setRequired(true)
+          .setMaxLength(5);
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(nameInput),
+          new ActionRowBuilder().addComponents(qtyInput),
+        );
         return interaction.showModal(modal);
       }
 
       let itemLabel, itemTypeId;
 
       if (itemLibre) {
-        // Item occasionnel via champ texte (ancien comportement)
+        // Item occasionnel via champ texte (fallback)
         itemLabel = `📦 ${itemLibre}`;
         itemTypeId = `[libre] ${itemLibre}`;
       } else if (itemId) {
@@ -1938,13 +1966,17 @@ client.on('interactionCreate', async interaction => {
         itemLabel = isCustom ? itemType.name : `${itemType.emoji} ${itemType.name}`;
         itemTypeId = itemId;
       } else {
-        return interaction.reply({ content: '❌ Indique un item de la liste.', ephemeral: true });
+        return interaction.reply({ content: '❌ Indique un item de la liste ou sélectionne **➕ Ajouter item occasionnel**.', ephemeral: true });
+      }
+
+      if (!quantity) {
+        return interaction.reply({ content: '❌ Indique une quantité.', ephemeral: true });
       }
 
       await addToInventory(targetUser.id, itemTypeId, quantity, interaction.user.id, reason);
 
       const embed = new EmbedBuilder()
-        .setColor('#2ECC71')
+        .setColor('#00BFFF')
         .setTitle('✅ Item ajouté')
         .setDescription(`**${itemLabel}** x${quantity} ajouté à <@${targetUser.id}>`)
         .setTimestamp();
