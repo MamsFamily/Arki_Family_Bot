@@ -1840,21 +1840,39 @@ client.on('interactionCreate', async interaction => {
     if (subcommand === 'ajouter') {
       const targetUser = interaction.options.getUser('joueur');
       const itemId = interaction.options.getString('item');
+      const itemLibre = interaction.options.getString('item-libre');
       const quantity = interaction.options.getInteger('quantité');
       const reason = interaction.options.getString('raison') || '';
 
-      const itemType = getItemTypeById(itemId);
-      if (!itemType) {
-        return interaction.reply({ content: '❌ Item introuvable.', ephemeral: true });
+      let itemLabel, itemTypeId;
+
+      if (itemLibre) {
+        // Item occasionnel : stocké tel quel comme identifiant, non enregistré
+        itemLabel = `📦 ${itemLibre}`;
+        itemTypeId = `[libre] ${itemLibre}`;
+      } else if (itemId) {
+        const itemType = getItemTypeById(itemId);
+        if (!itemType) {
+          return interaction.reply({ content: '❌ Item introuvable.', ephemeral: true });
+        }
+        const isCustom = /^<a?:\w+:\d+>$/.test(itemType.emoji);
+        itemLabel = isCustom ? itemType.name : `${itemType.emoji} ${itemType.name}`;
+        itemTypeId = itemId;
+      } else {
+        return interaction.reply({ content: '❌ Indique un item de la liste ou remplis le champ **item-libre**.', ephemeral: true });
       }
 
-      const result = await addToInventory(targetUser.id, itemId, quantity, interaction.user.id, reason);
+      await addToInventory(targetUser.id, itemTypeId, quantity, interaction.user.id, reason);
 
       const embed = new EmbedBuilder()
         .setColor('#2ECC71')
         .setTitle('✅ Item ajouté')
-        .setDescription(`${itemType.emoji} **${itemType.name}** x${quantity} ajouté à <@${targetUser.id}>`)
+        .setDescription(`**${itemLabel}** x${quantity} ajouté à <@${targetUser.id}>`)
         .setTimestamp();
+
+      if (itemLibre) {
+        embed.setFooter({ text: '📌 Item occasionnel — non enregistré dans la liste' });
+      }
 
       if (reason) {
         embed.addFields({ name: 'Raison', value: reason, inline: false });
@@ -1870,7 +1888,7 @@ client.on('interactionCreate', async interaction => {
           if (logChannel) {
             const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
             const adminName = member ? member.displayName : interaction.user.username;
-            await logChannel.send(`${itemType.emoji} **${adminName}** a ajouté **${quantity} ${itemType.name}** à l'inventaire de <@${targetUser.id}>`);
+            await logChannel.send(`**${adminName}** a ajouté **${quantity}x ${itemLabel}** à l'inventaire de <@${targetUser.id}>`);
           }
         }
       } catch (e) {}
