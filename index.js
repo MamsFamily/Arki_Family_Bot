@@ -1712,58 +1712,107 @@ client.on('interactionCreate', async interaction => {
   }
 
   if (commandName === 'inventaire') {
-    const targetUser = interaction.options.getUser('joueur') || interaction.user;
+    const subcommand = interaction.options.getSubcommand();
 
-    const inventory = getPlayerInventory(targetUser.id);
-    const itemTypes = getItemTypes();
+    if (subcommand === 'voir') {
+      const targetUser = interaction.options.getUser('joueur') || interaction.user;
 
-    const categoryMap = {};
-    const categories = getCategories();
-    for (const cat of categories) {
-      categoryMap[cat.id] = { ...cat, items: [] };
-    }
+      const inventory = getPlayerInventory(targetUser.id);
+      const itemTypes = getItemTypes();
 
-    for (const itemType of itemTypes) {
-      const qty = inventory[itemType.id] || 0;
-      const catId = itemType.category || 'other';
-      if (!categoryMap[catId]) {
-        categoryMap[catId] = { id: catId, name: catId, emoji: '📦', items: [] };
+      const categoryMap = {};
+      const categories = getCategories();
+      for (const cat of categories) {
+        categoryMap[cat.id] = { ...cat, items: [] };
       }
-      categoryMap[catId].items.push({ ...itemType, quantity: qty });
-    }
 
-    let description = '';
-    let hasItems = false;
-
-    const allCatIds = [...new Set([...categories.map(c => c.id), ...Object.keys(categoryMap)])];
-    for (const catId of allCatIds) {
-      const catData = categoryMap[catId];
-      if (!catData || catData.items.length === 0) continue;
-
-      const itemLines = catData.items
-        .filter(it => it.quantity > 0)
-        .sort((a, b) => a.order - b.order)
-        .map(it => `${it.emoji} **${it.name}** : ${it.quantity}`);
-
-      if (itemLines.length > 0) {
-        hasItems = true;
-        description += `### ${catData.emoji} ${catData.name}\n${itemLines.join('\n')}\n\n`;
+      for (const itemType of itemTypes) {
+        const qty = inventory[itemType.id] || 0;
+        const catId = itemType.category || 'other';
+        if (!categoryMap[catId]) {
+          categoryMap[catId] = { id: catId, name: catId, emoji: '📦', items: [] };
+        }
+        categoryMap[catId].items.push({ ...itemType, quantity: qty });
       }
+
+      let description = '';
+      let hasItems = false;
+
+      const allCatIds = [...new Set([...categories.map(c => c.id), ...Object.keys(categoryMap)])];
+      for (const catId of allCatIds) {
+        const catData = categoryMap[catId];
+        if (!catData || catData.items.length === 0) continue;
+
+        const itemLines = catData.items
+          .filter(it => it.quantity > 0)
+          .sort((a, b) => a.order - b.order)
+          .map(it => `${it.emoji} **${it.name}** : ${it.quantity}`);
+
+        if (itemLines.length > 0) {
+          hasItems = true;
+          description += `### ${catData.emoji} ${catData.name}\n${itemLines.join('\n')}\n\n`;
+        }
+      }
+
+      if (!hasItems) {
+        description = '*Aucun item dans l\'inventaire.*';
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor('#2ECC71')
+        .setTitle(`📦 Inventaire de ${targetUser.displayName || targetUser.username}`)
+        .setDescription(description.trim())
+        .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
+        .setFooter({ text: `Demandé par ${interaction.user.username}` })
+        .setTimestamp();
+
+      await interaction.reply({ embeds: [embed] });
     }
 
-    if (!hasItems) {
-      description = '*Aucun item dans l\'inventaire.*';
+    if (subcommand === 'historique') {
+      const targetUser = interaction.user;
+      const { transactions, total } = getPlayerTransactions(targetUser.id, 20);
+      const itemTypes = getItemTypes();
+
+      if (transactions.length === 0) {
+        return interaction.reply({
+          embeds: [
+            new EmbedBuilder()
+              .setColor('#95A5A6')
+              .setTitle(`📜 Mon historique`)
+              .setDescription('*Aucune transaction enregistrée.*')
+              .setTimestamp(),
+          ],
+          ephemeral: true,
+        });
+      }
+
+      let description = '';
+      for (const tx of transactions) {
+        const itemType = itemTypes.find(it => it.id === tx.itemTypeId);
+        const itemName = itemType ? `${itemType.emoji} ${itemType.name}` : tx.itemTypeId;
+        const sign = tx.quantity >= 0 ? '+' : '';
+        const typeLabel = tx.type === 'reset' ? '🔄' : tx.quantity >= 0 ? '📥' : '📤';
+        const date = new Date(tx.timestamp).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+        description += `${typeLabel} ${sign}${tx.quantity} ${itemName} — ${date}`;
+        if (tx.reason) description += ` — *${tx.reason}*`;
+        description += '\n';
+      }
+
+      if (description.length > 4000) {
+        description = description.substring(0, 3990) + '\n...';
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor('#3498DB')
+        .setTitle(`📜 Mon historique`)
+        .setDescription(description.trim())
+        .setFooter({ text: `${total} transaction(s) au total • Seulement toi peux voir ce message` })
+        .setTimestamp();
+
+      await interaction.reply({ embeds: [embed], ephemeral: true });
     }
-
-    const embed = new EmbedBuilder()
-      .setColor('#2ECC71')
-      .setTitle(`📦 Inventaire de ${targetUser.displayName || targetUser.username}`)
-      .setDescription(description.trim())
-      .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
-      .setFooter({ text: `Demandé par ${interaction.user.username}` })
-      .setTimestamp();
-
-    await interaction.reply({ embeds: [embed] });
   }
 
   if (commandName === 'inventaire-admin') {
