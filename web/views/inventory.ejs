@@ -100,7 +100,21 @@
     }
     .player-inv-item .inv-emoji { font-size: 22px; }
     .player-inv-item .inv-name { font-size: 13px; color: var(--text-secondary); }
-    .player-inv-item .inv-qty { font-size: 18px; font-weight: 700; color: #fff; margin-left: auto; }
+    .player-inv-item .inv-qty {
+      font-size: 18px; font-weight: 700; color: #fff; margin-left: auto;
+      cursor: pointer; padding: 2px 8px; border-radius: 6px;
+      transition: background 0.15s;
+      min-width: 36px; text-align: right;
+    }
+    .player-inv-item .inv-qty:hover { background: rgba(124,92,252,0.18); }
+    .player-inv-item .inv-qty.saving { opacity: 0.5; }
+    .inv-qty-input {
+      width: 72px; font-size: 16px; font-weight: 700;
+      background: var(--bg-card); border: 2px solid var(--accent);
+      border-radius: 6px; color: #fff; text-align: right;
+      padding: 2px 8px; outline: none; margin-left: auto;
+      font-family: inherit;
+    }
     .tx-table {
       width: 100%;
       border-collapse: collapse;
@@ -664,10 +678,13 @@
         });
     }
 
+    var currentPlayerId = '';
+
     function renderPlayerInventory(container, data) {
       var inv = data.inventory || {};
       var player = data.player || {};
       var playerId = data.playerId;
+      currentPlayerId = playerId;
       var displayName = player.displayName || player.username || playerId;
 
       var html = '<div style="margin-bottom:16px;">';
@@ -677,15 +694,34 @@
 
       var hasItems = false;
       html += '<div class="player-inv-grid">';
+
+      // Items enregistrés
       itemTypesData.forEach(function(it) {
         var qty = inv[it.id] || 0;
         if (qty > 0) hasItems = true;
+        var safeId = escapeHtml(it.id);
         html += '<div class="player-inv-item">';
         html += '<span class="inv-emoji">' + renderEmoji(it.emoji) + '</span>';
         html += '<span class="inv-name">' + escapeHtml(it.name) + '</span>';
-        html += '<span class="inv-qty">' + qty + '</span>';
+        html += '<span class="inv-qty" title="Cliquer pour modifier" onclick="startInlineEdit(this, \'' + escapeHtml(playerId) + '\', \'' + safeId + '\', ' + qty + ')">' + qty + '</span>';
         html += '</div>';
       });
+
+      // Items occasionnels [libre]
+      Object.keys(inv).forEach(function(key) {
+        if (!key.startsWith('[libre] ')) return;
+        var qty = inv[key];
+        if (qty <= 0) return;
+        hasItems = true;
+        var name = key.slice('[libre] '.length);
+        var safeKey = escapeHtml(key);
+        html += '<div class="player-inv-item">';
+        html += '<span class="inv-emoji">\uD83D\uDCE6</span>';
+        html += '<span class="inv-name" style="color:var(--accent-light);">' + escapeHtml(name) + '</span>';
+        html += '<span class="inv-qty" title="Cliquer pour modifier" onclick="startInlineEdit(this, \'' + escapeHtml(playerId) + '\', \'' + safeKey + '\', ' + qty + ')">' + qty + '</span>';
+        html += '</div>';
+      });
+
       html += '</div>';
 
       if (!hasItems) {
@@ -698,6 +734,58 @@
       html += '</div>';
 
       container.innerHTML = html;
+    }
+
+    function startInlineEdit(span, playerId, itemId, currentQty) {
+      if (span.querySelector('input')) return;
+      var input = document.createElement('input');
+      input.type = 'number';
+      input.className = 'inv-qty-input';
+      input.value = currentQty;
+      input.min = 0;
+      span.innerHTML = '';
+      span.appendChild(input);
+      input.focus();
+      input.select();
+
+      var confirmed = false;
+      function confirm() {
+        if (confirmed) return;
+        confirmed = true;
+        var newQty = parseInt(input.value);
+        if (isNaN(newQty) || newQty < 0 || newQty === currentQty) {
+          span.innerHTML = currentQty;
+          return;
+        }
+        span.classList.add('saving');
+        span.innerHTML = '...';
+        fetch('/inventory/player/' + encodeURIComponent(playerId) + '/set', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemTypeId: itemId, quantity: newQty })
+        })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            span.classList.remove('saving');
+            if (data.error) {
+              span.innerHTML = currentQty;
+              alert('\u274C ' + data.error);
+            } else {
+              span.innerHTML = data.newQuantity;
+              span.onclick = function() { startInlineEdit(span, playerId, itemId, data.newQuantity); };
+            }
+          })
+          .catch(function() {
+            span.classList.remove('saving');
+            span.innerHTML = currentQty;
+          });
+      }
+
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { input.blur(); }
+        if (e.key === 'Escape') { confirmed = true; span.innerHTML = currentQty; }
+      });
+      input.addEventListener('blur', confirm);
     }
 
     function openPlayerEdit(playerId, action) {

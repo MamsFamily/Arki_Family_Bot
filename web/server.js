@@ -1726,6 +1726,30 @@ function createWebServer(discordClient) {
     res.json({ success: true, newQuantity: result.newQuantity });
   });
 
+  app.post('/inventory/player/:playerId/set', requireAuth, async (req, res) => {
+    const { playerId } = req.params;
+    const { itemTypeId, quantity, reason } = req.body;
+    if (!itemTypeId || quantity === undefined || quantity === null) {
+      return res.json({ error: 'Item et quantité requis' });
+    }
+    const adminName = req.session.discordUser?.username || req.session.discordUser?.displayName || 'Dashboard';
+    const qty = Math.max(0, parseInt(quantity) || 0);
+    await inventoryManager.setInventoryItem(playerId, itemTypeId, qty, adminName, reason || '');
+    try {
+      const settings = getSettings();
+      const channelId = settings.guild.inventoryLogChannelId;
+      if (channelId && discordClient) {
+        const channel = await discordClient.channels.fetch(channelId);
+        if (channel) {
+          const itemType = inventoryManager.getItemTypeById(itemTypeId);
+          const label = itemType ? `${itemType.emoji} ${itemType.name}` : itemTypeId;
+          await channel.send(`✏️ **${adminName}** a défini **${label}** à **${qty}** pour <@${playerId}>`);
+        }
+      }
+    } catch (e) {}
+    res.json({ success: true, newQuantity: qty });
+  });
+
   app.get('/inventory/api/player/:playerId', requireAuth, async (req, res) => {
     const { playerId } = req.params;
     const inventory = inventoryManager.getPlayerInventory(playerId);
