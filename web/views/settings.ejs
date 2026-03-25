@@ -150,6 +150,64 @@
 
         <button type="submit" class="btn btn-primary">💾 Sauvegarder les paramètres</button>
       </form>
+
+      <div class="card" style="margin-top:24px;">
+        <div class="card-header">
+          <h2>🔑 API publique inventaire</h2>
+        </div>
+        <div class="card-body">
+          <p style="color:var(--text-secondary);font-size:14px;margin-bottom:16px;">
+            Donne cette clé à un bot externe pour qu'il puisse créditer automatiquement les inventaires des joueurs via l'API.
+          </p>
+          <div class="form-group">
+            <label>Clé API</label>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <input type="text" id="apiKeyDisplay" value="<%= settings.api?.inventoryApiKey || '(non générée)' %>" readonly
+                style="flex:1;font-family:monospace;font-size:13px;letter-spacing:1px;cursor:default;">
+              <button class="btn btn-secondary btn-sm" onclick="copyApiKey()">📋 Copier</button>
+              <button class="btn btn-danger btn-sm" onclick="regenerateApiKey()" title="Régénère une nouvelle clé — l'ancienne sera invalide">🔄 Régénérer</button>
+            </div>
+          </div>
+          <div style="background:var(--bg-input);border-radius:8px;padding:16px;margin-top:8px;">
+            <p style="color:var(--text-muted);font-size:12px;margin-bottom:10px;font-weight:600;">DOCUMENTATION — ENDPOINTS DISPONIBLES</p>
+            <pre style="color:var(--text-secondary);font-size:12px;margin:0;white-space:pre-wrap;line-height:1.7;">
+<span style="color:#4caf50;">POST</span> <span id="baseUrlDisplay"></span>/api/inventory/add
+  Body JSON : { "apiKey": "...", "playerId": "ID Discord", "itemId": "diamants", "quantity": 50, "reason": "Quizz #12" }
+  Réponse   : { "success": true, "newQuantity": 150 }
+
+<span style="color:#2196f3;">GET</span>  <span class="base-url-ref"></span>/api/inventory/player/:playerId?apiKey=...
+  Réponse   : { "playerId": "...", "inventory": { "diamants": 100, ... } }
+
+<span style="color:var(--text-muted);">— La clé peut aussi être passée en header : Authorization: Bearer &lt;clé&gt;</span></pre>
+          </div>
+          <p style="color:#f44336;font-size:12px;margin-top:10px;">⚠️ Ne partage cette clé qu'avec des personnes de confiance. Si elle est compromise, régénère-la.</p>
+        </div>
+      </div>
+
+      <script>
+        (function() {
+          var base = window.location.protocol + '//' + window.location.host;
+          document.getElementById('baseUrlDisplay').textContent = base;
+          document.querySelectorAll('.base-url-ref').forEach(function(el) { el.textContent = base; });
+        })();
+        function copyApiKey() {
+          var val = document.getElementById('apiKeyDisplay').value;
+          navigator.clipboard.writeText(val).then(function() {
+            alert('✅ Clé copiée !');
+          });
+        }
+        function regenerateApiKey() {
+          if (!confirm('Régénérer la clé API ? L\'ancienne sera immédiatement invalide.')) return;
+          fetch('/api/inventory/regenerate-key', { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              if (data.key) {
+                document.getElementById('apiKeyDisplay').value = data.key;
+                alert('✅ Nouvelle clé générée !');
+              }
+            });
+        }
+      </script>
     </main>
   </div>
 </body>

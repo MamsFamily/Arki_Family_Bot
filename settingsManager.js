@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const pgStore = require('./pgStore');
 
 const SETTINGS_PATH = path.join(__dirname, 'settings.json');
@@ -32,6 +33,7 @@ const DEFAULTS = {
   api: {
     topserveursRankingUrl: envOr('TOPSERVEURS_RANKING_URL', 'https://api.top-serveurs.net/v1/servers/4ROMAU33GJTY/players-ranking?type=lastMonth'),
     timezone: envOr('TIMEZONE', 'Europe/Paris'),
+    inventoryApiKey: '',
   },
   style: {
     everyonePing: true,
@@ -117,6 +119,14 @@ async function initSettings() {
     cachedSettings = await loadSettingsFromPg();
   } else {
     cachedSettings = loadSettingsFromFile();
+  }
+
+  // Générer la clé API publique si absente
+  if (!cachedSettings.api || !cachedSettings.api.inventoryApiKey) {
+    const key = crypto.randomBytes(24).toString('hex');
+    cachedSettings.api = { ...cachedSettings.api, inventoryApiKey: key };
+    await saveSettings(cachedSettings);
+    console.log('🔑 Clé API inventaire générée');
   }
 }
 

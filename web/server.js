@@ -81,6 +81,50 @@ function createWebServer(discordClient) {
     res.redirect('/login');
   }
 
+  // ─── API PUBLIQUE INVENTAIRE ────────────────────────────────────────────────
+  function validateApiKey(req) {
+    const settings = getSettings();
+    const key = settings.api?.inventoryApiKey;
+    if (!key) return false;
+    const header = req.headers['authorization'];
+    if (header && header.startsWith('Bearer ')) return header.slice(7) === key;
+    if (req.body?.apiKey === key) return true;
+    if (req.query?.apiKey === key) return true;
+    return false;
+  }
+
+  app.post('/api/inventory/add', async (req, res) => {
+    if (!validateApiKey(req)) {
+      return res.status(401).json({ error: 'Clé API invalide ou manquante' });
+    }
+    const { playerId, itemId, quantity, reason } = req.body;
+    if (!playerId || !itemId || !quantity) {
+      return res.status(400).json({ error: 'Champs requis : playerId, itemId, quantity' });
+    }
+    const qty = Math.max(1, parseInt(quantity) || 1);
+    try {
+      const result = await inventoryManager.addToInventory(playerId, itemId, qty, 'api', reason || '');
+      return res.json({ success: true, playerId, itemId, newQuantity: result.newQuantity });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/inventory/player/:playerId', async (req, res) => {
+    if (!validateApiKey(req)) {
+      return res.status(401).json({ error: 'Clé API invalide ou manquante' });
+    }
+    const inventory = inventoryManager.getPlayerInventory(req.params.playerId);
+    return res.json({ playerId: req.params.playerId, inventory });
+  });
+
+  app.post('/api/inventory/regenerate-key', requireAdmin, async (req, res) => {
+    const key = require('crypto').randomBytes(24).toString('hex');
+    await updateSection('api', { inventoryApiKey: key });
+    res.json({ success: true, key });
+  });
+  // ────────────────────────────────────────────────────────────────────────────
+
   function getBaseUrl(req) {
     const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
     const host = req.headers['x-forwarded-host'] || req.headers.host;
