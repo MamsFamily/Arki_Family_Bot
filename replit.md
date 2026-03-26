@@ -148,6 +148,7 @@ Dashboard d'administration accessible sur le port 5000, avec triple authentifica
 5. Accéder au dashboard via le port 5000
 
 ## Changements récents
+- 2026-03-26: Système Giveaway complet : `giveawayManager.js` (CRUD, tirage, reroll), page dashboard `/giveaways` (créer avec image, voir participants, terminer manuellement, relancer tirage, supprimer), bouton Discord "Je participe" (toggle + mise à jour embed), commandes `/giveway-participants` et `/relancer-giveway`, timers auto (fin + refresh embed toutes les minutes), DM gagnants, distribution auto items inventaire
 - 2026-03-19: Shop repensé : champ type (Pack/Unitaire), image/thumbnail par produit, 4 salons configurables (packs, unitaires, accueil index, tickets), message index avec liens directs, commande /shop interactive éphémère (navigation par type, détail produit, bouton Commander → ticket-thread avec panier)
 - 2026-03-18: Dashboard simplifié : suppression nombre de serveurs, choix roulette, roulette actuelle, config votes ; ajout top 5 voteurs du mois via TopServeurs API avec barre de progression et médailles
 - 2026-03-18: Gestion des catégories shop (CRUD complet depuis le dashboard, persisté PostgreSQL) avec sélecteur de couleur

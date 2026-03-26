@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Giveaways — Arki Family</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .gw-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+    @media(max-width:900px){ .gw-grid{ grid-template-columns:1fr; } }
+    .gw-card { background:var(--bg-card); border-radius:12px; overflow:hidden; border:1px solid var(--border-color); }
+    .gw-card-header { padding:14px 18px; border-bottom:1px solid var(--border-color); display:flex; align-items:center; gap:10px; }
+    .gw-status { font-size:11px; padding:2px 8px; border-radius:20px; font-weight:600; }
+    .gw-status.active { background:#1a472a; color:#2ecc71; }
+    .gw-status.ended { background:#2d2d2d; color:#95a5a6; }
+    .gw-card-body { padding:16px 18px; }
+    .gw-meta { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:12px; font-size:13px; color:var(--text-secondary); }
+    .gw-meta span { display:flex; align-items:center; gap:4px; }
+    .gw-prize { background:var(--bg-input); border-radius:8px; padding:10px 14px; font-size:14px; margin-bottom:12px; }
+    .gw-actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .gw-cover { width:100%; height:120px; object-fit:cover; display:block; }
+    .prize-toggle { display:none; }
+    .prize-toggle:checked ~ .prize-libre { display:block; }
+    .prize-toggle:checked ~ .prize-item { display:none; }
+    .prize-item-section { display:block; }
+    .prize-libre-section { display:none; }
+    .participants-list { max-height:300px; overflow-y:auto; }
+    .participant-row { display:flex; align-items:center; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--border-color); font-size:13px; }
+    .winner-badge { background:#f39c12; color:#000; font-size:10px; padding:1px 6px; border-radius:10px; font-weight:700; margin-left:6px; }
+    .image-preview { max-width:100%; border-radius:8px; margin-top:8px; display:none; max-height:200px; object-fit:contain; }
+    .progress-bar-bg { background:var(--bg-input); border-radius:20px; height:6px; overflow:hidden; margin-top:4px; }
+    .progress-bar-fill { height:100%; background:linear-gradient(90deg,#FF6B6B,#f39c12); border-radius:20px; transition:width .3s; }
+  </style>
+</head>
+<body>
+  <%- include('sidebar') %>
+  <div class="main-content">
+    <div class="page-header">
+      <h1>🎉 Giveaways</h1>
+      <button class="btn btn-primary" onclick="document.getElementById('createModal').classList.add('show')">➕ Créer un Giveaway</button>
+    </div>
+
+    <% const active = giveaways.filter(g => g.status === 'active'); %>
+    <% const ended = giveaways.filter(g => g.status === 'ended'); %>
+
+    <% if (active.length > 0) { %>
+    <h2 style="margin-bottom:12px;font-size:16px;color:var(--text-secondary);">🟢 En cours (<%=active.length%>)</h2>
+    <div class="gw-grid" style="margin-bottom:24px;">
+      <% for (const g of active) { %>
+      <div class="gw-card">
+        <% if (g.imageUrl) { %>
+        <img src="<%=g.imageUrl%>" class="gw-cover" alt="Couverture">
+        <% } %>
+        <div class="gw-card-header">
+          <span class="gw-status active">● Actif</span>
+          <strong style="flex:1;"><%=g.title%></strong>
+          <span style="font-size:12px;color:var(--text-muted);">ID: <%=g.id%></span>
+        </div>
+        <div class="gw-card-body">
+          <% if (g.description) { %><p style="margin-bottom:10px;font-size:13px;"><%=g.description%></p><% } %>
+          <div class="gw-meta">
+            <span>⏰ <%=formatTimeLeft(g.endTime)%></span>
+            <span>👥 <%=g.participants.length%> participant(s)</span>
+            <span>🏆 <%=g.winnerCount%> gagnant(s)</span>
+            <span>👤 <%=g.createdByName || g.createdBy%></span>
+          </div>
+          <% if (g.conditions) { %><div class="gw-prize" style="margin-bottom:8px;font-size:12px;color:var(--text-muted);">📋 <%=g.conditions%></div><% } %>
+          <div class="gw-prize">
+            🎁 <strong><%=g.prize.type==='libre'?g.prize.name:(itemTypes.find(i=>i.id===g.prize.itemId)?.emoji+' '+(itemTypes.find(i=>i.id===g.prize.itemId)?.name||g.prize.itemId))%></strong> ×<%=g.prize.quantity%>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" style="width:<%=Math.min(100,Math.max(5,((Date.now()-new Date(g.createdAt).getTime())/(new Date(g.endTime).getTime()-new Date(g.createdAt).getTime()))*100))%>%"></div>
+          </div>
+          <div class="gw-actions" style="margin-top:12px;">
+            <button class="btn btn-sm btn-secondary" onclick="openParticipants('<%=g.id%>')">👥 Participants</button>
+            <% if (role === 'admin') { %>
+            <button class="btn btn-sm btn-primary" onclick="openUpdateImage('<%=g.id%>')">🖼️ Image</button>
+            <button class="btn btn-sm" style="background:#e67e22;color:#fff;" onclick="endGiveaway('<%=g.id%>','<%=g.title%>')">⏩ Terminer</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteGiveaway('<%=g.id%>','<%=g.title%>')">🗑️ Supprimer</button>
+            <% } %>
+          </div>
+        </div>
+      </div>
+      <% } %>
+    </div>
+    <% } %>
+
+    <% if (ended.length > 0) { %>
+    <h2 style="margin-bottom:12px;font-size:16px;color:var(--text-secondary);">⚫ Terminés (<%=ended.length%>)</h2>
+    <div class="gw-grid">
+      <% for (const g of ended) { %>
+      <div class="gw-card" style="opacity:.7;">
+        <div class="gw-card-header">
+          <span class="gw-status ended">● Terminé</span>
+          <strong style="flex:1;"><%=g.title%></strong>
+          <span style="font-size:12px;color:var(--text-muted);">ID: <%=g.id%></span>
+        </div>
+        <div class="gw-card-body">
+          <div class="gw-meta">
+            <span>👥 <%=g.participants.length%> participant(s)</span>
+            <span>🏆 <%=g.winners.length%> gagnant(s)</span>
+          </div>
+          <% if (g.winners.length > 0) { %>
+          <div class="gw-prize" style="background:rgba(241,196,15,.08);border:1px solid #f1c40f33;">
+            🏆 Gagnant(s) : <%=g.winners.map(id=>`<@${id}>`).join(', ')%>
+          </div>
+          <% } %>
+          <div class="gw-actions" style="margin-top:10px;">
+            <button class="btn btn-sm btn-secondary" onclick="openParticipants('<%=g.id%>')">👥 Participants</button>
+            <% if (role === 'admin') { %>
+            <button class="btn btn-sm btn-danger" onclick="deleteGiveaway('<%=g.id%>','<%=g.title%>')">🗑️ Supprimer</button>
+            <% } %>
+          </div>
+        </div>
+      </div>
+      <% } %>
+    </div>
+    <% } %>
+
+    <% if (giveaways.length === 0) { %>
+    <div class="card" style="text-align:center;padding:40px;color:var(--text-secondary);">
+      <div style="font-size:48px;margin-bottom:12px;">🎉</div>
+      <p>Aucun giveaway pour le moment. Créez-en un !</p>
+    </div>
+    <% } %>
+  </div>
+
+  <!-- Modal Créer Giveaway -->
+  <div id="createModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this){this.classList.remove('show');this.style.display='none';}">
+    <div class="modal" style="max-width:600px;width:95%;max-height:90vh;overflow-y:auto;" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h2>🎉 Créer un Giveaway</h2>
+        <button class="modal-close" onclick="document.getElementById('createModal').classList.remove('show');document.getElementById('createModal').style.display='none';">✕</button>
+      </div>
+      <form id="createForm" onsubmit="submitCreate(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Titre *</label>
+            <input type="text" name="title" placeholder="Ex: Giveaway Pack Légendaire" required maxlength="100">
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <textarea name="description" rows="2" placeholder="Description du giveaway..."></textarea>
+          </div>
+          <div class="form-group">
+            <label>Conditions de participation</label>
+            <input type="text" name="conditions" placeholder="Ex: Pour tous les membres, Pour les nouveaux arrivés...">
+          </div>
+          <div class="form-group">
+            <label>Restriction par rôle (optionnel)</label>
+            <input type="text" name="roleId" placeholder="ID du rôle Discord requis pour participer">
+          </div>
+
+          <div class="form-group">
+            <label>Gain *</label>
+            <div style="display:flex;gap:10px;margin-bottom:8px;">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="radio" name="prizeType" value="item" checked onchange="togglePrizeType(this.value)"> Item existant
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="radio" name="prizeType" value="libre" onchange="togglePrizeType(this.value)"> Item occasionnel
+              </label>
+            </div>
+            <div id="prizeItemSection">
+              <select name="prizeItemId" style="width:100%;margin-bottom:8px;">
+                <option value="">-- Sélectionner un item --</option>
+                <% for (const it of itemTypes) { %>
+                <option value="<%=it.id%>"><%=it.emoji%> <%=it.name%></option>
+                <% } %>
+              </select>
+            </div>
+            <div id="prizeLibreSection" style="display:none;">
+              <input type="text" name="prizeItemName" placeholder="Nom de l'item occasionnel" style="margin-bottom:8px;">
+            </div>
+            <input type="number" name="prizeQuantity" value="1" min="1" placeholder="Quantité">
+          </div>
+
+          <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label>Nombre de gagnants *</label>
+              <input type="number" name="winnerCount" value="1" min="1" max="20">
+            </div>
+            <div class="form-group">
+              <label>Heure de fin * (format 00:00)</label>
+              <input type="time" name="endTime" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Date de fin (optionnel — si vide = aujourd'hui ou demain)</label>
+            <input type="date" name="endDate">
+          </div>
+          <div class="form-group">
+            <label>Salon Discord (ID)</label>
+            <input type="text" name="channelId" placeholder="Laisser vide pour utiliser le salon par défaut">
+          </div>
+          <div class="form-group">
+            <label>Image de couverture (optionnel)</label>
+            <input type="file" name="image" accept="image/*" onchange="previewImg(this)">
+            <img id="imgPreview" class="image-preview" alt="Aperçu">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('createModal').classList.remove('show');document.getElementById('createModal').style.display='none';">Annuler</button>
+          <button type="submit" class="btn btn-primary" id="createBtn">🎉 Publier le Giveaway</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Participants -->
+  <div id="participantsModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this){this.style.display='none';}">
+    <div class="modal" style="max-width:500px;width:95%;" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h2>👥 Participants</h2>
+        <button class="modal-close" onclick="document.getElementById('participantsModal').style.display='none'">✕</button>
+      </div>
+      <div class="modal-body" id="participantsBody" style="padding:0 20px 20px;">
+        <p style="color:var(--text-secondary);">Chargement...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Mise à jour image -->
+  <div id="imageModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this){this.style.display='none';}">
+    <div class="modal" style="max-width:400px;width:95%;" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h2>🖼️ Changer l'image</h2>
+        <button class="modal-close" onclick="document.getElementById('imageModal').style.display='none'">✕</button>
+      </div>
+      <form id="imageForm" onsubmit="submitImage(event)">
+        <div class="modal-body">
+          <input type="hidden" name="giveawayId" id="imageGiveawayId">
+          <div class="form-group">
+            <label>Nouvelle image de couverture</label>
+            <input type="file" name="image" accept="image/*" required onchange="previewImg2(this)">
+            <img id="imgPreview2" class="image-preview" alt="Aperçu">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('imageModal').style.display='none'">Annuler</button>
+          <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Affichage modal
+    document.querySelectorAll('.modal-overlay').forEach(function(m) {
+      m.addEventListener('show', function() { m.style.display='flex'; });
+    });
+    var obs = new MutationObserver(function(muts) {
+      muts.forEach(function(m) {
+        m.target.querySelectorAll('.modal-overlay.show').forEach(function(el) { el.style.display='flex'; });
+      });
+    });
+    obs.observe(document.body, { subtree:true, attributes:true, attributeFilter:['class'] });
+
+    function togglePrizeType(val) {
+      document.getElementById('prizeItemSection').style.display = val==='item'?'block':'none';
+      document.getElementById('prizeLibreSection').style.display = val==='libre'?'block':'none';
+    }
+    function previewImg(input) {
+      var p = document.getElementById('imgPreview');
+      if (input.files && input.files[0]) {
+        var r = new FileReader(); r.onload = function(e) { p.src=e.target.result; p.style.display='block'; }; r.readAsDataURL(input.files[0]);
+      }
+    }
+    function previewImg2(input) {
+      var p = document.getElementById('imgPreview2');
+      if (input.files && input.files[0]) {
+        var r = new FileReader(); r.onload = function(e) { p.src=e.target.result; p.style.display='block'; }; r.readAsDataURL(input.files[0]);
+      }
+    }
+    async function submitCreate(e) {
+      e.preventDefault();
+      var btn = document.getElementById('createBtn');
+      btn.disabled = true; btn.textContent = '⏳ Publication...';
+      var fd = new FormData(document.getElementById('createForm'));
+      var r = await fetch('/giveaways/create', { method:'POST', body:fd });
+      var d = await r.json();
+      if (d.error) { alert('❌ ' + d.error); btn.disabled=false; btn.textContent='🎉 Publier le Giveaway'; }
+      else { alert('✅ Giveaway publié !'); location.reload(); }
+    }
+    function openParticipants(id) {
+      document.getElementById('participantsModal').style.display = 'flex';
+      var body = document.getElementById('participantsBody');
+      body.innerHTML = '<p style="color:var(--text-secondary);">Chargement...</p>';
+      fetch('/giveaways/' + id + '/participants').then(function(r){return r.json();}).then(function(d) {
+        if (!d.participants || d.participants.length === 0) {
+          body.innerHTML = '<p style="color:var(--text-secondary);padding-top:8px;">Aucun participant pour le moment.</p>'; return;
+        }
+        var html = '<p style="margin-bottom:12px;color:var(--text-secondary);font-size:13px;">' + d.participants.length + ' participant(s)</p><div class="participants-list">';
+        d.participants.forEach(function(uid) {
+          var isWinner = d.winners && d.winners.includes(uid);
+          html += '<div class="participant-row"><span><@' + uid + '>' + (isWinner ? '<span class="winner-badge">🏆 Gagnant</span>' : '') + '</span>';
+          if (d.status === 'active') html += '<button class="btn btn-sm btn-danger" onclick="removeParticipant(\'' + id + '\',\'' + uid + '\')">Retirer</button>';
+          html += '</div>';
+        });
+        html += '</div>';
+        body.innerHTML = html;
+      });
+    }
+    async function removeParticipant(gid, uid) {
+      if (!confirm('Retirer ce participant ?')) return;
+      var r = await fetch('/giveaways/' + gid + '/participants/' + uid, { method:'DELETE' });
+      var d = await r.json();
+      if (d.success) openParticipants(gid);
+      else alert('❌ Erreur : ' + (d.error || 'inconnue'));
+    }
+    function openUpdateImage(id) {
+      document.getElementById('imageGiveawayId').value = id;
+      document.getElementById('imageModal').style.display = 'flex';
+    }
+    async function submitImage(e) {
+      e.preventDefault();
+      var id = document.getElementById('imageGiveawayId').value;
+      var fd = new FormData(document.getElementById('imageForm'));
+      var r = await fetch('/giveaways/' + id + '/update-image', { method:'POST', body:fd });
+      var d = await r.json();
+      if (d.error) alert('❌ ' + d.error);
+      else { alert('✅ Image mise à jour !'); location.reload(); }
+    }
+    async function endGiveaway(id, title) {
+      if (!confirm('Terminer le giveaway "' + title + '" et lancer le tirage maintenant ?')) return;
+      var r = await fetch('/giveaways/' + id + '/end', { method:'POST' });
+      var d = await r.json();
+      if (d.success) { alert('✅ Giveaway terminé, tirage effectué !'); location.reload(); }
+      else alert('❌ Erreur : ' + (d.error || 'inconnue'));
+    }
+    async function deleteGiveaway(id, title) {
+      if (!confirm('Supprimer définitivement le giveaway "' + title + '" ?')) return;
+      var r = await fetch('/giveaways/' + id + '/delete', { method:'POST' });
+      var d = await r.json();
+      if (d.success) location.reload();
+      else alert('❌ Erreur : ' + (d.error || 'inconnue'));
+    }
+  </script>
+</body>
+</html>

@@ -18,6 +18,7 @@ const { initSettings, getSettings } = require('./settingsManager');
 const { initDinos } = require('./dinoManager');
 const { initShop } = require('./shopManager');
 const { initInventory, getItemTypes, getItemTypeById, getPlayerInventory, addToInventory, removeFromInventory, resetPlayerInventory, getPlayerTransactions, getCategories } = require('./inventoryManager');
+const giveawayManager = require('./giveawayManager');
 const { initSpecialPacks, getSpecialPacks, getSpecialPack } = require('./specialPacksManager');
 const { handleShopCommand, handleShopInteraction } = require('./shopCommand');
 
@@ -527,6 +528,43 @@ Reste concis. Ne mets pas de guillemets autour du texte. Ne dis pas quel personn
   }
 });
 
+function buildGiveawayEmbed(g) {
+  const timeLeft = giveawayManager.formatTimeLeft(g.endTime);
+  const endDate = new Date(g.endTime);
+  const endStr = endDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const endDateStr = endDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+  const prizeLabel = g.prize.type === 'libre'
+    ? `📦 ${g.prize.name} ×${g.prize.quantity}`
+    : `🎁 ${g.prize.itemId} ×${g.prize.quantity}`;
+
+  const embed = new EmbedBuilder()
+    .setColor('#FF6B6B')
+    .setAuthor({ name: '🎉 Giveaway Arki Family' })
+    .setTitle(g.title)
+    .setTimestamp(new Date(g.endTime));
+
+  if (g.imageUrl) {
+    try {
+      const base = `https://${process.env.REPLIT_DEV_DOMAIN || 'localhost:5000'}`;
+      embed.setImage(`${base}${g.imageUrl}`);
+    } catch (e) {}
+  }
+
+  let desc = '';
+  if (g.description) desc += `${g.description}\n\n`;
+  if (g.conditions) desc += `📋 **Conditions :** ${g.conditions}\n\n`;
+  desc += `🏆 **Gain :** ${prizeLabel}\n`;
+  desc += `👥 **Gagnant(s) :** ${g.winnerCount}\n`;
+  desc += `👤 **Participants :** ${g.participants.length}\n\n`;
+  desc += g.status === 'ended'
+    ? `✅ **Terminé**`
+    : `⏰ **Fin dans :** ${timeLeft} | le ${endDateStr} à ${endStr}`;
+
+  embed.setDescription(desc);
+  embed.setFooter({ text: `ID: ${g.id} • Lancé par ${g.createdByName || g.createdBy}` });
+  return embed;
+}
+
 client.on('interactionCreate', async interaction => {
   // ── Shop interactions (buttons + select menus) ──
   if (interaction.isButton() || interaction.isStringSelectMenu()) {
@@ -548,6 +586,46 @@ client.on('interactionCreate', async interaction => {
         } catch (e) {}
       }
       return;
+    }
+  }
+
+  // ── Giveaway: bouton "Je participe" ──
+  if (interaction.isButton() && interaction.customId.startsWith('giveway_join_')) {
+    const gid = interaction.customId.replace('giveway_join_', '');
+    const g = giveawayManager.getGiveaway(gid);
+    if (!g) return interaction.reply({ content: '❌ Ce giveaway est introuvable.', ephemeral: true });
+    if (g.status !== 'active') return interaction.reply({ content: '⏸️ Ce giveaway est terminé.', ephemeral: true });
+
+    // Vérif restriction rôle
+    if (g.roleId) {
+      const member = interaction.member || await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+      if (member && !member.roles.cache.has(g.roleId)) {
+        return interaction.reply({ content: `❌ Tu dois avoir le rôle <@&${g.roleId}> pour participer.`, ephemeral: true });
+      }
+    }
+
+    const already = g.participants.includes(interaction.user.id);
+    if (already) {
+      // Retirer sa participation
+      await giveawayManager.removeParticipant(gid, interaction.user.id);
+      const updated = giveawayManager.getGiveaway(gid);
+      if (g.messageId) {
+        try {
+          const msg = await interaction.message.fetch();
+          await msg.edit({ embeds: [buildGiveawayEmbed(updated)] });
+        } catch (e) {}
+      }
+      return interaction.reply({ content: '🚫 Tu t\'es retiré du giveaway.', ephemeral: true });
+    } else {
+      await giveawayManager.addParticipant(gid, interaction.user.id);
+      const updated = giveawayManager.getGiveaway(gid);
+      if (g.messageId) {
+        try {
+          const msg = await interaction.message.fetch();
+          await msg.edit({ embeds: [buildGiveawayEmbed(updated)] });
+        } catch (e) {}
+      }
+      return interaction.reply({ content: '🎉 Tu participes au giveaway ! Bonne chance !', ephemeral: true });
     }
   }
 
@@ -2239,6 +2317,81 @@ client.on('interactionCreate', async interaction => {
         }
       }
     } catch (e) {}
+  }
+
+  // ── Commandes Giveaway ──
+  if (commandName === 'giveway-participants') {
+    if (!hasRoulettePermission(interaction.member)) {
+      return interaction.reply({ content: '❌ Permission refusée.', ephemeral: true });
+    }
+    const gid = interaction.options.getString('id');
+    const g = giveawayManager.getGiveaway(gid);
+    if (!g) return interaction.reply({ content: `❌ Aucun giveaway avec l'ID \`${gid}\`.`, ephemeral: true });
+
+    const prizeLabel = g.prize.type === 'libre'
+      ? `📦 ${g.prize.name} ×${g.prize.quantity}`
+      : `🎁 ${g.prize.itemId} ×${g.prize.quantity}`;
+    const embed = new EmbedBuilder()
+      .setColor('#FF6B6B')
+      .setTitle(`🎉 Participants — ${g.title}`)
+      .setDescription(
+        g.participants.length === 0
+          ? '*Aucun participant.*'
+          : g.participants.map((uid, i) => {
+              const isWinner = g.winners.includes(uid);
+              return `${i + 1}. <@${uid}>${isWinner ? ' 🏆' : ''}`;
+            }).join('\n').slice(0, 4000)
+      )
+      .addFields(
+        { name: 'Gain', value: prizeLabel, inline: true },
+        { name: 'Participants', value: `${g.participants.length}`, inline: true },
+        { name: 'Gagnants', value: `${g.winnerCount}`, inline: true },
+        { name: 'Statut', value: g.status === 'active' ? '🟢 Actif' : '⚫ Terminé', inline: true },
+      )
+      .setFooter({ text: `ID: ${g.id}` })
+      .setTimestamp();
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  if (commandName === 'relancer-giveway') {
+    if (!hasRoulettePermission(interaction.member)) {
+      return interaction.reply({ content: '❌ Permission refusée.', ephemeral: true });
+    }
+    const gid = interaction.options.getString('id');
+    const g = giveawayManager.getGiveaway(gid);
+    if (!g) return interaction.reply({ content: `❌ Aucun giveaway avec l'ID \`${gid}\`.`, ephemeral: true });
+    if (g.status !== 'ended') {
+      return interaction.reply({ content: '❌ Ce giveaway est encore actif. Terminez-le d\'abord.', ephemeral: true });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+    const newWinners = await giveawayManager.rerollGiveaway(gid);
+    const updated = giveawayManager.getGiveaway(gid);
+
+    if (!newWinners || newWinners.length === 0) {
+      return interaction.editReply({ content: '⚠️ Pas assez de participants éligibles pour un nouveau tirage.' });
+    }
+
+    const winnerMentions = newWinners.map(uid => `<@${uid}>`).join(', ');
+    const prizeLabel = updated.prize.type === 'libre'
+      ? `📦 ${updated.prize.name} ×${updated.prize.quantity}`
+      : `🎁 ${updated.prize.itemId} ×${updated.prize.quantity}`;
+
+    // Annoncer dans le salon du giveaway
+    try {
+      const channel = await client.channels.fetch(g.channelId);
+      await channel.send(`🔄 **Re-tirage du Giveaway "${g.title}" !**\n\n🏆 Nouveaux gagnants : ${winnerMentions}\n**Gain :** ${prizeLabel}`);
+    } catch (e) {}
+
+    // Notifier en DM
+    for (const uid of newWinners) {
+      try {
+        const user = await client.users.fetch(uid);
+        await user.send(`🎉 Félicitations ! Suite à un re-tirage, tu remportes **${prizeLabel}** du giveaway **${g.title}** !\nContacte un administrateur pour recevoir ton gain.`);
+      } catch (e) {}
+    }
+
+    return interaction.editReply({ content: `✅ Re-tirage effectué ! Gagnant(s) : ${winnerMentions}` });
   }
 });
 

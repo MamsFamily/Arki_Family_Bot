@@ -29,6 +29,7 @@ const VARIANT_KEYS = { VARIANT_A: 'A', VARIANT_TEK: 'Tek' };
 const { getConfig: readConfig, saveConfig } = require('../configManager');
 const inventoryManager = require('../inventoryManager');
 const { getSpecialPacks, getSpecialPack, addSpecialPack, updateSpecialPack, deleteSpecialPack } = require('../specialPacksManager');
+const giveawayManager = require('../giveawayManager');
 
 function createWebServer(discordClient) {
   const app = express();
@@ -1828,6 +1829,287 @@ function createWebServer(discordClient) {
     const result = inventoryManager.getTransactions(filters);
     res.json(result);
   });
+
+  // ─── GIVEAWAYS ──────────────────────────────────────────────────────────────
+  const giveawayUpload = multer({
+    storage: multer.diskStorage({
+      destination: path.join(__dirname, 'public/uploads'),
+      filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname).toLowerCase() || '.png';
+        cb(null, `giveway_${Date.now()}${ext}`);
+      },
+    }),
+    limits: { fileSize: 8 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype.startsWith('image/')) cb(null, true);
+      else cb(new Error('Fichier non supporté'));
+    },
+  });
+
+  app.get('/giveaways', requireAuth, (req, res) => {
+    const giveaways = giveawayManager.getAllGiveaways();
+    const itemTypes = inventoryManager.getItemTypes();
+    res.render('giveaways', {
+      path: '/giveaways',
+      role: req.session.role,
+      discordUser: req.session.discordUser,
+      botUser: discordClient ? discordClient.user : null,
+      giveaways,
+      itemTypes,
+      formatTimeLeft: giveawayManager.formatTimeLeft,
+    });
+  });
+
+  app.post('/giveaways/create', requireAuth, giveawayUpload.single('image'), async (req, res) => {
+    const { title, description, conditions, prizeType, prizeItemId, prizeItemName, prizeQuantity, winnerCount, endDate, endTime, channelId, roleId } = req.body;
+    const settings = getSettings();
+    const targetChannelId = channelId || settings.guild?.giveawayChannelId || settings.guild?.resultsChannelId;
+    if (!targetChannelId) return res.json({ error: 'Aucun salon configuré pour les giveaways.' });
+
+    let prize;
+    if (prizeType === 'libre') {
+      prize = { type: 'libre', name: prizeItemName || 'Item', quantity: parseInt(prizeQuantity) || 1 };
+    } else {
+      prize = { type: 'item', itemId: prizeItemId, quantity: parseInt(prizeQuantity) || 1 };
+    }
+
+    // Calculer l'heure de fin (date + heure ou juste heure aujourd'hui/demain)
+    let endDateTime;
+    if (endDate) {
+      endDateTime = new Date(`${endDate}T${endTime || '23:59'}:00`);
+    } else if (endTime) {
+      const [h, m] = endTime.split(':').map(Number);
+      const now = new Date();
+      endDateTime = new Date();
+      endDateTime.setHours(h, m, 0, 0);
+      if (endDateTime <= now) endDateTime.setDate(endDateTime.getDate() + 1);
+    } else {
+      return res.json({ error: 'Heure de fin requise.' });
+    }
+
+    let imageUrl = '';
+    if (req.file) imageUrl = `/uploads/${req.file.filename}`;
+
+    const giveaway = await giveawayManager.createGiveaway({
+      title, description, conditions, prize,
+      winnerCount: parseInt(winnerCount) || 1,
+      endTime: endDateTime.toISOString(),
+      channelId: targetChannelId,
+      guildId: settings.guild?.guildId || '',
+      createdBy: req.session.discordUser?.id || 'dashboard',
+      createdByName: req.session.discordUser?.displayName || 'Admin',
+      imageUrl,
+      roleId: roleId || '',
+    });
+
+    // Publier l'embed sur Discord
+    if (discordClient) {
+      try {
+        const channel = await discordClient.channels.fetch(targetChannelId);
+        if (channel) {
+          const embed = buildGiveawayEmbed(giveaway, discordClient);
+          const row = buildGiveawayButton(giveaway.id);
+          const msg = await channel.send({ embeds: [embed], components: [row] });
+          await giveawayManager.updateMessageId(giveaway.id, msg.id);
+          scheduleGiveawayEnd(giveaway, discordClient);
+        }
+      } catch (e) {
+        console.error('[Giveaway] Erreur publication Discord:', e);
+      }
+    }
+
+    res.json({ success: true, id: giveaway.id });
+  });
+
+  app.post('/giveaways/:id/update-image', requireAuth, giveawayUpload.single('image'), async (req, res) => {
+    const { id } = req.params;
+    const g = giveawayManager.getGiveaway(id);
+    if (!g) return res.json({ error: 'Giveaway introuvable.' });
+    if (!req.file) return res.json({ error: 'Aucune image fournie.' });
+    const imageUrl = `/uploads/${req.file.filename}`;
+    await giveawayManager.updateImageUrl(id, imageUrl);
+    if (discordClient && g.messageId && g.channelId) {
+      try {
+        const channel = await discordClient.channels.fetch(g.channelId);
+        const msg = await channel.messages.fetch(g.messageId);
+        const updated = giveawayManager.getGiveaway(id);
+        updated.imageUrl = imageUrl;
+        await msg.edit({ embeds: [buildGiveawayEmbed(updated, discordClient)] });
+      } catch (e) {}
+    }
+    res.json({ success: true, imageUrl });
+  });
+
+  app.post('/giveaways/:id/delete', requireAdmin, async (req, res) => {
+    const { id } = req.params;
+    const g = giveawayManager.getGiveaway(id);
+    if (g && g.messageId && g.channelId && discordClient) {
+      try {
+        const channel = await discordClient.channels.fetch(g.channelId);
+        const msg = await channel.messages.fetch(g.messageId).catch(() => null);
+        if (msg) await msg.delete();
+      } catch (e) {}
+    }
+    await giveawayManager.deleteGiveaway(id);
+    res.json({ success: true });
+  });
+
+  app.post('/giveaways/:id/end', requireAdmin, async (req, res) => {
+    const { id } = req.params;
+    const g = giveawayManager.getGiveaway(id);
+    if (!g) return res.json({ error: 'Giveaway introuvable.' });
+    if (discordClient) {
+      await endGiveawayNow(id, discordClient);
+    }
+    res.json({ success: true });
+  });
+
+  function buildGiveawayEmbed(g, client) {
+    const { EmbedBuilder } = require('discord.js');
+    const timeLeft = giveawayManager.formatTimeLeft(g.endTime);
+    const endDate = new Date(g.endTime);
+    const endStr = endDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const endDateStr = endDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+    const prizeLabel = g.prize.type === 'libre'
+      ? `📦 ${g.prize.name} ×${g.prize.quantity}`
+      : `🎁 ${g.prize.itemId} ×${g.prize.quantity}`;
+
+    const embed = new EmbedBuilder()
+      .setColor('#FF6B6B')
+      .setAuthor({ name: '🎉 Giveaway Arki Family' })
+      .setTitle(g.title)
+      .setTimestamp(new Date(g.endTime));
+
+    if (g.imageUrl) {
+      const base = `https://${process.env.REPLIT_DEV_DOMAIN || 'localhost:5000'}`;
+      embed.setImage(`${base}${g.imageUrl}`);
+    }
+
+    let desc = '';
+    if (g.description) desc += `${g.description}\n\n`;
+    if (g.conditions) desc += `📋 **Conditions :** ${g.conditions}\n\n`;
+    desc += `🏆 **Gain :** ${prizeLabel}\n`;
+    desc += `👥 **Gagnant(s) :** ${g.winnerCount}\n`;
+    desc += `👤 **Participants :** ${g.participants.length}\n\n`;
+    desc += g.status === 'ended'
+      ? `✅ **Terminé**`
+      : `⏰ **Fin dans :** ${timeLeft} | le ${endDateStr} à ${endStr}`;
+
+    embed.setDescription(desc);
+    embed.setFooter({ text: `ID: ${g.id} • Lancé par ${g.createdByName || g.createdBy}` });
+    return embed;
+  }
+
+  function buildGiveawayButton(id) {
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    return new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`giveway_join_${id}`)
+        .setLabel('🎉 Je participe')
+        .setStyle(ButtonStyle.Primary)
+    );
+  }
+
+  async function endGiveawayNow(id, client) {
+    const g = giveawayManager.getGiveaway(id);
+    if (!g || g.status !== 'active') return;
+    const winners = await giveawayManager.drawWinners(id);
+    const updated = giveawayManager.getGiveaway(id);
+    try {
+      const channel = await client.channels.fetch(g.channelId);
+      if (g.messageId) {
+        const msg = await channel.messages.fetch(g.messageId).catch(() => null);
+        if (msg) {
+          const endEmbed = buildGiveawayEmbed(updated, client);
+          endEmbed.setColor('#95a5a6');
+          const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+          const disabledRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`giveway_join_${id}`).setLabel('🎉 Je participe').setStyle(ButtonStyle.Primary).setDisabled(true)
+          );
+          await msg.edit({ embeds: [endEmbed], components: [disabledRow] });
+        }
+      }
+      if (winners && winners.length > 0) {
+        const winnerMentions = winners.map(uid => `<@${uid}>`).join(', ');
+        const prizeLabel = g.prize.type === 'libre' ? `📦 ${g.prize.name} ×${g.prize.quantity}` : `🎁 ${g.prize.itemId} ×${g.prize.quantity}`;
+        await channel.send(`🎉 **Fin du Giveaway !** Le tirage est terminé !\n\n🏆 Félicitations ${winnerMentions} ! Vous remportez **${prizeLabel}** !\n\n> Contactez un administrateur pour recevoir votre gain.`);
+        for (const uid of winners) {
+          try {
+            const user = await client.users.fetch(uid);
+            await user.send(`🎉 Félicitations ! Tu as gagné le giveaway **${g.title}** sur Arki Family !\nTu remportes : **${prizeLabel}**\nContacte un administrateur pour recevoir ton gain.`);
+          } catch (e) {}
+        }
+        if (g.prize.type === 'item') {
+          const { addToInventory } = require('../inventoryManager');
+          for (const uid of winners) {
+            try { await addToInventory(uid, g.prize.itemId, g.prize.quantity, 'giveaway', g.title); } catch (e) {}
+          }
+        }
+      } else {
+        await channel.send(`😔 **Fin du Giveaway "${g.title}"** — Aucun participant éligible pour le tirage.`);
+      }
+    } catch (e) {
+      console.error('[Giveaway] Erreur fin giveaway:', e);
+    }
+  }
+
+  const giveawayTimers = new Map();
+  function scheduleGiveawayEnd(g, client) {
+    if (giveawayTimers.has(g.id)) clearTimeout(giveawayTimers.get(g.id));
+    const delay = new Date(g.endTime).getTime() - Date.now();
+    if (delay <= 0) {
+      endGiveawayNow(g.id, client);
+      return;
+    }
+    const t = setTimeout(() => endGiveawayNow(g.id, client), delay);
+    giveawayTimers.set(g.id, t);
+
+    // Mise à jour live de l'embed toutes les minutes
+    const updateInterval = setInterval(async () => {
+      const current = giveawayManager.getGiveaway(g.id);
+      if (!current || current.status !== 'active') { clearInterval(updateInterval); return; }
+      if (!current.messageId || !current.channelId) return;
+      try {
+        const channel = await client.channels.fetch(current.channelId);
+        const msg = await channel.messages.fetch(current.messageId).catch(() => null);
+        if (msg) await msg.edit({ embeds: [buildGiveawayEmbed(current, client)] });
+      } catch (e) {}
+    }, 60 * 1000);
+    giveawayTimers.set(`${g.id}_interval`, updateInterval);
+  }
+
+  app.get('/giveaways/:id/participants', requireAuth, (req, res) => {
+    const g = giveawayManager.getGiveaway(req.params.id);
+    if (!g) return res.json({ error: 'Giveaway introuvable.' });
+    res.json({ participants: g.participants, winners: g.winners, status: g.status });
+  });
+
+  app.delete('/giveaways/:id/participants/:userId', requireAuth, async (req, res) => {
+    const removed = await giveawayManager.removeParticipant(req.params.id, req.params.userId);
+    if (!removed) return res.json({ error: 'Participant introuvable.' });
+    const g = giveawayManager.getGiveaway(req.params.id);
+    if (discordClient && g && g.messageId && g.channelId) {
+      try {
+        const channel = await discordClient.channels.fetch(g.channelId);
+        const msg = await channel.messages.fetch(g.messageId).catch(() => null);
+        if (msg) await msg.edit({ embeds: [buildGiveawayEmbed(g, discordClient)] });
+      } catch (e) {}
+    }
+    res.json({ success: true });
+  });
+
+  // Reprendre les timers des giveaways actifs au démarrage
+  if (discordClient) {
+    giveawayManager.initGiveaways().then(() => {
+      for (const g of giveawayManager.getActiveGiveaways()) {
+        scheduleGiveawayEnd(g, discordClient);
+      }
+    });
+  }
+
+  // Exposer pour index.js (accès via module.exports)
+  app._giveawayHelpers = { buildGiveawayEmbed, buildGiveawayButton, scheduleGiveawayEnd };
+  // ────────────────────────────────────────────────────────────────────────────
 
   const PORT = 5000;
   app.listen(PORT, '0.0.0.0', () => {

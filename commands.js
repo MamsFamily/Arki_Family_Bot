@@ -115,6 +115,20 @@ const commands = [
     ],
   },
   {
+    name: 'giveway-participants',
+    description: 'Affiche les participants d\'un giveaway actif (Admin et Modo)',
+    options: [
+      { name: 'id', type: 3, description: 'ID du giveaway (visible dans le footer de l\'embed)', required: true },
+    ],
+  },
+  {
+    name: 'relancer-giveway',
+    description: 'Relance le tirage au sort d\'un giveaway terminé (Admin et Modo)',
+    options: [
+      { name: 'id', type: 3, description: 'ID du giveaway', required: true },
+    ],
+  },
+  {
     name: 'inventaire-distribuer-item',
     description: 'Distribue un item à plusieurs joueurs en même temps (Admin et Modo)',
     options: [
