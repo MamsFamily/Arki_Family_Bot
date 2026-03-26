@@ -964,11 +964,16 @@ client.on('interactionCreate', async interaction => {
               return { name: baseName.slice(0, 100), value: it.id };
             });
 
-          // Option item occasionnel si du texte est saisi (en bas de liste)
+          // Option item occasionnel toujours en bas de liste
           if (raw.trim()) {
             filtered.push({
               name: `➕ Item occasionnel : ${raw.trim()}`.slice(0, 100),
               value: `__libre__:${raw.trim()}`,
+            });
+          } else {
+            filtered.push({
+              name: '➕ Ajouter item occasionnel',
+              value: '__libre__:',
             });
           }
 
@@ -1943,7 +1948,7 @@ client.on('interactionCreate', async interaction => {
         // Item occasionnel — format: __libre__:{nom}
         const name = rawItem.slice('__libre__:'.length).trim();
         if (!name) {
-          return interaction.reply({ content: '❌ Le nom de l\'item occasionnel est vide.', ephemeral: true });
+          return interaction.reply({ content: '❌ Tape le nom de l\'item occasionnel dans le champ item (ex: Pack Boss Gamma), puis sélectionne l\'option ➕ qui apparaît en bas.', ephemeral: true });
         }
         itemTypeId = `[libre] ${name}`;
         itemLabel = `📦 ${name}`;
