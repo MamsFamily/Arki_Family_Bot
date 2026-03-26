@@ -114,6 +114,17 @@ const commands = [
       },
     ],
   },
+  {
+    name: 'inventaire-distribuer-item',
+    description: 'Distribue un item à plusieurs joueurs en même temps (Admin et Modo)',
+    options: [
+      { name: 'joueurs', type: 3, description: 'Mentionnez les joueurs : @joueur1 @joueur2 ...', required: true },
+      { name: 'item', type: 3, description: "L'item à distribuer ou ➕ Item occasionnel", required: true, autocomplete: true },
+      { name: 'quantité', type: 4, description: 'Quantité par joueur', required: true, min_value: 1 },
+      { name: 'nom', type: 3, description: "Nom de l'item (uniquement pour ➕ Item occasionnel)", required: false },
+      { name: 'raison', type: 3, description: 'Raison de la distribution', required: false },
+    ],
+  },
 ];
 
 module.exports = commands;

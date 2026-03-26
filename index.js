@@ -1000,6 +1000,24 @@ client.on('interactionCreate', async interaction => {
         }
       }
     }
+    if (commandName === 'inventaire-distribuer-item') {
+      const focusedOption = interaction.options.getFocused(true);
+      if (focusedOption.name === 'item') {
+        const raw = focusedOption.value;
+        const search = raw.toLowerCase().trim();
+        const itemTypes = getItemTypes();
+        const filtered = itemTypes
+          .filter(it => !search || it.name.toLowerCase().includes(search) || it.id.includes(search) || it.emoji.includes(search))
+          .slice(0, 24)
+          .map(it => {
+            const isCustom = /^<a?:\w+:\d+>$/.test(it.emoji);
+            const baseName = isCustom ? it.name : `${it.emoji} ${it.name}`;
+            return { name: baseName.slice(0, 100), value: it.id };
+          });
+        filtered.push({ name: '➕ Item occasionnel (remplis le champ "nom")', value: '__libre__' });
+        try { await interaction.respond(filtered); } catch (e) {}
+      }
+    }
     return;
   }
 
@@ -2133,6 +2151,94 @@ client.on('interactionCreate', async interaction => {
 
       await interaction.reply({ embeds: [embed], ephemeral: true });
     }
+  }
+
+  if (commandName === 'inventaire-distribuer-item') {
+    if (!hasRoulettePermission(interaction.member)) {
+      return interaction.reply({ content: '❌ Seuls les administrateurs et les Modos peuvent distribuer des items !', ephemeral: true });
+    }
+
+    const joueursMentions = interaction.options.getString('joueurs');
+    const rawItem = interaction.options.getString('item');
+    const quantity = interaction.options.getInteger('quantité');
+    const nomLibre = interaction.options.getString('nom') || '';
+    const reason = interaction.options.getString('raison') || '';
+
+    // Extraire les IDs depuis les mentions @user
+    const mentionRegex = /<@!?(\d+)>/g;
+    const playerIds = [];
+    let match;
+    while ((match = mentionRegex.exec(joueursMentions)) !== null) {
+      if (!playerIds.includes(match[1])) playerIds.push(match[1]);
+    }
+
+    if (playerIds.length === 0) {
+      return interaction.reply({ content: '❌ Aucun joueur valide trouvé. Mentionne les joueurs avec @.', ephemeral: true });
+    }
+
+    // Résoudre l'item
+    let itemTypeId, itemLabel;
+    if (rawItem === '__libre__') {
+      if (!nomLibre.trim()) {
+        return interaction.reply({ content: '❌ Pour un item occasionnel, remplis le champ **nom** avec le nom de l\'item.', ephemeral: true });
+      }
+      itemTypeId = `[libre] ${nomLibre.trim()}`;
+      itemLabel = `📦 ${nomLibre.trim()}`;
+    } else {
+      const itemType = getItemTypeById(rawItem);
+      if (!itemType) {
+        return interaction.reply({ content: '❌ Item introuvable.', ephemeral: true });
+      }
+      const isCustom = /^<a?:\w+:\d+>$/.test(itemType.emoji);
+      itemLabel = isCustom ? itemType.name : `${itemType.emoji} ${itemType.name}`;
+      itemTypeId = rawItem;
+    }
+
+    await interaction.deferReply();
+
+    const results = [];
+    const errors = [];
+    for (const playerId of playerIds) {
+      try {
+        await addToInventory(playerId, itemTypeId, quantity, interaction.user.id, reason);
+        results.push(playerId);
+      } catch (e) {
+        errors.push(playerId);
+      }
+    }
+
+    // Embed de confirmation
+    const successList = results.map(id => `<@${id}>`).join(', ');
+    const embed = new EmbedBuilder()
+      .setColor('#00BFFF')
+      .setTitle('✅ Distribution effectuée')
+      .addFields(
+        { name: 'Item', value: `${itemLabel} ×${quantity}`, inline: true },
+        { name: 'Joueurs distribués', value: `${results.length}/${playerIds.length}`, inline: true },
+      )
+      .setTimestamp();
+
+    if (successList) embed.setDescription(successList);
+    if (reason) embed.addFields({ name: 'Raison', value: reason, inline: false });
+    if (errors.length > 0) {
+      embed.addFields({ name: '⚠️ Erreurs', value: errors.map(id => `<@${id}>`).join(', '), inline: false });
+    }
+
+    await interaction.editReply({ embeds: [embed] });
+
+    // Log dans le canal inventaire
+    try {
+      const settings = getSettings();
+      const logChannelId = settings.guild?.inventoryLogChannelId;
+      if (logChannelId) {
+        const logChannel = await client.channels.fetch(logChannelId);
+        if (logChannel) {
+          const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+          const adminName = member ? member.displayName : interaction.user.username;
+          await logChannel.send(`**${adminName}** a distribué **${quantity}x ${itemLabel}** à ${results.length} joueur(s) : ${results.map(id => `<@${id}>`).join(', ')}`);
+        }
+      }
+    } catch (e) {}
   }
 });
 
