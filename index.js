@@ -726,6 +726,61 @@ client.on('interactionCreate', async interaction => {
     }
   }
 
+  // ── Giveaway: soumission modal création ──
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('giveway_create_modal_')) {
+    const salonId = interaction.customId.replace('giveway_create_modal_', '');
+    const titre = interaction.fields.getTextInputValue('gw_titre').trim();
+    const gain = interaction.fields.getTextInputValue('gw_gain').trim();
+    const dureeRaw = interaction.fields.getTextInputValue('gw_duree').trim();
+    const conditions = interaction.fields.getTextInputValue('gw_conditions').trim();
+    const description = interaction.fields.getTextInputValue('gw_description').trim();
+
+    // Parser la durée et le nombre de gagnants depuis le champ libre
+    // Formats acceptés : "24", "24h", "24h 3gagnants", "48h 2", "48 gagnants:2"
+    let dureeH = 24;
+    let gagnants = 1;
+    const dureeMatch = dureeRaw.match(/(\d+)/g);
+    if (dureeMatch && dureeMatch.length >= 1) dureeH = parseInt(dureeMatch[0]);
+    if (dureeMatch && dureeMatch.length >= 2) gagnants = parseInt(dureeMatch[1]);
+
+    if (dureeH < 1) dureeH = 1;
+    if (gagnants < 1) gagnants = 1;
+
+    const settings = getSettings();
+    const targetChannelId = salonId || settings.guild?.giveawayChannelId || settings.guild?.resultsChannelId || interaction.channelId;
+    const endTime = new Date(Date.now() + dureeH * 60 * 60 * 1000).toISOString();
+
+    await interaction.deferReply({ ephemeral: true });
+
+    const giveaway = await giveawayManager.createGiveaway({
+      title: titre,
+      description,
+      conditions,
+      prize: { type: 'libre', name: gain, quantity: 1 },
+      winnerCount: gagnants,
+      endTime,
+      channelId: targetChannelId,
+      guildId: interaction.guildId,
+      createdBy: interaction.user.id,
+      createdByName: interaction.member?.displayName || interaction.user.username,
+      imageUrl: '',
+      roleId: '',
+    });
+
+    try {
+      const channel = await client.channels.fetch(targetChannelId);
+      const embed = buildGiveawayEmbed(giveaway);
+      const row = buildGiveawayButton(giveaway.id);
+      const msg = await channel.send({ embeds: [embed], components: [row] });
+      await giveawayManager.updateMessageId(giveaway.id, msg.id);
+      scheduleGiveawayEnd(giveaway, client);
+      return interaction.editReply({ content: `✅ Giveaway **${titre}** publié dans <#${targetChannelId}> !\n⏱️ Durée : **${dureeH}h** | 🏆 Gagnants : **${gagnants}** | ID : \`${giveaway.id}\`` });
+    } catch (e) {
+      console.error('[Giveaway] Erreur publication modal:', e);
+      return interaction.editReply({ content: `⚠️ Giveaway créé (ID : \`${giveaway.id}\`) mais erreur de publication : ${e.message}` });
+    }
+  }
+
   // ── Giveaway: bouton "Je participe" ──
   if (interaction.isButton() && interaction.customId.startsWith('giveway_join_')) {
     const gid = interaction.customId.replace('giveway_join_', '');
@@ -2461,49 +2516,33 @@ client.on('interactionCreate', async interaction => {
     if (!hasRoulettePermission(interaction.member)) {
       return interaction.reply({ content: '❌ Seuls les administrateurs et les Modos peuvent créer un giveaway.', ephemeral: true });
     }
-
-    const titre = interaction.options.getString('titre');
-    const gain = interaction.options.getString('gain');
-    const duree = interaction.options.getInteger('duree');
-    const gagnants = interaction.options.getInteger('gagnants') || 1;
-    const description = interaction.options.getString('description') || '';
-    const conditions = interaction.options.getString('conditions') || '';
     const salonOption = interaction.options.getChannel('salon');
+    const salonId = salonOption ? salonOption.id : '';
 
-    const settings = getSettings();
-    const targetChannelId = salonOption ? salonOption.id : (settings.guild?.giveawayChannelId || settings.guild?.resultsChannelId || interaction.channelId);
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+    const modal = new ModalBuilder()
+      .setCustomId(`giveway_create_modal_${salonId}`)
+      .setTitle('🎉 Créer un Giveaway');
 
-    const endTime = new Date(Date.now() + duree * 60 * 60 * 1000).toISOString();
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('gw_titre').setLabel('Titre du giveaway').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setPlaceholder('Ex: Giveaway Pack Légendaire')
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('gw_gain').setLabel('Gain (ce que le gagnant remporte)').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setPlaceholder('Ex: Pack Légendaire x1, 500 diamants...')
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('gw_duree').setLabel('Durée (en heures) et nb de gagnants').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(20).setPlaceholder('Ex: 24  ou  24h 3gagnants').setValue('24')
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('gw_conditions').setLabel('Conditions (optionnel)').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(200).setPlaceholder('Ex: Ouvert à tous, Pour les membres +30j...')
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('gw_description').setLabel('Description / contexte (optionnel)').setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(500).setPlaceholder('Texte de présentation affiché dans l\'embed...')
+      ),
+    );
 
-    await interaction.deferReply({ ephemeral: true });
-
-    const giveaway = await giveawayManager.createGiveaway({
-      title: titre,
-      description,
-      conditions,
-      prize: { type: 'libre', name: gain, quantity: 1 },
-      winnerCount: gagnants,
-      endTime,
-      channelId: targetChannelId,
-      guildId: interaction.guildId,
-      createdBy: interaction.user.id,
-      createdByName: interaction.member?.displayName || interaction.user.username,
-      imageUrl: '',
-      roleId: '',
-    });
-
-    try {
-      const channel = await client.channels.fetch(targetChannelId);
-      const embed = buildGiveawayEmbed(giveaway);
-      const row = buildGiveawayButton(giveaway.id);
-      const msg = await channel.send({ embeds: [embed], components: [row] });
-      await giveawayManager.updateMessageId(giveaway.id, msg.id);
-      scheduleGiveawayEnd(giveaway, client);
-      return interaction.editReply({ content: `✅ Giveaway **${titre}** créé et publié dans <#${targetChannelId}> ! (ID : \`${giveaway.id}\`, durée : ${duree}h)` });
-    } catch (e) {
-      console.error('[Giveaway] Erreur publication commande:', e);
-      return interaction.editReply({ content: `⚠️ Giveaway créé (ID : \`${giveaway.id}\`) mais impossible de publier l'embed : ${e.message}` });
-    }
+    return interaction.showModal(modal);
   }
 
   if (commandName === 'giveway-participants') {
