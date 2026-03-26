@@ -1957,7 +1957,7 @@ client.on('interactionCreate', async interaction => {
           .setPlaceholder('Ex: 1')
           .setRequired(true)
           .setMaxLength(5)
-          .setValue(String(commandQty || 1));
+          .setValue(commandQty ? String(commandQty) : '');
         modal.addComponents(
           new ActionRowBuilder().addComponents(nameInput),
           new ActionRowBuilder().addComponents(qtyInput),
