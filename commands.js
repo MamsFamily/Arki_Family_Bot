@@ -81,8 +81,7 @@ const commands = [
         options: [
           { name: 'joueur', type: 6, description: 'Le joueur', required: true },
           { name: 'item', type: 3, description: "L'item à ajouter (liste) ou ➕ Ajouter item occasionnel", required: true, autocomplete: true },
-          { name: 'quantité', type: 4, description: 'La quantité à ajouter', required: true, min_value: 1 },
-          { name: 'nom', type: 3, description: "Nom de l'item occasionnel (uniquement si ➕ Ajouter item occasionnel)", required: false },
+          { name: 'quantité', type: 4, description: 'La quantité à ajouter (ignorée pour les items occasionnels)', required: false, min_value: 1 },
           { name: 'raison', type: 3, description: "Raison de l'ajout", required: false },
         ],
       },

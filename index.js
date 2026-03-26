@@ -1927,35 +1927,57 @@ client.on('interactionCreate', async interaction => {
       const targetUser = interaction.options.getUser('joueur');
       const rawItem = interaction.options.getString('item');
       const commandQty = interaction.options.getInteger('quantité');
-      const nomLibre = interaction.options.getString('nom') || '';
       const reason = interaction.options.getString('raison') || '';
+
+      // Item occasionnel → ouvrir la modale (nom + quantité)
+      if (rawItem === '__libre__') {
+        const modalKey = `inv_libre_${interaction.id}`;
+        pendingLibreItems.set(modalKey, {
+          targetUserId: targetUser.id,
+          reason,
+          adminId: interaction.user.id,
+          guildId: interaction.guild.id,
+        });
+        setTimeout(() => pendingLibreItems.delete(modalKey), 10 * 60 * 1000);
+
+        const modal = new ModalBuilder()
+          .setCustomId(modalKey)
+          .setTitle(`Item occasionnel → ${targetUser.displayName || targetUser.username}`);
+        const nameInput = new TextInputBuilder()
+          .setCustomId('item_name')
+          .setLabel('Nom de l\'item')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('Ex: Pack Boss Gamma, Selle Dragon Tek...')
+          .setRequired(true)
+          .setMaxLength(100);
+        const qtyInput = new TextInputBuilder()
+          .setCustomId('item_qty')
+          .setLabel('Quantité')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('Ex: 1')
+          .setRequired(true)
+          .setMaxLength(5);
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(nameInput),
+          new ActionRowBuilder().addComponents(qtyInput),
+        );
+        return interaction.showModal(modal);
+      }
 
       let itemTypeId, itemLabel;
       const quantity = commandQty;
 
-      if (rawItem === '__libre__' || rawItem.startsWith('__libre__:')) {
-        // Item occasionnel — le nom vient du champ "nom" ou est embarqué dans la valeur
-        const embedded = rawItem.startsWith('__libre__:') ? rawItem.slice('__libre__:'.length).trim() : '';
-        const name = (nomLibre || embedded).trim();
-        if (!name) {
-          return interaction.reply({ content: '❌ Indique le nom de l\'item dans le champ **nom** (ex: Pack Boss Gamma).', ephemeral: true });
-        }
-        itemTypeId = `[libre] ${name}`;
-        itemLabel = `📦 ${name}`;
-      } else {
-        // Item standard
-        const itemType = getItemTypeById(rawItem);
-        if (!itemType) {
-          return interaction.reply({ content: '❌ Item introuvable.', ephemeral: true });
-        }
-        const isCustom = /^<a?:\w+:\d+>$/.test(itemType.emoji);
-        itemLabel = isCustom ? itemType.name : `${itemType.emoji} ${itemType.name}`;
-        itemTypeId = rawItem;
+      // Item standard
+      const itemType = getItemTypeById(rawItem);
+      if (!itemType) {
+        return interaction.reply({ content: '❌ Item introuvable.', ephemeral: true });
       }
-
       if (!quantity || quantity < 1) {
-        return interaction.reply({ content: '❌ Quantité invalide.', ephemeral: true });
+        return interaction.reply({ content: '❌ Indique une quantité.', ephemeral: true });
       }
+      const isCustomEmoji = /^<a?:\w+:\d+>$/.test(itemType.emoji);
+      itemLabel = isCustomEmoji ? itemType.name : `${itemType.emoji} ${itemType.name}`;
+      itemTypeId = rawItem;
 
       await addToInventory(targetUser.id, itemTypeId, quantity, interaction.user.id, reason);
 
