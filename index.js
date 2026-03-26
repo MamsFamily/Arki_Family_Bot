@@ -953,29 +953,22 @@ client.on('interactionCreate', async interaction => {
         const itemTypes = getItemTypes();
 
         if (subcommand === 'ajouter') {
-          // Parser "nom 50" → searchTerm="nom", inlineQty=50
-          const numMatch = raw.match(/^(.*?)\s+(\d+)$/);
-          const searchTerm = (numMatch ? numMatch[1] : raw).toLowerCase().trim();
-          const inlineQty = numMatch ? parseInt(numMatch[2]) : null;
+          const search = raw.toLowerCase().trim();
 
           const filtered = itemTypes
-            .filter(it => it.name.toLowerCase().includes(searchTerm) || it.id.includes(searchTerm) || it.emoji.includes(searchTerm))
-            .slice(0, 23)
+            .filter(it => !search || it.name.toLowerCase().includes(search) || it.id.includes(search) || it.emoji.includes(search))
+            .slice(0, 24)
             .map(it => {
               const isCustom = /^<a?:\w+:\d+>$/.test(it.emoji);
               const baseName = isCustom ? it.name : `${it.emoji} ${it.name}`;
-              const label = inlineQty ? `${baseName} ×${inlineQty}` : baseName;
-              const value = inlineQty ? `${it.id}:${inlineQty}` : it.id;
-              return { name: label.slice(0, 100), value };
+              return { name: baseName.slice(0, 100), value: it.id };
             });
 
-          // Option item occasionnel dynamique si du texte est saisi
-          const occasionName = numMatch ? numMatch[1].trim() : raw.trim();
-          if (occasionName) {
-            const displayQty = inlineQty || 1;
+          // Option item occasionnel si du texte est saisi (en bas de liste)
+          if (raw.trim()) {
             filtered.push({
-              name: `➕ Item occasionnel : ${occasionName} ×${displayQty}`.slice(0, 100),
-              value: `__libre__:${displayQty}:${occasionName}`,
+              name: `➕ Item occasionnel : ${raw.trim()}`.slice(0, 100),
+              value: `__libre__:${raw.trim()}`,
             });
           }
 
@@ -1943,44 +1936,30 @@ client.on('interactionCreate', async interaction => {
       const commandQty = interaction.options.getInteger('quantité');
       const reason = interaction.options.getString('raison') || '';
 
-      let itemTypeId, itemLabel, quantity;
+      let itemTypeId, itemLabel;
+      const quantity = commandQty;
 
       if (rawItem.startsWith('__libre__:')) {
-        // Format: __libre__:{qty}:{nom} (item occasionnel directement dans l'autocomplete)
-        const rest = rawItem.slice('__libre__:'.length);
-        const colonIdx = rest.indexOf(':');
-        if (colonIdx < 0) {
-          return interaction.reply({ content: '❌ Format invalide pour l\'item occasionnel.', ephemeral: true });
-        }
-        quantity = parseInt(rest.slice(0, colonIdx)) || 1;
-        const name = rest.slice(colonIdx + 1).trim();
+        // Item occasionnel — format: __libre__:{nom}
+        const name = rawItem.slice('__libre__:'.length).trim();
         if (!name) {
           return interaction.reply({ content: '❌ Le nom de l\'item occasionnel est vide.', ephemeral: true });
         }
         itemTypeId = `[libre] ${name}`;
         itemLabel = `📦 ${name}`;
       } else {
-        // Item standard — vérifier si la quantité est embarquée : "diamants:50"
-        const colonIdx = rawItem.lastIndexOf(':');
-        let itemId;
-        if (colonIdx > 0 && /^\d+$/.test(rawItem.slice(colonIdx + 1))) {
-          itemId = rawItem.slice(0, colonIdx);
-          quantity = parseInt(rawItem.slice(colonIdx + 1));
-        } else {
-          itemId = rawItem;
-          quantity = commandQty;
-        }
-
-        const itemType = getItemTypeById(itemId);
+        // Item standard
+        const itemType = getItemTypeById(rawItem);
         if (!itemType) {
           return interaction.reply({ content: '❌ Item introuvable.', ephemeral: true });
         }
-        if (!quantity || quantity < 1) {
-          return interaction.reply({ content: '❌ Indique une quantité (ex: tape "diamants 50" dans le champ item).', ephemeral: true });
-        }
         const isCustom = /^<a?:\w+:\d+>$/.test(itemType.emoji);
         itemLabel = isCustom ? itemType.name : `${itemType.emoji} ${itemType.name}`;
-        itemTypeId = itemId;
+        itemTypeId = rawItem;
+      }
+
+      if (!quantity || quantity < 1) {
+        return interaction.reply({ content: '❌ Quantité invalide.', ephemeral: true });
       }
 
       await addToInventory(targetUser.id, itemTypeId, quantity, interaction.user.id, reason);
