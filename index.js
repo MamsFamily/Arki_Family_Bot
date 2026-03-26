@@ -953,8 +953,18 @@ client.on('interactionCreate', async interaction => {
         const itemTypes = getItemTypes();
 
         if (subcommand === 'ajouter') {
-          const search = raw.toLowerCase().trim();
+          // Mode item occasionnel : l'utilisateur tape le nom après "__libre__:"
+          if (raw.startsWith('__libre__:')) {
+            const libreName = raw.slice('__libre__:'.length);
+            const choices = libreName.trim()
+              ? [{ name: `✅ Item occasionnel : ${libreName.trim()}`.slice(0, 100), value: `__libre__:${libreName.trim()}` }]
+              : [{ name: '✏️ Tape le nom de l\'item après le :', value: '__libre__:' }];
+            try { await interaction.respond(choices); } catch (e) {}
+            return;
+          }
 
+          // Mode normal : liste des items + option occasionnel en bas
+          const search = raw.toLowerCase().trim();
           const filtered = itemTypes
             .filter(it => !search || it.name.toLowerCase().includes(search) || it.id.includes(search) || it.emoji.includes(search))
             .slice(0, 24)
@@ -964,18 +974,7 @@ client.on('interactionCreate', async interaction => {
               return { name: baseName.slice(0, 100), value: it.id };
             });
 
-          // Option item occasionnel toujours en bas de liste
-          if (raw.trim()) {
-            filtered.push({
-              name: `➕ Item occasionnel : ${raw.trim()}`.slice(0, 100),
-              value: `__libre__:${raw.trim()}`,
-            });
-          } else {
-            filtered.push({
-              name: '➕ Ajouter item occasionnel',
-              value: '__libre__:',
-            });
-          }
+          filtered.push({ name: '➕ Ajouter item occasionnel', value: '__libre__:' });
 
           try { await interaction.respond(filtered); } catch (e) {}
 
