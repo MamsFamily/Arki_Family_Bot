@@ -80,8 +80,8 @@ const commands = [
         description: 'Ajouter des items à un joueur',
         options: [
           { name: 'joueur', type: 6, description: 'Le joueur', required: true },
-          { name: 'item', type: 3, description: "L'item à ajouter (liste ou ➕ Ajouter item occasionnel)", required: true, autocomplete: true },
-          { name: 'quantité', type: 4, description: 'La quantité à ajouter (ignorée si item occasionnel, saisie dans la fenêtre)', required: false, min_value: 1 },
+          { name: 'item', type: 3, description: "Tape nom + quantité (ex: diamants 50) ou un item occasionnel libre", required: true, autocomplete: true },
+          { name: 'quantité', type: 4, description: 'Quantité (optionnel si déjà saisie avec le nom de l\'item)', required: false, min_value: 1 },
           { name: 'raison', type: 3, description: "Raison de l'ajout", required: false },
         ],
       },

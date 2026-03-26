@@ -948,54 +948,70 @@ client.on('interactionCreate', async interaction => {
     if (commandName === 'inventaire-admin') {
       const focusedOption = interaction.options.getFocused(true);
       if (focusedOption.name === 'item') {
-        const search = focusedOption.value.toLowerCase();
+        const raw = focusedOption.value;
         const subcommand = interaction.options.getSubcommand(false);
         const itemTypes = getItemTypes();
 
-        // Pour le retrait, afficher la quantité disponible du joueur ciblé
-        let playerInventory = null;
-        if (subcommand === 'retirer') {
-          const joueurId = interaction.options.get('joueur')?.value;
-          if (joueurId) {
-            playerInventory = getPlayerInventory(joueurId);
+        if (subcommand === 'ajouter') {
+          // Parser "nom 50" → searchTerm="nom", inlineQty=50
+          const numMatch = raw.match(/^(.*?)\s+(\d+)$/);
+          const searchTerm = (numMatch ? numMatch[1] : raw).toLowerCase().trim();
+          const inlineQty = numMatch ? parseInt(numMatch[2]) : null;
+
+          const filtered = itemTypes
+            .filter(it => it.name.toLowerCase().includes(searchTerm) || it.id.includes(searchTerm) || it.emoji.includes(searchTerm))
+            .slice(0, 23)
+            .map(it => {
+              const isCustom = /^<a?:\w+:\d+>$/.test(it.emoji);
+              const baseName = isCustom ? it.name : `${it.emoji} ${it.name}`;
+              const label = inlineQty ? `${baseName} ×${inlineQty}` : baseName;
+              const value = inlineQty ? `${it.id}:${inlineQty}` : it.id;
+              return { name: label.slice(0, 100), value };
+            });
+
+          // Option item occasionnel dynamique si du texte est saisi
+          const occasionName = numMatch ? numMatch[1].trim() : raw.trim();
+          if (occasionName) {
+            const displayQty = inlineQty || 1;
+            filtered.push({
+              name: `➕ Item occasionnel : ${occasionName} ×${displayQty}`.slice(0, 100),
+              value: `__libre__:${displayQty}:${occasionName}`,
+            });
           }
-        }
 
-        const filtered = itemTypes
-          .filter(it => it.name.toLowerCase().includes(search) || it.emoji.includes(search))
-          .slice(0, 24)
-          .map(it => {
-            const isCustom = /^<a?:\w+:\d+>$/.test(it.emoji);
-            const baseName = isCustom ? it.name : `${it.emoji} ${it.name}`;
-            let label = baseName;
-            if (playerInventory !== null) {
-              const qty = playerInventory[it.id] || 0;
-              label = `${baseName} (dispo: ${qty})`;
-            }
-            return { name: label.slice(0, 100), value: it.id };
-          });
+          try { await interaction.respond(filtered); } catch (e) {}
 
-        // Pour le retrait, ajouter les items occasionnels du joueur ([libre] ...)
-        if (subcommand === 'retirer' && playerInventory) {
-          for (const [key, qty] of Object.entries(playerInventory)) {
-            if (key.startsWith('[libre] ') && qty > 0) {
-              const name = key.slice('[libre] '.length);
-              if (name.toLowerCase().includes(search) || search === '') {
-                const label = `📦 ${name} (dispo: ${qty})`;
-                filtered.push({ name: label.slice(0, 100), value: key });
+        } else {
+          // Sous-commande retirer — comportement inchangé avec quantité dispo
+          const search = raw.toLowerCase();
+          const joueurId = interaction.options.get('joueur')?.value;
+          const playerInventory = joueurId ? getPlayerInventory(joueurId) : null;
+
+          const filtered = itemTypes
+            .filter(it => it.name.toLowerCase().includes(search) || it.emoji.includes(search))
+            .slice(0, 24)
+            .map(it => {
+              const isCustom = /^<a?:\w+:\d+>$/.test(it.emoji);
+              const baseName = isCustom ? it.name : `${it.emoji} ${it.name}`;
+              const qty = playerInventory ? (playerInventory[it.id] || 0) : null;
+              const label = qty !== null ? `${baseName} (dispo: ${qty})` : baseName;
+              return { name: label.slice(0, 100), value: it.id };
+            });
+
+          // Items occasionnels du joueur
+          if (playerInventory) {
+            for (const [key, qty] of Object.entries(playerInventory)) {
+              if (key.startsWith('[libre] ') && qty > 0) {
+                const name = key.slice('[libre] '.length);
+                if (name.toLowerCase().includes(search) || search === '') {
+                  filtered.push({ name: `📦 ${name} (dispo: ${qty})`.slice(0, 100), value: key });
+                }
               }
             }
           }
-        }
 
-        // Ajouter l'option item occasionnel en bas (pour le sous-commande ajouter uniquement)
-        if (subcommand === 'ajouter' && '+ ajouter item occasionnel'.includes(search)) {
-          filtered.push({ name: '➕ Ajouter item occasionnel', value: '__libre__' });
+          try { await interaction.respond(filtered); } catch (e) {}
         }
-
-        try {
-          await interaction.respond(filtered);
-        } catch (e) {}
       }
     }
     return;
@@ -1923,57 +1939,49 @@ client.on('interactionCreate', async interaction => {
 
     if (subcommand === 'ajouter') {
       const targetUser = interaction.options.getUser('joueur');
-      const itemId = interaction.options.getString('item');
-      const quantity = interaction.options.getInteger('quantité');
+      const rawItem = interaction.options.getString('item');
+      const commandQty = interaction.options.getInteger('quantité');
       const reason = interaction.options.getString('raison') || '';
 
-      // Si l'item occasionnel est sélectionné → ouvrir une modale de saisie (nom + quantité)
-      if (itemId === '__libre__') {
-        const modalKey = `inv_libre_${interaction.id}`;
-        pendingLibreItems.set(modalKey, {
-          targetUserId: targetUser.id,
-          reason,
-          adminId: interaction.user.id,
-          guildId: interaction.guild.id,
-        });
-        // Nettoyer après 10 minutes
-        setTimeout(() => pendingLibreItems.delete(modalKey), 10 * 60 * 1000);
+      let itemTypeId, itemLabel, quantity;
 
-        const modal = new ModalBuilder()
-          .setCustomId(modalKey)
-          .setTitle(`Item occasionnel → ${targetUser.username}`);
-        const nameInput = new TextInputBuilder()
-          .setCustomId('item_name')
-          .setLabel('Nom de l\'item')
-          .setStyle(TextInputStyle.Short)
-          .setPlaceholder('Ex: Pack Boss Gamma, Selle Dragon Tek...')
-          .setRequired(true)
-          .setMaxLength(100);
-        const qtyInput = new TextInputBuilder()
-          .setCustomId('item_qty')
-          .setLabel('Quantité')
-          .setStyle(TextInputStyle.Short)
-          .setPlaceholder('Ex: 1')
-          .setRequired(true)
-          .setMaxLength(5);
-        modal.addComponents(
-          new ActionRowBuilder().addComponents(nameInput),
-          new ActionRowBuilder().addComponents(qtyInput),
-        );
-        return interaction.showModal(modal);
-      }
+      if (rawItem.startsWith('__libre__:')) {
+        // Format: __libre__:{qty}:{nom} (item occasionnel directement dans l'autocomplete)
+        const rest = rawItem.slice('__libre__:'.length);
+        const colonIdx = rest.indexOf(':');
+        if (colonIdx < 0) {
+          return interaction.reply({ content: '❌ Format invalide pour l\'item occasionnel.', ephemeral: true });
+        }
+        quantity = parseInt(rest.slice(0, colonIdx)) || 1;
+        const name = rest.slice(colonIdx + 1).trim();
+        if (!name) {
+          return interaction.reply({ content: '❌ Le nom de l\'item occasionnel est vide.', ephemeral: true });
+        }
+        itemTypeId = `[libre] ${name}`;
+        itemLabel = `📦 ${name}`;
+      } else {
+        // Item standard — vérifier si la quantité est embarquée : "diamants:50"
+        const colonIdx = rawItem.lastIndexOf(':');
+        let itemId;
+        if (colonIdx > 0 && /^\d+$/.test(rawItem.slice(colonIdx + 1))) {
+          itemId = rawItem.slice(0, colonIdx);
+          quantity = parseInt(rawItem.slice(colonIdx + 1));
+        } else {
+          itemId = rawItem;
+          quantity = commandQty;
+        }
 
-      const itemType = getItemTypeById(itemId);
-      if (!itemType) {
-        return interaction.reply({ content: '❌ Item introuvable.', ephemeral: true });
+        const itemType = getItemTypeById(itemId);
+        if (!itemType) {
+          return interaction.reply({ content: '❌ Item introuvable.', ephemeral: true });
+        }
+        if (!quantity || quantity < 1) {
+          return interaction.reply({ content: '❌ Indique une quantité (ex: tape "diamants 50" dans le champ item).', ephemeral: true });
+        }
+        const isCustom = /^<a?:\w+:\d+>$/.test(itemType.emoji);
+        itemLabel = isCustom ? itemType.name : `${itemType.emoji} ${itemType.name}`;
+        itemTypeId = itemId;
       }
-      if (!quantity) {
-        return interaction.reply({ content: '❌ Indique une quantité.', ephemeral: true });
-      }
-
-      const isCustom = /^<a?:\w+:\d+>$/.test(itemType.emoji);
-      const itemLabel = isCustom ? itemType.name : `${itemType.emoji} ${itemType.name}`;
-      const itemTypeId = itemId;
 
       await addToInventory(targetUser.id, itemTypeId, quantity, interaction.user.id, reason);
 
