@@ -115,6 +115,19 @@ const commands = [
     ],
   },
   {
+    name: 'creer-giveway',
+    description: 'Crée et publie un giveaway sur Discord (Admin et Modo)',
+    options: [
+      { name: 'titre', type: 3, description: 'Titre du giveaway', required: true },
+      { name: 'gain', type: 3, description: 'Description du gain (ex: Pack Légendaire x1)', required: true },
+      { name: 'duree', type: 4, description: 'Durée en heures (ex: 24 = 24h)', required: true, min_value: 1 },
+      { name: 'gagnants', type: 4, description: 'Nombre de gagnants (défaut : 1)', required: false, min_value: 1, max_value: 20 },
+      { name: 'description', type: 3, description: 'Description / contexte du giveaway', required: false },
+      { name: 'conditions', type: 3, description: 'Conditions de participation', required: false },
+      { name: 'salon', type: 7, description: 'Salon où publier (défaut : salon configuré)', required: false },
+    ],
+  },
+  {
     name: 'giveway-participants',
     description: 'Affiche les participants d\'un giveaway actif (Admin et Modo)',
     options: [

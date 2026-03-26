@@ -2457,6 +2457,55 @@ client.on('interactionCreate', async interaction => {
   }
 
   // ── Commandes Giveaway ──
+  if (commandName === 'creer-giveway') {
+    if (!hasRoulettePermission(interaction.member)) {
+      return interaction.reply({ content: '❌ Seuls les administrateurs et les Modos peuvent créer un giveaway.', ephemeral: true });
+    }
+
+    const titre = interaction.options.getString('titre');
+    const gain = interaction.options.getString('gain');
+    const duree = interaction.options.getInteger('duree');
+    const gagnants = interaction.options.getInteger('gagnants') || 1;
+    const description = interaction.options.getString('description') || '';
+    const conditions = interaction.options.getString('conditions') || '';
+    const salonOption = interaction.options.getChannel('salon');
+
+    const settings = getSettings();
+    const targetChannelId = salonOption ? salonOption.id : (settings.guild?.giveawayChannelId || settings.guild?.resultsChannelId || interaction.channelId);
+
+    const endTime = new Date(Date.now() + duree * 60 * 60 * 1000).toISOString();
+
+    await interaction.deferReply({ ephemeral: true });
+
+    const giveaway = await giveawayManager.createGiveaway({
+      title: titre,
+      description,
+      conditions,
+      prize: { type: 'libre', name: gain, quantity: 1 },
+      winnerCount: gagnants,
+      endTime,
+      channelId: targetChannelId,
+      guildId: interaction.guildId,
+      createdBy: interaction.user.id,
+      createdByName: interaction.member?.displayName || interaction.user.username,
+      imageUrl: '',
+      roleId: '',
+    });
+
+    try {
+      const channel = await client.channels.fetch(targetChannelId);
+      const embed = buildGiveawayEmbed(giveaway);
+      const row = buildGiveawayButton(giveaway.id);
+      const msg = await channel.send({ embeds: [embed], components: [row] });
+      await giveawayManager.updateMessageId(giveaway.id, msg.id);
+      scheduleGiveawayEnd(giveaway, client);
+      return interaction.editReply({ content: `✅ Giveaway **${titre}** créé et publié dans <#${targetChannelId}> ! (ID : \`${giveaway.id}\`, durée : ${duree}h)` });
+    } catch (e) {
+      console.error('[Giveaway] Erreur publication commande:', e);
+      return interaction.editReply({ content: `⚠️ Giveaway créé (ID : \`${giveaway.id}\`) mais impossible de publier l'embed : ${e.message}` });
+    }
+  }
+
   if (commandName === 'giveway-participants') {
     if (!hasRoulettePermission(interaction.member)) {
       return interaction.reply({ content: '❌ Permission refusée.', ephemeral: true });
