@@ -56,7 +56,7 @@ function generateId() {
   return crypto.randomBytes(4).toString('hex');
 }
 
-async function createGiveaway({ title, description, conditions, prize, winnerCount, endTime, channelId, guildId, createdBy, createdByName, imageUrl, roleId }) {
+async function createGiveaway({ title, description, conditions, prize, winnerCount, endTime, channelId, guildId, createdBy, createdByName, imageUrl, roleId, pingEveryone }) {
   const data = getData();
   const id = generateId();
   const giveaway = {
@@ -72,6 +72,7 @@ async function createGiveaway({ title, description, conditions, prize, winnerCou
     createdBy,
     imageUrl: imageUrl || '',
     roleId: roleId || '',
+    pingEveryone: !!pingEveryone,
     createdByName: createdByName || createdBy || 'Admin',
     messageId: null,
     participants: [],

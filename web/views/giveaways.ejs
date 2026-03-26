@@ -6,30 +6,67 @@
   <title>Giveaways — Arki Family</title>
   <link rel="stylesheet" href="/css/style.css">
   <style>
-    .gw-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+    /* ── Grille giveaways ── */
+    .gw-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
     @media(max-width:900px){ .gw-grid{ grid-template-columns:1fr; } }
-    .gw-card { background:var(--bg-card); border-radius:12px; overflow:hidden; border:1px solid var(--border-color); }
-    .gw-card-header { padding:14px 18px; border-bottom:1px solid var(--border-color); display:flex; align-items:center; gap:10px; }
-    .gw-status { font-size:11px; padding:2px 8px; border-radius:20px; font-weight:600; }
-    .gw-status.active { background:#1a472a; color:#2ecc71; }
-    .gw-status.ended { background:#2d2d2d; color:#95a5a6; }
-    .gw-card-body { padding:16px 18px; }
-    .gw-meta { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:12px; font-size:13px; color:var(--text-secondary); }
-    .gw-meta span { display:flex; align-items:center; gap:4px; }
-    .gw-prize { background:var(--bg-input); border-radius:8px; padding:10px 14px; font-size:14px; margin-bottom:12px; }
-    .gw-actions { display:flex; gap:8px; flex-wrap:wrap; }
-    .gw-cover { width:100%; height:120px; object-fit:cover; display:block; }
-    .prize-toggle { display:none; }
-    .prize-toggle:checked ~ .prize-libre { display:block; }
-    .prize-toggle:checked ~ .prize-item { display:none; }
-    .prize-item-section { display:block; }
-    .prize-libre-section { display:none; }
-    .participants-list { max-height:300px; overflow-y:auto; }
-    .participant-row { display:flex; align-items:center; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--border-color); font-size:13px; }
-    .winner-badge { background:#f39c12; color:#000; font-size:10px; padding:1px 6px; border-radius:10px; font-weight:700; margin-left:6px; }
-    .image-preview { max-width:100%; border-radius:8px; margin-top:8px; display:none; max-height:200px; object-fit:contain; }
-    .progress-bar-bg { background:var(--bg-input); border-radius:20px; height:6px; overflow:hidden; margin-top:4px; }
-    .progress-bar-fill { height:100%; background:linear-gradient(90deg,#FF6B6B,#f39c12); border-radius:20px; transition:width .3s; }
+
+    /* ── Carte giveaway ── */
+    .gw-card { background:var(--bg-card); border-radius:14px; overflow:hidden; border:1px solid var(--border-color); transition:box-shadow .2s; }
+    .gw-card:hover { box-shadow:0 4px 20px rgba(0,0,0,.18); }
+    .gw-cover { width:100%; height:130px; object-fit:cover; display:block; }
+    .gw-card-header { padding:13px 16px; border-bottom:1px solid var(--border-color); display:flex; align-items:center; gap:10px; }
+    .gw-status { font-size:11px; padding:3px 9px; border-radius:20px; font-weight:700; letter-spacing:.3px; }
+    .gw-status.active { background:rgba(46,204,113,.15); color:#2ecc71; border:1px solid rgba(46,204,113,.3); }
+    .gw-status.ended  { background:rgba(149,165,166,.12); color:#95a5a6; border:1px solid rgba(149,165,166,.25); }
+    .gw-card-body { padding:14px 16px; }
+    .gw-meta { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:11px; }
+    .gw-meta-pill { font-size:12px; padding:3px 9px; border-radius:20px; background:var(--bg-input); color:var(--text-secondary); display:flex; align-items:center; gap:4px; }
+    .gw-prize-box { background:linear-gradient(135deg,rgba(255,107,107,.08),rgba(243,156,18,.08)); border:1px solid rgba(255,107,107,.2); border-radius:10px; padding:10px 14px; margin-bottom:11px; font-size:14px; font-weight:600; }
+    .gw-conditions { font-size:12px; color:var(--text-muted); margin-bottom:11px; line-height:1.5; }
+    .gw-progress { background:var(--bg-input); border-radius:20px; height:5px; overflow:hidden; margin-bottom:12px; }
+    .gw-progress-fill { height:100%; background:linear-gradient(90deg,#FF6B6B,#f39c12); border-radius:20px; transition:width .3s; }
+    .gw-actions { display:flex; gap:7px; flex-wrap:wrap; }
+    .gw-winners-box { background:rgba(241,196,15,.08); border:1px solid rgba(241,196,15,.25); border-radius:10px; padding:10px 14px; margin-bottom:11px; font-size:13px; }
+    .gw-badge-ping { font-size:11px; padding:2px 7px; border-radius:10px; background:rgba(114,137,218,.2); color:#7289da; border:1px solid rgba(114,137,218,.3); font-weight:600; }
+
+    /* ── Bannière image par défaut ── */
+    .default-img-banner { background:var(--bg-card); border:1px solid var(--border-color); border-radius:14px; padding:18px 20px; margin-bottom:22px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+    .default-img-preview { height:60px; border-radius:8px; object-fit:cover; border:1px solid var(--border-color); }
+    .default-img-url { flex:1; min-width:240px; }
+
+    /* ── Sections du modal ── */
+    .modal-section { margin-bottom:20px; padding-bottom:20px; border-bottom:1px solid var(--border-color); }
+    .modal-section:last-of-type { border-bottom:none; margin-bottom:0; padding-bottom:0; }
+    .modal-section-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:var(--text-muted); margin-bottom:12px; display:flex; align-items:center; gap:6px; }
+    .form-row-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    @media(max-width:600px){ .form-row-2 { grid-template-columns:1fr; } }
+
+    /* ── Toggle @everyone ── */
+    .toggle-row { display:flex; align-items:center; gap:12px; padding:12px 14px; background:var(--bg-input); border-radius:10px; cursor:pointer; border:1px solid var(--border-color); transition:border-color .15s; }
+    .toggle-row:hover { border-color:var(--accent); }
+    .toggle-row input[type=checkbox] { width:18px; height:18px; accent-color:var(--accent); cursor:pointer; flex-shrink:0; }
+    .toggle-label { flex:1; }
+    .toggle-label strong { font-size:14px; display:block; }
+    .toggle-label span { font-size:12px; color:var(--text-muted); }
+
+    /* ── Prize select ── */
+    .prize-tabs { display:flex; gap:8px; margin-bottom:12px; }
+    .prize-tab { flex:1; padding:8px; border-radius:8px; border:1px solid var(--border-color); background:var(--bg-input); text-align:center; font-size:13px; font-weight:600; cursor:pointer; transition:all .15s; }
+    .prize-tab.active { background:rgba(255,107,107,.12); border-color:rgba(255,107,107,.4); color:#FF6B6B; }
+
+    /* ── Image URL field ── */
+    .img-url-group { position:relative; }
+    .img-url-preview { width:100%; border-radius:8px; object-fit:cover; max-height:120px; margin-top:8px; display:none; border:1px solid var(--border-color); }
+
+    /* ── Participants ── */
+    .participants-list { max-height:320px; overflow-y:auto; }
+    .participant-row { display:flex; align-items:center; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--border-color); font-size:13px; }
+    .participant-row:last-child { border-bottom:none; }
+    .winner-badge { background:#f39c12; color:#000; font-size:10px; padding:2px 7px; border-radius:10px; font-weight:700; margin-left:6px; }
+
+    /* ── État vide ── */
+    .empty-state { text-align:center; padding:60px 20px; color:var(--text-secondary); }
+    .empty-state .emoji { font-size:52px; margin-bottom:14px; }
   </style>
 </head>
 <body>
@@ -37,59 +74,71 @@
   <div class="main-content">
     <div class="page-header">
       <h1>🎉 Giveaways</h1>
-      <button class="btn btn-primary" onclick="document.getElementById('createModal').classList.add('show')">➕ Créer un Giveaway</button>
+      <button class="btn btn-primary" onclick="openCreate()">➕ Créer un Giveaway</button>
     </div>
 
+    <!-- Bannière image par défaut (admin uniquement) -->
     <% if (role === 'admin') { %>
-    <div class="card" style="margin-bottom:20px;padding:16px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-      <div style="font-size:13px;color:var(--text-secondary);font-weight:600;min-width:160px;">🖼️ Image par défaut</div>
+    <div class="default-img-banner">
+      <div style="min-width:170px;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:3px;">🖼️ Image par défaut</div>
+        <div style="font-size:12px;color:var(--text-muted);">Appliquée à chaque nouveau giveaway</div>
+      </div>
       <% if (defaultImageUrl) { %>
-        <img src="<%=defaultImageUrl%>" alt="Image par défaut" style="height:56px;border-radius:8px;object-fit:cover;border:1px solid var(--border-color);">
-        <span style="font-size:12px;color:var(--text-muted);flex:1;">Utilisée automatiquement à chaque nouveau giveaway.</span>
-        <button class="btn btn-sm btn-danger" onclick="clearDefaultImage()">✕ Retirer</button>
-      <% } else { %>
-        <span style="font-size:13px;color:var(--text-muted);flex:1;">Aucune image par défaut — upload une image via <strong>🖼️ Image</strong> sur un giveaway existant pour la définir.</span>
+        <img src="<%=defaultImageUrl%>" class="default-img-preview" alt="Image par défaut" onerror="this.style.display='none'">
       <% } %>
+      <div class="default-img-url">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" id="defaultImgUrlInput" value="<%=defaultImageUrl%>" placeholder="https://i.imgur.com/..." style="flex:1;" oninput="previewDefaultImg(this.value)">
+          <button class="btn btn-primary btn-sm" onclick="saveDefaultImage()" style="white-space:nowrap;">💾 Enregistrer</button>
+          <% if (defaultImageUrl) { %>
+          <button class="btn btn-danger btn-sm" onclick="clearDefaultImage()" title="Retirer l'image par défaut">✕</button>
+          <% } %>
+        </div>
+        <img id="defaultImgPreview" src="<%=defaultImageUrl%>" alt="Aperçu" style="height:40px;border-radius:6px;margin-top:6px;object-fit:cover;<%=defaultImageUrl?'':'display:none;'%>" onerror="this.style.display='none'">
+      </div>
     </div>
     <% } %>
 
-    <% const active = giveaways.filter(g => g.status === 'active'); %>
-    <% const ended = giveaways.filter(g => g.status === 'ended'); %>
+    <%
+      const active = giveaways.filter(g => g.status === 'active');
+      const ended = giveaways.filter(g => g.status === 'ended');
+    %>
 
     <% if (active.length > 0) { %>
-    <h2 style="margin-bottom:12px;font-size:16px;color:var(--text-secondary);">🟢 En cours (<%=active.length%>)</h2>
-    <div class="gw-grid" style="margin-bottom:24px;">
+    <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);margin-bottom:12px;">🟢 En cours (<%=active.length%>)</div>
+    <div class="gw-grid" style="margin-bottom:28px;">
       <% for (const g of active) { %>
       <div class="gw-card">
         <% if (g.imageUrl) { %>
-        <img src="<%=g.imageUrl%>" class="gw-cover" alt="Couverture">
+        <img src="<%=g.imageUrl%>" class="gw-cover" alt="Couverture" onerror="this.style.display='none'">
         <% } %>
         <div class="gw-card-header">
           <span class="gw-status active">● Actif</span>
-          <strong style="flex:1;"><%=g.title%></strong>
-          <span style="font-size:12px;color:var(--text-muted);">ID: <%=g.id%></span>
+          <strong style="flex:1;font-size:15px;"><%=g.title%></strong>
+          <% if (g.pingEveryone) { %><span class="gw-badge-ping">@everyone</span><% } %>
+          <code style="font-size:11px;color:var(--text-muted);background:var(--bg-input);padding:2px 6px;border-radius:4px;"><%=g.id%></code>
         </div>
         <div class="gw-card-body">
-          <% if (g.description) { %><p style="margin-bottom:10px;font-size:13px;"><%=g.description%></p><% } %>
           <div class="gw-meta">
-            <span>⏰ <%=formatTimeLeft(g.endTime)%></span>
-            <span>👥 <%=g.participants.length%> participant(s)</span>
-            <span>🏆 <%=g.winnerCount%> gagnant(s)</span>
-            <span>👤 <%=g.createdByName || g.createdBy%></span>
+            <span class="gw-meta-pill">⏰ <%=formatTimeLeft(g.endTime)%></span>
+            <span class="gw-meta-pill">👥 <%=g.participants.length%> participant(s)</span>
+            <span class="gw-meta-pill">🏆 <%=g.winnerCount%> gagnant(s)</span>
+            <span class="gw-meta-pill">👤 <%=g.createdByName || g.createdBy%></span>
           </div>
-          <% if (g.conditions) { %><div class="gw-prize" style="margin-bottom:8px;font-size:12px;color:var(--text-muted);">📋 <%=g.conditions%></div><% } %>
-          <div class="gw-prize">
-            🎁 <strong><%=g.prize.type==='libre'?g.prize.name:(itemTypes.find(i=>i.id===g.prize.itemId)?.emoji+' '+(itemTypes.find(i=>i.id===g.prize.itemId)?.name||g.prize.itemId))%></strong> ×<%=g.prize.quantity%>
+          <% if (g.conditions) { %><div class="gw-conditions">📋 <%=g.conditions%></div><% } %>
+          <div class="gw-prize-box">
+            🎁 <% if (g.prize.type==='libre') { %><%=g.prize.name%><% } else { %><%= (itemTypes.find(i=>i.id===g.prize.itemId)?.emoji||'🎁')+' '+(itemTypes.find(i=>i.id===g.prize.itemId)?.name||g.prize.name||g.prize.itemId) %><% } %> <span style="font-weight:400;color:var(--text-muted);">×<%=g.prize.quantity%></span>
           </div>
-          <div class="progress-bar-bg">
-            <div class="progress-bar-fill" style="width:<%=Math.min(100,Math.max(5,((Date.now()-new Date(g.createdAt).getTime())/(new Date(g.endTime).getTime()-new Date(g.createdAt).getTime()))*100))%>%"></div>
+          <div class="gw-progress">
+            <div class="gw-progress-fill" style="width:<%=Math.min(100,Math.max(4,((Date.now()-new Date(g.createdAt).getTime())/(new Date(g.endTime).getTime()-new Date(g.createdAt).getTime()))*100))%>%"></div>
           </div>
-          <div class="gw-actions" style="margin-top:12px;">
+          <div class="gw-actions">
             <button class="btn btn-sm btn-secondary" onclick="openParticipants('<%=g.id%>')">👥 Participants</button>
             <% if (role === 'admin') { %>
-            <button class="btn btn-sm btn-primary" onclick="openUpdateImage('<%=g.id%>')">🖼️ Image</button>
+            <button class="btn btn-sm btn-primary" onclick="openUpdateImage('<%=g.id%>','<%=g.imageUrl%>')">🖼️ Image</button>
             <button class="btn btn-sm" style="background:#e67e22;color:#fff;" onclick="endGiveaway('<%=g.id%>','<%=g.title%>')">⏩ Terminer</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteGiveaway('<%=g.id%>','<%=g.title%>')">🗑️ Supprimer</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteGiveaway('<%=g.id%>','<%=g.title%>')">🗑️</button>
             <% } %>
           </div>
         </div>
@@ -99,26 +148,28 @@
     <% } %>
 
     <% if (ended.length > 0) { %>
-    <h2 style="margin-bottom:12px;font-size:16px;color:var(--text-secondary);">⚫ Terminés (<%=ended.length%>)</h2>
+    <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);margin-bottom:12px;margin-top:8px;">⚫ Terminés (<%=ended.length%>)</div>
     <div class="gw-grid">
       <% for (const g of ended) { %>
-      <div class="gw-card" style="opacity:.7;">
+      <div class="gw-card" style="opacity:.65;">
         <div class="gw-card-header">
           <span class="gw-status ended">● Terminé</span>
           <strong style="flex:1;"><%=g.title%></strong>
-          <span style="font-size:12px;color:var(--text-muted);">ID: <%=g.id%></span>
+          <code style="font-size:11px;color:var(--text-muted);background:var(--bg-input);padding:2px 6px;border-radius:4px;"><%=g.id%></code>
         </div>
         <div class="gw-card-body">
           <div class="gw-meta">
-            <span>👥 <%=g.participants.length%> participant(s)</span>
-            <span>🏆 <%=g.winners.length%> gagnant(s)</span>
+            <span class="gw-meta-pill">👥 <%=g.participants.length%> participant(s)</span>
+            <span class="gw-meta-pill">🏆 <%=g.winners.length%>/<%=g.winnerCount%> gagnant(s)</span>
           </div>
           <% if (g.winners.length > 0) { %>
-          <div class="gw-prize" style="background:rgba(241,196,15,.08);border:1px solid #f1c40f33;">
-            🏆 Gagnant(s) : <%=g.winners.map(id=>`<@${id}>`).join(', ')%>
+          <div class="gw-winners-box">
+            🏆 <strong>Gagnant(s) :</strong> <%=g.winners.map(id=>`<@${id}>`).join(', ')%>
           </div>
+          <% } else { %>
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:10px;">Aucun participant éligible.</div>
           <% } %>
-          <div class="gw-actions" style="margin-top:10px;">
+          <div class="gw-actions">
             <button class="btn btn-sm btn-secondary" onclick="openParticipants('<%=g.id%>')">👥 Participants</button>
             <% if (role === 'admin') { %>
             <button class="btn btn-sm btn-danger" onclick="deleteGiveaway('<%=g.id%>','<%=g.title%>')">🗑️ Supprimer</button>
@@ -131,97 +182,140 @@
     <% } %>
 
     <% if (giveaways.length === 0) { %>
-    <div class="card" style="text-align:center;padding:40px;color:var(--text-secondary);">
-      <div style="font-size:48px;margin-bottom:12px;">🎉</div>
-      <p>Aucun giveaway pour le moment. Créez-en un !</p>
+    <div class="empty-state">
+      <div class="emoji">🎉</div>
+      <p>Aucun giveaway pour le moment.</p>
+      <button class="btn btn-primary" onclick="openCreate()" style="margin-top:10px;">➕ Créer le premier giveaway</button>
     </div>
     <% } %>
   </div>
 
-  <!-- Modal Créer Giveaway -->
-  <div id="createModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this){this.classList.remove('show');this.style.display='none';}">
-    <div class="modal" style="max-width:600px;width:95%;max-height:90vh;overflow-y:auto;" onclick="event.stopPropagation()">
+  <!-- ═══════════════════ MODAL CRÉER GIVEAWAY ═══════════════════ -->
+  <div id="createModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeCreate()">
+    <div class="modal" style="max-width:660px;width:95%;max-height:92vh;overflow-y:auto;" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h2>🎉 Créer un Giveaway</h2>
-        <button class="modal-close" onclick="document.getElementById('createModal').classList.remove('show');document.getElementById('createModal').style.display='none';">✕</button>
+        <button class="modal-close" onclick="closeCreate()">✕</button>
       </div>
       <form id="createForm" onsubmit="submitCreate(event)">
         <div class="modal-body">
-          <div class="form-group">
-            <label>Titre *</label>
-            <input type="text" name="title" placeholder="Ex: Giveaway Pack Légendaire" required maxlength="100">
-          </div>
-          <div class="form-group">
-            <label>Description</label>
-            <textarea name="description" rows="2" placeholder="Description du giveaway..."></textarea>
-          </div>
-          <div class="form-group">
-            <label>Conditions de participation</label>
-            <input type="text" name="conditions" placeholder="Ex: Pour tous les membres, Pour les nouveaux arrivés...">
-          </div>
-          <div class="form-group">
-            <label>Restriction par rôle (optionnel)</label>
-            <input type="text" name="roleId" placeholder="ID du rôle Discord requis pour participer">
+
+          <!-- Section : Infos générales -->
+          <div class="modal-section">
+            <div class="modal-section-title">📋 Informations générales</div>
+            <div class="form-group">
+              <label>Titre du giveaway <span style="color:#FF6B6B">*</span></label>
+              <input type="text" name="title" placeholder="Ex : Giveaway Pack Légendaire" required maxlength="100">
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label>Conditions / Description <span style="font-weight:400;color:var(--text-muted)">(optionnel)</span></label>
+              <textarea name="conditions" rows="2" placeholder="Ex : Ouvert à tous les membres, Pack offert par..."></textarea>
+            </div>
           </div>
 
-          <div class="form-group">
-            <label>Gain *</label>
-            <div style="display:flex;gap:10px;margin-bottom:8px;">
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-                <input type="radio" name="prizeType" value="item" checked onchange="togglePrizeType(this.value)"> Item existant
-              </label>
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-                <input type="radio" name="prizeType" value="libre" onchange="togglePrizeType(this.value)"> Item occasionnel
-              </label>
+          <!-- Section : Gain -->
+          <div class="modal-section">
+            <div class="modal-section-title">🎁 Gain</div>
+            <div class="prize-tabs" id="prizeTabs">
+              <div class="prize-tab active" onclick="setPrizeType('item')" id="tabItem">📦 Item d'inventaire</div>
+              <div class="prize-tab" onclick="setPrizeType('libre')" id="tabLibre">✨ Item occasionnel</div>
             </div>
+            <input type="hidden" name="prizeType" id="prizeTypeInput" value="item">
+
             <div id="prizeItemSection">
-              <select name="prizeItemId" style="width:100%;margin-bottom:8px;">
-                <option value="">-- Sélectionner un item --</option>
-                <% for (const it of itemTypes) { %>
-                <option value="<%=it.id%>"><%=it.emoji%> <%=it.name%></option>
-                <% } %>
-              </select>
+              <div class="form-row-2">
+                <div class="form-group" style="margin-bottom:0;">
+                  <label>Item <span style="color:#FF6B6B">*</span></label>
+                  <select name="prizeItemId" id="prizeItemSelect">
+                    <option value="">— Choisir un item —</option>
+                    <% for (const it of itemTypes) { %>
+                    <option value="<%=it.id%>"><%=it.emoji%> <%=it.name%></option>
+                    <% } %>
+                  </select>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label>Quantité</label>
+                  <input type="number" name="prizeQuantity" id="prizeQtyItem" value="1" min="1" max="9999">
+                </div>
+              </div>
             </div>
+
             <div id="prizeLibreSection" style="display:none;">
-              <input type="text" name="prizeItemName" placeholder="Nom de l'item occasionnel" style="margin-bottom:8px;">
+              <div class="form-row-2">
+                <div class="form-group" style="margin-bottom:0;">
+                  <label>Nom de l'item <span style="color:#FF6B6B">*</span></label>
+                  <input type="text" name="prizeItemName" id="prizeItemName" placeholder="Ex : Pack Légendaire" maxlength="100">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label>Quantité</label>
+                  <input type="number" name="prizeQuantity2" id="prizeQtyLibre" value="1" min="1" max="9999">
+                </div>
+              </div>
             </div>
-            <input type="number" name="prizeQuantity" value="1" min="1" placeholder="Quantité">
           </div>
 
-          <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-            <div class="form-group">
-              <label>Nombre de gagnants *</label>
-              <input type="number" name="winnerCount" value="1" min="1" max="20">
+          <!-- Section : Durée & Paramètres -->
+          <div class="modal-section">
+            <div class="modal-section-title">⏰ Durée & Paramètres</div>
+            <div class="form-row-2">
+              <div class="form-group">
+                <label>Heure de fin <span style="color:#FF6B6B">*</span> <span style="font-weight:400;color:var(--text-muted)">(format 00:00)</span></label>
+                <input type="time" name="endTime" required>
+              </div>
+              <div class="form-group">
+                <label>Date de fin <span style="font-weight:400;color:var(--text-muted)">(vide = aujourd'hui ou demain)</span></label>
+                <input type="date" name="endDate">
+              </div>
             </div>
-            <div class="form-group">
-              <label>Heure de fin * (format 00:00)</label>
-              <input type="time" name="endTime" required>
+            <div class="form-row-2">
+              <div class="form-group">
+                <label>Nombre de gagnants</label>
+                <input type="number" name="winnerCount" value="1" min="1" max="20">
+              </div>
+              <div class="form-group">
+                <label>Salon Discord <span style="color:#FF6B6B">*</span> <span style="font-weight:400;color:var(--text-muted)">(ID)</span></label>
+                <input type="text" name="channelId" placeholder="Ex : 1157994586774442085" pattern="[0-9]+" title="ID numérique du salon Discord">
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label>Restriction de rôle <span style="font-weight:400;color:var(--text-muted)">(ID du rôle, optionnel)</span></label>
+              <input type="text" name="roleId" placeholder="Laisser vide = ouvert à tous">
             </div>
           </div>
-          <div class="form-group">
-            <label>Date de fin (optionnel — si vide = aujourd'hui ou demain)</label>
-            <input type="date" name="endDate">
+
+          <!-- Section : Image -->
+          <div class="modal-section">
+            <div class="modal-section-title">🖼️ Image de couverture</div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label>URL de l'image <span style="font-weight:400;color:var(--text-muted)">(optionnel — l'image par défaut sera utilisée si vide)</span></label>
+              <input type="url" name="imageUrl" id="createImgUrl" placeholder="https://i.imgur.com/... ou lien Discord CDN" oninput="previewCreateImg(this.value)">
+              <img id="createImgPreview" alt="Aperçu" class="img-url-preview" onerror="this.style.display='none'">
+            </div>
           </div>
-          <div class="form-group">
-            <label>Salon Discord (ID)</label>
-            <input type="text" name="channelId" placeholder="Laisser vide pour utiliser le salon par défaut">
+
+          <!-- Section : Options -->
+          <div class="modal-section">
+            <div class="modal-section-title">⚙️ Options</div>
+            <label class="toggle-row" for="pingEveryoneCheck">
+              <input type="checkbox" name="pingEveryone" id="pingEveryoneCheck" value="on">
+              <div class="toggle-label">
+                <strong>📢 Mentionner @everyone</strong>
+                <span>Envoie un message @everyone après la publication de l'embed pour notifier tout le serveur.</span>
+              </div>
+            </label>
           </div>
-          <div class="form-group">
-            <label>Image de couverture (optionnel)</label>
-            <input type="file" name="image" accept="image/*" onchange="previewImg(this)">
-            <img id="imgPreview" class="image-preview" alt="Aperçu">
-          </div>
+
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="document.getElementById('createModal').classList.remove('show');document.getElementById('createModal').style.display='none';">Annuler</button>
+        <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid var(--border-color);">
+          <button type="button" class="btn btn-secondary" onclick="closeCreate()">Annuler</button>
           <button type="submit" class="btn btn-primary" id="createBtn">🎉 Publier le Giveaway</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Modal Participants -->
-  <div id="participantsModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this){this.style.display='none';}">
+  <!-- ═══════════════════ MODAL PARTICIPANTS ═══════════════════ -->
+  <div id="participantsModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
     <div class="modal" style="max-width:500px;width:95%;" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h2>👥 Participants</h2>
@@ -233,80 +327,107 @@
     </div>
   </div>
 
-  <!-- Modal Mise à jour image -->
-  <div id="imageModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this){this.style.display='none';}">
-    <div class="modal" style="max-width:400px;width:95%;" onclick="event.stopPropagation()">
+  <!-- ═══════════════════ MODAL IMAGE ═══════════════════ -->
+  <div id="imageModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+    <div class="modal" style="max-width:440px;width:95%;" onclick="event.stopPropagation()">
       <div class="modal-header">
-        <h2>🖼️ Changer l'image</h2>
+        <h2>🖼️ Modifier l'image</h2>
         <button class="modal-close" onclick="document.getElementById('imageModal').style.display='none'">✕</button>
       </div>
-      <form id="imageForm" onsubmit="submitImage(event)">
-        <div class="modal-body">
-          <input type="hidden" name="giveawayId" id="imageGiveawayId">
-          <div class="form-group">
-            <label>Nouvelle image de couverture</label>
-            <input type="file" name="image" accept="image/*" required onchange="previewImg2(this)">
-            <img id="imgPreview2" class="image-preview" alt="Aperçu">
-          </div>
+      <div class="modal-body">
+        <input type="hidden" id="imageGiveawayId">
+        <div class="form-group">
+          <label>URL de la nouvelle image</label>
+          <input type="url" id="imageUrlInput" placeholder="https://i.imgur.com/..." oninput="previewImgModal(this.value)">
+          <img id="imgModalPreview" alt="Aperçu" class="img-url-preview" onerror="this.style.display='none'">
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="document.getElementById('imageModal').style.display='none'">Annuler</button>
-          <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
-        </div>
-      </form>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Utilisez un lien Imgur, Discord CDN ou tout hébergement d'images public.</div>
+      </div>
+      <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:10px;padding:14px 20px;border-top:1px solid var(--border-color);">
+        <button class="btn btn-secondary" onclick="document.getElementById('imageModal').style.display='none'">Annuler</button>
+        <button class="btn btn-primary" onclick="submitImage()">💾 Enregistrer</button>
+      </div>
     </div>
   </div>
 
   <script>
-    // Affichage modal
-    document.querySelectorAll('.modal-overlay').forEach(function(m) {
-      m.addEventListener('show', function() { m.style.display='flex'; });
-    });
-    var obs = new MutationObserver(function(muts) {
-      muts.forEach(function(m) {
-        m.target.querySelectorAll('.modal-overlay.show').forEach(function(el) { el.style.display='flex'; });
-      });
-    });
-    obs.observe(document.body, { subtree:true, attributes:true, attributeFilter:['class'] });
+    /* ── Utilitaires modal ── */
+    function openCreate() { document.getElementById('createModal').style.display = 'flex'; }
+    function closeCreate() { document.getElementById('createModal').style.display = 'none'; }
 
-    function togglePrizeType(val) {
-      document.getElementById('prizeItemSection').style.display = val==='item'?'block':'none';
-      document.getElementById('prizeLibreSection').style.display = val==='libre'?'block':'none';
-    }
-    function previewImg(input) {
-      var p = document.getElementById('imgPreview');
-      if (input.files && input.files[0]) {
-        var r = new FileReader(); r.onload = function(e) { p.src=e.target.result; p.style.display='block'; }; r.readAsDataURL(input.files[0]);
+    /* ── Type de gain ── */
+    function setPrizeType(type) {
+      document.getElementById('prizeTypeInput').value = type;
+      document.getElementById('prizeItemSection').style.display  = type === 'item'  ? 'block' : 'none';
+      document.getElementById('prizeLibreSection').style.display = type === 'libre' ? 'block' : 'none';
+      document.getElementById('tabItem').classList.toggle('active', type === 'item');
+      document.getElementById('tabLibre').classList.toggle('active', type === 'libre');
+      // Sync les quantités
+      if (type === 'item') {
+        document.getElementById('prizeQtyItem').name = 'prizeQuantity';
+        document.getElementById('prizeQtyLibre').name = 'prizeQuantity_off';
+      } else {
+        document.getElementById('prizeQtyItem').name = 'prizeQuantity_off';
+        document.getElementById('prizeQtyLibre').name = 'prizeQuantity';
       }
     }
-    function previewImg2(input) {
-      var p = document.getElementById('imgPreview2');
-      if (input.files && input.files[0]) {
-        var r = new FileReader(); r.onload = function(e) { p.src=e.target.result; p.style.display='block'; }; r.readAsDataURL(input.files[0]);
-      }
+    // Initialisation
+    setPrizeType('item');
+
+    /* ── Aperçu image (create) ── */
+    function previewCreateImg(url) {
+      var p = document.getElementById('createImgPreview');
+      if (url && url.startsWith('http')) { p.src = url; p.style.display = 'block'; }
+      else { p.style.display = 'none'; }
     }
+
+    /* ── Aperçu image (modal image) ── */
+    function previewImgModal(url) {
+      var p = document.getElementById('imgModalPreview');
+      if (url && url.startsWith('http')) { p.src = url; p.style.display = 'block'; }
+      else { p.style.display = 'none'; }
+    }
+
+    /* ── Aperçu image par défaut ── */
+    function previewDefaultImg(url) {
+      var p = document.getElementById('defaultImgPreview');
+      if (url && url.startsWith('http')) { p.src = url; p.style.display = 'inline-block'; }
+      else { p.style.display = 'none'; }
+    }
+
+    /* ── Soumettre le formulaire de création ── */
     async function submitCreate(e) {
       e.preventDefault();
       var btn = document.getElementById('createBtn');
       btn.disabled = true; btn.textContent = '⏳ Publication...';
       var fd = new FormData(document.getElementById('createForm'));
-      var r = await fetch('/giveaways/create', { method:'POST', body:fd });
+      // Si type = item, retirer prizeQuantity_off
+      fd.delete('prizeQuantity_off');
+      var r = await fetch('/giveaways/create', { method: 'POST', body: fd });
       var d = await r.json();
-      if (d.error) { alert('❌ ' + d.error); btn.disabled=false; btn.textContent='🎉 Publier le Giveaway'; }
-      else { alert('✅ Giveaway publié !'); location.reload(); }
+      if (d.error) {
+        alert('❌ ' + d.error);
+        btn.disabled = false; btn.textContent = '🎉 Publier le Giveaway';
+      } else {
+        alert('✅ Giveaway publié avec succès !');
+        location.reload();
+      }
     }
+
+    /* ── Participants ── */
     function openParticipants(id) {
       document.getElementById('participantsModal').style.display = 'flex';
       var body = document.getElementById('participantsBody');
       body.innerHTML = '<p style="color:var(--text-secondary);">Chargement...</p>';
-      fetch('/giveaways/' + id + '/participants').then(function(r){return r.json();}).then(function(d) {
+      fetch('/giveaways/' + id + '/participants').then(r => r.json()).then(d => {
         if (!d.participants || d.participants.length === 0) {
-          body.innerHTML = '<p style="color:var(--text-secondary);padding-top:8px;">Aucun participant pour le moment.</p>'; return;
+          body.innerHTML = '<p style="color:var(--text-secondary);padding-top:10px;">Aucun participant pour le moment.</p>';
+          return;
         }
-        var html = '<p style="margin-bottom:12px;color:var(--text-secondary);font-size:13px;">' + d.participants.length + ' participant(s)</p><div class="participants-list">';
+        var html = '<p style="margin-bottom:12px;color:var(--text-muted);font-size:13px;">' + d.participants.length + ' participant(s)</p><div class="participants-list">';
         d.participants.forEach(function(uid) {
           var isWinner = d.winners && d.winners.includes(uid);
-          html += '<div class="participant-row"><span><@' + uid + '>' + (isWinner ? '<span class="winner-badge">🏆 Gagnant</span>' : '') + '</span>';
+          html += '<div class="participant-row"><span><code>' + uid + '</code>' + (isWinner ? '<span class="winner-badge">🏆 Gagnant</span>' : '') + '</span>';
           if (d.status === 'active') html += '<button class="btn btn-sm btn-danger" onclick="removeParticipant(\'' + id + '\',\'' + uid + '\')">Retirer</button>';
           html += '</div>';
         });
@@ -314,43 +435,66 @@
         body.innerHTML = html;
       });
     }
+
     async function removeParticipant(gid, uid) {
       if (!confirm('Retirer ce participant ?')) return;
-      var r = await fetch('/giveaways/' + gid + '/participants/' + uid, { method:'DELETE' });
+      var r = await fetch('/giveaways/' + gid + '/participants/' + uid, { method: 'DELETE' });
       var d = await r.json();
       if (d.success) openParticipants(gid);
       else alert('❌ Erreur : ' + (d.error || 'inconnue'));
     }
-    function openUpdateImage(id) {
+
+    /* ── Modifier l'image ── */
+    function openUpdateImage(id, currentUrl) {
       document.getElementById('imageGiveawayId').value = id;
+      document.getElementById('imageUrlInput').value = currentUrl || '';
+      previewImgModal(currentUrl || '');
       document.getElementById('imageModal').style.display = 'flex';
     }
-    async function submitImage(e) {
-      e.preventDefault();
+
+    async function submitImage() {
       var id = document.getElementById('imageGiveawayId').value;
-      var fd = new FormData(document.getElementById('imageForm'));
-      var r = await fetch('/giveaways/' + id + '/update-image', { method:'POST', body:fd });
+      var url = document.getElementById('imageUrlInput').value.trim();
+      if (!url) { alert('Veuillez saisir une URL d\'image.'); return; }
+      var fd = new FormData();
+      fd.append('imageUrl', url);
+      var r = await fetch('/giveaways/' + id + '/update-image', { method: 'POST', body: fd });
       var d = await r.json();
       if (d.error) alert('❌ ' + d.error);
       else { alert('✅ Image mise à jour !'); location.reload(); }
     }
+
+    /* ── Terminer un giveaway ── */
     async function endGiveaway(id, title) {
       if (!confirm('Terminer le giveaway "' + title + '" et lancer le tirage maintenant ?')) return;
-      var r = await fetch('/giveaways/' + id + '/end', { method:'POST' });
+      var r = await fetch('/giveaways/' + id + '/end', { method: 'POST' });
       var d = await r.json();
-      if (d.success) { alert('✅ Giveaway terminé, tirage effectué !'); location.reload(); }
+      if (d.success) { alert('✅ Tirage effectué !'); location.reload(); }
       else alert('❌ Erreur : ' + (d.error || 'inconnue'));
     }
+
+    /* ── Supprimer un giveaway ── */
     async function deleteGiveaway(id, title) {
       if (!confirm('Supprimer définitivement le giveaway "' + title + '" ?')) return;
-      var r = await fetch('/giveaways/' + id + '/delete', { method:'POST' });
+      var r = await fetch('/giveaways/' + id + '/delete', { method: 'POST' });
       var d = await r.json();
       if (d.success) location.reload();
       else alert('❌ Erreur : ' + (d.error || 'inconnue'));
     }
+
+    /* ── Image par défaut ── */
+    async function saveDefaultImage() {
+      var url = document.getElementById('defaultImgUrlInput').value.trim();
+      var fd = new FormData(); fd.append('imageUrl', url);
+      var r = await fetch('/giveaways/set-default-image', { method: 'POST', body: fd });
+      var d = await r.json();
+      if (d.success) { alert('✅ Image par défaut enregistrée !'); location.reload(); }
+      else alert('❌ Erreur : ' + (d.error || 'inconnue'));
+    }
+
     async function clearDefaultImage() {
-      if (!confirm('Retirer l\'image par défaut ? Les prochains giveaways n\'auront plus d\'image automatique.')) return;
-      var r = await fetch('/giveaways/clear-default-image', { method:'POST' });
+      if (!confirm('Retirer l\'image par défaut ?')) return;
+      var r = await fetch('/giveaways/clear-default-image', { method: 'POST' });
       var d = await r.json();
       if (d.success) location.reload();
       else alert('❌ Erreur : ' + (d.error || 'inconnue'));

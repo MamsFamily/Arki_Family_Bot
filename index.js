@@ -583,19 +583,26 @@ async function endGiveawayNow(id, botClient) {
       const winnerMentions = winners.map(uid => `<@${uid}>`).join(', ');
       const prizeLabel = g.prize.type === 'libre'
         ? `📦 ${g.prize.name} ×${g.prize.quantity}`
-        : `🎁 ${g.prize.itemId} ×${g.prize.quantity}`;
-      await channel.send(`🎉 **Fin du Giveaway !**\n\n🏆 Félicitations ${winnerMentions} ! Vous remportez **${prizeLabel}** !\n\n> Contactez un administrateur pour recevoir votre gain.`);
+        : `🎁 ${g.prize.name || g.prize.itemId} ×${g.prize.quantity}`;
+      const isAutoDistrib = g.prize.type === 'item';
+      const gainNote = isAutoDistrib
+        ? '> ✅ Votre gain a été crédité dans votre inventaire.'
+        : '> 📩 Contactez un administrateur pour recevoir votre gain.';
+      await channel.send(`🎉 **Fin du Giveaway !**\n\n🏆 Félicitations ${winnerMentions} ! Vous remportez **${prizeLabel}** !\n\n${gainNote}`);
 
       // DM gagnants
       for (const uid of winners) {
         try {
           const user = await botClient.users.fetch(uid);
-          await user.send(`🎉 Félicitations ! Tu as gagné le giveaway **${g.title}** sur Arki Family !\nTu remportes : **${prizeLabel}**\nContacte un administrateur pour recevoir ton gain.`);
+          const dmNote = isAutoDistrib
+            ? '✅ Ton gain a été crédité dans ton inventaire.'
+            : '📩 Contacte un administrateur pour recevoir ton gain.';
+          await user.send(`🎉 Félicitations ! Tu as gagné le giveaway **${g.title}** sur Arki Family !\nTu remportes : **${prizeLabel}**\n${dmNote}`);
         } catch (e) {}
       }
 
       // Distribution auto items inventaire
-      if (g.prize.type === 'item') {
+      if (isAutoDistrib) {
         for (const uid of winners) {
           try { addToInventory(uid, g.prize.itemId, g.prize.quantity, 'giveaway', g.title); } catch (e) {}
         }
@@ -682,8 +689,12 @@ function buildGiveawayEmbed(g) {
 
   if (g.imageUrl) {
     try {
-      const base = `https://${process.env.REPLIT_DEV_DOMAIN || 'localhost:5000'}`;
-      embed.setImage(`${base}${g.imageUrl}`);
+      if (g.imageUrl.startsWith('http://') || g.imageUrl.startsWith('https://')) {
+        embed.setImage(g.imageUrl);
+      } else {
+        const devDomain = process.env.REPLIT_DEV_DOMAIN;
+        if (devDomain) embed.setImage(`https://${devDomain}${g.imageUrl}`);
+      }
     } catch (e) {}
   }
 
@@ -728,7 +739,11 @@ client.on('interactionCreate', async interaction => {
 
   // ── Giveaway: soumission modal création ──
   if (interaction.isModalSubmit() && interaction.customId.startsWith('giveway_create_modal_')) {
-    const salonId = interaction.customId.replace('giveway_create_modal_', '');
+    const raw = interaction.customId.replace('giveway_create_modal_', '');
+    const pipeIdx = raw.lastIndexOf('|');
+    const targetChannelId = pipeIdx !== -1 ? raw.slice(0, pipeIdx) : (raw || interaction.channelId);
+    const pingEveryone = pipeIdx !== -1 ? raw.slice(pipeIdx + 1) === '1' : false;
+
     const titre = interaction.fields.getTextInputValue('gw_titre').trim();
     const gain = interaction.fields.getTextInputValue('gw_gain').trim();
     const heureRaw = interaction.fields.getTextInputValue('gw_heure').trim();
@@ -744,18 +759,14 @@ client.on('interactionCreate', async interaction => {
     const now = new Date();
     const endDateTime = new Date();
     endDateTime.setHours(parseInt(hh), parseInt(mm), 0, 0);
-    // Si l'heure est déjà passée aujourd'hui, on programme pour demain
     if (endDateTime <= now) endDateTime.setDate(endDateTime.getDate() + 1);
 
     const gagnants = Math.max(1, parseInt(gagnantsRaw) || 1);
-
-    const settings = getSettings();
-    const targetChannelId = salonId || settings.guild?.giveawayChannelId || settings.guild?.resultsChannelId || interaction.channelId;
     const endTime = endDateTime.toISOString();
 
     await interaction.deferReply({ ephemeral: true });
 
-    const settings2 = getSettings();
+    const gwSettings = getSettings();
     const giveaway = await giveawayManager.createGiveaway({
       title: titre,
       description: '',
@@ -767,8 +778,9 @@ client.on('interactionCreate', async interaction => {
       guildId: interaction.guildId,
       createdBy: interaction.user.id,
       createdByName: interaction.member?.displayName || interaction.user.username,
-      imageUrl: settings2.giveaway?.defaultImageUrl || '',
+      imageUrl: gwSettings.giveaway?.defaultImageUrl || '',
       roleId: '',
+      pingEveryone,
     });
 
     try {
@@ -778,6 +790,9 @@ client.on('interactionCreate', async interaction => {
       const msg = await channel.send({ embeds: [embed], components: [row] });
       await giveawayManager.updateMessageId(giveaway.id, msg.id);
       scheduleGiveawayEnd(giveaway, client);
+      if (pingEveryone) {
+        await channel.send('@everyone 🎉 Un nouveau giveaway vient d\'être lancé ! Cliquez sur **Je participe** pour tenter votre chance !');
+      }
       const finStr = endDateTime.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
       return interaction.editReply({ content: `✅ Giveaway **${titre}** publié dans <#${targetChannelId}> !\n⏰ Fin : **${finStr}** | 🏆 Gagnants : **${gagnants}** | ID : \`${giveaway.id}\`` });
     } catch (e) {
@@ -2521,12 +2536,12 @@ client.on('interactionCreate', async interaction => {
     if (!hasRoulettePermission(interaction.member)) {
       return interaction.reply({ content: '❌ Seuls les administrateurs et les Modos peuvent créer un giveaway.', ephemeral: true });
     }
-    const salonOption = interaction.options.getChannel('salon');
-    const salonId = salonOption ? salonOption.id : '';
+    const pingEveryone = interaction.options.getBoolean('ping_everyone') ? '1' : '0';
+    const channelId = interaction.channelId;
 
     const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
     const modal = new ModalBuilder()
-      .setCustomId(`giveway_create_modal_${salonId}`)
+      .setCustomId(`giveway_create_modal_${channelId}|${pingEveryone}`)
       .setTitle('🎉 Créer un Giveaway');
 
     modal.addComponents(

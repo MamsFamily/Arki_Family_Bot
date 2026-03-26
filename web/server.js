@@ -1862,17 +1862,19 @@ function createWebServer(discordClient) {
     });
   });
 
-  app.post('/giveaways/create', requireAuth, giveawayUpload.single('image'), async (req, res) => {
-    const { title, description, conditions, prizeType, prizeItemId, prizeItemName, prizeQuantity, winnerCount, endDate, endTime, channelId, roleId } = req.body;
+  app.post('/giveaways/create', requireAuth, async (req, res) => {
+    const { title, description, conditions, prizeType, prizeItemId, prizeItemName, prizeQuantity, winnerCount, endDate, endTime, channelId, roleId, imageUrl: imageUrlInput, pingEveryone } = req.body;
     const settings = getSettings();
     const targetChannelId = channelId || settings.guild?.giveawayChannelId || settings.guild?.resultsChannelId;
-    if (!targetChannelId) return res.json({ error: 'Aucun salon configuré pour les giveaways.' });
+    if (!targetChannelId) return res.json({ error: 'Aucun salon Discord (ID) requis. Saisissez l\'ID du salon ou configurez un salon par défaut dans les Paramètres.' });
 
     let prize;
+    const itemTypes = inventoryManager.getItemTypes();
     if (prizeType === 'libre') {
       prize = { type: 'libre', name: prizeItemName || 'Item', quantity: parseInt(prizeQuantity) || 1 };
     } else {
-      prize = { type: 'item', itemId: prizeItemId, quantity: parseInt(prizeQuantity) || 1 };
+      const foundItem = itemTypes.find(i => i.id === prizeItemId);
+      prize = { type: 'item', itemId: prizeItemId, name: foundItem ? `${foundItem.emoji} ${foundItem.name}` : prizeItemId, quantity: parseInt(prizeQuantity) || 1 };
     }
 
     // Calculer l'heure de fin (date + heure ou juste heure aujourd'hui/demain)
@@ -1889,13 +1891,7 @@ function createWebServer(discordClient) {
       return res.json({ error: 'Heure de fin requise.' });
     }
 
-    const currentSettings = getSettings();
-    let imageUrl = currentSettings.giveaway?.defaultImageUrl || '';
-    if (req.file) {
-      imageUrl = `/uploads/${req.file.filename}`;
-      // Sauvegarder comme image par défaut pour les prochains giveaways
-      await updateSection('giveaway', { defaultImageUrl: imageUrl });
-    }
+    const imageUrl = imageUrlInput?.trim() || settings.giveaway?.defaultImageUrl || '';
 
     const giveaway = await giveawayManager.createGiveaway({
       title, description, conditions, prize,
@@ -1907,6 +1903,7 @@ function createWebServer(discordClient) {
       createdByName: req.session.discordUser?.displayName || 'Admin',
       imageUrl,
       roleId: roleId || '',
+      pingEveryone: pingEveryone === 'on' || pingEveryone === 'true',
     });
 
     // Publier l'embed sur Discord
@@ -1918,7 +1915,9 @@ function createWebServer(discordClient) {
           const row = buildGiveawayButton(giveaway.id);
           const msg = await channel.send({ embeds: [embed], components: [row] });
           await giveawayManager.updateMessageId(giveaway.id, msg.id);
-          // Les timers/scheduling sont gérés par le bot (index.js)
+          if (giveaway.pingEveryone) {
+            await channel.send('@everyone 🎉 Un nouveau giveaway vient d\'être lancé ! Cliquez sur **Je participe** pour tenter votre chance !');
+          }
         }
       } catch (e) {
         console.error('[Giveaway] Erreur publication Discord:', e);
@@ -1928,15 +1927,14 @@ function createWebServer(discordClient) {
     res.json({ success: true, id: giveaway.id });
   });
 
-  app.post('/giveaways/:id/update-image', requireAdmin, giveawayUpload.single('image'), async (req, res) => {
+  app.post('/giveaways/:id/update-image', requireAdmin, async (req, res) => {
     const { id } = req.params;
+    const { imageUrl: imageUrlInput } = req.body;
     const g = giveawayManager.getGiveaway(id);
     if (!g) return res.json({ error: 'Giveaway introuvable.' });
-    if (!req.file) return res.json({ error: 'Aucune image fournie.' });
-    const imageUrl = `/uploads/${req.file.filename}`;
+    const imageUrl = imageUrlInput?.trim() || '';
+    if (!imageUrl) return res.json({ error: 'URL d\'image requise.' });
     await giveawayManager.updateImageUrl(id, imageUrl);
-    // Mémoriser comme image par défaut pour les prochains giveaways
-    await updateSection('giveaway', { defaultImageUrl: imageUrl });
     if (discordClient && g.messageId && g.channelId) {
       try {
         const channel = await discordClient.channels.fetch(g.channelId);
@@ -2063,6 +2061,12 @@ function createWebServer(discordClient) {
       console.error('[Giveaway] Erreur fin giveaway (dashboard):', e);
     }
   }
+
+  app.post('/giveaways/set-default-image', requireAdmin, async (req, res) => {
+    const { imageUrl } = req.body;
+    await updateSection('giveaway', { defaultImageUrl: imageUrl?.trim() || '' });
+    res.json({ success: true });
+  });
 
   app.post('/giveaways/clear-default-image', requireAdmin, async (req, res) => {
     await updateSection('giveaway', { defaultImageUrl: '' });

@@ -116,9 +116,9 @@ const commands = [
   },
   {
     name: 'creer-giveway',
-    description: 'Crée et publie un giveaway sur Discord (Admin et Modo)',
+    description: 'Crée et publie un giveaway dans le salon courant (Admin et Modo)',
     options: [
-      { name: 'salon', type: 7, description: 'Salon où publier (défaut : salon configuré)', required: false },
+      { name: 'ping_everyone', type: 5, description: 'Mentionner @everyone pour annoncer le giveaway', required: false },
     ],
   },
   {
