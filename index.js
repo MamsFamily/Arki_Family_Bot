@@ -1956,7 +1956,8 @@ client.on('interactionCreate', async interaction => {
           .setStyle(TextInputStyle.Short)
           .setPlaceholder('Ex: 1')
           .setRequired(true)
-          .setMaxLength(5);
+          .setMaxLength(5)
+          .setValue(String(commandQty || 1));
         modal.addComponents(
           new ActionRowBuilder().addComponents(nameInput),
           new ActionRowBuilder().addComponents(qtyInput),
