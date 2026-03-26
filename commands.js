@@ -118,6 +118,7 @@ const commands = [
     name: 'creer-giveway',
     description: 'Crée et publie un giveaway dans le salon courant (Admin et Modo)',
     options: [
+      { name: 'gain', type: 3, description: 'Item à offrir (choix depuis l\'inventaire ou item occasionnel)', required: false, autocomplete: true },
       { name: 'ping_everyone', type: 5, description: 'Mentionner @everyone pour annoncer le giveaway', required: false },
     ],
   },

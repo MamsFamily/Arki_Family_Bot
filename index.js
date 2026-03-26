@@ -584,28 +584,27 @@ async function endGiveawayNow(id, botClient) {
       const prizeLabel = g.prize.type === 'libre'
         ? `📦 ${g.prize.name} ×${g.prize.quantity}`
         : `🎁 ${g.prize.name || g.prize.itemId} ×${g.prize.quantity}`;
-      const isAutoDistrib = g.prize.type === 'item';
-      const gainNote = isAutoDistrib
-        ? '> ✅ Votre gain a été crédité dans votre inventaire.'
-        : '> 📩 Contactez un administrateur pour recevoir votre gain.';
-      await channel.send(`🎉 **Fin du Giveaway !**\n\n🏆 Félicitations ${winnerMentions} ! Vous remportez **${prizeLabel}** !\n\n${gainNote}`);
+      await channel.send(`🎉 **Fin du Giveaway !**\n\n🏆 Félicitations ${winnerMentions} ! Vous remportez **${prizeLabel}** !\n\n> ✅ Votre gain a été crédité dans votre inventaire.`);
 
       // DM gagnants
       for (const uid of winners) {
         try {
           const user = await botClient.users.fetch(uid);
-          const dmNote = isAutoDistrib
-            ? '✅ Ton gain a été crédité dans ton inventaire.'
-            : '📩 Contacte un administrateur pour recevoir ton gain.';
-          await user.send(`🎉 Félicitations ! Tu as gagné le giveaway **${g.title}** sur Arki Family !\nTu remportes : **${prizeLabel}**\n${dmNote}`);
+          await user.send(`🎉 Félicitations ! Tu as gagné le giveaway **${g.title}** sur Arki Family !\nTu remportes : **${prizeLabel}**\n✅ Ton gain a été crédité dans ton inventaire.`);
         } catch (e) {}
       }
 
-      // Distribution auto items inventaire
-      if (isAutoDistrib) {
-        for (const uid of winners) {
-          try { addToInventory(uid, g.prize.itemId, g.prize.quantity, 'giveaway', g.title); } catch (e) {}
-        }
+      // Distribution auto dans l'inventaire (item défini OU item occasionnel)
+      for (const uid of winners) {
+        try {
+          if (g.prize.type === 'item' && g.prize.itemId) {
+            await addToInventory(uid, g.prize.itemId, g.prize.quantity, 'giveaway', g.title);
+          } else if (g.prize.type === 'libre' && g.prize.name) {
+            // Item occasionnel : stocker avec le nom comme identifiant
+            const libreId = 'libre_' + g.prize.name.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 40);
+            await addToInventory(uid, libreId, g.prize.quantity, 'giveaway', `${g.title} — ${g.prize.name}`);
+          }
+        } catch (e) {}
       }
     } else {
       await channel.send(`😔 **Fin du Giveaway "${g.title}"** — Aucun participant éligible pour le tirage.`);
@@ -740,12 +739,13 @@ client.on('interactionCreate', async interaction => {
   // ── Giveaway: soumission modal création ──
   if (interaction.isModalSubmit() && interaction.customId.startsWith('giveway_create_modal_')) {
     const raw = interaction.customId.replace('giveway_create_modal_', '');
-    const pipeIdx = raw.lastIndexOf('|');
-    const targetChannelId = pipeIdx !== -1 ? raw.slice(0, pipeIdx) : (raw || interaction.channelId);
-    const pingEveryone = pipeIdx !== -1 ? raw.slice(pipeIdx + 1) === '1' : false;
+    const parts = raw.split('|');
+    const targetChannelId = parts[0] || interaction.channelId;
+    const pingEveryone = parts[1] === '1';
+    const selectedItemId = parts[2] || '';
 
     const titre = interaction.fields.getTextInputValue('gw_titre').trim();
-    const gain = interaction.fields.getTextInputValue('gw_gain').trim();
+    const gainText = interaction.fields.getTextInputValue('gw_gain').trim();
     const heureRaw = interaction.fields.getTextInputValue('gw_heure').trim();
     const gagnantsRaw = interaction.fields.getTextInputValue('gw_gagnants').trim();
     const conditions = interaction.fields.getTextInputValue('gw_conditions').trim();
@@ -766,12 +766,24 @@ client.on('interactionCreate', async interaction => {
 
     await interaction.deferReply({ ephemeral: true });
 
+    // Construire la prize selon le type sélectionné
+    let prize;
+    if (selectedItemId && selectedItemId !== '__libre__') {
+      const itemTypes = getItemTypes();
+      const found = itemTypes.find(i => i.id === selectedItemId);
+      const isCustom = found && /^<a?:\w+:\d+>$/.test(found.emoji);
+      const itemName = found ? (isCustom ? found.name : `${found.emoji} ${found.name}`) : gainText;
+      prize = { type: 'item', itemId: selectedItemId, name: itemName, quantity: 1 };
+    } else {
+      prize = { type: 'libre', name: gainText, quantity: 1 };
+    }
+
     const gwSettings = getSettings();
     const giveaway = await giveawayManager.createGiveaway({
       title: titre,
       description: '',
       conditions,
-      prize: { type: 'libre', name: gain, quantity: 1 },
+      prize,
       winnerCount: gagnants,
       endTime,
       channelId: targetChannelId,
@@ -1306,6 +1318,24 @@ client.on('interactionCreate', async interaction => {
           });
         filtered.push({ name: '➕ Item occasionnel (remplis le champ "nom")', value: '__libre__' });
         try { await interaction.respond(filtered); } catch (e) {}
+      }
+    }
+    if (commandName === 'creer-giveway') {
+      const focusedOption = interaction.options.getFocused(true);
+      if (focusedOption.name === 'gain') {
+        const search = focusedOption.value.toLowerCase().trim();
+        const itemTypes = getItemTypes();
+        const filtered = itemTypes
+          .filter(it => !search || it.name.toLowerCase().includes(search) || it.id.includes(search))
+          .slice(0, 24)
+          .map(it => {
+            const isCustom = /^<a?:\w+:\d+>$/.test(it.emoji);
+            const label = isCustom ? it.name : `${it.emoji} ${it.name}`;
+            return { name: label.slice(0, 100), value: it.id };
+          });
+        // Ajouter l'option item occasionnel en premier
+        filtered.unshift({ name: '✨ Item occasionnel (saisir dans le formulaire)', value: '__libre__' });
+        try { await interaction.respond(filtered.slice(0, 25)); } catch (e) {}
       }
     }
     return;
@@ -2538,19 +2568,42 @@ client.on('interactionCreate', async interaction => {
     }
     const pingEveryone = interaction.options.getBoolean('ping_everyone') ? '1' : '0';
     const channelId = interaction.channelId;
+    const selectedItemId = interaction.options.getString('gain') || '';
+
+    // Pré-remplir le label du gain si un item a été sélectionné
+    let gainPreFill = '';
+    let gainLabel = 'Gain (ce que le gagnant remporte)';
+    if (selectedItemId && selectedItemId !== '__libre__') {
+      const itemTypes = getItemTypes();
+      const found = itemTypes.find(i => i.id === selectedItemId);
+      if (found) {
+        const isCustomEmoji = /^<a?:\w+:\d+>$/.test(found.emoji);
+        gainPreFill = isCustomEmoji ? found.name : `${found.emoji} ${found.name}`;
+        gainLabel = `Gain sélectionné : ${found.name}`;
+      }
+    } else if (selectedItemId === '__libre__') {
+      gainLabel = 'Item occasionnel — Saisir le nom du gain';
+    }
 
     const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
     const modal = new ModalBuilder()
-      .setCustomId(`giveway_create_modal_${channelId}|${pingEveryone}`)
+      .setCustomId(`giveway_create_modal_${channelId}|${pingEveryone}|${selectedItemId}`)
       .setTitle('🎉 Créer un Giveaway');
+
+    const gainInput = new TextInputBuilder()
+      .setCustomId('gw_gain')
+      .setLabel(gainLabel.slice(0, 45))
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true)
+      .setMaxLength(100)
+      .setPlaceholder('Ex: Pack Légendaire x1, 500 diamants...');
+    if (gainPreFill) gainInput.setValue(gainPreFill);
 
     modal.addComponents(
       new ActionRowBuilder().addComponents(
         new TextInputBuilder().setCustomId('gw_titre').setLabel('Titre du giveaway').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setPlaceholder('Ex: Giveaway Pack Légendaire')
       ),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId('gw_gain').setLabel('Gain (ce que le gagnant remporte)').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setPlaceholder('Ex: Pack Légendaire x1, 500 diamants...')
-      ),
+      new ActionRowBuilder().addComponents(gainInput),
       new ActionRowBuilder().addComponents(
         new TextInputBuilder().setCustomId('gw_heure').setLabel('Heure de fin (format 00:00)').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(5).setPlaceholder('Ex: 21:00')
       ),
@@ -2558,7 +2611,7 @@ client.on('interactionCreate', async interaction => {
         new TextInputBuilder().setCustomId('gw_gagnants').setLabel('Nombre de gagnants').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(3).setPlaceholder('Ex: 1').setValue('1')
       ),
       new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId('gw_conditions').setLabel('Conditions / description (optionnel)').setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(500).setPlaceholder('Ex: Ouvert à tous les membres, Pack Légendaire offert par...')
+        new TextInputBuilder().setCustomId('gw_conditions').setLabel('Conditions / description (optionnel)').setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(500).setPlaceholder('Ex: Ouvert à tous les membres...')
       ),
     );
 

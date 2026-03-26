@@ -1862,7 +1862,7 @@ function createWebServer(discordClient) {
     });
   });
 
-  app.post('/giveaways/create', requireAuth, async (req, res) => {
+  app.post('/giveaways/create', requireAuth, giveawayUpload.none(), async (req, res) => {
     const { title, description, conditions, prizeType, prizeItemId, prizeItemName, prizeQuantity, winnerCount, endDate, endTime, channelId, roleId, imageUrl: imageUrlInput, pingEveryone } = req.body;
     const settings = getSettings();
     const targetChannelId = channelId || settings.guild?.giveawayChannelId || settings.guild?.resultsChannelId;
@@ -1927,7 +1927,7 @@ function createWebServer(discordClient) {
     res.json({ success: true, id: giveaway.id });
   });
 
-  app.post('/giveaways/:id/update-image', requireAdmin, async (req, res) => {
+  app.post('/giveaways/:id/update-image', requireAdmin, giveawayUpload.none(), async (req, res) => {
     const { id } = req.params;
     const { imageUrl: imageUrlInput } = req.body;
     const g = giveawayManager.getGiveaway(id);
@@ -2062,7 +2062,7 @@ function createWebServer(discordClient) {
     }
   }
 
-  app.post('/giveaways/set-default-image', requireAdmin, async (req, res) => {
+  app.post('/giveaways/set-default-image', requireAdmin, giveawayUpload.none(), async (req, res) => {
     const { imageUrl } = req.body;
     await updateSection('giveaway', { defaultImageUrl: imageUrl?.trim() || '' });
     res.json({ success: true });
