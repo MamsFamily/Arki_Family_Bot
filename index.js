@@ -953,17 +953,6 @@ client.on('interactionCreate', async interaction => {
         const itemTypes = getItemTypes();
 
         if (subcommand === 'ajouter') {
-          // Mode item occasionnel : l'utilisateur tape le nom après "__libre__:"
-          if (raw.startsWith('__libre__:')) {
-            const libreName = raw.slice('__libre__:'.length);
-            const choices = libreName.trim()
-              ? [{ name: `✅ Item occasionnel : ${libreName.trim()}`.slice(0, 100), value: `__libre__:${libreName.trim()}` }]
-              : [{ name: '✏️ Tape le nom de l\'item après le :', value: '__libre__:' }];
-            try { await interaction.respond(choices); } catch (e) {}
-            return;
-          }
-
-          // Mode normal : liste des items + option occasionnel en bas
           const search = raw.toLowerCase().trim();
           const filtered = itemTypes
             .filter(it => !search || it.name.toLowerCase().includes(search) || it.id.includes(search) || it.emoji.includes(search))
@@ -974,7 +963,7 @@ client.on('interactionCreate', async interaction => {
               return { name: baseName.slice(0, 100), value: it.id };
             });
 
-          filtered.push({ name: '➕ Ajouter item occasionnel', value: '__libre__:' });
+          filtered.push({ name: '➕ Ajouter item occasionnel', value: '__libre__' });
 
           try { await interaction.respond(filtered); } catch (e) {}
 
@@ -1938,16 +1927,18 @@ client.on('interactionCreate', async interaction => {
       const targetUser = interaction.options.getUser('joueur');
       const rawItem = interaction.options.getString('item');
       const commandQty = interaction.options.getInteger('quantité');
+      const nomLibre = interaction.options.getString('nom') || '';
       const reason = interaction.options.getString('raison') || '';
 
       let itemTypeId, itemLabel;
       const quantity = commandQty;
 
-      if (rawItem.startsWith('__libre__:')) {
-        // Item occasionnel — format: __libre__:{nom}
-        const name = rawItem.slice('__libre__:'.length).trim();
+      if (rawItem === '__libre__' || rawItem.startsWith('__libre__:')) {
+        // Item occasionnel — le nom vient du champ "nom" ou est embarqué dans la valeur
+        const embedded = rawItem.startsWith('__libre__:') ? rawItem.slice('__libre__:'.length).trim() : '';
+        const name = (nomLibre || embedded).trim();
         if (!name) {
-          return interaction.reply({ content: '❌ Tape le nom de l\'item occasionnel dans le champ item (ex: Pack Boss Gamma), puis sélectionne l\'option ➕ qui apparaît en bas.', ephemeral: true });
+          return interaction.reply({ content: '❌ Indique le nom de l\'item dans le champ **nom** (ex: Pack Boss Gamma).', ephemeral: true });
         }
         itemTypeId = `[libre] ${name}`;
         itemLabel = `📦 ${name}`;
