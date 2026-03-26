@@ -59,6 +59,9 @@ const DEFAULTS = {
     adminPassword: envOr('DASHBOARD_PASSWORD', 'eden6'),
     staffPassword: 'arkistaff',
   },
+  giveaway: {
+    defaultImageUrl: '',
+  },
   aliases: {},
 };
 

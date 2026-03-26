@@ -1849,6 +1849,7 @@ function createWebServer(discordClient) {
   app.get('/giveaways', requireAuth, (req, res) => {
     const giveaways = giveawayManager.getAllGiveaways();
     const itemTypes = inventoryManager.getItemTypes();
+    const settings = getSettings();
     res.render('giveaways', {
       path: '/giveaways',
       role: req.session.role,
@@ -1857,6 +1858,7 @@ function createWebServer(discordClient) {
       giveaways,
       itemTypes,
       formatTimeLeft: giveawayManager.formatTimeLeft,
+      defaultImageUrl: settings.giveaway?.defaultImageUrl || '',
     });
   });
 
@@ -1887,8 +1889,13 @@ function createWebServer(discordClient) {
       return res.json({ error: 'Heure de fin requise.' });
     }
 
-    let imageUrl = '';
-    if (req.file) imageUrl = `/uploads/${req.file.filename}`;
+    const currentSettings = getSettings();
+    let imageUrl = currentSettings.giveaway?.defaultImageUrl || '';
+    if (req.file) {
+      imageUrl = `/uploads/${req.file.filename}`;
+      // Sauvegarder comme image par défaut pour les prochains giveaways
+      await updateSection('giveaway', { defaultImageUrl: imageUrl });
+    }
 
     const giveaway = await giveawayManager.createGiveaway({
       title, description, conditions, prize,
@@ -1928,6 +1935,8 @@ function createWebServer(discordClient) {
     if (!req.file) return res.json({ error: 'Aucune image fournie.' });
     const imageUrl = `/uploads/${req.file.filename}`;
     await giveawayManager.updateImageUrl(id, imageUrl);
+    // Mémoriser comme image par défaut pour les prochains giveaways
+    await updateSection('giveaway', { defaultImageUrl: imageUrl });
     if (discordClient && g.messageId && g.channelId) {
       try {
         const channel = await discordClient.channels.fetch(g.channelId);
@@ -2054,6 +2063,11 @@ function createWebServer(discordClient) {
       console.error('[Giveaway] Erreur fin giveaway (dashboard):', e);
     }
   }
+
+  app.post('/giveaways/clear-default-image', requireAdmin, async (req, res) => {
+    await updateSection('giveaway', { defaultImageUrl: '' });
+    res.json({ success: true });
+  });
 
   app.get('/giveaways/:id/participants', requireAuth, (req, res) => {
     const g = giveawayManager.getGiveaway(req.params.id);

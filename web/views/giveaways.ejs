@@ -40,6 +40,19 @@
       <button class="btn btn-primary" onclick="document.getElementById('createModal').classList.add('show')">➕ Créer un Giveaway</button>
     </div>
 
+    <% if (role === 'admin') { %>
+    <div class="card" style="margin-bottom:20px;padding:16px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      <div style="font-size:13px;color:var(--text-secondary);font-weight:600;min-width:160px;">🖼️ Image par défaut</div>
+      <% if (defaultImageUrl) { %>
+        <img src="<%=defaultImageUrl%>" alt="Image par défaut" style="height:56px;border-radius:8px;object-fit:cover;border:1px solid var(--border-color);">
+        <span style="font-size:12px;color:var(--text-muted);flex:1;">Utilisée automatiquement à chaque nouveau giveaway.</span>
+        <button class="btn btn-sm btn-danger" onclick="clearDefaultImage()">✕ Retirer</button>
+      <% } else { %>
+        <span style="font-size:13px;color:var(--text-muted);flex:1;">Aucune image par défaut — upload une image via <strong>🖼️ Image</strong> sur un giveaway existant pour la définir.</span>
+      <% } %>
+    </div>
+    <% } %>
+
     <% const active = giveaways.filter(g => g.status === 'active'); %>
     <% const ended = giveaways.filter(g => g.status === 'ended'); %>
 
@@ -331,6 +344,13 @@
     async function deleteGiveaway(id, title) {
       if (!confirm('Supprimer définitivement le giveaway "' + title + '" ?')) return;
       var r = await fetch('/giveaways/' + id + '/delete', { method:'POST' });
+      var d = await r.json();
+      if (d.success) location.reload();
+      else alert('❌ Erreur : ' + (d.error || 'inconnue'));
+    }
+    async function clearDefaultImage() {
+      if (!confirm('Retirer l\'image par défaut ? Les prochains giveaways n\'auront plus d\'image automatique.')) return;
+      var r = await fetch('/giveaways/clear-default-image', { method:'POST' });
       var d = await r.json();
       if (d.success) location.reload();
       else alert('❌ Erreur : ' + (d.error || 'inconnue'));
