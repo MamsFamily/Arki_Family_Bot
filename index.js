@@ -731,30 +731,34 @@ client.on('interactionCreate', async interaction => {
     const salonId = interaction.customId.replace('giveway_create_modal_', '');
     const titre = interaction.fields.getTextInputValue('gw_titre').trim();
     const gain = interaction.fields.getTextInputValue('gw_gain').trim();
-    const dureeRaw = interaction.fields.getTextInputValue('gw_duree').trim();
+    const heureRaw = interaction.fields.getTextInputValue('gw_heure').trim();
+    const gagnantsRaw = interaction.fields.getTextInputValue('gw_gagnants').trim();
     const conditions = interaction.fields.getTextInputValue('gw_conditions').trim();
-    const description = interaction.fields.getTextInputValue('gw_description').trim();
 
-    // Parser la durée et le nombre de gagnants depuis le champ libre
-    // Formats acceptés : "24", "24h", "24h 3gagnants", "48h 2", "48 gagnants:2"
-    let dureeH = 24;
-    let gagnants = 1;
-    const dureeMatch = dureeRaw.match(/(\d+)/g);
-    if (dureeMatch && dureeMatch.length >= 1) dureeH = parseInt(dureeMatch[0]);
-    if (dureeMatch && dureeMatch.length >= 2) gagnants = parseInt(dureeMatch[1]);
+    // Parser l'heure de fin (format HH:MM)
+    const heureMatch = heureRaw.match(/^(\d{1,2}):(\d{2})$/);
+    if (!heureMatch) {
+      return interaction.reply({ content: '❌ Format d\'heure invalide. Utilise le format **00:00** (ex: 21:00).', ephemeral: true });
+    }
+    const [, hh, mm] = heureMatch;
+    const now = new Date();
+    const endDateTime = new Date();
+    endDateTime.setHours(parseInt(hh), parseInt(mm), 0, 0);
+    // Si l'heure est déjà passée aujourd'hui, on programme pour demain
+    if (endDateTime <= now) endDateTime.setDate(endDateTime.getDate() + 1);
 
-    if (dureeH < 1) dureeH = 1;
-    if (gagnants < 1) gagnants = 1;
+    const gagnants = Math.max(1, parseInt(gagnantsRaw) || 1);
 
     const settings = getSettings();
     const targetChannelId = salonId || settings.guild?.giveawayChannelId || settings.guild?.resultsChannelId || interaction.channelId;
-    const endTime = new Date(Date.now() + dureeH * 60 * 60 * 1000).toISOString();
+    const endTime = endDateTime.toISOString();
 
     await interaction.deferReply({ ephemeral: true });
 
+    const settings2 = getSettings();
     const giveaway = await giveawayManager.createGiveaway({
       title: titre,
-      description,
+      description: '',
       conditions,
       prize: { type: 'libre', name: gain, quantity: 1 },
       winnerCount: gagnants,
@@ -763,7 +767,7 @@ client.on('interactionCreate', async interaction => {
       guildId: interaction.guildId,
       createdBy: interaction.user.id,
       createdByName: interaction.member?.displayName || interaction.user.username,
-      imageUrl: '',
+      imageUrl: settings2.giveaway?.defaultImageUrl || '',
       roleId: '',
     });
 
@@ -774,7 +778,8 @@ client.on('interactionCreate', async interaction => {
       const msg = await channel.send({ embeds: [embed], components: [row] });
       await giveawayManager.updateMessageId(giveaway.id, msg.id);
       scheduleGiveawayEnd(giveaway, client);
-      return interaction.editReply({ content: `✅ Giveaway **${titre}** publié dans <#${targetChannelId}> !\n⏱️ Durée : **${dureeH}h** | 🏆 Gagnants : **${gagnants}** | ID : \`${giveaway.id}\`` });
+      const finStr = endDateTime.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+      return interaction.editReply({ content: `✅ Giveaway **${titre}** publié dans <#${targetChannelId}> !\n⏰ Fin : **${finStr}** | 🏆 Gagnants : **${gagnants}** | ID : \`${giveaway.id}\`` });
     } catch (e) {
       console.error('[Giveaway] Erreur publication modal:', e);
       return interaction.editReply({ content: `⚠️ Giveaway créé (ID : \`${giveaway.id}\`) mais erreur de publication : ${e.message}` });
@@ -2532,13 +2537,13 @@ client.on('interactionCreate', async interaction => {
         new TextInputBuilder().setCustomId('gw_gain').setLabel('Gain (ce que le gagnant remporte)').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setPlaceholder('Ex: Pack Légendaire x1, 500 diamants...')
       ),
       new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId('gw_duree').setLabel('Durée (en heures) et nb de gagnants').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(20).setPlaceholder('Ex: 24  ou  24h 3gagnants').setValue('24')
+        new TextInputBuilder().setCustomId('gw_heure').setLabel('Heure de fin (format 00:00)').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(5).setPlaceholder('Ex: 21:00')
       ),
       new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId('gw_conditions').setLabel('Conditions (optionnel)').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(200).setPlaceholder('Ex: Ouvert à tous, Pour les membres +30j...')
+        new TextInputBuilder().setCustomId('gw_gagnants').setLabel('Nombre de gagnants').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(3).setPlaceholder('Ex: 1').setValue('1')
       ),
       new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId('gw_description').setLabel('Description / contexte (optionnel)').setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(500).setPlaceholder('Texte de présentation affiché dans l\'embed...')
+        new TextInputBuilder().setCustomId('gw_conditions').setLabel('Conditions / description (optionnel)').setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(500).setPlaceholder('Ex: Ouvert à tous les membres, Pack Légendaire offert par...')
       ),
     );
 
