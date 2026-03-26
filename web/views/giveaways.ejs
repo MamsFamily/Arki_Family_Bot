@@ -73,11 +73,9 @@
           </div>
           <div class="gw-actions" style="margin-top:12px;">
             <button class="btn btn-sm btn-secondary" onclick="openParticipants('<%=g.id%>')">👥 Participants</button>
-            <% if (role === 'admin') { %>
             <button class="btn btn-sm btn-primary" onclick="openUpdateImage('<%=g.id%>')">🖼️ Image</button>
             <button class="btn btn-sm" style="background:#e67e22;color:#fff;" onclick="endGiveaway('<%=g.id%>','<%=g.title%>')">⏩ Terminer</button>
             <button class="btn btn-sm btn-danger" onclick="deleteGiveaway('<%=g.id%>','<%=g.title%>')">🗑️ Supprimer</button>
-            <% } %>
           </div>
         </div>
       </div>
@@ -107,9 +105,7 @@
           <% } %>
           <div class="gw-actions" style="margin-top:10px;">
             <button class="btn btn-sm btn-secondary" onclick="openParticipants('<%=g.id%>')">👥 Participants</button>
-            <% if (role === 'admin') { %>
             <button class="btn btn-sm btn-danger" onclick="deleteGiveaway('<%=g.id%>','<%=g.title%>')">🗑️ Supprimer</button>
-            <% } %>
           </div>
         </div>
       </div>

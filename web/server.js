@@ -1940,7 +1940,7 @@ function createWebServer(discordClient) {
     res.json({ success: true, imageUrl });
   });
 
-  app.post('/giveaways/:id/delete', requireAdmin, async (req, res) => {
+  app.post('/giveaways/:id/delete', requireAuth, async (req, res) => {
     const { id } = req.params;
     const g = giveawayManager.getGiveaway(id);
     if (g && g.messageId && g.channelId && discordClient) {
@@ -1954,7 +1954,7 @@ function createWebServer(discordClient) {
     res.json({ success: true });
   });
 
-  app.post('/giveaways/:id/end', requireAdmin, async (req, res) => {
+  app.post('/giveaways/:id/end', requireAuth, async (req, res) => {
     const { id } = req.params;
     const g = giveawayManager.getGiveaway(id);
     if (!g) return res.json({ error: 'Giveaway introuvable.' });
