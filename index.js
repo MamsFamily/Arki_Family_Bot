@@ -357,10 +357,17 @@ client.once('clientReady', async () => {
   await initShop();
   await initInventory();
   await initSpecialPacks();
+  await giveawayManager.initGiveaways();
 
   config = getConfig();
 
   createWebServer(client);
+
+  // Publier les giveaways sans messageId + programmer les timers
+  await publishAndScheduleGiveaways(client);
+  // Polling toutes les 60s pour détecter les nouveaux giveaways créés depuis le dashboard
+  setInterval(() => publishAndScheduleGiveaways(client), 60 * 1000);
+
   console.log('✅ Bot Discord Arki Roulette est en ligne !');
   console.log(`📝 Connecté en tant que ${client.user.tag}`);
 
@@ -527,6 +534,136 @@ Reste concis. Ne mets pas de guillemets autour du texte. Ne dis pas quel personn
     console.error('Erreur traduction par réaction:', error);
   }
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// GIVEAWAY HELPERS (bot Railway)
+// ────────────────────────────────────────────────────────────────────────────
+const giveawayTimers = new Map();
+
+function buildGiveawayButton(id) {
+  const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`giveway_join_${id}`)
+      .setLabel('🎉 Je participe')
+      .setStyle(ButtonStyle.Primary)
+  );
+}
+
+async function endGiveawayNow(id, botClient) {
+  const g = giveawayManager.getGiveaway(id);
+  if (!g || g.status !== 'active') return;
+
+  // Vider les timers
+  if (giveawayTimers.has(id)) { clearTimeout(giveawayTimers.get(id)); giveawayTimers.delete(id); }
+  if (giveawayTimers.has(`${id}_interval`)) { clearInterval(giveawayTimers.get(`${id}_interval`)); giveawayTimers.delete(`${id}_interval`); }
+
+  const winners = await giveawayManager.drawWinners(id);
+  const updated = giveawayManager.getGiveaway(id);
+
+  try {
+    const channel = await botClient.channels.fetch(g.channelId);
+
+    // Mettre à jour l'embed en mode "terminé"
+    if (g.messageId) {
+      const msg = await channel.messages.fetch(g.messageId).catch(() => null);
+      if (msg) {
+        const endEmbed = buildGiveawayEmbed(updated);
+        endEmbed.setColor('#95a5a6');
+        const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+        const disabledRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId(`giveway_join_${id}`).setLabel('🎉 Je participe').setStyle(ButtonStyle.Primary).setDisabled(true)
+        );
+        await msg.edit({ embeds: [endEmbed], components: [disabledRow] });
+      }
+    }
+
+    // Annoncer les gagnants
+    if (winners && winners.length > 0) {
+      const winnerMentions = winners.map(uid => `<@${uid}>`).join(', ');
+      const prizeLabel = g.prize.type === 'libre'
+        ? `📦 ${g.prize.name} ×${g.prize.quantity}`
+        : `🎁 ${g.prize.itemId} ×${g.prize.quantity}`;
+      await channel.send(`🎉 **Fin du Giveaway !**\n\n🏆 Félicitations ${winnerMentions} ! Vous remportez **${prizeLabel}** !\n\n> Contactez un administrateur pour recevoir votre gain.`);
+
+      // DM gagnants
+      for (const uid of winners) {
+        try {
+          const user = await botClient.users.fetch(uid);
+          await user.send(`🎉 Félicitations ! Tu as gagné le giveaway **${g.title}** sur Arki Family !\nTu remportes : **${prizeLabel}**\nContacte un administrateur pour recevoir ton gain.`);
+        } catch (e) {}
+      }
+
+      // Distribution auto items inventaire
+      if (g.prize.type === 'item') {
+        for (const uid of winners) {
+          try { addToInventory(uid, g.prize.itemId, g.prize.quantity, 'giveaway', g.title); } catch (e) {}
+        }
+      }
+    } else {
+      await channel.send(`😔 **Fin du Giveaway "${g.title}"** — Aucun participant éligible pour le tirage.`);
+    }
+  } catch (e) {
+    console.error('[Giveaway] Erreur fin giveaway:', e);
+  }
+}
+
+function scheduleGiveawayEnd(g, botClient) {
+  // Nettoyer les anciens timers si existants
+  if (giveawayTimers.has(g.id)) { clearTimeout(giveawayTimers.get(g.id)); giveawayTimers.delete(g.id); }
+  if (giveawayTimers.has(`${g.id}_interval`)) { clearInterval(giveawayTimers.get(`${g.id}_interval`)); giveawayTimers.delete(`${g.id}_interval`); }
+
+  const delay = new Date(g.endTime).getTime() - Date.now();
+  if (delay <= 0) {
+    endGiveawayNow(g.id, botClient);
+    return;
+  }
+
+  const t = setTimeout(() => endGiveawayNow(g.id, botClient), delay);
+  giveawayTimers.set(g.id, t);
+
+  // Rafraîchir l'embed toutes les minutes
+  const interval = setInterval(async () => {
+    const current = giveawayManager.getGiveaway(g.id);
+    if (!current || current.status !== 'active') { clearInterval(interval); giveawayTimers.delete(`${g.id}_interval`); return; }
+    if (!current.messageId || !current.channelId) return;
+    try {
+      const channel = await botClient.channels.fetch(current.channelId);
+      const msg = await channel.messages.fetch(current.messageId).catch(() => null);
+      if (msg) await msg.edit({ embeds: [buildGiveawayEmbed(current)] });
+    } catch (e) {}
+  }, 60 * 1000);
+  giveawayTimers.set(`${g.id}_interval`, interval);
+}
+
+async function publishAndScheduleGiveaways(botClient) {
+  // Recharger depuis PostgreSQL pour détecter les nouveaux giveaways créés depuis le dashboard
+  await giveawayManager.initGiveaways();
+
+  const active = giveawayManager.getActiveGiveaways();
+  for (const g of active) {
+    // Publier les giveaways qui n'ont pas encore d'embed Discord
+    if (!g.messageId && g.channelId) {
+      try {
+        const channel = await botClient.channels.fetch(g.channelId);
+        if (channel) {
+          const embed = buildGiveawayEmbed(g);
+          const row = buildGiveawayButton(g.id);
+          const msg = await channel.send({ embeds: [embed], components: [row] });
+          await giveawayManager.updateMessageId(g.id, msg.id);
+          console.log(`[Giveaway] Publié : "${g.title}" (${g.id}) dans #${g.channelId}`);
+        }
+      } catch (e) {
+        console.error(`[Giveaway] Erreur publication "${g.id}":`, e.message);
+      }
+    }
+
+    // Programmer le timer si pas encore fait
+    if (!giveawayTimers.has(g.id)) {
+      scheduleGiveawayEnd(g, botClient);
+    }
+  }
+}
 
 function buildGiveawayEmbed(g) {
   const timeLeft = giveawayManager.formatTimeLeft(g.endTime);

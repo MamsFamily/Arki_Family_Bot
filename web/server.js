@@ -1911,7 +1911,7 @@ function createWebServer(discordClient) {
           const row = buildGiveawayButton(giveaway.id);
           const msg = await channel.send({ embeds: [embed], components: [row] });
           await giveawayManager.updateMessageId(giveaway.id, msg.id);
-          scheduleGiveawayEnd(giveaway, discordClient);
+          // Les timers/scheduling sont gérés par le bot (index.js)
         }
       } catch (e) {
         console.error('[Giveaway] Erreur publication Discord:', e);
@@ -2010,6 +2010,8 @@ function createWebServer(discordClient) {
     );
   }
 
+  // endGiveawayNow : utilisé pour la terminaison manuelle depuis le dashboard
+  // Les timers automatiques sont gérés exclusivement par le bot (index.js)
   async function endGiveawayNow(id, client) {
     const g = giveawayManager.getGiveaway(id);
     if (!g || g.status !== 'active') return;
@@ -2029,10 +2031,10 @@ function createWebServer(discordClient) {
           await msg.edit({ embeds: [endEmbed], components: [disabledRow] });
         }
       }
+      const prizeLabel = g.prize.type === 'libre' ? `📦 ${g.prize.name} ×${g.prize.quantity}` : `🎁 ${g.prize.itemId} ×${g.prize.quantity}`;
       if (winners && winners.length > 0) {
         const winnerMentions = winners.map(uid => `<@${uid}>`).join(', ');
-        const prizeLabel = g.prize.type === 'libre' ? `📦 ${g.prize.name} ×${g.prize.quantity}` : `🎁 ${g.prize.itemId} ×${g.prize.quantity}`;
-        await channel.send(`🎉 **Fin du Giveaway !** Le tirage est terminé !\n\n🏆 Félicitations ${winnerMentions} ! Vous remportez **${prizeLabel}** !\n\n> Contactez un administrateur pour recevoir votre gain.`);
+        await channel.send(`🎉 **Fin du Giveaway !**\n\n🏆 Félicitations ${winnerMentions} ! Vous remportez **${prizeLabel}** !\n\n> Contactez un administrateur pour recevoir votre gain.`);
         for (const uid of winners) {
           try {
             const user = await client.users.fetch(uid);
@@ -2049,33 +2051,8 @@ function createWebServer(discordClient) {
         await channel.send(`😔 **Fin du Giveaway "${g.title}"** — Aucun participant éligible pour le tirage.`);
       }
     } catch (e) {
-      console.error('[Giveaway] Erreur fin giveaway:', e);
+      console.error('[Giveaway] Erreur fin giveaway (dashboard):', e);
     }
-  }
-
-  const giveawayTimers = new Map();
-  function scheduleGiveawayEnd(g, client) {
-    if (giveawayTimers.has(g.id)) clearTimeout(giveawayTimers.get(g.id));
-    const delay = new Date(g.endTime).getTime() - Date.now();
-    if (delay <= 0) {
-      endGiveawayNow(g.id, client);
-      return;
-    }
-    const t = setTimeout(() => endGiveawayNow(g.id, client), delay);
-    giveawayTimers.set(g.id, t);
-
-    // Mise à jour live de l'embed toutes les minutes
-    const updateInterval = setInterval(async () => {
-      const current = giveawayManager.getGiveaway(g.id);
-      if (!current || current.status !== 'active') { clearInterval(updateInterval); return; }
-      if (!current.messageId || !current.channelId) return;
-      try {
-        const channel = await client.channels.fetch(current.channelId);
-        const msg = await channel.messages.fetch(current.messageId).catch(() => null);
-        if (msg) await msg.edit({ embeds: [buildGiveawayEmbed(current, client)] });
-      } catch (e) {}
-    }, 60 * 1000);
-    giveawayTimers.set(`${g.id}_interval`, updateInterval);
   }
 
   app.get('/giveaways/:id/participants', requireAuth, (req, res) => {
@@ -2098,17 +2075,8 @@ function createWebServer(discordClient) {
     res.json({ success: true });
   });
 
-  // Reprendre les timers des giveaways actifs au démarrage
-  if (discordClient) {
-    giveawayManager.initGiveaways().then(() => {
-      for (const g of giveawayManager.getActiveGiveaways()) {
-        scheduleGiveawayEnd(g, discordClient);
-      }
-    });
-  }
-
-  // Exposer pour index.js (accès via module.exports)
-  app._giveawayHelpers = { buildGiveawayEmbed, buildGiveawayButton, scheduleGiveawayEnd };
+  // Les timers et la publication Discord des giveaways sont gérés
+  // exclusivement par le bot (index.js via publishAndScheduleGiveaways)
   // ────────────────────────────────────────────────────────────────────────────
 
   const PORT = 5000;
