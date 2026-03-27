@@ -1010,6 +1010,59 @@ client.on('interactionCreate', async interaction => {
   }
 
   if (interaction.isStringSelectMenu()) {
+    // ── Sélection du gain pour la création de giveaway ──
+    if (interaction.customId.startsWith('giveaway_item_select_')) {
+      const parts = interaction.customId.replace('giveaway_item_select_', '').split('|');
+      const channelId = parts[0];
+      const pingEveryone = parts[1] || '0';
+      const selectedItemId = interaction.values[0];
+
+      let gainPreFill = '';
+      let gainLabel = 'Gain (ce que le gagnant remporte)';
+      if (selectedItemId && selectedItemId !== '__libre__') {
+        const itemTypes = getItemTypes();
+        const found = itemTypes.find(i => i.id === selectedItemId);
+        if (found) {
+          const isCustomEmoji = /^<a?:\w+:\d+>$/.test(found.emoji);
+          gainPreFill = isCustomEmoji ? found.name : `${found.emoji} ${found.name}`;
+          gainLabel = `Gain : ${found.name}`.slice(0, 45);
+        }
+      } else if (selectedItemId === '__libre__') {
+        gainLabel = 'Item occasionnel — Nom du gain';
+      }
+
+      const modal = new ModalBuilder()
+        .setCustomId(`giveway_create_modal_${channelId}|${pingEveryone}|${selectedItemId}`)
+        .setTitle('🎉 Créer un Giveaway');
+
+      const gainInput = new TextInputBuilder()
+        .setCustomId('gw_gain')
+        .setLabel(gainLabel)
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setMaxLength(100)
+        .setPlaceholder('Ex: Pack Légendaire x1, 500 diamants...');
+      if (gainPreFill) gainInput.setValue(gainPreFill);
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId('gw_titre').setLabel('Titre du giveaway').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setPlaceholder('Ex: Giveaway Pack Légendaire')
+        ),
+        new ActionRowBuilder().addComponents(gainInput),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId('gw_heure').setLabel('Heure de fin (format 00:00)').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(5).setPlaceholder('Ex: 21:00')
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId('gw_gagnants').setLabel('Nombre de gagnants').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(3).setPlaceholder('Ex: 1').setValue('1')
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId('gw_conditions').setLabel('Conditions / description (optionnel)').setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(500).setPlaceholder('Ex: Ouvert à tous les membres...')
+        ),
+      );
+
+      return interaction.showModal(modal);
+    }
+
     if (interaction.customId === 'dino_letter_select') {
       const selectedLetter = interaction.values[0];
 
@@ -1316,24 +1369,6 @@ client.on('interactionCreate', async interaction => {
           });
         filtered.push({ name: '➕ Item occasionnel (remplis le champ "nom")', value: '__libre__' });
         try { await interaction.respond(filtered); } catch (e) {}
-      }
-    }
-    if (commandName === 'creer-giveway') {
-      const focusedOption = interaction.options.getFocused(true);
-      if (focusedOption.name === 'gain') {
-        const search = focusedOption.value.toLowerCase().trim();
-        const itemTypes = getItemTypes();
-        const filtered = itemTypes
-          .filter(it => !search || it.name.toLowerCase().includes(search) || it.id.includes(search))
-          .slice(0, 24)
-          .map(it => {
-            const isCustom = /^<a?:\w+:\d+>$/.test(it.emoji);
-            const label = isCustom ? it.name : `${it.emoji} ${it.name}`;
-            return { name: label.slice(0, 100), value: it.id };
-          });
-        // Ajouter l'option item occasionnel en premier
-        filtered.unshift({ name: '✨ Item occasionnel (saisir dans le formulaire)', value: '__libre__' });
-        try { await interaction.respond(filtered.slice(0, 25)); } catch (e) {}
       }
     }
     return;
@@ -2566,54 +2601,32 @@ client.on('interactionCreate', async interaction => {
     }
     const pingEveryone = interaction.options.getBoolean('ping_everyone') ? '1' : '0';
     const channelId = interaction.channelId;
-    const selectedItemId = interaction.options.getString('gain') || '';
 
-    // Pré-remplir le label du gain si un item a été sélectionné
-    let gainPreFill = '';
-    let gainLabel = 'Gain (ce que le gagnant remporte)';
-    if (selectedItemId && selectedItemId !== '__libre__') {
-      const itemTypes = getItemTypes();
-      const found = itemTypes.find(i => i.id === selectedItemId);
-      if (found) {
-        const isCustomEmoji = /^<a?:\w+:\d+>$/.test(found.emoji);
-        gainPreFill = isCustomEmoji ? found.name : `${found.emoji} ${found.name}`;
-        gainLabel = `Gain sélectionné : ${found.name}`;
-      }
-    } else if (selectedItemId === '__libre__') {
-      gainLabel = 'Item occasionnel — Saisir le nom du gain';
-    }
+    // Étape 1 : afficher un menu de sélection pour choisir le gain
+    const itemTypes = getItemTypes();
+    const options = itemTypes.slice(0, 24).map(it => {
+      const isCustom = /^<a?:\w+:\d+>$/.test(it.emoji);
+      return {
+        label: it.name.slice(0, 100),
+        value: it.id,
+        emoji: isCustom ? undefined : it.emoji || undefined,
+        description: `Item d'inventaire — crédité automatiquement`.slice(0, 100),
+      };
+    });
+    options.push({ label: 'Item occasionnel', value: '__libre__', emoji: '✨', description: 'Saisir le nom manuellement dans le formulaire' });
 
-    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
-    const modal = new ModalBuilder()
-      .setCustomId(`giveway_create_modal_${channelId}|${pingEveryone}|${selectedItemId}`)
-      .setTitle('🎉 Créer un Giveaway');
+    const selectMenu = new StringSelectMenuBuilder()
+      .setCustomId(`giveaway_item_select_${channelId}|${pingEveryone}`)
+      .setPlaceholder('🎁 Choisir le gain du giveaway...')
+      .addOptions(options);
 
-    const gainInput = new TextInputBuilder()
-      .setCustomId('gw_gain')
-      .setLabel(gainLabel.slice(0, 45))
-      .setStyle(TextInputStyle.Short)
-      .setRequired(true)
-      .setMaxLength(100)
-      .setPlaceholder('Ex: Pack Légendaire x1, 500 diamants...');
-    if (gainPreFill) gainInput.setValue(gainPreFill);
+    const row = new ActionRowBuilder().addComponents(selectMenu);
 
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId('gw_titre').setLabel('Titre du giveaway').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setPlaceholder('Ex: Giveaway Pack Légendaire')
-      ),
-      new ActionRowBuilder().addComponents(gainInput),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId('gw_heure').setLabel('Heure de fin (format 00:00)').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(5).setPlaceholder('Ex: 21:00')
-      ),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId('gw_gagnants').setLabel('Nombre de gagnants').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(3).setPlaceholder('Ex: 1').setValue('1')
-      ),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId('gw_conditions').setLabel('Conditions / description (optionnel)').setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(500).setPlaceholder('Ex: Ouvert à tous les membres...')
-      ),
-    );
-
-    return interaction.showModal(modal);
+    return interaction.reply({
+      content: '## 🎉 Créer un Giveaway\n**Étape 1/2 — Choisissez le gain :**',
+      components: [row],
+      ephemeral: true,
+    });
   }
 
   if (commandName === 'giveway-participants') {
