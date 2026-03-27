@@ -420,6 +420,22 @@ body {
   text-overflow: ellipsis;
 }
 
+.nitrado-map-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-light);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2px 10px;
+  margin-bottom: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
 .nitrado-players {
   display: flex;
   align-items: baseline;

@@ -295,6 +295,16 @@ function createWebServer(discordClient) {
     });
   });
 
+  app.get('/api/nitrado', requireAdmin, async (req, res) => {
+    const { fetchNitradoServers } = require('../nitradoService');
+    try {
+      const servers = await fetchNitradoServers();
+      res.json({ ok: true, servers, updatedAt: Date.now() });
+    } catch (err) {
+      res.json({ ok: false, servers: [], updatedAt: Date.now() });
+    }
+  });
+
   app.get('/roulette', requireAdmin, async (req, res) => {
     const config = await readConfig();
     res.render('roulette', { config, success: null, error: null });
