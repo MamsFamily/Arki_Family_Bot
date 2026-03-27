@@ -673,17 +673,13 @@ async function publishAndScheduleGiveaways(botClient) {
 
 function buildGiveawayEmbed(g) {
   const timeLeft = giveawayManager.formatTimeLeft(g.endTime);
-  const endDate = new Date(g.endTime);
-  const endStr = endDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  const endDateStr = endDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
-  const prizeLabel = g.prize.type === 'libre'
-    ? `📦 ${g.prize.name} ×${g.prize.quantity}`
-    : `🎁 ${g.prize.itemId} ×${g.prize.quantity}`;
-
   const parisOpts = { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' };
   const parisDateOpts = { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit' };
   const endStr = new Date(g.endTime).toLocaleTimeString('fr-FR', parisOpts);
   const endDateStr = new Date(g.endTime).toLocaleDateString('fr-FR', parisDateOpts);
+  const prizeLabel = g.prize.type === 'libre'
+    ? `📦 ${g.prize.name} ×${g.prize.quantity}`
+    : `🎁 ${g.prize.itemId} ×${g.prize.quantity}`;
 
   const embed = new EmbedBuilder()
     .setColor('#FF6B6B')
