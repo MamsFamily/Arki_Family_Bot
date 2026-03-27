@@ -332,8 +332,12 @@
           <div class="card-body">
             <div class="tx-filters">
               <div class="form-group">
-                <label>Joueur (ID)</label>
-                <input type="text" id="txFilterPlayer" placeholder="ID Discord">
+                <label>Joueur</label>
+                <div style="position:relative;">
+                  <input type="text" id="txSearchInput" placeholder="Tapez un pseudo..." autocomplete="off" oninput="onTxSearchInput()">
+                  <input type="hidden" id="txFilterPlayer" value="">
+                  <div id="txSuggestions" class="player-suggestions" style="display:none;"></div>
+                </div>
               </div>
               <div class="form-group">
                 <label>Type d'item</label>
@@ -370,7 +374,7 @@
             <h2>🎁 Distribution multi-joueurs</h2>
           </div>
           <div class="card-body">
-            <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">Attribue un item à plusieurs joueurs en une seule opération. Entrez un ID Discord par ligne.</p>
+            <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">Attribue un item à plusieurs joueurs en une seule opération. Recherchez chaque joueur par son pseudo.</p>
             <div class="form-row" style="gap:16px;align-items:flex-start;flex-wrap:wrap;">
               <div class="form-group" style="flex:1;min-width:180px;">
                 <label>Item à distribuer <span style="color:#FF6B6B">*</span></label>
@@ -387,9 +391,16 @@
               </div>
             </div>
             <div class="form-group">
-              <label>IDs Discord des joueurs <span style="color:#FF6B6B">*</span> <span style="font-weight:400;color:var(--text-muted)">(un par ligne)</span></label>
-              <textarea id="batchPlayerIds" rows="6" placeholder="123456789012345678&#10;987654321098765432&#10;..."></textarea>
+              <label>Ajouter un joueur <span style="color:#FF6B6B">*</span></label>
+              <div style="position:relative;display:flex;gap:8px;">
+                <div style="flex:1;position:relative;">
+                  <input type="text" id="batchSearchInput" placeholder="Tapez un pseudo Discord..." autocomplete="off" oninput="onBatchSearchInput()" onkeydown="onBatchSearchKeydown(event)">
+                  <div id="batchSuggestions" class="player-suggestions" style="display:none;"></div>
+                </div>
+                <button type="button" class="btn btn-secondary" onclick="addBatchPlayerManual()">➕ Ajouter</button>
+              </div>
             </div>
+            <div id="batchPlayerList" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;min-height:0;"></div>
             <div class="form-group">
               <label>Note / Raison <span style="font-weight:400;color:var(--text-muted)">(optionnel)</span></label>
               <input type="text" id="batchNote" placeholder="Ex : Récompense vote Mars 2026">
@@ -695,7 +706,132 @@
 
     document.addEventListener('click', function(e) {
       if (!e.target.closest('.player-search-box')) hideSuggestions();
+      if (!e.target.closest('#batchSearchInput') && !e.target.closest('#batchSuggestions')) hideBatchSuggestions();
+      if (!e.target.closest('#txSearchInput') && !e.target.closest('#txSuggestions')) hideTxSuggestions();
     });
+
+    /* ── Batch distribution – recherche joueur ── */
+    var batchSearchTimeout;
+    var batchPlayerData = [];
+
+    function onBatchSearchInput() {
+      var val = document.getElementById('batchSearchInput').value.trim();
+      if (batchSearchTimeout) clearTimeout(batchSearchTimeout);
+      if (val.length < 2) { hideBatchSuggestions(); return; }
+      batchSearchTimeout = setTimeout(function() {
+        fetch('/inventory/api/members/search?q=' + encodeURIComponent(val))
+          .then(function(r) { return r.json(); })
+          .then(function(members) { showBatchSuggestions(members); })
+          .catch(function() { hideBatchSuggestions(); });
+      }, 300);
+    }
+
+    function onBatchSearchKeydown(e) {
+      var sugg = document.getElementById('batchSuggestions');
+      var items = sugg.querySelectorAll('.player-suggestion');
+      if (e.key === 'ArrowDown') { e.preventDefault(); batchSelIdx = Math.min((batchSelIdx||0)+1, items.length-1); items.forEach((el,i) => el.classList.toggle('selected', i===batchSelIdx)); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); batchSelIdx = Math.max((batchSelIdx||0)-1, 0); items.forEach((el,i) => el.classList.toggle('selected', i===batchSelIdx)); }
+      else if (e.key === 'Enter') { e.preventDefault(); if (batchSelIdx >= 0 && items[batchSelIdx]) items[batchSelIdx].click(); else addBatchPlayerManual(); }
+      else if (e.key === 'Escape') hideBatchSuggestions();
+    }
+    var batchSelIdx = -1;
+
+    function showBatchSuggestions(members) {
+      var container = document.getElementById('batchSuggestions');
+      batchSelIdx = -1;
+      if (!members || members.length === 0) { hideBatchSuggestions(); return; }
+      var html = '';
+      members.forEach(function(m) {
+        var name = escapeHtml(m.displayName || m.username);
+        html += '<div class="player-suggestion" onclick="selectBatchPlayer(\'' + escapeHtml(m.id) + '\',\'' + name + '\')">';
+        html += '<img src="' + escapeHtml(m.avatar) + '" alt=""><div><div class="ps-name">' + name + '</div>';
+        if (m.displayName && m.displayName !== m.username) html += '<div class="ps-username">@' + escapeHtml(m.username) + '</div>';
+        html += '</div></div>';
+      });
+      container.innerHTML = html;
+      container.style.display = 'block';
+    }
+
+    function hideBatchSuggestions() {
+      var el = document.getElementById('batchSuggestions');
+      if (el) { el.style.display = 'none'; batchSelIdx = -1; }
+    }
+
+    function selectBatchPlayer(id, name) {
+      document.getElementById('batchSearchInput').value = '';
+      hideBatchSuggestions();
+      addBatchPlayerById(id, name);
+    }
+
+    function addBatchPlayerManual() {
+      var val = document.getElementById('batchSearchInput').value.trim();
+      if (!val) return;
+      if (/^\d{15,}$/.test(val)) { addBatchPlayerById(val, val); document.getElementById('batchSearchInput').value = ''; }
+    }
+
+    function addBatchPlayerById(id, name) {
+      if (batchPlayerData.find(p => p.id === id)) return;
+      batchPlayerData.push({ id: id, name: name });
+      renderBatchPlayerList();
+    }
+
+    function removeBatchPlayer(id) {
+      batchPlayerData = batchPlayerData.filter(p => p.id !== id);
+      renderBatchPlayerList();
+    }
+
+    function renderBatchPlayerList() {
+      var container = document.getElementById('batchPlayerList');
+      if (batchPlayerData.length === 0) { container.innerHTML = ''; return; }
+      var html = '';
+      batchPlayerData.forEach(function(p) {
+        html += '<span style="display:inline-flex;align-items:center;gap:5px;background:var(--bg-input);border:1px solid var(--border-color);border-radius:20px;padding:3px 10px;font-size:13px;">';
+        html += escapeHtml(p.name);
+        html += '<button type="button" onclick="removeBatchPlayer(\'' + escapeHtml(p.id) + '\')" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:13px;line-height:1;padding:0 0 0 3px;">✕</button>';
+        html += '</span>';
+      });
+      container.innerHTML = html;
+    }
+
+    /* ── Historique – recherche joueur ── */
+    var txSearchTimeout;
+
+    function onTxSearchInput() {
+      var val = document.getElementById('txSearchInput').value.trim();
+      document.getElementById('txFilterPlayer').value = '';
+      if (txSearchTimeout) clearTimeout(txSearchTimeout);
+      if (val.length < 2) { hideTxSuggestions(); return; }
+      txSearchTimeout = setTimeout(function() {
+        fetch('/inventory/api/members/search?q=' + encodeURIComponent(val))
+          .then(function(r) { return r.json(); })
+          .then(function(members) { showTxSuggestions(members); })
+          .catch(function() { hideTxSuggestions(); });
+      }, 300);
+    }
+
+    function showTxSuggestions(members) {
+      var container = document.getElementById('txSuggestions');
+      if (!members || members.length === 0) { hideTxSuggestions(); return; }
+      var html = '';
+      members.forEach(function(m) {
+        var name = escapeHtml(m.displayName || m.username);
+        html += '<div class="player-suggestion" onclick="selectTxPlayer(\'' + escapeHtml(m.id) + '\',\'' + name + '\')">';
+        html += '<img src="' + escapeHtml(m.avatar) + '" alt=""><div><div class="ps-name">' + name + '</div></div></div>';
+      });
+      container.innerHTML = html;
+      container.style.display = 'block';
+    }
+
+    function hideTxSuggestions() {
+      var el = document.getElementById('txSuggestions');
+      if (el) el.style.display = 'none';
+    }
+
+    function selectTxPlayer(id, name) {
+      document.getElementById('txSearchInput').value = name;
+      document.getElementById('txFilterPlayer').value = id;
+      hideTxSuggestions();
+    }
 
     function searchPlayer() {
       var playerId = document.getElementById('playerSearchId').value || document.getElementById('playerSearchInput').value.trim();
@@ -952,12 +1088,11 @@
     async function submitBatchDistribute() {
       var itemId = document.getElementById('batchItemId').value;
       var qty = parseInt(document.getElementById('batchQty').value) || 1;
-      var rawIds = document.getElementById('batchPlayerIds').value;
       var note = document.getElementById('batchNote').value.trim();
-      var playerIds = rawIds.split('\n').map(s => s.trim()).filter(Boolean);
+      var playerIds = batchPlayerData.map(function(p) { return p.id; });
 
       if (!itemId) { alert('❌ Sélectionnez un item.'); return; }
-      if (playerIds.length === 0) { alert('❌ Entrez au moins un ID Discord.'); return; }
+      if (playerIds.length === 0) { alert('❌ Ajoutez au moins un joueur.'); return; }
 
       var btn = document.getElementById('batchSubmitBtn');
       var status = document.getElementById('batchStatus');
@@ -967,23 +1102,22 @@
       var r = await fetch('/inventory/batch-distribute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemId, quantity: qty, playerIds, note }),
+        body: JSON.stringify({ itemId: itemId, quantity: qty, playerIds: playerIds, note: note }),
       });
       var d = await r.json();
       btn.disabled = false;
 
-      if (d.error) {
-        status.textContent = '❌ ' + d.error;
-        return;
-      }
+      if (d.error) { status.textContent = '❌ ' + d.error; return; }
 
-      var ok = d.results.filter(r => r.success).length;
-      var fail = d.results.filter(r => !r.success).length;
+      var ok = d.results.filter(function(r) { return r.success; }).length;
+      var fail = d.results.filter(function(r) { return !r.success; }).length;
       status.textContent = '✅ ' + ok + ' crédité(s)' + (fail > 0 ? ', ❌ ' + fail + ' échoué(s)' : '');
 
-      var html = '<table class="data-table" style="margin-top:8px;font-size:13px;"><thead><tr><th>ID Joueur</th><th>Résultat</th></tr></thead><tbody>';
+      var html = '<table class="data-table" style="margin-top:8px;font-size:13px;"><thead><tr><th>Joueur</th><th>ID</th><th>Résultat</th></tr></thead><tbody>';
       d.results.forEach(function(row) {
-        html += '<tr><td><code>' + escapeHtml(row.id) + '</code></td>';
+        var player = batchPlayerData.find(function(p) { return p.id === row.id; });
+        html += '<tr><td>' + escapeHtml(player ? player.name : '—') + '</td>';
+        html += '<td><code>' + escapeHtml(row.id) + '</code></td>';
         html += '<td>' + (row.success ? '✅ Crédité' : '❌ ' + escapeHtml(row.error || 'Erreur')) + '</td></tr>';
       });
       html += '</tbody></table>';

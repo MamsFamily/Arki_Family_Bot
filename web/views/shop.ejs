@@ -82,12 +82,11 @@
       </div>
       <% } %>
 
+      <% if (role === 'admin') { %>
       <div class="card">
         <div class="card-header">
           <h2>🏷️ Catégories</h2>
-          <% if (role === 'admin') { %>
           <button class="btn btn-primary" onclick="openCatModal()">+ Nouvelle catégorie</button>
-          <% } %>
         </div>
         <div class="card-body">
           <% if (categories.length === 0) { %>
@@ -117,6 +116,7 @@
           <% } %>
         </div>
       </div>
+      <% } %>
 
       <div class="card">
         <div class="card-header">

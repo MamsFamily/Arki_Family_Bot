@@ -192,16 +192,14 @@
 
   <!-- ═══════════════════ MODAL CRÉER GIVEAWAY ═══════════════════ -->
   <div id="createModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeCreate()">
-    <div class="modal" style="max-width:920px;width:96%;max-height:92vh;overflow:hidden;" onclick="event.stopPropagation()">
+    <div class="modal" style="max-width:680px;width:95%;max-height:92vh;overflow:hidden;" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h2>🎉 Créer un Giveaway</h2>
         <button class="modal-close" onclick="closeCreate()">✕</button>
       </div>
       <form id="createForm" onsubmit="submitCreate(event)">
-        <div class="modal-body" style="display:grid;grid-template-columns:1fr 1fr;gap:0;padding:0;">
-
-          <!-- Colonne gauche : formulaire -->
-          <div style="padding:20px 20px 20px 24px;border-right:1px solid var(--border-color);overflow-y:auto;max-height:72vh;">
+        <div class="modal-body" style="overflow-y:auto;max-height:80vh;padding:20px 24px;">
+          <div>
 
             <!-- Section : Infos générales -->
             <div class="modal-section">
@@ -318,10 +316,10 @@
 
           </div>
 
-          <!-- Colonne droite : aperçu embed -->
-          <div style="padding:20px;overflow-y:auto;max-height:72vh;background:var(--bg-input);border-radius:0 12px 0 0;">
-            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);margin-bottom:12px;">👁️ Aperçu de l'embed</div>
-            <div id="embedPreview" style="background:#2b2d31;border-radius:8px;overflow:hidden;border-left:4px solid #FF6B6B;max-width:100%;">
+          <!-- Aperçu de l'embed en bas -->
+          <div style="margin-top:16px;padding:14px 16px;background:var(--bg-input);border-radius:12px;border:1px solid var(--border-color);">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);margin-bottom:10px;">👁️ Aperçu de l'embed</div>
+            <div id="embedPreview" style="background:#2b2d31;border-radius:8px;overflow:hidden;border-left:4px solid #FF6B6B;">
               <div style="padding:12px 14px;">
                 <div id="prev_title" style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px;word-break:break-word;">🎉 Titre du giveaway</div>
                 <div id="prev_description" style="font-size:13px;color:#dbdee1;margin-bottom:8px;word-break:break-word;display:none;"></div>
@@ -330,9 +328,9 @@
                 <div id="prev_conditions" style="font-size:12px;color:#949ba4;margin-bottom:4px;display:none;"></div>
                 <div id="prev_footer" style="font-size:11px;color:#949ba4;margin-top:8px;border-top:1px solid rgba(255,255,255,.07);padding-top:8px;">⏰ Se termine à --:--</div>
               </div>
-              <div id="prev_image_wrap" style="display:none;"><img id="prev_image" src="" alt="" style="width:100%;max-height:200px;object-fit:cover;display:block;" onerror="document.getElementById('prev_image_wrap').style.display='none'"></div>
+              <div id="prev_image_wrap" style="display:none;"><img id="prev_image" src="" alt="" style="width:100%;max-height:180px;object-fit:cover;display:block;" onerror="document.getElementById('prev_image_wrap').style.display='none'"></div>
             </div>
-            <p style="font-size:11px;color:var(--text-muted);margin-top:10px;">L'aperçu est approximatif. Le rendu final peut légèrement différer sur Discord.</p>
+            <p style="font-size:11px;color:var(--text-muted);margin-top:8px;margin-bottom:0;">L'aperçu est approximatif. Le rendu final peut légèrement différer sur Discord.</p>
           </div>
 
         </div>
