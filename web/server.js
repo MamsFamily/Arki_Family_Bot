@@ -1979,7 +1979,7 @@ function createWebServer(discordClient) {
     const endDateStr = endDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
     const prizeLabel = g.prize.type === 'libre'
       ? `📦 ${g.prize.name} ×${g.prize.quantity}`
-      : `🎁 ${g.prize.itemId} ×${g.prize.quantity}`;
+      : `🎁 ${g.prize.name || g.prize.itemId} ×${g.prize.quantity}`;
 
     const embed = new EmbedBuilder()
       .setColor('#FF6B6B')
@@ -1988,8 +1988,12 @@ function createWebServer(discordClient) {
       .setTimestamp(new Date(g.endTime));
 
     if (g.imageUrl) {
-      const base = `https://${process.env.REPLIT_DEV_DOMAIN || 'localhost:5000'}`;
-      embed.setImage(`${base}${g.imageUrl}`);
+      try {
+        const imgUrl = (g.imageUrl.startsWith('http://') || g.imageUrl.startsWith('https://'))
+          ? g.imageUrl
+          : (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}${g.imageUrl}` : null);
+        if (imgUrl) embed.setThumbnail(imgUrl);
+      } catch (e) {}
     }
 
     let desc = '';

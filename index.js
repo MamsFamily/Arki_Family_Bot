@@ -688,12 +688,10 @@ function buildGiveawayEmbed(g) {
 
   if (g.imageUrl) {
     try {
-      if (g.imageUrl.startsWith('http://') || g.imageUrl.startsWith('https://')) {
-        embed.setImage(g.imageUrl);
-      } else {
-        const devDomain = process.env.REPLIT_DEV_DOMAIN;
-        if (devDomain) embed.setImage(`https://${devDomain}${g.imageUrl}`);
-      }
+      const imgUrl = (g.imageUrl.startsWith('http://') || g.imageUrl.startsWith('https://'))
+        ? g.imageUrl
+        : (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}${g.imageUrl}` : null);
+      if (imgUrl) embed.setThumbnail(imgUrl);
     } catch (e) {}
   }
 
