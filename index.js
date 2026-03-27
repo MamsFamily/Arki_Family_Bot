@@ -2691,6 +2691,49 @@ client.on('interactionCreate', async interaction => {
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
+  if (commandName === 'giveway-retirer') {
+    if (!hasRoulettePermission(interaction.member)) {
+      return interaction.reply({ content: '❌ Permission refusée.', ephemeral: true });
+    }
+    const targetUser = interaction.options.getUser('utilisateur');
+    const gid = interaction.options.getString('id');
+
+    // Auto-détecter le giveaway actif si pas d'ID fourni
+    let g;
+    if (gid) {
+      g = giveawayManager.getGiveaway(gid);
+      if (!g) return interaction.reply({ content: `❌ Aucun giveaway avec l'ID \`${gid}\`.`, ephemeral: true });
+    } else {
+      const actives = giveawayManager.getActiveGiveaways();
+      if (actives.length === 0) return interaction.reply({ content: '❌ Aucun giveaway actif en cours.', ephemeral: true });
+      g = actives.sort((a, b) => new Date(b.createdAt || b.endTime) - new Date(a.createdAt || a.endTime))[0];
+    }
+
+    if (g.status !== 'active') {
+      return interaction.reply({ content: '❌ Ce giveaway est déjà terminé.', ephemeral: true });
+    }
+    if (!g.participants.includes(targetUser.id)) {
+      return interaction.reply({ content: `❌ <@${targetUser.id}> ne participe pas à ce giveaway.`, ephemeral: true });
+    }
+
+    await giveawayManager.removeParticipant(g.id, targetUser.id);
+    const updated = giveawayManager.getGiveaway(g.id);
+
+    // Mettre à jour l'embed Discord
+    if (updated.messageId && updated.channelId) {
+      try {
+        const channel = await client.channels.fetch(updated.channelId);
+        const msg = await channel.messages.fetch(updated.messageId).catch(() => null);
+        if (msg) await msg.edit({ embeds: [buildGiveawayEmbed(updated)] });
+      } catch (e) {}
+    }
+
+    return interaction.reply({
+      content: `✅ <@${targetUser.id}> a été retiré du giveaway **${g.title}**.\n👤 Participants restants : **${updated.participants.length}**`,
+      ephemeral: true,
+    });
+  }
+
   if (commandName === 'relancer-giveway') {
     if (!hasRoulettePermission(interaction.member)) {
       return interaction.reply({ content: '❌ Permission refusée.', ephemeral: true });

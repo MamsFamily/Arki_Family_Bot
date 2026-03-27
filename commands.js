@@ -129,6 +129,14 @@ const commands = [
     ],
   },
   {
+    name: 'giveway-retirer',
+    description: 'Retire un participant du giveaway en cours (Admin et Modo)',
+    options: [
+      { name: 'utilisateur', type: 6, description: 'Membre à retirer du giveaway', required: true },
+      { name: 'id', type: 3, description: 'ID du giveaway (optionnel — auto-détecté si absent)', required: false },
+    ],
+  },
+  {
     name: 'relancer-giveway',
     description: 'Relance le tirage au sort d\'un giveaway terminé (Admin et Modo)',
     options: [
