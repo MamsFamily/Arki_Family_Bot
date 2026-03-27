@@ -539,6 +539,7 @@ Reste concis. Ne mets pas de guillemets autour du texte. Ne dis pas quel personn
 // GIVEAWAY HELPERS (bot Railway)
 // ────────────────────────────────────────────────────────────────────────────
 const giveawayTimers = new Map();
+const endingGiveaways = new Set(); // Verrou anti-doublon
 
 function buildGiveawayButton(id) {
   const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
@@ -551,8 +552,10 @@ function buildGiveawayButton(id) {
 }
 
 async function endGiveawayNow(id, botClient) {
+  if (endingGiveaways.has(id)) return; // Déjà en cours de clôture
   const g = giveawayManager.getGiveaway(id);
   if (!g || g.status !== 'active') return;
+  endingGiveaways.add(id); // Poser le verrou
 
   // Vider les timers
   if (giveawayTimers.has(id)) { clearTimeout(giveawayTimers.get(id)); giveawayTimers.delete(id); }
@@ -611,6 +614,8 @@ async function endGiveawayNow(id, botClient) {
     }
   } catch (e) {
     console.error('[Giveaway] Erreur fin giveaway:', e);
+  } finally {
+    endingGiveaways.delete(id); // Libérer le verrou dans tous les cas
   }
 }
 
@@ -621,6 +626,7 @@ function scheduleGiveawayEnd(g, botClient) {
 
   const delay = new Date(g.endTime).getTime() - Date.now();
   if (delay <= 0) {
+    giveawayTimers.set(g.id, true); // Sentinelle : empêche le re-scheduling par le polling
     endGiveawayNow(g.id, botClient);
     return;
   }
