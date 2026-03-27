@@ -680,10 +680,14 @@ function buildGiveawayEmbed(g) {
     ? `📦 ${g.prize.name} ×${g.prize.quantity}`
     : `🎁 ${g.prize.itemId} ×${g.prize.quantity}`;
 
+  const parisOpts = { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' };
+  const parisDateOpts = { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit' };
+  const endStr = new Date(g.endTime).toLocaleTimeString('fr-FR', parisOpts);
+  const endDateStr = new Date(g.endTime).toLocaleDateString('fr-FR', parisDateOpts);
+
   const embed = new EmbedBuilder()
     .setColor('#FF6B6B')
     .setAuthor({ name: '🎉 Giveaway Arki Family' })
-    .setTitle(g.title)
     .setTimestamp(new Date(g.endTime));
 
   if (g.imageUrl) {
@@ -691,19 +695,19 @@ function buildGiveawayEmbed(g) {
       const imgUrl = (g.imageUrl.startsWith('http://') || g.imageUrl.startsWith('https://'))
         ? g.imageUrl
         : (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}${g.imageUrl}` : null);
-      if (imgUrl) embed.setThumbnail(imgUrl);
+      if (imgUrl) embed.setImage(imgUrl);
     } catch (e) {}
   }
 
-  let desc = '';
-  if (g.description) desc += `${g.description}\n\n`;
-  if (g.conditions) desc += `📋 **Conditions :** ${g.conditions}\n\n`;
-  desc += `🏆 **Gain :** ${prizeLabel}\n`;
+  let desc = `# ${g.title}\n`;
+  if (g.description) desc += `\n${g.description}\n`;
+  desc += `\n🏆 **Gain :** ${prizeLabel}\n`;
   desc += `👥 **Gagnant(s) :** ${g.winnerCount}\n`;
   desc += `👤 **Participants :** ${g.participants.length}\n\n`;
   desc += g.status === 'ended'
     ? `✅ **Terminé**`
-    : `⏰ **Fin dans :** ${timeLeft} | le ${endDateStr} à ${endStr}`;
+    : `⏰ **Fin dans :** ${timeLeft} | le ${endDateStr} à ${endStr} *(Paris)*`;
+  if (g.conditions) desc += `\n\n📋 **Conditions :** ${g.conditions}`;
 
   embed.setDescription(desc);
   embed.setFooter({ text: `ID: ${g.id} • Lancé par ${g.createdByName || g.createdBy}` });
@@ -745,21 +749,25 @@ client.on('interactionCreate', async interaction => {
     const titre = interaction.fields.getTextInputValue('gw_titre').trim();
     const gainText = interaction.fields.getTextInputValue('gw_gain').trim();
     const heureRaw = interaction.fields.getTextInputValue('gw_heure').trim();
-    const gagnantsRaw = interaction.fields.getTextInputValue('gw_gagnants').trim();
+    const description = interaction.fields.getTextInputValue('gw_description').trim();
     const conditions = interaction.fields.getTextInputValue('gw_conditions').trim();
 
-    // Parser l'heure de fin (format HH:MM)
+    // Parser l'heure de fin (format HH:MM) — heure Paris
     const heureMatch = heureRaw.match(/^(\d{1,2}):(\d{2})$/);
     if (!heureMatch) {
       return interaction.reply({ content: '❌ Format d\'heure invalide. Utilise le format **00:00** (ex: 21:00).', ephemeral: true });
     }
     const [, hh, mm] = heureMatch;
-    const now = new Date();
-    const endDateTime = new Date();
-    endDateTime.setHours(parseInt(hh), parseInt(mm), 0, 0);
-    if (endDateTime <= now) endDateTime.setDate(endDateTime.getDate() + 1);
+    // Construire la date de fin en heure Paris
+    const nowParis = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Paris' }));
+    const endParis = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Paris' }));
+    endParis.setHours(parseInt(hh), parseInt(mm), 0, 0);
+    if (endParis <= nowParis) endParis.setDate(endParis.getDate() + 1);
+    // Convertir en UTC correct
+    const utcOffset = new Date() - nowParis;
+    const endDateTime = new Date(endParis.getTime() + utcOffset);
 
-    const gagnants = Math.max(1, parseInt(gagnantsRaw) || 1);
+    const gagnants = 1;
     const endTime = endDateTime.toISOString();
 
     await interaction.deferReply({ ephemeral: true });
@@ -779,7 +787,7 @@ client.on('interactionCreate', async interaction => {
     const gwSettings = getSettings();
     const giveaway = await giveawayManager.createGiveaway({
       title: titre,
-      description: '',
+      description,
       conditions,
       prize,
       winnerCount: gagnants,
@@ -1050,13 +1058,13 @@ client.on('interactionCreate', async interaction => {
         ),
         new ActionRowBuilder().addComponents(gainInput),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId('gw_heure').setLabel('Heure de fin (format 00:00)').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(5).setPlaceholder('Ex: 21:00')
+          new TextInputBuilder().setCustomId('gw_heure').setLabel('Heure de fin (format 00:00, fuseau Paris)').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(5).setPlaceholder('Ex: 21:00')
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId('gw_gagnants').setLabel('Nombre de gagnants').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(3).setPlaceholder('Ex: 1').setValue('1')
+          new TextInputBuilder().setCustomId('gw_description').setLabel('Description (optionnel)').setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(500).setPlaceholder('Ex: Un giveaway spécial pour les membres actifs !')
         ),
         new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId('gw_conditions').setLabel('Conditions / description (optionnel)').setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(500).setPlaceholder('Ex: Ouvert à tous les membres...')
+          new TextInputBuilder().setCustomId('gw_conditions').setLabel('Conditions (optionnel)').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(300).setPlaceholder('Ex: Être membre depuis +30 jours')
         ),
       );
 

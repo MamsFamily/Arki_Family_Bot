@@ -1974,9 +1974,10 @@ function createWebServer(discordClient) {
   function buildGiveawayEmbed(g, client) {
     const { EmbedBuilder } = require('discord.js');
     const timeLeft = giveawayManager.formatTimeLeft(g.endTime);
-    const endDate = new Date(g.endTime);
-    const endStr = endDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-    const endDateStr = endDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+    const parisOpts = { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' };
+    const parisDateOpts = { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit' };
+    const endStr = new Date(g.endTime).toLocaleTimeString('fr-FR', parisOpts);
+    const endDateStr = new Date(g.endTime).toLocaleDateString('fr-FR', parisDateOpts);
     const prizeLabel = g.prize.type === 'libre'
       ? `📦 ${g.prize.name} ×${g.prize.quantity}`
       : `🎁 ${g.prize.name || g.prize.itemId} ×${g.prize.quantity}`;
@@ -1984,7 +1985,6 @@ function createWebServer(discordClient) {
     const embed = new EmbedBuilder()
       .setColor('#FF6B6B')
       .setAuthor({ name: '🎉 Giveaway Arki Family' })
-      .setTitle(g.title)
       .setTimestamp(new Date(g.endTime));
 
     if (g.imageUrl) {
@@ -1992,19 +1992,19 @@ function createWebServer(discordClient) {
         const imgUrl = (g.imageUrl.startsWith('http://') || g.imageUrl.startsWith('https://'))
           ? g.imageUrl
           : (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}${g.imageUrl}` : null);
-        if (imgUrl) embed.setThumbnail(imgUrl);
+        if (imgUrl) embed.setImage(imgUrl);
       } catch (e) {}
     }
 
-    let desc = '';
-    if (g.description) desc += `${g.description}\n\n`;
-    if (g.conditions) desc += `📋 **Conditions :** ${g.conditions}\n\n`;
-    desc += `🏆 **Gain :** ${prizeLabel}\n`;
+    let desc = `# ${g.title}\n`;
+    if (g.description) desc += `\n${g.description}\n`;
+    desc += `\n🏆 **Gain :** ${prizeLabel}\n`;
     desc += `👥 **Gagnant(s) :** ${g.winnerCount}\n`;
     desc += `👤 **Participants :** ${g.participants.length}\n\n`;
     desc += g.status === 'ended'
       ? `✅ **Terminé**`
-      : `⏰ **Fin dans :** ${timeLeft} | le ${endDateStr} à ${endStr}`;
+      : `⏰ **Fin dans :** ${timeLeft} | le ${endDateStr} à ${endStr} *(Paris)*`;
+    if (g.conditions) desc += `\n\n📋 **Conditions :** ${g.conditions}`;
 
     embed.setDescription(desc);
     embed.setFooter({ text: `ID: ${g.id} • Lancé par ${g.createdByName || g.createdBy}` });
