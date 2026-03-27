@@ -743,10 +743,15 @@ client.on('interactionCreate', async interaction => {
     const selectedItemId = parts[2] || '';
 
     const titre = interaction.fields.getTextInputValue('gw_titre').trim();
-    const gainText = interaction.fields.getTextInputValue('gw_gain').trim();
+    const gainRaw = interaction.fields.getTextInputValue('gw_gain').trim();
     const heureRaw = interaction.fields.getTextInputValue('gw_heure').trim();
     const description = interaction.fields.getTextInputValue('gw_description').trim();
     const conditions = interaction.fields.getTextInputValue('gw_conditions').trim();
+
+    // Parser la quantité depuis le gain (format "Nom × N" ou "Nom x N")
+    const qtyMatch = gainRaw.match(/[×x]\s*(\d+)\s*$/i);
+    const quantity = qtyMatch ? Math.max(1, parseInt(qtyMatch[1])) : 1;
+    const gainText = qtyMatch ? gainRaw.slice(0, gainRaw.lastIndexOf(qtyMatch[0])).trim() : gainRaw;
 
     // Parser l'heure de fin (format HH:MM) — heure Paris
     const heureMatch = heureRaw.match(/^(\d{1,2}):(\d{2})$/);
@@ -775,9 +780,9 @@ client.on('interactionCreate', async interaction => {
       const found = itemTypes.find(i => i.id === selectedItemId);
       const isCustom = found && /^<a?:\w+:\d+>$/.test(found.emoji);
       const itemName = found ? (isCustom ? found.name : `${found.emoji} ${found.name}`) : gainText;
-      prize = { type: 'item', itemId: selectedItemId, name: itemName, quantity: 1 };
+      prize = { type: 'item', itemId: selectedItemId, name: itemName, quantity };
     } else {
-      prize = { type: 'libre', name: gainText, quantity: 1 };
+      prize = { type: 'libre', name: gainText, quantity };
     }
 
     const gwSettings = getSettings();
@@ -1044,8 +1049,8 @@ client.on('interactionCreate', async interaction => {
         .setLabel(gainLabel)
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
-        .setMaxLength(100)
-        .setPlaceholder('Ex: Pack Légendaire x1, 500 diamants...');
+        .setMaxLength(120)
+        .setPlaceholder('Ex: Pack Légendaire × 2  (ajoute × N pour la quantité)');
       if (gainPreFill) gainInput.setValue(gainPreFill);
 
       modal.addComponents(
