@@ -851,7 +851,7 @@ client.on('interactionCreate', async interaction => {
           await msg.edit({ embeds: [buildGiveawayEmbed(updated)] });
         } catch (e) {}
       }
-      return interaction.reply({ content: '🎉 Tu participes au giveaway ! Bonne chance !', ephemeral: true });
+      return interaction.reply({ content: '🎉 Tu participes au giveaway ! Bonne chance !\n-# Pour retirer ta participation, appuie de nouveau sur **Je participe**.', ephemeral: true });
     }
   }
 
