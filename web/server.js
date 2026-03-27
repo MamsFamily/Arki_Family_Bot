@@ -277,8 +277,11 @@ function createWebServer(discordClient) {
 
     const [top5Result, nitradoResult] = await Promise.allSettled([
       (async () => {
-        const rankingUrl = votesConfig.TOPSERVEURS_RANKING_URL || 'https://api.top-serveurs.net/v1/servers/4ROMAU33GJTY/players-ranking';
-        const all = await fetchTopserveursRanking(rankingUrl);
+        const baseUrl = (votesConfig.TOPSERVEURS_RANKING_URL || 'https://api.top-serveurs.net/v1/servers/4ROMAU33GJTY/players-ranking')
+          .replace('?type=lastMonth', '').replace('&type=lastMonth', '')
+          .replace('?type=currentMonth', '').replace('&type=currentMonth', '');
+        const currentUrl = baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'type=currentMonth';
+        const all = await fetchTopserveursRanking(currentUrl);
         return all.slice(0, 5);
       })(),
       fetchNitradoServers(),
@@ -293,6 +296,24 @@ function createWebServer(discordClient) {
       top5,
       nitradoServers,
     });
+  });
+
+  app.get('/api/top5', requireAdmin, async (req, res) => {
+    const { getVotesConfig } = require('../votesConfig');
+    const { fetchTopserveursRanking } = require('../topserveursService');
+    const votesConfig = getVotesConfig();
+    const baseUrl = (votesConfig.TOPSERVEURS_RANKING_URL || 'https://api.top-serveurs.net/v1/servers/4ROMAU33GJTY/players-ranking')
+      .replace('?type=lastMonth', '')
+      .replace('&type=lastMonth', '')
+      .replace('?type=currentMonth', '')
+      .replace('&type=currentMonth', '');
+    const currentUrl = baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'type=currentMonth';
+    try {
+      const all = await fetchTopserveursRanking(currentUrl);
+      res.json({ ok: true, top5: all.slice(0, 5), updatedAt: Date.now() });
+    } catch (err) {
+      res.json({ ok: false, top5: [], updatedAt: Date.now() });
+    }
   });
 
   app.get('/api/nitrado', requireAdmin, async (req, res) => {

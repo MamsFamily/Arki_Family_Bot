@@ -1,4 +1,29 @@
 <%
+function top5Html(top5) {
+  if (!top5 || top5.length === 0) {
+    return '<div class="empty-state"><div class="icon">🗳️</div><p>Impossible de récupérer le classement.<br>Vérifiez l\'URL API dans les paramètres.</p></div>';
+  }
+  var medals = ['🥇','🥈','🥉','4️⃣','5️⃣'];
+  var colors = ['#ffd700','#c0c0c0','#cd7f32','var(--text-secondary)','var(--text-secondary)'];
+  var maxVotes = top5[0].votes || 1;
+  var html = '<div class="top5-list">';
+  top5.forEach(function(player, i) {
+    var pct = maxVotes > 0 ? Math.round((player.votes / maxVotes) * 100) : 0;
+    var podium = i < 3 ? 'top5-podium' : '';
+    var border = i < 3 ? 'border-left:4px solid ' + colors[i] + ';' : '';
+    html += '<div class="top5-row ' + podium + '" style="' + border + '">';
+    html += '<div class="top5-rank" style="color:' + colors[i] + '">' + medals[i] + '</div>';
+    html += '<div class="top5-name">' + player.playername + '</div>';
+    html += '<div class="top5-votes"><span class="top5-votes-count">' + player.votes + '</span>';
+    html += '<span class="top5-votes-label"> vote' + (player.votes > 1 ? 's' : '') + '</span></div>';
+    html += '<div class="top5-bar-wrap"><div class="top5-bar" style="width:' + pct + '%;background:' + colors[i] + '"></div></div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+%>
+<%
 function nitradoCardsHtml(servers) {
   var html = '<div class="nitrado-grid">';
   servers.forEach(function(srv) {
@@ -64,46 +89,27 @@ function nitradoCardsHtml(servers) {
         </div>
         <div class="stat-card">
           <div class="stat-icon">🏆</div>
-          <div class="stat-value"><%= top5.length > 0 ? top5[0].votes : '—' %></div>
-          <div class="stat-label">Votes – 1er du mois</div>
+          <div class="stat-value" id="stat-votes-first"><%= top5.length > 0 ? top5[0].votes : '—' %></div>
+          <div class="stat-label">Votes – 1er ce mois</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon">🗳️</div>
-          <div class="stat-value"><%= top5.reduce((s, p) => s + p.votes, 0).toLocaleString('fr-FR') %></div>
+          <div class="stat-value" id="stat-votes-total"><%= top5.reduce((s, p) => s + p.votes, 0).toLocaleString('fr-FR') %></div>
           <div class="stat-label">Total votes top 5</div>
         </div>
       </div>
 
       <div class="card">
         <div class="card-header">
-          <h2>🏆 Top 5 voteurs du mois</h2>
-          <span style="font-size:13px;color:var(--text-muted)">Via Top-Serveurs</span>
+          <h2>🏆 Top 5 voteurs — mois en cours</h2>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="font-size:13px;color:var(--text-muted)">Via Top-Serveurs</span>
+            <button id="top5-refresh-btn" onclick="refreshTop5()" style="background:none;border:1px solid var(--border-color);border-radius:6px;padding:3px 10px;cursor:pointer;font-size:12px;color:var(--text-secondary);">↻ Actualiser</button>
+            <span id="top5-updated" style="font-size:11px;color:var(--text-muted)"></span>
+          </div>
         </div>
-        <div class="card-body">
-          <% if (top5.length === 0) { %>
-            <div class="empty-state">
-              <div class="icon">🗳️</div>
-              <p>Impossible de récupérer le classement.<br>Vérifiez l'URL API dans les paramètres.</p>
-            </div>
-          <% } else { %>
-            <div class="top5-list">
-              <% const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣']; %>
-              <% const colors = ['#ffd700', '#c0c0c0', '#cd7f32', 'var(--text-secondary)', 'var(--text-secondary)']; %>
-              <% top5.forEach((player, i) => { %>
-                <div class="top5-row <%= i < 3 ? 'top5-podium' : '' %>" style="<% if(i < 3) { %>border-left: 4px solid <%= colors[i] %>;<% } %>">
-                  <div class="top5-rank" style="color: <%= colors[i] %>"><%= medals[i] %></div>
-                  <div class="top5-name"><%= player.playername %></div>
-                  <div class="top5-votes">
-                    <span class="top5-votes-count"><%= player.votes %></span>
-                    <span class="top5-votes-label">vote<%= player.votes > 1 ? 's' : '' %></span>
-                  </div>
-                  <div class="top5-bar-wrap">
-                    <div class="top5-bar" style="width: <%= top5[0].votes > 0 ? Math.round((player.votes / top5[0].votes) * 100) : 0 %>%; background: <%= colors[i] %>"></div>
-                  </div>
-                </div>
-              <% }); %>
-            </div>
-          <% } %>
+        <div class="card-body" id="top5-body">
+          <%- top5Html(top5) %>
         </div>
       </div>
 
@@ -136,6 +142,62 @@ function nitradoCardsHtml(servers) {
   </div>
 
 <script>
+  var TOP5_MEDALS = ['🥇','🥈','🥉','4️⃣','5️⃣'];
+  var TOP5_COLORS = ['#ffd700','#c0c0c0','#cd7f32','var(--text-secondary)','var(--text-secondary)'];
+
+  function top5HtmlJS(top5) {
+    if (!top5 || top5.length === 0) {
+      return '<div class="empty-state"><div class="icon">🗳️</div><p>Impossible de récupérer le classement.<br>Vérifiez l\'URL API dans les paramètres.</p></div>';
+    }
+    var maxVotes = top5[0].votes || 1;
+    var html = '<div class="top5-list">';
+    top5.forEach(function(player, i) {
+      var pct = maxVotes > 0 ? Math.round((player.votes / maxVotes) * 100) : 0;
+      var podium = i < 3 ? 'top5-podium' : '';
+      var border = i < 3 ? 'border-left:4px solid ' + TOP5_COLORS[i] + ';' : '';
+      html += '<div class="top5-row ' + podium + '" style="' + border + '">';
+      html += '<div class="top5-rank" style="color:' + TOP5_COLORS[i] + '">' + TOP5_MEDALS[i] + '</div>';
+      html += '<div class="top5-name">' + escHtml(player.playername) + '</div>';
+      html += '<div class="top5-votes"><span class="top5-votes-count">' + player.votes + '</span>';
+      html += '<span class="top5-votes-label"> vote' + (player.votes > 1 ? 's' : '') + '</span></div>';
+      html += '<div class="top5-bar-wrap"><div class="top5-bar" style="width:' + pct + '%;background:' + TOP5_COLORS[i] + '"></div></div>';
+      html += '</div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function refreshTop5() {
+    var btn = document.getElementById('top5-refresh-btn');
+    if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+    fetch('/api/top5')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (btn) { btn.textContent = '↻ Actualiser'; btn.disabled = false; }
+        var top5 = data.top5 || [];
+
+        var body = document.getElementById('top5-body');
+        if (body) body.innerHTML = top5HtmlJS(top5);
+
+        var elFirst = document.getElementById('stat-votes-first');
+        if (elFirst) elFirst.textContent = top5.length > 0 ? top5[0].votes : '—';
+
+        var elTotal = document.getElementById('stat-votes-total');
+        if (elTotal) elTotal.textContent = top5.reduce(function(s, p) { return s + p.votes; }, 0).toLocaleString('fr-FR');
+
+        var upd = document.getElementById('top5-updated');
+        if (upd && data.updatedAt) {
+          var d = new Date(data.updatedAt);
+          upd.textContent = 'Mis à jour à ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+      })
+      .catch(function() {
+        if (btn) { btn.textContent = '↻ Actualiser'; btn.disabled = false; }
+      });
+  }
+
+  setInterval(refreshTop5, 30 * 60 * 1000);
+
   function nitradoCardsHtmlJS(servers) {
     if (!servers || servers.length === 0) {
       return '<div class="empty-state"><div class="icon">🖥️</div><p>Aucun serveur trouvé.</p></div>';
