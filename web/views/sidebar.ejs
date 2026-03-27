@@ -73,9 +73,11 @@
     <a href="/inventory" class="nav-link <%= path === '/inventory' ? 'active' : '' %>">
       <span class="icon">📦</span> Inventaires
     </a>
+    <% if (role === 'admin') { %>
     <a href="/special-packs" class="nav-link <%= path === '/special-packs' ? 'active' : '' %>">
       <span class="icon">🎁</span> Packs Spéciaux
     </a>
+    <% } %>
 
     <div class="nav-section">Événements</div>
     <a href="/giveaways" class="nav-link <%= path === '/giveaways' ? 'active' : '' %>">

@@ -22,6 +22,7 @@
         <div class="alert alert-error">&#x274C; <%= error %></div>
       <% } %>
 
+      <% if (role === 'admin') { %>
       <div class="card">
         <div class="card-header">
           <h2>&#x2699;&#xFE0F; Param&egrave;tres de publication</h2>
@@ -79,11 +80,14 @@
           </form>
         </div>
       </div>
+      <% } %>
 
       <div class="card">
         <div class="card-header">
           <h2>🏷️ Catégories</h2>
+          <% if (role === 'admin') { %>
           <button class="btn btn-primary" onclick="openCatModal()">+ Nouvelle catégorie</button>
+          <% } %>
         </div>
         <div class="card-body">
           <% if (categories.length === 0) { %>

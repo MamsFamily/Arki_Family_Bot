@@ -1830,6 +1830,30 @@ function createWebServer(discordClient) {
     res.json(result);
   });
 
+  app.post('/inventory/batch-distribute', requireAuth, express.json(), async (req, res) => {
+    const { itemId, quantity, playerIds, note } = req.body;
+    const itemType = inventoryManager.getItemTypeById(itemId);
+    if (!itemType) return res.json({ error: 'Item introuvable.' });
+    const qty = parseInt(quantity) || 1;
+    if (!playerIds || !Array.isArray(playerIds) || playerIds.length === 0) {
+      return res.json({ error: 'Aucun joueur spécifié.' });
+    }
+    const adminName = req.session.discordUser?.displayName || (req.session.role === 'admin' ? 'Admin' : 'Staff');
+    const txNote = note?.trim() || `Distribution depuis dashboard par ${adminName}`;
+    const results = [];
+    for (const pid of playerIds) {
+      const id = pid?.trim();
+      if (!id) continue;
+      try {
+        await inventoryManager.addToInventory(id, itemId, qty, adminName, txNote);
+        results.push({ id, success: true });
+      } catch (e) {
+        results.push({ id, success: false, error: e.message });
+      }
+    }
+    res.json({ ok: true, results });
+  });
+
   // ─── GIVEAWAYS ──────────────────────────────────────────────────────────────
   const giveawayUpload = multer({
     storage: multer.diskStorage({
@@ -1850,6 +1874,16 @@ function createWebServer(discordClient) {
     const giveaways = giveawayManager.getAllGiveaways();
     const itemTypes = inventoryManager.getItemTypes();
     const settings = getSettings();
+    let channels = [];
+    if (discordClient) {
+      const guild = discordClient.guilds.cache.first();
+      if (guild) {
+        const textChannels = guild.channels.cache
+          .filter(ch => ch.type === 0)
+          .sort((a, b) => a.name.localeCompare(b.name));
+        channels = [...textChannels.values()].map(ch => ({ id: ch.id, name: ch.name }));
+      }
+    }
     res.render('giveaways', {
       path: '/giveaways',
       role: req.session.role,
@@ -1857,6 +1891,7 @@ function createWebServer(discordClient) {
       botUser: discordClient ? discordClient.user : null,
       giveaways,
       itemTypes,
+      channels,
       formatTimeLeft: giveawayManager.formatTimeLeft,
       defaultImageUrl: settings.giveaway?.defaultImageUrl || '',
     });

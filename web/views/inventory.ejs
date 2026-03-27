@@ -239,6 +239,7 @@
         <% } %>
         <button class="inv-tab active" onclick="switchTab('players')">👤 Inventaire joueur</button>
         <button class="inv-tab" onclick="switchTab('transactions')">📜 Historique</button>
+        <button class="inv-tab" onclick="switchTab('batch')">🎁 Distribution multi-joueurs</button>
       </div>
 
       <div id="tab-itemTypes" class="inv-tab-content">
@@ -363,6 +364,45 @@
         </div>
       </div>
 
+      <div id="tab-batch" class="inv-tab-content">
+        <div class="card">
+          <div class="card-header">
+            <h2>🎁 Distribution multi-joueurs</h2>
+          </div>
+          <div class="card-body">
+            <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">Attribue un item à plusieurs joueurs en une seule opération. Entrez un ID Discord par ligne.</p>
+            <div class="form-row" style="gap:16px;align-items:flex-start;flex-wrap:wrap;">
+              <div class="form-group" style="flex:1;min-width:180px;">
+                <label>Item à distribuer <span style="color:#FF6B6B">*</span></label>
+                <select id="batchItemId">
+                  <option value="">— Choisir un item —</option>
+                  <% itemTypes.forEach(it => { %>
+                  <option value="<%=it.id%>"><%=it.emoji%> <%=it.name%></option>
+                  <% }); %>
+                </select>
+              </div>
+              <div class="form-group" style="flex:0 0 120px;">
+                <label>Quantité par joueur</label>
+                <input type="number" id="batchQty" value="1" min="1" max="9999">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>IDs Discord des joueurs <span style="color:#FF6B6B">*</span> <span style="font-weight:400;color:var(--text-muted)">(un par ligne)</span></label>
+              <textarea id="batchPlayerIds" rows="6" placeholder="123456789012345678&#10;987654321098765432&#10;..."></textarea>
+            </div>
+            <div class="form-group">
+              <label>Note / Raison <span style="font-weight:400;color:var(--text-muted)">(optionnel)</span></label>
+              <input type="text" id="batchNote" placeholder="Ex : Récompense vote Mars 2026">
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <button class="btn btn-primary" onclick="submitBatchDistribute()" id="batchSubmitBtn">🎁 Distribuer</button>
+              <span id="batchStatus" style="font-size:13px;color:var(--text-muted);"></span>
+            </div>
+            <div id="batchResults" style="margin-top:16px;"></div>
+          </div>
+        </div>
+      </div>
+
       <div class="modal-overlay" id="itemTypeModal">
         <div class="modal-card" style="max-width:500px;">
           <div class="modal-header">
@@ -476,7 +516,7 @@
   <script>
     var itemTypesData = <%- JSON.stringify(itemTypes).replace(/<\//g, '<\\/') %>;
     var userRole = '<%= userRole %>';
-    var tabList = userRole === 'admin' ? ['itemTypes','players','transactions'] : ['players','transactions'];
+    var tabList = userRole === 'admin' ? ['itemTypes','players','transactions','batch'] : ['players','transactions','batch'];
 
     function escapeHtml(str) {
       if (!str) return '';
@@ -907,6 +947,47 @@
 
       html += '</tbody></table></div>';
       container.innerHTML = html;
+    }
+
+    async function submitBatchDistribute() {
+      var itemId = document.getElementById('batchItemId').value;
+      var qty = parseInt(document.getElementById('batchQty').value) || 1;
+      var rawIds = document.getElementById('batchPlayerIds').value;
+      var note = document.getElementById('batchNote').value.trim();
+      var playerIds = rawIds.split('\n').map(s => s.trim()).filter(Boolean);
+
+      if (!itemId) { alert('❌ Sélectionnez un item.'); return; }
+      if (playerIds.length === 0) { alert('❌ Entrez au moins un ID Discord.'); return; }
+
+      var btn = document.getElementById('batchSubmitBtn');
+      var status = document.getElementById('batchStatus');
+      btn.disabled = true;
+      status.textContent = '⏳ Distribution en cours...';
+
+      var r = await fetch('/inventory/batch-distribute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId, quantity: qty, playerIds, note }),
+      });
+      var d = await r.json();
+      btn.disabled = false;
+
+      if (d.error) {
+        status.textContent = '❌ ' + d.error;
+        return;
+      }
+
+      var ok = d.results.filter(r => r.success).length;
+      var fail = d.results.filter(r => !r.success).length;
+      status.textContent = '✅ ' + ok + ' crédité(s)' + (fail > 0 ? ', ❌ ' + fail + ' échoué(s)' : '');
+
+      var html = '<table class="data-table" style="margin-top:8px;font-size:13px;"><thead><tr><th>ID Joueur</th><th>Résultat</th></tr></thead><tbody>';
+      d.results.forEach(function(row) {
+        html += '<tr><td><code>' + escapeHtml(row.id) + '</code></td>';
+        html += '<td>' + (row.success ? '✅ Crédité' : '❌ ' + escapeHtml(row.error || 'Erreur')) + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      document.getElementById('batchResults').innerHTML = html;
     }
 
   </script>
