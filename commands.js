@@ -123,9 +123,9 @@ const commands = [
   },
   {
     name: 'giveway-participants',
-    description: 'Affiche les participants d\'un giveaway actif (Admin et Modo)',
+    description: 'Affiche les participants du giveaway en cours (ou du dernier terminé)',
     options: [
-      { name: 'id', type: 3, description: 'ID du giveaway (visible dans le footer de l\'embed)', required: true },
+      { name: 'id', type: 3, description: 'ID du giveaway (optionnel — auto-détecté si absent)', required: false },
     ],
   },
   {

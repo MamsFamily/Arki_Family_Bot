@@ -2638,8 +2638,22 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: '❌ Permission refusée.', ephemeral: true });
     }
     const gid = interaction.options.getString('id');
-    const g = giveawayManager.getGiveaway(gid);
-    if (!g) return interaction.reply({ content: `❌ Aucun giveaway avec l'ID \`${gid}\`.`, ephemeral: true });
+    let g;
+    if (gid) {
+      g = giveawayManager.getGiveaway(gid);
+      if (!g) return interaction.reply({ content: `❌ Aucun giveaway avec l'ID \`${gid}\`.`, ephemeral: true });
+    } else {
+      // Auto-détecter : giveaway actif en cours, sinon dernier terminé
+      const actives = giveawayManager.getActiveGiveaways();
+      if (actives.length > 0) {
+        g = actives.sort((a, b) => new Date(b.createdAt || b.endTime) - new Date(a.createdAt || a.endTime))[0];
+      } else {
+        const all = giveawayManager.getAllGiveaways();
+        const ended = all.filter(x => x.status === 'ended').sort((a, b) => new Date(b.endTime) - new Date(a.endTime));
+        if (ended.length === 0) return interaction.reply({ content: '❌ Aucun giveaway trouvé.', ephemeral: true });
+        g = ended[0];
+      }
+    }
 
     const prizeLabel = g.prize.type === 'libre'
       ? `📦 ${g.prize.name} ×${g.prize.quantity}`
