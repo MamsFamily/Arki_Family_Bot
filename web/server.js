@@ -77,7 +77,14 @@ function createWebServer(discordClient) {
       return next();
     }
     if (req.session && req.session.authenticated && req.session.discordUser) {
-      return res.redirect('/shop');
+      return res.redirect('/');
+    }
+    res.redirect('/login');
+  }
+
+  function requireAuth(req, res, next) {
+    if (req.session && req.session.authenticated && req.session.discordUser) {
+      return next();
     }
     res.redirect('/login');
   }
@@ -170,7 +177,7 @@ function createWebServer(discordClient) {
 
   app.get('/login', (req, res) => {
     if (req.session && req.session.authenticated && req.session.discordUser) {
-      return res.redirect(req.session.role === 'admin' ? '/' : '/shop');
+      return res.redirect('/');
     }
     res.render('login', { error: req.query.error || null });
   });
@@ -253,7 +260,7 @@ function createWebServer(discordClient) {
       delete req.session.pendingRole;
       delete req.session.oauthState;
 
-      res.redirect(req.session.role === 'admin' ? '/' : '/shop');
+      res.redirect('/');
     } catch (err) {
       console.error('Erreur OAuth Discord:', err.response?.data || err.message);
       delete req.session.pendingRole;
@@ -267,7 +274,7 @@ function createWebServer(discordClient) {
     res.redirect('/login');
   });
 
-  app.get('/', requireAdmin, async (req, res) => {
+  app.get('/', requireAuth, async (req, res) => {
     const { getVotesConfig } = require('../votesConfig');
     const { fetchTopserveursRanking } = require('../topserveursService');
     const { fetchNitradoServers } = require('../nitradoService');
@@ -298,7 +305,7 @@ function createWebServer(discordClient) {
     });
   });
 
-  app.get('/api/top5', requireAdmin, async (req, res) => {
+  app.get('/api/top5', requireAuth, async (req, res) => {
     const { getVotesConfig } = require('../votesConfig');
     const { fetchTopserveursRanking } = require('../topserveursService');
     const votesConfig = getVotesConfig();
@@ -316,7 +323,7 @@ function createWebServer(discordClient) {
     }
   });
 
-  app.get('/api/nitrado', requireAdmin, async (req, res) => {
+  app.get('/api/nitrado', requireAuth, async (req, res) => {
     const { fetchNitradoServers } = require('../nitradoService');
     try {
       const servers = await fetchNitradoServers();
