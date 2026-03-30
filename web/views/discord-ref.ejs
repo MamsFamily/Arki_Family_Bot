@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Référence Discord - Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .ref-table { width:100%; border-collapse:collapse; font-size:13px; }
+    .ref-table th { text-align:left; padding:9px 14px; background:var(--bg-input); color:var(--text-muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.06em; border-bottom:1px solid var(--border-color); position:sticky; top:0; z-index:1; }
+    .ref-table td { padding:9px 14px; border-bottom:1px solid var(--border-color); vertical-align:middle; }
+    .ref-table tr:last-child td { border-bottom:none; }
+    .ref-table tr:hover td { background:rgba(255,255,255,.025); }
+    .prop-name { font-family:monospace; font-size:12px; color:var(--accent); background:var(--bg-input); border:1px solid var(--border-color); border-radius:4px; padding:2px 7px; white-space:nowrap; }
+    .type-badge { font-size:10px; font-weight:700; border-radius:3px; padding:1px 6px; white-space:nowrap; }
+    .type-string  { background:#1a2a1a; color:#4caf50; }
+    .type-number  { background:#1a1a2e; color:#5c9df5; }
+    .type-boolean { background:#2a1a2a; color:#ce93d8; }
+    .type-date    { background:#2a1a00; color:#ffb74d; }
+    .type-array   { background:#1a2a2a; color:#4dd0e1; }
+    .type-object  { background:#2a2a1a; color:#fff176; }
+    .type-url     { background:#1a1a2a; color:#90caf9; }
+    .type-enum    { background:#2a1a1a; color:#ef9a9a; }
+    .example-val { font-family:monospace; font-size:12px; color:var(--text-muted); }
+    .cat-header { padding:10px 14px 6px; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--text-muted); background:var(--bg-card); border-bottom:1px solid var(--border-color); border-top:2px solid var(--accent); display:flex; align-items:center; gap:8px; }
+    .search-bar { width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-color); background:var(--bg-input); color:var(--text-primary); font-size:14px; margin-bottom:16px; }
+    .search-bar:focus { outline:none; border-color:var(--accent); }
+    .filter-tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+    .filter-tab { padding:5px 14px; border-radius:20px; border:1px solid var(--border-color); cursor:pointer; font-size:12px; font-weight:600; background:var(--bg-input); color:var(--text-secondary); transition:all .15s; }
+    .filter-tab.active, .filter-tab:hover { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .ref-row { }
+    .ref-row.hidden { display:none; }
+    .highlight { background:rgba(99,102,241,.25); border-radius:2px; }
+    .note-cell { font-size:12px; color:var(--text-muted); }
+    .badge-impl { background:#0d3d1a; color:#4caf50; border-radius:3px; padding:1px 6px; font-size:10px; font-weight:700; }
+    .badge-avail { background:#1a2e1a; color:#81c784; border-radius:3px; padding:1px 6px; font-size:10px; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>📚 Référence complète — Variables Discord</h1>
+        <p>Toutes les propriétés accessibles via l'API Discord.js, classées par catégorie</p>
+      </div>
+
+      <!-- Recherche + filtres -->
+      <input type="text" class="search-bar" id="searchInput" placeholder="🔍 Rechercher une propriété, un exemple, une description..." oninput="filterTable()">
+      <div class="filter-tabs">
+        <button class="filter-tab active" onclick="filterCat('all', this)">Tout</button>
+        <button class="filter-tab" onclick="filterCat('member', this)">👤 Membre</button>
+        <button class="filter-tab" onclick="filterCat('user', this)">👦 Utilisateur</button>
+        <button class="filter-tab" onclick="filterCat('guild', this)">🏠 Serveur</button>
+        <button class="filter-tab" onclick="filterCat('channel', this)">📢 Salon</button>
+        <button class="filter-tab" onclick="filterCat('role', this)">🎭 Rôle</button>
+        <button class="filter-tab" onclick="filterCat('voice', this)">🎤 Vocal</button>
+        <button class="filter-tab" onclick="filterCat('presence', this)">🟢 Présence</button>
+        <button class="filter-tab" onclick="filterCat('message', this)">💬 Message</button>
+        <button class="filter-tab" onclick="filterCat('flags', this)">🏅 Badges</button>
+        <button class="filter-tab" onclick="filterCat('emoji', this)">😀 Emojis</button>
+      </div>
+
+      <div class="card" style="overflow:hidden;">
+        <table class="ref-table" id="refTable">
+          <thead>
+            <tr>
+              <th style="width:220px">Propriété Discord.js</th>
+              <th>Description</th>
+              <th style="width:80px">Type</th>
+              <th style="width:200px">Exemple</th>
+              <th style="width:90px">Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+
+            <%# ═══════════════════════════ MEMBRE ═══════════════════════════ %>
+            <tr><td colspan="5" class="cat-header" data-cat="member">👤 GuildMember — Membre du serveur</td></tr>
+            <tr class="ref-row" data-cat="member">
+              <td><span class="prop-name">member.id</span></td>
+              <td>Identifiant Discord unique (snowflake) du membre</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">123456789012345678</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="member">
+              <td><span class="prop-name">member.displayName</span></td>
+              <td>Pseudo affiché : surnom serveur en priorité, sinon globalName, sinon username</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">Zeus_ARK</span></td>
+              <td><span class="badge-impl">Impl.</span></td>
+            </tr>
+            <tr class="ref-row" data-cat="member">
+              <td><span class="prop-name">member.nickname</span></td>
+              <td>Surnom personnalisé sur le serveur uniquement (null si pas défini)</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">Zeus_ARK</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="member">
+              <td><span class="prop-name">member.joinedAt</span></td>
+              <td>Date d'arrivée du membre sur le serveur</td>
+              <td><span class="type-badge type-date">Date</span></td>
+              <td><span class="example-val">2024-01-05T14:32:00.000Z</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="member">
+              <td><span class="prop-name">member.joinedTimestamp</span></td>
+              <td>Timestamp ms d'arrivée du membre (version numérique de joinedAt)</td>
+              <td><span class="type-badge type-number">number</span></td>
+              <td><span class="example-val">1704463920000</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="member">
+              <td><span class="prop-name">member.premiumSince</span></td>
+              <td>Date depuis laquelle le membre booste le serveur (null si non boosteur)</td>
+              <td><span class="type-badge type-date">Date</span></td>
+              <td><span class="example-val">2025-06-01T00:00:00.000Z</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="member">
+              <td><span class="prop-name">member.premiumSinceTimestamp</span></td>
+              <td>Timestamp ms du début du boost (null si non boosteur)</td>
+              <td><span class="type-badge type-number">number</span></td>
+              <td><span class="example-val">1748736000000</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="member">
+              <td><span class="prop-name">member.roles.cache</span></td>
+              <td>Collection de tous les rôles du membre (Map id → Role)</td>
+              <td><span class="type-badge type-object">Collection</span></td>
+              <td><span class="example-val">Map { id: Role, … }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="member">
+              <td><span class="prop-name">member.displayColor</span></td>
+              <td>Couleur du rôle le plus haut ayant une couleur (entier RGB)</td>
+              <td><span class="type-badge type-number">number</span></td>
+              <td><span class="example-val">1964779</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="member">
+              <td><span class="prop-name">member.displayHexColor</span></td>
+              <td>Couleur hex du rôle le plus haut (#000000 si aucun)</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">#1de9b6</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="member">
+              <td><span class="prop-name">member.communicationDisabledUntil</span></td>
+              <td>Fin du timeout (null si pas en timeout)</td>
+              <td><span class="type-badge type-date">Date</span></td>
+              <td><span class="example-val">2026-04-01T18:00:00.000Z</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="member">
+              <td><span class="prop-name">member.pending</span></td>
+              <td>true si le membre n'a pas encore accepté les règles (membership screening)</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">false</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="member">
+              <td><span class="prop-name">member.manageable</span></td>
+              <td>true si le bot peut gérer ce membre (rôle inférieur au bot)</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">true</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="member">
+              <td><span class="prop-name">member.kickable</span></td>
+              <td>true si le bot peut expulser ce membre</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">true</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="member">
+              <td><span class="prop-name">member.bannable</span></td>
+              <td>true si le bot peut bannir ce membre</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">true</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="member">
+              <td><span class="prop-name">member.voice</span></td>
+              <td>État vocal du membre (objet VoiceState, voir section Vocal)</td>
+              <td><span class="type-badge type-object">VoiceState</span></td>
+              <td><span class="example-val">VoiceState { … }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="member">
+              <td><span class="prop-name">member.isCommunicationDisabled()</span></td>
+              <td>true si le membre est actuellement en timeout</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">false</span></td>
+              <td></td>
+            </tr>
+
+            <%# ═══════════════════════════ UTILISATEUR ═══════════════════════════ %>
+            <tr><td colspan="5" class="cat-header" data-cat="user">👦 User — Compte Discord</td></tr>
+            <tr class="ref-row" data-cat="user">
+              <td><span class="prop-name">user.id</span></td>
+              <td>Identifiant Discord unique (snowflake) — identique à member.id</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">123456789012345678</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="user">
+              <td><span class="prop-name">user.username</span></td>
+              <td>Identifiant unique de l'utilisateur (unique sur Discord, sans @)</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">zeus_official</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="user">
+              <td><span class="prop-name">user.globalName</span></td>
+              <td>Nom d'affichage global choisi par l'utilisateur (peut être null)</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">Zeus</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="user">
+              <td><span class="prop-name">user.discriminator</span></td>
+              <td>Ancien discriminateur #XXXX (désormais "0" pour tous les comptes récents)</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">0</span></td>
+              <td class="note-cell">Obsolète</td>
+            </tr>
+            <tr class="ref-row" data-cat="user">
+              <td><span class="prop-name">user.tag</span></td>
+              <td>username#discriminator — format historique, obsolète depuis 2023</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">zeus_official#0</span></td>
+              <td class="note-cell">Obsolète</td>
+            </tr>
+            <tr class="ref-row" data-cat="user">
+              <td><span class="prop-name">user.bot</span></td>
+              <td>true si le compte est un bot Discord</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">false</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="user">
+              <td><span class="prop-name">user.system</span></td>
+              <td>true si c'est un compte système officiel Discord</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">false</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="user">
+              <td><span class="prop-name">user.createdAt</span></td>
+              <td>Date de création du compte Discord (déduite du snowflake)</td>
+              <td><span class="type-badge type-date">Date</span></td>
+              <td><span class="example-val">2022-03-12T10:00:00.000Z</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="user">
+              <td><span class="prop-name">user.createdTimestamp</span></td>
+              <td>Timestamp ms de création du compte</td>
+              <td><span class="type-badge type-number">number</span></td>
+              <td><span class="example-val">1647072000000</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="user">
+              <td><span class="prop-name">user.accentColor</span></td>
+              <td>Couleur de profil choisie par l'utilisateur (null si pas définie)</td>
+              <td><span class="type-badge type-number">number</span></td>
+              <td><span class="example-val">1964779</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="user">
+              <td><span class="prop-name">user.hexAccentColor</span></td>
+              <td>Couleur de profil en hexadécimal (null si pas définie)</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">#1de9b6</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="user">
+              <td><span class="prop-name">user.flags</span></td>
+              <td>Badges du compte (HypeSquad, Bug Hunter, Early Supporter, etc.)</td>
+              <td><span class="type-badge type-object">UserFlags</span></td>
+              <td><span class="example-val">UserFlags { bitfield: 64 }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="user">
+              <td><span class="prop-name">user.displayAvatarURL()</span></td>
+              <td>URL de l'avatar du membre (ou avatar par défaut Discord)</td>
+              <td><span class="type-badge type-url">URL</span></td>
+              <td><span class="example-val">https://cdn.discordapp.com/avatars/…</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="user">
+              <td><span class="prop-name">user.bannerURL()</span></td>
+              <td>URL de la bannière de profil (null si aucune — nécessite Nitro)</td>
+              <td><span class="type-badge type-url">URL</span></td>
+              <td><span class="example-val">https://cdn.discordapp.com/banners/…</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="user">
+              <td><span class="prop-name">user.avatarDecorationURL()</span></td>
+              <td>URL de la décoration d'avatar (cadre animé Nitro, null si aucun)</td>
+              <td><span class="type-badge type-url">URL</span></td>
+              <td><span class="example-val">https://cdn.discordapp.com/…</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="user">
+              <td><span class="prop-name">user.toString()</span></td>
+              <td>Retourne la mention &lt;@id&gt; du membre</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">&lt;@123456789012345678&gt;</span></td>
+              <td></td>
+            </tr>
+
+            <%# ═══════════════════════════ SERVEUR ═══════════════════════════ %>
+            <tr><td colspan="5" class="cat-header" data-cat="guild">🏠 Guild — Serveur Discord</td></tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.id</span></td>
+              <td>Identifiant unique du serveur</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">987654321098765432</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.name</span></td>
+              <td>Nom complet du serveur</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">Arki' Family</span></td>
+              <td><span class="badge-impl">Impl.</span></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.description</span></td>
+              <td>Description du serveur (null si vide — visible sur la page de découverte)</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">Serveur ARK Survival Evolved…</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.memberCount</span></td>
+              <td>Nombre total de membres (bots inclus)</td>
+              <td><span class="type-badge type-number">number</span></td>
+              <td><span class="example-val">510</span></td>
+              <td><span class="badge-impl">Impl.</span></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.maximumMembers</span></td>
+              <td>Capacité maximale de membres du serveur</td>
+              <td><span class="type-badge type-number">number</span></td>
+              <td><span class="example-val">250000</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.ownerId</span></td>
+              <td>ID du propriétaire du serveur</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">111222333444555666</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.createdAt</span></td>
+              <td>Date de création du serveur</td>
+              <td><span class="type-badge type-date">Date</span></td>
+              <td><span class="example-val">2020-04-15T12:00:00.000Z</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.premiumTier</span></td>
+              <td>Niveau de boost : 0 (aucun), 1, 2 ou 3 (max)</td>
+              <td><span class="type-badge type-enum">enum</span></td>
+              <td><span class="example-val">2</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.premiumSubscriptionCount</span></td>
+              <td>Nombre de boosts Nitro actifs sur le serveur</td>
+              <td><span class="type-badge type-number">number</span></td>
+              <td><span class="example-val">7</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.vanityURLCode</span></td>
+              <td>Code URL personnalisé du serveur (discord.gg/CODE — null si aucun)</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">arki-family</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.verificationLevel</span></td>
+              <td>Niveau de vérification : None, Low, Medium, High, VeryHigh</td>
+              <td><span class="type-badge type-enum">enum</span></td>
+              <td><span class="example-val">Medium</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.explicitContentFilter</span></td>
+              <td>Filtre contenus explicites : Disabled, MembersWithoutRoles, AllMembers</td>
+              <td><span class="type-badge type-enum">enum</span></td>
+              <td><span class="example-val">MembersWithoutRoles</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.preferredLocale</span></td>
+              <td>Langue principale du serveur (code ISO)</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">fr</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.afkChannelId</span></td>
+              <td>ID du salon vocal AFK (null si non défini)</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">123456789012345678</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.afkTimeout</span></td>
+              <td>Délai AFK en secondes (60, 300, 900, 1800, 3600)</td>
+              <td><span class="type-badge type-number">number</span></td>
+              <td><span class="example-val">300</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.systemChannelId</span></td>
+              <td>ID du salon des messages système (bienvenue natif Discord, boosts)</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">123456789012345678</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.rulesChannelId</span></td>
+              <td>ID du salon des règles (serveurs communautaires uniquement)</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">123456789012345678</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.iconURL()</span></td>
+              <td>URL de l'icône du serveur (null si aucune)</td>
+              <td><span class="type-badge type-url">URL</span></td>
+              <td><span class="example-val">https://cdn.discordapp.com/icons/…</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.bannerURL()</span></td>
+              <td>URL de la bannière du serveur (null si aucune)</td>
+              <td><span class="type-badge type-url">URL</span></td>
+              <td><span class="example-val">https://cdn.discordapp.com/banners/…</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.splashURL()</span></td>
+              <td>URL de l'image d'invitation du serveur (null si aucune)</td>
+              <td><span class="type-badge type-url">URL</span></td>
+              <td><span class="example-val">https://cdn.discordapp.com/splashes/…</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.channels.cache</span></td>
+              <td>Collection de tous les salons du serveur</td>
+              <td><span class="type-badge type-object">Collection</span></td>
+              <td><span class="example-val">Map { id: Channel, … }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.roles.cache</span></td>
+              <td>Collection de tous les rôles du serveur</td>
+              <td><span class="type-badge type-object">Collection</span></td>
+              <td><span class="example-val">Map { id: Role, … }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.emojis.cache</span></td>
+              <td>Collection de tous les emojis personnalisés du serveur</td>
+              <td><span class="type-badge type-object">Collection</span></td>
+              <td><span class="example-val">Map { id: GuildEmoji, … }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.stickers.cache</span></td>
+              <td>Collection de tous les stickers du serveur</td>
+              <td><span class="type-badge type-object">Collection</span></td>
+              <td><span class="example-val">Map { id: Sticker, … }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.members.cache</span></td>
+              <td>Collection de tous les membres en cache (peut être incomplète)</td>
+              <td><span class="type-badge type-object">Collection</span></td>
+              <td><span class="example-val">Map { id: GuildMember, … }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.bans.cache</span></td>
+              <td>Collection des utilisateurs bannis du serveur</td>
+              <td><span class="type-badge type-object">Collection</span></td>
+              <td><span class="example-val">Map { id: GuildBan, … }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.invites.cache</span></td>
+              <td>Collection des liens d'invitation actifs (si bot a la permission)</td>
+              <td><span class="type-badge type-object">Collection</span></td>
+              <td><span class="example-val">Map { code: Invite, … }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="guild">
+              <td><span class="prop-name">guild.features</span></td>
+              <td>Tableau des fonctionnalités actives du serveur</td>
+              <td><span class="type-badge type-array">string[]</span></td>
+              <td><span class="example-val">['COMMUNITY', 'DISCOVERABLE']</span></td>
+              <td></td>
+            </tr>
+
+            <%# ═══════════════════════════ SALON ═══════════════════════════ %>
+            <tr><td colspan="5" class="cat-header" data-cat="channel">📢 Channel — Salon Discord</td></tr>
+            <tr class="ref-row" data-cat="channel">
+              <td><span class="prop-name">channel.id</span></td>
+              <td>Identifiant unique du salon</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">123456789012345678</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="channel">
+              <td><span class="prop-name">channel.name</span></td>
+              <td>Nom du salon (sans le #)</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">général</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="channel">
+              <td><span class="prop-name">channel.type</span></td>
+              <td>Type : 0=TextChannel, 2=Voice, 4=Category, 5=Announcement, 15=Forum…</td>
+              <td><span class="type-badge type-number">number</span></td>
+              <td><span class="example-val">0</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="channel">
+              <td><span class="prop-name">channel.topic</span></td>
+              <td>Sujet du salon texte (null si vide)</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">Discussions générales</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="channel">
+              <td><span class="prop-name">channel.position</span></td>
+              <td>Position du salon dans la liste (0 = premier)</td>
+              <td><span class="type-badge type-number">number</span></td>
+              <td><span class="example-val">3</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="channel">
+              <td><span class="prop-name">channel.parentId</span></td>
+              <td>ID de la catégorie parente (null si hors catégorie)</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">987654321098765432</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="channel">
+              <td><span class="prop-name">channel.nsfw</span></td>
+              <td>true si le salon est marqué NSFW</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">false</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="channel">
+              <td><span class="prop-name">channel.rateLimitPerUser</span></td>
+              <td>Délai de slowmode en secondes (0 = désactivé)</td>
+              <td><span class="type-badge type-number">number</span></td>
+              <td><span class="example-val">5</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="channel">
+              <td><span class="prop-name">channel.createdAt</span></td>
+              <td>Date de création du salon</td>
+              <td><span class="type-badge type-date">Date</span></td>
+              <td><span class="example-val">2020-04-15T12:00:00.000Z</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="channel">
+              <td><span class="prop-name">channel.lastMessageId</span></td>
+              <td>ID du dernier message envoyé dans le salon</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">123456789012345678</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="channel">
+              <td><span class="prop-name">channel.userLimit</span></td>
+              <td>Limite de membres en vocal (0 = illimité — vocal uniquement)</td>
+              <td><span class="type-badge type-number">number</span></td>
+              <td><span class="example-val">10</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="channel">
+              <td><span class="prop-name">channel.bitrate</span></td>
+              <td>Qualité audio en bits/s (vocal uniquement)</td>
+              <td><span class="type-badge type-number">number</span></td>
+              <td><span class="example-val">64000</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="channel">
+              <td><span class="prop-name">channel.toString()</span></td>
+              <td>Retourne la mention &lt;#id&gt; cliquable du salon</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">&lt;#123456789012345678&gt;</span></td>
+              <td></td>
+            </tr>
+
+            <%# ═══════════════════════════ RÔLE ═══════════════════════════ %>
+            <tr><td colspan="5" class="cat-header" data-cat="role">🎭 Role — Rôle Discord</td></tr>
+            <tr class="ref-row" data-cat="role">
+              <td><span class="prop-name">role.id</span></td>
+              <td>Identifiant unique du rôle</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">123456789012345678</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="role">
+              <td><span class="prop-name">role.name</span></td>
+              <td>Nom du rôle</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">Membre</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="role">
+              <td><span class="prop-name">role.color</span></td>
+              <td>Couleur du rôle en entier (0 si pas de couleur)</td>
+              <td><span class="type-badge type-number">number</span></td>
+              <td><span class="example-val">1964779</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="role">
+              <td><span class="prop-name">role.hexColor</span></td>
+              <td>Couleur du rôle en hexadécimal (#000000 si aucune)</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">#1de9b6</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="role">
+              <td><span class="prop-name">role.hoist</span></td>
+              <td>true si le rôle est affiché séparément dans la liste des membres</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">true</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="role">
+              <td><span class="prop-name">role.position</span></td>
+              <td>Position dans la hiérarchie (0 = @everyone, plus grand = plus haut)</td>
+              <td><span class="type-badge type-number">number</span></td>
+              <td><span class="example-val">5</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="role">
+              <td><span class="prop-name">role.permissions</span></td>
+              <td>Permissions accordées par le rôle (objet Permissions)</td>
+              <td><span class="type-badge type-object">Permissions</span></td>
+              <td><span class="example-val">Permissions { bitfield: 8n }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="role">
+              <td><span class="prop-name">role.mentionable</span></td>
+              <td>true si tout le monde peut mentionner ce rôle</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">false</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="role">
+              <td><span class="prop-name">role.managed</span></td>
+              <td>true si le rôle est géré par une intégration (bot, Twitch, etc.)</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">false</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="role">
+              <td><span class="prop-name">role.members</span></td>
+              <td>Collection des membres ayant ce rôle</td>
+              <td><span class="type-badge type-object">Collection</span></td>
+              <td><span class="example-val">Map { id: GuildMember, … }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="role">
+              <td><span class="prop-name">role.createdAt</span></td>
+              <td>Date de création du rôle</td>
+              <td><span class="type-badge type-date">Date</span></td>
+              <td><span class="example-val">2020-04-15T12:00:00.000Z</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="role">
+              <td><span class="prop-name">role.toString()</span></td>
+              <td>Retourne la mention &lt;@&amp;id&gt; du rôle</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">&lt;@&amp;123456789012345678&gt;</span></td>
+              <td></td>
+            </tr>
+
+            <%# ═══════════════════════════ VOCAL ═══════════════════════════ %>
+            <tr><td colspan="5" class="cat-header" data-cat="voice">🎤 VoiceState — État vocal</td></tr>
+            <tr class="ref-row" data-cat="voice">
+              <td><span class="prop-name">voiceState.channel</span></td>
+              <td>Salon vocal où se trouve le membre (null si pas connecté)</td>
+              <td><span class="type-badge type-object">VoiceChannel</span></td>
+              <td><span class="example-val">VoiceChannel { name: 'Général' }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="voice">
+              <td><span class="prop-name">voiceState.channelId</span></td>
+              <td>ID du salon vocal actuel (null si pas connecté)</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">123456789012345678</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="voice">
+              <td><span class="prop-name">voiceState.selfMute</span></td>
+              <td>true si le membre s'est lui-même coupé le micro</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">false</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="voice">
+              <td><span class="prop-name">voiceState.selfDeaf</span></td>
+              <td>true si le membre s'est lui-même rendu sourd</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">false</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="voice">
+              <td><span class="prop-name">voiceState.serverMute</span></td>
+              <td>true si le membre est coupé par un modérateur/admin</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">false</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="voice">
+              <td><span class="prop-name">voiceState.serverDeaf</span></td>
+              <td>true si le membre est rendu sourd par un modérateur/admin</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">false</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="voice">
+              <td><span class="prop-name">voiceState.streaming</span></td>
+              <td>true si le membre partage son écran (Go Live)</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">false</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="voice">
+              <td><span class="prop-name">voiceState.selfVideo</span></td>
+              <td>true si le membre a sa caméra activée</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">false</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="voice">
+              <td><span class="prop-name">voiceState.suppress</span></td>
+              <td>true si le membre est en mode spectateur (stage channel)</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">false</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="voice">
+              <td><span class="prop-name">voiceState.requestToSpeakTimestamp</span></td>
+              <td>Timestamp de la demande à parler en stage (null si aucune)</td>
+              <td><span class="type-badge type-number">number</span></td>
+              <td><span class="example-val">1748736000000</span></td>
+              <td></td>
+            </tr>
+
+            <%# ═══════════════════════════ PRÉSENCE ═══════════════════════════ %>
+            <tr><td colspan="5" class="cat-header" data-cat="presence">🟢 Presence — Statut & activité</td></tr>
+            <tr class="ref-row" data-cat="presence">
+              <td><span class="prop-name">presence.status</span></td>
+              <td>Statut visible : online, idle, dnd (ne pas déranger), offline</td>
+              <td><span class="type-badge type-enum">enum</span></td>
+              <td><span class="example-val">online</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="presence">
+              <td><span class="prop-name">presence.clientStatus</span></td>
+              <td>Statut par plateforme : { desktop, mobile, web } (chacun online/idle/dnd)</td>
+              <td><span class="type-badge type-object">object</span></td>
+              <td><span class="example-val">{ desktop: 'online', mobile: 'idle' }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="presence">
+              <td><span class="prop-name">presence.activities[0].name</span></td>
+              <td>Nom de l'activité en cours (jeu, stream, musique…)</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">ARK: Survival Evolved</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="presence">
+              <td><span class="prop-name">presence.activities[0].type</span></td>
+              <td>Type : 0=Playing, 1=Streaming, 2=Listening, 3=Watching, 4=Custom, 5=Competing</td>
+              <td><span class="type-badge type-number">number</span></td>
+              <td><span class="example-val">0</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="presence">
+              <td><span class="prop-name">presence.activities[0].state</span></td>
+              <td>Sous-texte de l'activité (niveau, map, statut perso…)</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">The Island — Niveau 120</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="presence">
+              <td><span class="prop-name">presence.activities[0].details</span></td>
+              <td>Détails supplémentaires de l'activité</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">En solo</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="presence">
+              <td><span class="prop-name">presence.activities[0].url</span></td>
+              <td>URL du stream Twitch ou YouTube (streaming uniquement)</td>
+              <td><span class="type-badge type-url">URL</span></td>
+              <td><span class="example-val">https://twitch.tv/zeus</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="presence">
+              <td><span class="prop-name">presence.activities[0].timestamps</span></td>
+              <td>Timestamps début/fin de l'activité pour l'affichage "depuis X min"</td>
+              <td><span class="type-badge type-object">object</span></td>
+              <td><span class="example-val">{ start: Date, end: null }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="presence">
+              <td><span class="prop-name">presence.activities[0].emoji</span></td>
+              <td>Emoji du statut personnalisé (activité de type Custom)</td>
+              <td><span class="type-badge type-object">Emoji</span></td>
+              <td><span class="example-val">{ name: '🦕', id: null }</span></td>
+              <td></td>
+            </tr>
+
+            <%# ═══════════════════════════ MESSAGE ═══════════════════════════ %>
+            <tr><td colspan="5" class="cat-header" data-cat="message">💬 Message</td></tr>
+            <tr class="ref-row" data-cat="message">
+              <td><span class="prop-name">message.id</span></td>
+              <td>Identifiant unique du message</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">123456789012345678</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="message">
+              <td><span class="prop-name">message.content</span></td>
+              <td>Contenu textuel du message</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">Salut tout le monde !</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="message">
+              <td><span class="prop-name">message.author</span></td>
+              <td>Auteur du message (objet User)</td>
+              <td><span class="type-badge type-object">User</span></td>
+              <td><span class="example-val">User { username: 'zeus_official' }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="message">
+              <td><span class="prop-name">message.member</span></td>
+              <td>Membre serveur associé à l'auteur (null si hors serveur)</td>
+              <td><span class="type-badge type-object">GuildMember</span></td>
+              <td><span class="example-val">GuildMember { … }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="message">
+              <td><span class="prop-name">message.channel</span></td>
+              <td>Salon où le message a été envoyé</td>
+              <td><span class="type-badge type-object">Channel</span></td>
+              <td><span class="example-val">TextChannel { name: 'général' }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="message">
+              <td><span class="prop-name">message.guild</span></td>
+              <td>Serveur du message (null si DM)</td>
+              <td><span class="type-badge type-object">Guild</span></td>
+              <td><span class="example-val">Guild { name: "Arki' Family" }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="message">
+              <td><span class="prop-name">message.createdAt</span></td>
+              <td>Date d'envoi du message</td>
+              <td><span class="type-badge type-date">Date</span></td>
+              <td><span class="example-val">2026-03-30T10:00:00.000Z</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="message">
+              <td><span class="prop-name">message.editedAt</span></td>
+              <td>Date de la dernière modification (null si jamais modifié)</td>
+              <td><span class="type-badge type-date">Date</span></td>
+              <td><span class="example-val">2026-03-30T10:05:00.000Z</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="message">
+              <td><span class="prop-name">message.attachments</span></td>
+              <td>Collection des pièces jointes (images, fichiers)</td>
+              <td><span class="type-badge type-object">Collection</span></td>
+              <td><span class="example-val">Map { id: Attachment, … }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="message">
+              <td><span class="prop-name">message.embeds</span></td>
+              <td>Tableau des embeds inclus dans le message</td>
+              <td><span class="type-badge type-array">Embed[]</span></td>
+              <td><span class="example-val">[ Embed { title: '…' } ]</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="message">
+              <td><span class="prop-name">message.reactions.cache</span></td>
+              <td>Collection des réactions au message</td>
+              <td><span class="type-badge type-object">Collection</span></td>
+              <td><span class="example-val">Map { emoji: MessageReaction }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="message">
+              <td><span class="prop-name">message.pinned</span></td>
+              <td>true si le message est épinglé dans le salon</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">false</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="message">
+              <td><span class="prop-name">message.tts</span></td>
+              <td>true si le message a été envoyé en text-to-speech</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">false</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="message">
+              <td><span class="prop-name">message.webhookId</span></td>
+              <td>ID du webhook si le message vient d'un webhook (null sinon)</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">123456789012345678</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="message">
+              <td><span class="prop-name">message.stickers</span></td>
+              <td>Collection des stickers envoyés avec le message</td>
+              <td><span class="type-badge type-object">Collection</span></td>
+              <td><span class="example-val">Map { id: Sticker, … }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="message">
+              <td><span class="prop-name">message.reference</span></td>
+              <td>Référence du message parent si c'est une réponse (null sinon)</td>
+              <td><span class="type-badge type-object">object</span></td>
+              <td><span class="example-val">{ messageId: '…', channelId: '…' }</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="message">
+              <td><span class="prop-name">message.type</span></td>
+              <td>Type de message : 0=Default, 19=Reply, 20=SlashCommand, 21=Thread…</td>
+              <td><span class="type-badge type-number">number</span></td>
+              <td><span class="example-val">0</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="message">
+              <td><span class="prop-name">message.url</span></td>
+              <td>Lien direct vers le message (discord.com/channels/…)</td>
+              <td><span class="type-badge type-url">URL</span></td>
+              <td><span class="example-val">https://discord.com/channels/…</span></td>
+              <td></td>
+            </tr>
+
+            <%# ═══════════════════════════ BADGES ═══════════════════════════ %>
+            <tr><td colspan="5" class="cat-header" data-cat="flags">🏅 UserFlags — Badges de profil</td></tr>
+            <tr class="ref-row" data-cat="flags">
+              <td><span class="prop-name">Staff</span></td>
+              <td>Employé Discord</td>
+              <td><span class="type-badge type-boolean">flag</span></td>
+              <td><span class="example-val">Très rare</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="flags">
+              <td><span class="prop-name">Partner</span></td>
+              <td>Serveur partenaire Discord (propriétaire)</td>
+              <td><span class="type-badge type-boolean">flag</span></td>
+              <td><span class="example-val">Rare</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="flags">
+              <td><span class="prop-name">Hypesquad</span></td>
+              <td>Événements HypeSquad (organisateur)</td>
+              <td><span class="type-badge type-boolean">flag</span></td>
+              <td><span class="example-val">—</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="flags">
+              <td><span class="prop-name">HypeSquadOnlineHouse1</span></td>
+              <td>Maison HypeSquad Bravery 🟠</td>
+              <td><span class="type-badge type-boolean">flag</span></td>
+              <td><span class="example-val">—</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="flags">
+              <td><span class="prop-name">HypeSquadOnlineHouse2</span></td>
+              <td>Maison HypeSquad Brilliance 🔴</td>
+              <td><span class="type-badge type-boolean">flag</span></td>
+              <td><span class="example-val">—</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="flags">
+              <td><span class="prop-name">HypeSquadOnlineHouse3</span></td>
+              <td>Maison HypeSquad Balance 🟣</td>
+              <td><span class="type-badge type-boolean">flag</span></td>
+              <td><span class="example-val">—</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="flags">
+              <td><span class="prop-name">BugHunterLevel1</span></td>
+              <td>Chasseur de bugs Discord — niveau 1</td>
+              <td><span class="type-badge type-boolean">flag</span></td>
+              <td><span class="example-val">—</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="flags">
+              <td><span class="prop-name">BugHunterLevel2</span></td>
+              <td>Chasseur de bugs Discord — niveau 2 (or)</td>
+              <td><span class="type-badge type-boolean">flag</span></td>
+              <td><span class="example-val">Très rare</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="flags">
+              <td><span class="prop-name">PremiumEarlySupporter</span></td>
+              <td>Nitro avant le 10 octobre 2018 (badge "Early Supporter")</td>
+              <td><span class="type-badge type-boolean">flag</span></td>
+              <td><span class="example-val">Rare</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="flags">
+              <td><span class="prop-name">VerifiedDeveloper</span></td>
+              <td>Développeur de bot vérifié par Discord</td>
+              <td><span class="type-badge type-boolean">flag</span></td>
+              <td><span class="example-val">—</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="flags">
+              <td><span class="prop-name">ActiveDeveloper</span></td>
+              <td>Développeur actif (bot utilisé dans un serveur depuis &lt;30 jours)</td>
+              <td><span class="type-badge type-boolean">flag</span></td>
+              <td><span class="example-val">—</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="flags">
+              <td><span class="prop-name">CertifiedModerator</span></td>
+              <td>Modérateur certifié Discord</td>
+              <td><span class="type-badge type-boolean">flag</span></td>
+              <td><span class="example-val">—</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="flags">
+              <td><span class="prop-name">VerifiedBot</span></td>
+              <td>Bot vérifié par Discord (coche bleue)</td>
+              <td><span class="type-badge type-boolean">flag</span></td>
+              <td><span class="example-val">—</span></td>
+              <td></td>
+            </tr>
+
+            <%# ═══════════════════════════ EMOJIS ═══════════════════════════ %>
+            <tr><td colspan="5" class="cat-header" data-cat="emoji">😀 GuildEmoji — Émoji personnalisé</td></tr>
+            <tr class="ref-row" data-cat="emoji">
+              <td><span class="prop-name">emoji.id</span></td>
+              <td>Identifiant unique de l'émoji</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">123456789012345678</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="emoji">
+              <td><span class="prop-name">emoji.name</span></td>
+              <td>Nom de l'émoji (sans les :)</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">arki_dino</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="emoji">
+              <td><span class="prop-name">emoji.animated</span></td>
+              <td>true si l'émoji est animé (GIF)</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">false</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="emoji">
+              <td><span class="prop-name">emoji.available</span></td>
+              <td>true si l'émoji est utilisable (false si boost insuffisant)</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">true</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="emoji">
+              <td><span class="prop-name">emoji.managed</span></td>
+              <td>true si l'émoji est géré par une intégration</td>
+              <td><span class="type-badge type-boolean">boolean</span></td>
+              <td><span class="example-val">false</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="emoji">
+              <td><span class="prop-name">emoji.url</span></td>
+              <td>URL CDN de l'émoji (PNG ou GIF)</td>
+              <td><span class="type-badge type-url">URL</span></td>
+              <td><span class="example-val">https://cdn.discordapp.com/emojis/…</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="emoji">
+              <td><span class="prop-name">emoji.toString()</span></td>
+              <td>Retourne la syntaxe d'utilisation de l'émoji : &lt;:name:id&gt;</td>
+              <td><span class="type-badge type-string">string</span></td>
+              <td><span class="example-val">&lt;:arki_dino:123456789012345678&gt;</span></td>
+              <td></td>
+            </tr>
+            <tr class="ref-row" data-cat="emoji">
+              <td><span class="prop-name">emoji.createdAt</span></td>
+              <td>Date d'ajout de l'émoji sur le serveur</td>
+              <td><span class="type-badge type-date">Date</span></td>
+              <td><span class="example-val">2021-07-20T08:00:00.000Z</span></td>
+              <td></td>
+            </tr>
+
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:12px;padding:12px 16px;background:var(--bg-card);border-radius:8px;border:1px solid var(--border-color);font-size:12px;color:var(--text-muted);">
+        📖 Source : <strong>Discord.js v14</strong> — <a href="https://discord.js.org/" target="_blank" style="color:var(--accent)">documentation officielle</a>. Les propriétés marquées <strong>Impl.</strong> sont déjà utilisées dans le bot. Les autres sont accessibles et peuvent être intégrées à la demande.
+      </div>
+    </main>
+  </div>
+
+  <script>
+    var currentCat = 'all';
+
+    function filterCat(cat, btn) {
+      currentCat = cat;
+      document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      filterTable();
+    }
+
+    function filterTable() {
+      var q = document.getElementById('searchInput').value.toLowerCase();
+      document.querySelectorAll('.ref-row').forEach(function(row) {
+        var catMatch = currentCat === 'all' || row.dataset.cat === currentCat;
+        var text = row.textContent.toLowerCase();
+        var textMatch = !q || text.includes(q);
+        row.classList.toggle('hidden', !(catMatch && textMatch));
+      });
+      // Masquer les en-têtes de catégorie si aucune ligne visible
+      document.querySelectorAll('tr[data-cat]').forEach(function(header) {
+        var cat = header.dataset.cat;
+        var hasVisible = Array.from(document.querySelectorAll('.ref-row[data-cat="' + cat + '"]')).some(function(r) {
+          return !r.classList.contains('hidden');
+        });
+        header.classList.toggle('hidden', !hasVisible);
+      });
+    }
+  </script>
+</body>
+</html>

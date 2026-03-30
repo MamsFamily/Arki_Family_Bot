@@ -426,6 +426,10 @@ function createWebServer(discordClient) {
     }
   });
 
+  app.get('/discord-ref', requireAdmin, (req, res) => {
+    res.render('discord-ref');
+  });
+
   app.get('/roulette', requireAdmin, async (req, res) => {
     const config = await readConfig();
     res.render('roulette', { config, success: null, error: null });
