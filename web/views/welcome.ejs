@@ -419,11 +419,16 @@
           </div>
         </div>
 
-        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
           <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <label style="font-size:12px;opacity:0.7;">ID Discord pour le test (optionnel)</label>
+            <input type="text" id="testUserId" placeholder="ex: 1056004606867546132" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--card-bg);color:var(--text);font-size:13px;width:220px;">
+          </div>
           <button type="button" class="btn btn-secondary" onclick="sendTest('new')">🔵 Tester nouveau membre</button>
           <button type="button" class="btn btn-secondary" onclick="sendTest('return')">🟡 Tester revenant</button>
         </div>
+        <p style="font-size:12px;opacity:0.6;margin-top:6px;">💡 Sans bot connecté (mode Replit), les données sont enregistrées en base mais le message Discord est envoyé uniquement depuis Railway.</p>
 
       </form>
     </main>
@@ -499,10 +504,13 @@
     }
 
     async function sendTest(type) {
+      var userId = (document.getElementById('testUserId')?.value || '').trim();
+      var body = { type };
+      if (userId) body.userId = userId;
       var res = await fetch('/welcome/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type }),
+        body: JSON.stringify(body),
       });
       var d = await res.json();
       alert(d.message || (d.error ? '❌ ' + d.error : '✅ Test envoyé !'));

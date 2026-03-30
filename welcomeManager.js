@@ -2,45 +2,96 @@ const { createCanvas, loadImage } = require('canvas');
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { getDatabase } = require('./database');
 const { getSettings } = require('./settingsManager');
+const pgStore = require('./pgStore');
 const axios = require('axios');
 const path = require('path');
 
-let dbReady = false;
+let sqliteReady = false;
 
-function initWelcomeDb() {
-  if (dbReady) return;
-  const db = getDatabase();
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS member_history (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id TEXT NOT NULL,
-      guild_id TEXT NOT NULL,
-      joined_at INTEGER NOT NULL,
-      left_at INTEGER DEFAULT NULL
-    )
-  `);
-  dbReady = true;
+function initSqliteDb() {
+  if (sqliteReady) return;
+  try {
+    const db = getDatabase();
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS member_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        guild_id TEXT NOT NULL,
+        joined_at INTEGER NOT NULL,
+        left_at INTEGER DEFAULT NULL
+      )
+    `);
+    sqliteReady = true;
+  } catch (e) {
+    console.warn('[Welcome] SQLite init:', e.message);
+  }
 }
 
-function recordJoin(userId, guildId) {
-  initWelcomeDb();
+async function recordJoin(userId, guildId) {
+  const pool = pgStore.getPool();
+  if (pool) {
+    try {
+      await pool.query(
+        'INSERT INTO member_history (user_id, guild_id, joined_at) VALUES ($1, $2, $3)',
+        [String(userId), String(guildId), Date.now()]
+      );
+      return;
+    } catch (e) { console.warn('[Welcome] PG recordJoin:', e.message); }
+  }
+  initSqliteDb();
   const db = getDatabase();
   db.prepare('INSERT INTO member_history (user_id, guild_id, joined_at) VALUES (?, ?, ?)').run(String(userId), String(guildId), Date.now());
 }
 
-function recordLeave(userId, guildId) {
-  initWelcomeDb();
+async function recordLeave(userId, guildId) {
+  const pool = pgStore.getPool();
+  if (pool) {
+    try {
+      await pool.query(
+        `UPDATE member_history SET left_at = $1 WHERE id = (
+           SELECT id FROM member_history WHERE user_id = $2 AND guild_id = $3 AND left_at IS NULL ORDER BY joined_at DESC LIMIT 1
+         )`,
+        [Date.now(), String(userId), String(guildId)]
+      );
+      return;
+    } catch (e) { console.warn('[Welcome] PG recordLeave:', e.message); }
+  }
+  initSqliteDb();
   const db = getDatabase();
   const row = db.prepare('SELECT id FROM member_history WHERE user_id = ? AND guild_id = ? AND left_at IS NULL ORDER BY joined_at DESC LIMIT 1').get(String(userId), String(guildId));
-  if (row) {
-    db.prepare('UPDATE member_history SET left_at = ? WHERE id = ?').run(Date.now(), row.id);
-  }
+  if (row) db.prepare('UPDATE member_history SET left_at = ? WHERE id = ?').run(Date.now(), row.id);
 }
 
-function getMemberVisits(userId, guildId) {
-  initWelcomeDb();
+async function getMemberVisits(userId, guildId) {
+  const pool = pgStore.getPool();
+  if (pool) {
+    try {
+      const res = await pool.query(
+        'SELECT * FROM member_history WHERE user_id = $1 AND guild_id = $2 ORDER BY joined_at ASC',
+        [String(userId), String(guildId)]
+      );
+      return res.rows;
+    } catch (e) { console.warn('[Welcome] PG getMemberVisits:', e.message); }
+  }
+  initSqliteDb();
   const db = getDatabase();
   return db.prepare('SELECT * FROM member_history WHERE user_id = ? AND guild_id = ? ORDER BY joined_at ASC').all(String(userId), String(guildId));
+}
+
+async function insertMemberHistory(userId, guildId, joinedAt, leftAt) {
+  const pool = pgStore.getPool();
+  if (pool) {
+    try {
+      await pool.query(
+        'INSERT INTO member_history (user_id, guild_id, joined_at, left_at) VALUES ($1, $2, $3, $4)',
+        [String(userId), String(guildId), joinedAt, leftAt ?? null]
+      );
+      return;
+    } catch (e) { console.warn('[Welcome] PG insertMemberHistory:', e.message); }
+  }
+  initSqliteDb();
+  const db = getDatabase();
+  db.prepare('INSERT OR IGNORE INTO member_history (user_id, guild_id, joined_at, left_at) VALUES (?, ?, ?, ?)').run(String(userId), String(guildId), joinedAt, leftAt ?? null);
 }
 
 function formatDuration(ms) {
@@ -196,33 +247,45 @@ function isMilestone(n) {
 }
 
 // Obtenir les stats du mois courant (arrivées / départs)
-function getWelcomeStats(guildId) {
-  initWelcomeDb();
-  const db = getDatabase();
+async function getWelcomeStats(guildId) {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+  const month = now.toLocaleString('fr-FR', { month: 'long', year: 'numeric' });
 
-  const joins = db.prepare(
-    'SELECT COUNT(*) as cnt FROM member_history WHERE guild_id = ? AND joined_at >= ? AND joined_at <= ?'
-  ).get(String(guildId), startOfMonth, endOfMonth);
+  const pool = pgStore.getPool();
+  if (pool) {
+    try {
+      const jRes = await pool.query(
+        'SELECT COUNT(*) AS cnt FROM member_history WHERE guild_id = $1 AND joined_at >= $2 AND joined_at <= $3',
+        [String(guildId), startOfMonth, endOfMonth]
+      );
+      const lRes = await pool.query(
+        'SELECT COUNT(*) AS cnt FROM member_history WHERE guild_id = $1 AND left_at >= $2 AND left_at <= $3',
+        [String(guildId), startOfMonth, endOfMonth]
+      );
+      const j = parseInt(jRes.rows[0]?.cnt || 0);
+      const l = parseInt(lRes.rows[0]?.cnt || 0);
+      return { joins: j, leaves: l, net: j - l, month };
+    } catch (e) { console.warn('[Welcome] PG getWelcomeStats:', e.message); }
+  }
 
-  const leaves = db.prepare(
-    'SELECT COUNT(*) as cnt FROM member_history WHERE guild_id = ? AND left_at >= ? AND left_at <= ?'
-  ).get(String(guildId), startOfMonth, endOfMonth);
-
+  initSqliteDb();
+  const db = getDatabase();
+  const joins = db.prepare('SELECT COUNT(*) as cnt FROM member_history WHERE guild_id = ? AND joined_at >= ? AND joined_at <= ?').get(String(guildId), startOfMonth, endOfMonth);
+  const leaves = db.prepare('SELECT COUNT(*) as cnt FROM member_history WHERE guild_id = ? AND left_at >= ? AND left_at <= ?').get(String(guildId), startOfMonth, endOfMonth);
   return {
     joins: joins?.cnt || 0,
     leaves: leaves?.cnt || 0,
     net: (joins?.cnt || 0) - (leaves?.cnt || 0),
-    month: now.toLocaleString('fr-FR', { month: 'long', year: 'numeric' }),
+    month,
   };
 }
 
 async function buildWelcomeEmbed(member, guild, client) {
   const settings = getSettings();
   const ws = settings.welcome || {};
-  const visits = getMemberVisits(member.id, guild.id);
+  const visits = await getMemberVisits(member.id, guild.id);
   const visitCount = visits.length;
   const isNew = visitCount <= 1;
 
@@ -319,7 +382,7 @@ async function sendWelcomeDM(member, guild) {
   const ws = settings.welcome || {};
   if (!ws.dmEnabled || !ws.dmMessage) return;
 
-  const visits = getMemberVisits(member.id, guild.id);
+  const visits = await getMemberVisits(member.id, guild.id);
   const visitCount = visits.length;
   const name = member.displayName || member.user.username;
 
@@ -346,6 +409,7 @@ module.exports = {
   recordJoin,
   recordLeave,
   getMemberVisits,
+  insertMemberHistory,
   buildWelcomeEmbed,
   sendWelcomeDM,
   getWelcomeStats,

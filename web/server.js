@@ -31,8 +31,14 @@ const inventoryManager = require('../inventoryManager');
 const { getSpecialPacks, getSpecialPack, addSpecialPack, updateSpecialPack, deleteSpecialPack } = require('../specialPacksManager');
 const giveawayManager = require('../giveawayManager');
 
+const pgStore = require('../pgStore');
+
 function createWebServer(discordClient) {
   const app = express();
+
+  // Init PostgreSQL si disponible (partagé avec Railway)
+  pgStore.initPool();
+  pgStore.initTables().catch(() => {});
 
   app.set('view engine', 'ejs');
   app.set('views', path.join(__dirname, 'views'));
@@ -301,8 +307,9 @@ function createWebServer(discordClient) {
     let welcomeStats = { joins: 0, leaves: 0, net: 0, month: '' };
     try {
       const { getWelcomeStats } = require('../welcomeManager');
-      const guildId = discordClient?.guilds?.cache?.first()?.id || '';
-      if (guildId) welcomeStats = getWelcomeStats(guildId);
+      const settings = getSettings();
+      const guildId = discordClient?.guilds?.cache?.first()?.id || settings.guild?.guildId || '';
+      if (guildId) welcomeStats = await getWelcomeStats(guildId);
     } catch {}
 
     res.render('dashboard', {
@@ -389,37 +396,47 @@ function createWebServer(discordClient) {
 
   app.post('/welcome/test', requireAdmin, async (req, res) => {
     try {
-      if (!discordClient) return res.json({ error: 'Bot Discord non connecté (mode dashboard uniquement)' });
       const settings = getSettings();
       const ws = settings.welcome || {};
-      if (!ws.channelId) return res.json({ error: 'Aucun salon de bienvenue configuré' });
-      const guild = discordClient.guilds.cache.first();
-      if (!guild) return res.json({ error: 'Aucun serveur Discord trouvé' });
-      const channel = guild.channels.cache.get(ws.channelId);
-      if (!channel) return res.json({ error: 'Salon introuvable (ID invalide ?)' });
-
       const type = req.body.type || 'new';
-      const { buildWelcomeEmbed, recordJoin } = require('../welcomeManager');
-      const { getDatabase } = require('../database');
+      // Priorité : userId fourni dans le body, sinon session Discord, sinon propriétaire du serveur
+      const userId = req.body.userId || req.session?.discordUser?.id;
+      const guildId = settings.guild?.guildId || '';
 
-      // Utiliser le membre qui fait la requête (session Discord)
-      const userId = req.session?.discordUser?.id || guild.ownerId;
-      const member = await guild.members.fetch(userId).catch(() => null);
-      if (!member) return res.json({ error: 'Membre introuvable pour le test' });
+      const { buildWelcomeEmbed, insertMemberHistory, getMemberVisits } = require('../welcomeManager');
 
       if (type === 'return') {
-        // Simuler un revenant : injecter 2 visites dans la DB
-        const db = getDatabase();
+        // Injecter un séjour passé en base (PostgreSQL ou SQLite selon l'env)
         const now = Date.now();
-        const past1 = now - 90 * 24 * 3600 * 1000;
-        const past2 = now - 60 * 24 * 3600 * 1000;
-        db.prepare('INSERT OR IGNORE INTO member_history (user_id, guild_id, joined_at, left_at) VALUES (?, ?, ?, ?)').run(userId, guild.id, past1, past2);
+        const joined = now - 90 * 24 * 3600 * 1000; // parti il y a 90 jours
+        const left   = now - 30 * 24 * 3600 * 1000; // revenu il y a 30 jours
+        await insertMemberHistory(userId, guildId, joined, left);
       }
 
-      const { embed, attachment } = await buildWelcomeEmbed(member, guild, discordClient);
-      const files = attachment ? [attachment] : [];
-      await channel.send({ embeds: [embed], files, content: `🧪 **Test** (${type === 'return' ? 'revenant' : 'nouveau membre'})` });
-      res.json({ message: '✅ Message de test envoyé dans #' + channel.name });
+      // Si le bot est connecté, envoyer le message Discord
+      if (discordClient) {
+        if (!ws.channelId) return res.json({ error: 'Aucun salon de bienvenue configuré' });
+        const guild = discordClient.guilds.cache.first();
+        if (!guild) return res.json({ error: 'Aucun serveur Discord trouvé' });
+        const channel = guild.channels.cache.get(ws.channelId);
+        if (!channel) return res.json({ error: 'Salon introuvable (ID invalide ?)' });
+        const member = await guild.members.fetch(userId).catch(() => null);
+        if (!member) return res.json({ error: `Membre <@${userId}> introuvable sur le serveur. Il doit être présent pour que le test envoie le message Discord.` });
+
+        const { embed, attachment } = await buildWelcomeEmbed(member, guild, discordClient);
+        const files = attachment ? [attachment] : [];
+        const label = type === 'return' ? 'revenant' : 'nouveau membre';
+        await channel.send({ embeds: [embed], files, content: `🧪 **Test** (${label})` });
+        return res.json({ message: `✅ Message de test envoyé dans #${channel.name}` });
+      }
+
+      // Mode dashboard seul (Replit) : les données ont été insérées en base
+      const visits = await getMemberVisits(userId, guildId);
+      if (type === 'return') {
+        return res.json({ message: `📝 Séjour précédent enregistré pour \`${userId}\` (${visits.length} visite(s) en base). Quand il rejoindra le serveur sur Railway, il sera reconnu comme revenant.` });
+      }
+      return res.json({ message: `📝 ID \`${userId}\` prêt comme nouveau membre (${visits.length} visite(s) en base). Le message Discord ne peut être envoyé que depuis Railway.` });
+
     } catch (err) {
       console.error('[Welcome test]', err);
       res.json({ error: err.message });

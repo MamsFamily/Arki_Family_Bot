@@ -35,9 +35,21 @@ async function initTables() {
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
-    console.log('✅ Table app_data prête');
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS member_history (
+        id BIGSERIAL PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        guild_id TEXT NOT NULL,
+        joined_at BIGINT NOT NULL,
+        left_at BIGINT DEFAULT NULL
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_mh_user_guild ON member_history (user_id, guild_id)
+    `);
+    console.log('✅ Tables app_data + member_history prêtes');
   } catch (err) {
-    console.error('❌ Erreur création table:', err.message);
+    console.error('❌ Erreur création tables:', err.message);
     usePostgres = false;
   }
 }
