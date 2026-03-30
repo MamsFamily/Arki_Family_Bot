@@ -377,9 +377,6 @@ function createWebServer(discordClient) {
         returnTitle: req.body.returnTitle || '👋 Bon retour parmi nous, {user} !',
         newMessage: req.body.newMessage || '',
         returnMessage: req.body.returnMessage || '',
-        buttonEnabled: req.body.buttonEnabled === '1',
-        buttonLabel: req.body.buttonLabel || '📋 Commencer mon aventure',
-        buttonUrl: req.body.buttonUrl || '',
         dmEnabled: req.body.dmEnabled === '1',
         dmMessage: req.body.dmMessage || '',
       });

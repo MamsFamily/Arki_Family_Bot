@@ -2791,9 +2791,9 @@ client.on('guildMemberAdd', async (member) => {
     const channel = member.guild.channels.cache.get(ws.channelId);
     if (!channel) return;
 
-    const { embed, attachment, components } = await buildWelcomeEmbed(member, member.guild, client);
+    const { embed, attachment } = await buildWelcomeEmbed(member, member.guild, client);
     const files = attachment ? [attachment] : [];
-    await channel.send({ embeds: [embed], files, components: components || [] });
+    await channel.send({ embeds: [embed], files });
     await sendWelcomeDM(member, member.guild);
 
     // Ping après délai

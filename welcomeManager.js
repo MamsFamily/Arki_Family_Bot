@@ -1,5 +1,5 @@
 const { createCanvas, loadImage } = require('canvas');
-const { EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { getDatabase } = require('./database');
 const { getSettings } = require('./settingsManager');
 const axios = require('axios');
@@ -278,9 +278,7 @@ async function buildWelcomeEmbed(member, guild, client) {
     .setColor(embedColor)
     .setTitle(baseTitle)
     .setDescription(description)
-    .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }))
-    .setFooter({ text: `ID : ${member.id}` })
-    .setTimestamp();
+    .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }));
 
   // Champs retour
   if (!isNew) {
@@ -312,19 +310,7 @@ async function buildWelcomeEmbed(member, guild, client) {
     embed.setImage('attachment://welcome.png');
   }
 
-  // Bouton lien configurable
-  let components = [];
-  if (ws.buttonEnabled && ws.buttonUrl) {
-    try {
-      const btn = new ButtonBuilder()
-        .setStyle(ButtonStyle.Link)
-        .setLabel(ws.buttonLabel || '📋 Commencer mon aventure')
-        .setURL(ws.buttonUrl);
-      components = [new ActionRowBuilder().addComponents(btn)];
-    } catch {}
-  }
-
-  return { embed, attachment, components };
+  return { embed, attachment };
 }
 
 // DM au membre à l'arrivée
