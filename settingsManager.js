@@ -74,6 +74,11 @@ const DEFAULTS = {
     returnTitle: "👋 Bon retour parmi nous, {user} !",
     newMessage: "Bienvenue {userMention} sur **{server}** !\nTu es notre **{memberCount}ème** membre 🎉\n\nOn espère que tu te sentiras ici chez toi !\n\n📌 **Salons importants :**\n• Lis le règlement\n• Ouvre un ticket pour commencer ton aventure",
     returnMessage: "Content de te revoir {userMention} ! 🎉\nTu es notre **{memberCount}ème** membre actuel.",
+    buttonEnabled: false,
+    buttonLabel: '📋 Commencer mon aventure',
+    buttonUrl: '',
+    dmEnabled: false,
+    dmMessage: "👋 Bienvenue sur **{server}**, {user} !\n\nN'hésite pas à lire le règlement et à ouvrir un ticket pour commencer ton aventure ARK.",
   },
   aliases: {},
 };

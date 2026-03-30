@@ -297,11 +297,20 @@ function createWebServer(discordClient) {
     const top5 = top5Result.status === 'fulfilled' ? top5Result.value : [];
     const nitradoServers = nitradoResult.status === 'fulfilled' ? nitradoResult.value : [];
 
+    // Stats welcome (arrivées/départs mois courant)
+    let welcomeStats = { joins: 0, leaves: 0, net: 0, month: '' };
+    try {
+      const { getWelcomeStats } = require('../welcomeManager');
+      const guildId = discordClient?.guilds?.cache?.first()?.id || '';
+      if (guildId) welcomeStats = getWelcomeStats(guildId);
+    } catch {}
+
     res.render('dashboard', {
       memberCount,
       uptime: process.uptime(),
       top5,
       nitradoServers,
+      welcomeStats,
     });
   });
 
@@ -368,6 +377,11 @@ function createWebServer(discordClient) {
         returnTitle: req.body.returnTitle || '👋 Bon retour parmi nous, {user} !',
         newMessage: req.body.newMessage || '',
         returnMessage: req.body.returnMessage || '',
+        buttonEnabled: req.body.buttonEnabled === '1',
+        buttonLabel: req.body.buttonLabel || '📋 Commencer mon aventure',
+        buttonUrl: req.body.buttonUrl || '',
+        dmEnabled: req.body.dmEnabled === '1',
+        dmMessage: req.body.dmMessage || '',
       });
       res.redirect('/welcome?success=Paramètres+de+bienvenue+enregistrés');
     } catch (err) {

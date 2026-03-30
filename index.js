@@ -21,7 +21,7 @@ const { initInventory, getItemTypes, getItemTypeById, getPlayerInventory, addToI
 const giveawayManager = require('./giveawayManager');
 const { initSpecialPacks, getSpecialPacks, getSpecialPack } = require('./specialPacksManager');
 const { handleShopCommand, handleShopInteraction } = require('./shopCommand');
-const { recordJoin, recordLeave, buildWelcomeEmbed } = require('./welcomeManager');
+const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM } = require('./welcomeManager');
 
 const openaiConfig = {};
 if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
@@ -2791,9 +2791,10 @@ client.on('guildMemberAdd', async (member) => {
     const channel = member.guild.channels.cache.get(ws.channelId);
     if (!channel) return;
 
-    const { embed, attachment } = await buildWelcomeEmbed(member, member.guild, client);
+    const { embed, attachment, components } = await buildWelcomeEmbed(member, member.guild, client);
     const files = attachment ? [attachment] : [];
-    await channel.send({ embeds: [embed], files });
+    await channel.send({ embeds: [embed], files, components: components || [] });
+    await sendWelcomeDM(member, member.guild);
 
     // Ping après délai
     const delay = Math.max(0, parseInt(ws.pingDelay) || 10) * 1000;

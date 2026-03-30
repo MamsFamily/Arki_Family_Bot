@@ -1,5 +1,5 @@
 const { createCanvas, loadImage } = require('canvas');
-const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { getDatabase } = require('./database');
 const { getSettings } = require('./settingsManager');
 const axios = require('axios');
@@ -187,6 +187,38 @@ async function generateWelcomeBanner(member, guild, isNew, settings) {
   return canvas.toBuffer('image/png');
 }
 
+// Détection palier remarquable (100, 250, 500, 1000, 1500...)
+function isMilestone(n) {
+  if (n < 100) return false;
+  if ([100, 250, 500].includes(n)) return true;
+  if (n >= 1000 && n % 500 === 0) return true;
+  return false;
+}
+
+// Obtenir les stats du mois courant (arrivées / départs)
+function getWelcomeStats(guildId) {
+  initWelcomeDb();
+  const db = getDatabase();
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+
+  const joins = db.prepare(
+    'SELECT COUNT(*) as cnt FROM member_history WHERE guild_id = ? AND joined_at >= ? AND joined_at <= ?'
+  ).get(String(guildId), startOfMonth, endOfMonth);
+
+  const leaves = db.prepare(
+    'SELECT COUNT(*) as cnt FROM member_history WHERE guild_id = ? AND left_at >= ? AND left_at <= ?'
+  ).get(String(guildId), startOfMonth, endOfMonth);
+
+  return {
+    joins: joins?.cnt || 0,
+    leaves: leaves?.cnt || 0,
+    net: (joins?.cnt || 0) - (leaves?.cnt || 0),
+    month: now.toLocaleString('fr-FR', { month: 'long', year: 'numeric' }),
+  };
+}
+
 async function buildWelcomeEmbed(member, guild, client) {
   const settings = getSettings();
   const ws = settings.welcome || {};
@@ -214,9 +246,11 @@ async function buildWelcomeEmbed(member, guild, client) {
   // Infos retour
   let lastLeftStr = '';
   let lastDurationStr = '';
+  let absenceDays = 0;
   if (!isNew && visits.length >= 2) {
     const prevVisit = visits[visits.length - 2];
     if (prevVisit.left_at) {
+      absenceDays = Math.floor((Date.now() - prevVisit.left_at) / (1000 * 60 * 60 * 24));
       lastLeftStr = `il y a ${formatDuration(Date.now() - prevVisit.left_at)}`;
       lastDurationStr = formatDuration(prevVisit.left_at - prevVisit.joined_at);
     }
@@ -227,9 +261,14 @@ async function buildWelcomeEmbed(member, guild, client) {
     vars.lastDuration = '—';
   }
 
-  const title = isNew
+  // Titre avec milestone éventuel
+  let baseTitle = isNew
     ? applyVariables(ws.newTitle || '🎉 Bienvenue sur {server} !', vars)
     : applyVariables(ws.returnTitle || '👋 Bon retour parmi nous, {user} !', vars);
+
+  if (isNew && isMilestone(memberCount)) {
+    baseTitle = `🎊 ${baseTitle} — **${memberCount.toLocaleString('fr-FR')}ème membre !**`;
+  }
 
   const description = isNew
     ? applyVariables(ws.newMessage || 'Bienvenue {userMention} ! Tu es notre **{memberCount}ème** membre ! 🎉', vars)
@@ -237,17 +276,26 @@ async function buildWelcomeEmbed(member, guild, client) {
 
   const embed = new EmbedBuilder()
     .setColor(embedColor)
-    .setTitle(title)
+    .setTitle(baseTitle)
     .setDescription(description)
-    .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }));
+    .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }))
+    .setFooter({ text: `ID : ${member.id}` })
+    .setTimestamp();
 
   // Champs retour
   if (!isNew) {
-    embed.addFields(
-      { name: '🔁 Visite', value: ordinalFr(visitCount) + ' fois ici', inline: true },
-    );
+    embed.addFields({ name: '🔁 Visite', value: ordinalFr(visitCount) + ' fois ici', inline: true });
     if (lastLeftStr) embed.addFields({ name: '📅 Absent depuis', value: lastLeftStr, inline: true });
     if (lastDurationStr) embed.addFields({ name: '⏱️ Séjour précédent', value: lastDurationStr, inline: true });
+    // Longue absence (> 365 jours = "fantôme")
+    if (absenceDays >= 365) {
+      embed.addFields({ name: '👻 Vrai fantôme !', value: `Absent plus d'un an… mais de retour !`, inline: false });
+    }
+  }
+
+  // Membre milestone → champ spécial
+  if (isNew && isMilestone(memberCount)) {
+    embed.addFields({ name: '🎊 Palier atteint !', value: `Vous êtes **${memberCount.toLocaleString('fr-FR')} membres** sur le serveur !`, inline: false });
   }
 
   // Génération de la bannière
@@ -264,7 +312,48 @@ async function buildWelcomeEmbed(member, guild, client) {
     embed.setImage('attachment://welcome.png');
   }
 
-  return { embed, attachment };
+  // Bouton lien configurable
+  let components = [];
+  if (ws.buttonEnabled && ws.buttonUrl) {
+    try {
+      const btn = new ButtonBuilder()
+        .setStyle(ButtonStyle.Link)
+        .setLabel(ws.buttonLabel || '📋 Commencer mon aventure')
+        .setURL(ws.buttonUrl);
+      components = [new ActionRowBuilder().addComponents(btn)];
+    } catch {}
+  }
+
+  return { embed, attachment, components };
+}
+
+// DM au membre à l'arrivée
+async function sendWelcomeDM(member, guild) {
+  const settings = getSettings();
+  const ws = settings.welcome || {};
+  if (!ws.dmEnabled || !ws.dmMessage) return;
+
+  const visits = getMemberVisits(member.id, guild.id);
+  const visitCount = visits.length;
+  const name = member.displayName || member.user.username;
+
+  const vars = {
+    user: name,
+    userMention: `<@${member.id}>`,
+    memberCount: guild.memberCount.toLocaleString('fr-FR'),
+    server: guild.name,
+    visitCount: String(visitCount),
+    visitOrdinal: ordinalFr(visitCount),
+    lastLeft: '—',
+    lastDuration: '—',
+  };
+
+  const text = applyVariables(ws.dmMessage, vars);
+  try {
+    await member.send(text);
+  } catch (err) {
+    console.warn(`[Welcome] DM impossible à ${member.user.tag} :`, err.message);
+  }
 }
 
 module.exports = {
@@ -272,6 +361,9 @@ module.exports = {
   recordLeave,
   getMemberVisits,
   buildWelcomeEmbed,
+  sendWelcomeDM,
+  getWelcomeStats,
   applyVariables,
   formatDuration,
+  isMilestone,
 };

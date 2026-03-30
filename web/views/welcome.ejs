@@ -93,6 +93,8 @@
           <button type="button" class="section-tab active" onclick="switchTab('new', this)">🔵 Nouveau membre</button>
           <button type="button" class="section-tab" onclick="switchTab('return', this)">🟡 Membre revenant</button>
           <button type="button" class="section-tab" onclick="switchTab('banner', this)">🖼️ Bannière</button>
+          <button type="button" class="section-tab" onclick="switchTab('button', this)">🔗 Bouton lien</button>
+          <button type="button" class="section-tab" onclick="switchTab('dm', this)">✉️ Message privé</button>
         </div>
 
         <!-- Nouveau membre -->
@@ -177,6 +179,62 @@
               </div>
               <div style="margin-top:12px;padding:12px;background:var(--bg-input);border-radius:6px;font-size:13px;color:var(--text-muted);">
                 ℹ️ Une bannière est générée automatiquement avec : la photo de profil du membre (cercle), la bannière du serveur en fond, le texte personnalisé et le nombre de membres. La bannière apparaît en bas de l'embed.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bouton lien -->
+        <div id="tab-button" class="tab-content">
+          <div class="card" style="margin-bottom:20px;">
+            <div class="card-header"><h2>🔗 Bouton lien</h2></div>
+            <div class="card-body">
+              <div class="form-group" style="margin-bottom:16px;">
+                <label class="form-label">Activer le bouton</label>
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <label class="toggle-switch">
+                    <input type="checkbox" name="buttonEnabled" id="buttonEnabledToggle" value="1" <%= welcome.buttonEnabled ? 'checked' : '' %> onchange="document.getElementById('buttonEnabledLabel').textContent=this.checked?'Activé':'Désactivé'">
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span id="buttonEnabledLabel" style="font-weight:600;color:var(--accent)"><%= welcome.buttonEnabled ? 'Activé' : 'Désactivé' %></span>
+                </div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">Un bouton cliquable apparaîtra sous l'embed de bienvenue (Discord uniquement)</div>
+              </div>
+              <div class="form-group" style="margin-bottom:16px;">
+                <label class="form-label">Texte du bouton</label>
+                <input type="text" name="buttonLabel" class="form-control" value="<%= welcome.buttonLabel || '📋 Commencer mon aventure' %>" placeholder="📋 Commencer mon aventure" maxlength="80">
+              </div>
+              <div class="form-group">
+                <label class="form-label">URL de destination <span style="color:var(--text-muted);font-weight:400">(lien vers un salon, site, etc.)</span></label>
+                <input type="url" name="buttonUrl" class="form-control" value="<%= welcome.buttonUrl || '' %>" placeholder="https://discord.com/channels/...">
+                <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Pour un lien direct vers un salon Discord : clic droit sur le salon → "Copier le lien"</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Message privé (DM) -->
+        <div id="tab-dm" class="tab-content">
+          <div class="card" style="margin-bottom:20px;">
+            <div class="card-header"><h2>✉️ Message privé</h2></div>
+            <div class="card-body">
+              <div class="form-group" style="margin-bottom:16px;">
+                <label class="form-label">Activer le DM automatique</label>
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <label class="toggle-switch">
+                    <input type="checkbox" name="dmEnabled" id="dmEnabledToggle" value="1" <%= welcome.dmEnabled ? 'checked' : '' %> onchange="document.getElementById('dmEnabledLabel').textContent=this.checked?'Activé':'Désactivé'">
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span id="dmEnabledLabel" style="font-weight:600;color:var(--accent)"><%= welcome.dmEnabled ? 'Activé' : 'Désactivé' %></span>
+                </div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">Un message privé sera envoyé automatiquement à chaque nouveau membre à son arrivée. Si le DM est désactivé (côté Discord par le membre), rien ne se passera.</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Contenu du DM <span style="color:var(--text-muted);font-weight:400">(variables disponibles ci-dessous)</span></label>
+                <textarea name="dmMessage" class="form-control" rows="8" placeholder="👋 Bienvenue sur {server}, {user} !&#10;&#10;N'hésite pas à lire le règlement..."><%= welcome.dmMessage || '' %></textarea>
+              </div>
+              <div style="margin-top:12px;padding:12px;background:var(--bg-input);border-radius:6px;font-size:13px;color:var(--text-muted);">
+                💡 Le DM est envoyé en texte brut — le markdown Discord fonctionne : <code>**gras**</code>, <code>*italique*</code>, sauts de ligne normaux.
               </div>
             </div>
           </div>

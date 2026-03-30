@@ -99,6 +99,32 @@ function nitradoCardsHtml(servers) {
         </div>
       </div>
 
+      <!-- Stats arrivées / départs du mois -->
+      <% if (typeof welcomeStats !== 'undefined') { %>
+      <div class="stats-grid" style="margin-top:0;">
+        <div class="stat-card" style="border-top:3px solid #1de9b6;">
+          <div class="stat-icon">📥</div>
+          <div class="stat-value" style="color:#1de9b6;"><%= welcomeStats.joins %></div>
+          <div class="stat-label">Arrivées ce mois</div>
+        </div>
+        <div class="stat-card" style="border-top:3px solid #ff5252;">
+          <div class="stat-icon">📤</div>
+          <div class="stat-value" style="color:#ff5252;"><%= welcomeStats.leaves %></div>
+          <div class="stat-label">Départs ce mois</div>
+        </div>
+        <div class="stat-card" style="border-top:3px solid <%= welcomeStats.net >= 0 ? '#1de9b6' : '#ff5252' %>;">
+          <div class="stat-icon"><%= welcomeStats.net >= 0 ? '📈' : '📉' %></div>
+          <div class="stat-value" style="color:<%= welcomeStats.net >= 0 ? '#1de9b6' : '#ff5252' %>;"><%= welcomeStats.net >= 0 ? '+' : '' %><%= welcomeStats.net %></div>
+          <div class="stat-label">Solde net</div>
+        </div>
+        <div class="stat-card" style="border-top:3px solid var(--border-color);">
+          <div class="stat-icon">📅</div>
+          <div class="stat-value" style="font-size:16px;"><%= welcomeStats.month || '—' %></div>
+          <div class="stat-label">Période</div>
+        </div>
+      </div>
+      <% } %>
+
       <div class="card">
         <div class="card-header">
           <h2>🏆 Top 5 voteurs — mois en cours</h2>
