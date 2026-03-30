@@ -15,6 +15,10 @@
     .tag-new { background:#0d3d3d; color:#1de9b6; border-radius:4px; padding:1px 7px; font-size:11px; font-weight:600; }
     .tag-return { background:#3d2e00; color:#ffc107; border-radius:4px; padding:1px 7px; font-size:11px; font-weight:600; }
     .tag-both { background:var(--bg-input); color:var(--text-secondary); border-radius:4px; padding:1px 7px; font-size:11px; }
+    .tag-dispo { background:#0d3d1a; color:#4caf50; border-radius:4px; padding:1px 7px; font-size:11px; font-weight:600; }
+    .tag-todo { background:#2a1f00; color:#ff9800; border-radius:4px; padding:1px 7px; font-size:11px; font-weight:600; }
+    .example-val { font-family:monospace; font-size:12px; color:var(--text-secondary); }
+    .var-table th:last-child, .var-table td:last-child { text-align:center; }
     .preview-embed { border-radius:6px; padding:16px; border-left:5px solid; max-width:520px; }
     .preview-embed.new { background:#0a1628; border-color:#1de9b6; }
     .preview-embed.return { background:#1a1200; border-color:#ffc107; }
@@ -94,6 +98,7 @@
           <button type="button" class="section-tab" onclick="switchTab('return', this)">🟡 Membre revenant</button>
           <button type="button" class="section-tab" onclick="switchTab('banner', this)">🖼️ Bannière</button>
           <button type="button" class="section-tab" onclick="switchTab('dm', this)">✉️ Message privé</button>
+          <button type="button" class="section-tab" onclick="switchTab('annexe', this)">📖 Annexe variables</button>
         </div>
 
         <!-- Nouveau membre -->
@@ -205,6 +210,183 @@
               </div>
               <div style="margin-top:12px;padding:12px;background:var(--bg-input);border-radius:6px;font-size:13px;color:var(--text-muted);">
                 💡 Le DM est envoyé en texte brut — le markdown Discord fonctionne : <code>**gras**</code>, <code>*italique*</code>, sauts de ligne normaux.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Annexe variables -->
+        <div id="tab-annexe" class="tab-content">
+          <div class="card" style="margin-bottom:20px;">
+            <div class="card-header">
+              <h2>📖 Annexe complète des variables</h2>
+              <span style="font-size:12px;color:var(--text-muted)">Variables disponibles dans les messages d'embed et de DM</span>
+            </div>
+            <div class="card-body" style="padding:0;">
+
+              <!-- Légende -->
+              <div style="display:flex;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border-color);flex-wrap:wrap;align-items:center;">
+                <span style="font-size:12px;font-weight:600;color:var(--text-muted)">Légende :</span>
+                <span class="tag-dispo">✅ Disponible</span>
+                <span class="tag-todo">🔜 À ajouter sur demande</span>
+                <span class="tag-new">🔵 Nouveau</span>
+                <span class="tag-return">🟡 Revenant</span>
+                <span class="tag-both">Les deux</span>
+              </div>
+
+              <!-- Catégorie : Membre -->
+              <div style="padding:12px 16px 4px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--border-color);">👤 Membre</div>
+              <table class="var-table">
+                <thead><tr><th style="width:200px">Variable</th><th>Description</th><th>Exemple</th><th>Contexte</th><th style="width:110px">Statut</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><code onclick="copyVar('{user}')">&#123;user&#125;</code></td>
+                    <td>Pseudo affiché sur le serveur (surnom si défini, sinon username)</td>
+                    <td><span class="example-val">Zeus</span></td>
+                    <td><span class="tag-both">Les deux</span></td>
+                    <td><span class="tag-dispo">✅ Disponible</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{username}')">&#123;username&#125;</code></td>
+                    <td>Identifiant Discord unique du membre (sans surnom serveur)</td>
+                    <td><span class="example-val">zeus_official</span></td>
+                    <td><span class="tag-both">Les deux</span></td>
+                    <td><span class="tag-todo">🔜 À ajouter</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{userMention}')">&#123;userMention&#125;</code></td>
+                    <td>Mention cliquable du membre qui notifie</td>
+                    <td><span class="example-val">@Zeus</span></td>
+                    <td><span class="tag-both">Les deux</span></td>
+                    <td><span class="tag-dispo">✅ Disponible</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{userId}')">&#123;userId&#125;</code></td>
+                    <td>Identifiant numérique Discord du membre (utile pour les admins)</td>
+                    <td><span class="example-val">123456789012345678</span></td>
+                    <td><span class="tag-both">Les deux</span></td>
+                    <td><span class="tag-todo">🔜 À ajouter</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{accountAge}')">&#123;accountAge&#125;</code></td>
+                    <td>Ancienneté du compte Discord (depuis sa création)</td>
+                    <td><span class="example-val">2 ans</span></td>
+                    <td><span class="tag-both">Les deux</span></td>
+                    <td><span class="tag-todo">🔜 À ajouter</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{accountCreated}')">&#123;accountCreated&#125;</code></td>
+                    <td>Date de création du compte Discord (format lisible)</td>
+                    <td><span class="example-val">12 mars 2022</span></td>
+                    <td><span class="tag-both">Les deux</span></td>
+                    <td><span class="tag-todo">🔜 À ajouter</span></td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <!-- Catégorie : Serveur -->
+              <div style="padding:12px 16px 4px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--border-color);border-top:1px solid var(--border-color);">🏠 Serveur</div>
+              <table class="var-table">
+                <thead><tr><th style="width:200px">Variable</th><th>Description</th><th>Exemple</th><th>Contexte</th><th style="width:110px">Statut</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><code onclick="copyVar('{server}')">&#123;server&#125;</code></td>
+                    <td>Nom complet du serveur Discord</td>
+                    <td><span class="example-val">Arki' Family</span></td>
+                    <td><span class="tag-both">Les deux</span></td>
+                    <td><span class="tag-dispo">✅ Disponible</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{memberCount}')">&#123;memberCount&#125;</code></td>
+                    <td>Nombre total de membres au moment de l'arrivée (nouveau inclus)</td>
+                    <td><span class="example-val">510</span></td>
+                    <td><span class="tag-both">Les deux</span></td>
+                    <td><span class="tag-dispo">✅ Disponible</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{boostCount}')">&#123;boostCount&#125;</code></td>
+                    <td>Nombre de boosts Nitro actifs sur le serveur</td>
+                    <td><span class="example-val">7</span></td>
+                    <td><span class="tag-both">Les deux</span></td>
+                    <td><span class="tag-todo">🔜 À ajouter</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{boostLevel}')">&#123;boostLevel&#125;</code></td>
+                    <td>Niveau de boost du serveur (0, 1, 2 ou 3)</td>
+                    <td><span class="example-val">2</span></td>
+                    <td><span class="tag-both">Les deux</span></td>
+                    <td><span class="tag-todo">🔜 À ajouter</span></td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <!-- Catégorie : Dates & arrivée -->
+              <div style="padding:12px 16px 4px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--border-color);border-top:1px solid var(--border-color);">📅 Dates & arrivée</div>
+              <table class="var-table">
+                <thead><tr><th style="width:200px">Variable</th><th>Description</th><th>Exemple</th><th>Contexte</th><th style="width:110px">Statut</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><code onclick="copyVar('{joinDate}')">&#123;joinDate&#125;</code></td>
+                    <td>Date d'aujourd'hui (le jour où le membre rejoint)</td>
+                    <td><span class="example-val">30 mars 2026</span></td>
+                    <td><span class="tag-both">Les deux</span></td>
+                    <td><span class="tag-todo">🔜 À ajouter</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{firstJoinDate}')">&#123;firstJoinDate&#125;</code></td>
+                    <td>Date de la toute première arrivée sur le serveur</td>
+                    <td><span class="example-val">5 janvier 2024</span></td>
+                    <td><span class="tag-return">Revenant</span></td>
+                    <td><span class="tag-todo">🔜 À ajouter</span></td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <!-- Catégorie : Historique des visites -->
+              <div style="padding:12px 16px 4px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--border-color);border-top:1px solid var(--border-color);">🔁 Historique des visites <span style="font-weight:400;text-transform:none;font-size:11px;">(réservées aux revenants)</span></div>
+              <table class="var-table">
+                <thead><tr><th style="width:200px">Variable</th><th>Description</th><th>Exemple</th><th>Contexte</th><th style="width:110px">Statut</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><code onclick="copyVar('{visitCount}')">&#123;visitCount&#125;</code></td>
+                    <td>Numéro de la visite actuelle (chiffre)</td>
+                    <td><span class="example-val">3</span></td>
+                    <td><span class="tag-return">Revenant</span></td>
+                    <td><span class="tag-dispo">✅ Disponible</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{visitOrdinal}')">&#123;visitOrdinal&#125;</code></td>
+                    <td>Numéro de la visite en ordinal français</td>
+                    <td><span class="example-val">3ème</span></td>
+                    <td><span class="tag-return">Revenant</span></td>
+                    <td><span class="tag-dispo">✅ Disponible</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{lastLeft}')">&#123;lastLeft&#125;</code></td>
+                    <td>Durée écoulée depuis son dernier départ (texte naturel)</td>
+                    <td><span class="example-val">il y a 2 mois</span></td>
+                    <td><span class="tag-return">Revenant</span></td>
+                    <td><span class="tag-dispo">✅ Disponible</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{lastDuration}')">&#123;lastDuration&#125;</code></td>
+                    <td>Durée de son dernier séjour sur le serveur (texte naturel)</td>
+                    <td><span class="example-val">18 jours</span></td>
+                    <td><span class="tag-return">Revenant</span></td>
+                    <td><span class="tag-dispo">✅ Disponible</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{absenceDays}')">&#123;absenceDays&#125;</code></td>
+                    <td>Nombre brut de jours d'absence depuis le dernier départ</td>
+                    <td><span class="example-val">67</span></td>
+                    <td><span class="tag-return">Revenant</span></td>
+                    <td><span class="tag-todo">🔜 À ajouter</span></td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div style="padding:14px 16px;font-size:12px;color:var(--text-muted);border-top:1px solid var(--border-color);">
+                💡 Les variables marquées <strong>🔜 À ajouter</strong> sont disponibles via l'API Discord mais pas encore activées. Dis-le et elles seront intégrées en quelques minutes.
               </div>
             </div>
           </div>
