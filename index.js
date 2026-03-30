@@ -33,6 +33,7 @@ if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
 const openai = openaiConfig.apiKey ? new OpenAI(openaiConfig) : null;
 
 const ARTHUR_EMOJI_ID = '1473289815180050473';
+const VOTE_REPORT_CHANNEL_ID = '1156933040795299942';
 
 const client = new Client({
   intents: [
@@ -86,7 +87,7 @@ function detectDuplicates(ranking, memberIndex) {
 async function distributeWithChecks(ranking, memberIndex, votesConfig, monthName, adminChannel) {
   const duplicates = detectDuplicates(ranking, memberIndex);
   const duplicateMemberIds = new Set(duplicates.map(d => d.memberId));
-  const distributionResults = { success: 0, failed: 0, notFound: [], pendingDuplicates: 0, pendingNotFound: 0 };
+  const distributionResults = { success: 0, failed: 0, notFound: [], pendingDuplicates: 0, pendingNotFound: 0, inventoryResults: [] };
   const playerStatus = {};
 
   for (const player of ranking) {
@@ -190,10 +191,53 @@ async function distributeWithChecks(ranking, memberIndex, votesConfig, monthName
         playerStatus[player.playername] = 'pending';
       }
     } else {
-      const result = await addCashToUser(memberId, totalGain, `Votes ${monthName}`);
+      // Rang 4 et 5 : les diamants bonus vont dans l'inventaire, pas dans UB
+      const isRank4or5 = rankIdx === 4 || rankIdx === 5;
+      const ubGain = isRank4or5 ? totalDiamonds : totalGain;
+      const result = await addCashToUser(memberId, ubGain, `Votes ${monthName}`);
       if (result.success) {
         distributionResults.success++;
         playerStatus[player.playername] = 'success';
+
+        // Top 1/2/3 : ajouter le pack spécial dans l'inventaire
+        if (rankIdx >= 1 && rankIdx <= 3) {
+          const packNames = ['pack 1ere place vote', 'pack 2eme place vote', 'pack 3eme place vote'];
+          const votePack = getSpecialPacks().packs.find(p =>
+            p.name.toLowerCase() === packNames[rankIdx - 1]
+          );
+          if (votePack) {
+            await addToInventory(memberId, votePack.id, 1, 'system', `${votePack.name} — Votes ${monthName}`);
+            distributionResults.inventoryResults.push({
+              playername: player.playername,
+              rankIdx,
+              type: 'pack',
+              packId: votePack.id,
+              packName: votePack.name,
+            });
+          } else {
+            console.warn(`⚠️ [VOTES] Pack introuvable pour la ${rankIdx}ème place : "${packNames[rankIdx - 1]}"`);
+            distributionResults.inventoryResults.push({
+              playername: player.playername,
+              rankIdx,
+              type: 'pack',
+              packId: null,
+              packName: packNames[rankIdx - 1],
+              notFound: true,
+            });
+          }
+        }
+
+        // Rang 4/5 : ajouter les diamants bonus dans l'inventaire
+        if (isRank4or5 && bonusDiamonds > 0) {
+          const ordinal = rankIdx === 4 ? '4ème' : '5ème';
+          await addToInventory(memberId, 'diamants', bonusDiamonds, 'system', `Bonus ${ordinal} place vote — ${monthName}`);
+          distributionResults.inventoryResults.push({
+            playername: player.playername,
+            rankIdx,
+            type: 'diamants',
+            quantity: bonusDiamonds,
+          });
+        }
       } else {
         distributionResults.failed++;
         playerStatus[player.playername] = 'failed';
@@ -202,6 +246,48 @@ async function distributeWithChecks(ranking, memberIndex, votesConfig, monthName
   }
 
   return { distributionResults, playerStatus };
+}
+
+function buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus, monthName, source) {
+  const sparkly = votesConfig.STYLE.sparkly || '💎';
+  let msg = `📊 **Rapport de distribution des récompenses — ${monthName}**\n`;
+  if (source === 'auto') msg += `-# 🕐 Publication automatique du 1er du mois\n`;
+  msg += `\n`;
+
+  const top10 = ranking.slice(0, 10);
+  for (let i = 0; i < top10.length; i++) {
+    const player = top10[i];
+    const rankIdx = i + 1;
+    const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
+    const bonusDiamonds = votesConfig.TOP_DIAMONDS[rankIdx] || 0;
+    const isRank4or5 = rankIdx === 4 || rankIdx === 5;
+    const ubGain = isRank4or5 ? totalDiamonds : totalDiamonds + bonusDiamonds;
+    const status = playerStatus[player.playername];
+    const statusIcon = status === 'success' ? '✅' : status === 'pending' ? '⏳' : status === 'failed' ? '❌' : '⚠️';
+    const memberId = resolvePlayer(memberIndex, player.playername);
+    const mention = memberId ? `<@${memberId}>` : `\`${player.playername}\``;
+
+    msg += `**${rankIdx}.** ${mention} — ${player.votes} votes → ${ubGain.toLocaleString('fr-FR')} ${sparkly} ${statusIcon}`;
+
+    if (rankIdx >= 1 && rankIdx <= 3) {
+      const packLabels = ['Pack 1ère place vote', 'Pack 2ème place vote', 'Pack 3ème place vote'];
+      msg += ` + 📦 ${packLabels[rankIdx - 1]}`;
+    }
+    if (isRank4or5 && bonusDiamonds > 0) {
+      msg += ` + ${bonusDiamonds.toLocaleString('fr-FR')} ${sparkly} *(inventaire)*`;
+    }
+    msg += `\n`;
+  }
+
+  msg += `\n`;
+  const vals = Object.values(playerStatus);
+  const sCount = vals.filter(s => s === 'success').length;
+  const pCount = vals.filter(s => s === 'pending').length;
+  const fCount = vals.filter(s => s === 'failed').length;
+  msg += `✅ ${sCount} distribué(s)`;
+  if (pCount > 0) msg += ` | ⏳ ${pCount} en attente`;
+  if (fCount > 0) msg += ` | ❌ ${fCount} échec(s)`;
+  return msg;
 }
 
 async function autoPublishVotes() {
@@ -237,6 +323,10 @@ async function autoPublishVotes() {
 
     const adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
     const { distributionResults, playerStatus } = await distributeWithChecks(ranking, memberIndex, votesConfig, monthName, adminChannel);
+    let reportChannel = null;
+    try { reportChannel = await client.channels.fetch(VOTE_REPORT_CHANNEL_ID); } catch (e) {
+      console.warn('⚠️ [AUTO-VOTES] Salon de rapport introuvable:', VOTE_REPORT_CHANNEL_ID);
+    }
 
     let resultsMessage = `# ${votesConfig.STYLE.fireworks} Résultats des votes de ${monthName} ${votesConfig.STYLE.fireworks}\n\n`;
     const msg = votesConfig.MESSAGE || {};
@@ -316,22 +406,26 @@ async function autoPublishVotes() {
 
     const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);
 
-    let adminMessage = `📊 **Rapport de distribution automatique - ${monthName}**\n\n`;
-    adminMessage += `🕐 *Publication automatique du 1er du mois*\n\n`;
-    adminMessage += `💎 **Distribution UnbelievaBoat:**\n`;
-    adminMessage += `   • ${distributionResults.success} joueurs récompensés\n`;
-    if (distributionResults.failed > 0) {
-      adminMessage += `   • ${distributionResults.failed} échecs\n`;
-    }
-    if (distributionResults.pendingDuplicates > 0) {
-      adminMessage += `   • ⏳ ${distributionResults.pendingDuplicates} doublon(s) en attente de validation (voir messages ci-dessous)\n`;
-    }
-    if (distributionResults.pendingNotFound > 0) {
-      adminMessage += `   • ⏳ ${distributionResults.pendingNotFound} joueur(s) non trouvé(s) en attente (voir messages ci-dessous)\n`;
+    // Rapport de distribution dans le salon dédié
+    if (reportChannel) {
+      const reportMsg = buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus, monthName, 'auto');
+      await reportChannel.send(reportMsg);
     }
 
+    // Message admin (doublons, non trouvés, commandes DraftBot)
+    let adminMessage = `📊 **Rapport admin — ${monthName}**\n\n`;
+    adminMessage += `🕐 *Publication automatique du 1er du mois*\n\n`;
+    adminMessage += `💎 **UnbelievaBoat :** ${distributionResults.success} distribué(s)`;
+    if (distributionResults.failed > 0) adminMessage += `, ${distributionResults.failed} échec(s)`;
+    adminMessage += `\n📦 **Inventaire :** ${distributionResults.inventoryResults.length} crédit(s)\n`;
+    if (distributionResults.pendingDuplicates > 0) {
+      adminMessage += `⏳ ${distributionResults.pendingDuplicates} doublon(s) en attente de validation (voir messages ci-dessous)\n`;
+    }
+    if (distributionResults.pendingNotFound > 0) {
+      adminMessage += `⏳ ${distributionResults.pendingNotFound} joueur(s) non trouvé(s) en attente (voir messages ci-dessous)\n`;
+    }
     if (draftBotCommands.length > 0) {
-      adminMessage += `\n🎁 **Commandes DraftBot à copier-coller:**\n\`\`\`\n${draftBotCommands.join('\n')}\n\`\`\``;
+      adminMessage += `\n🎁 **Commandes DraftBot :**\n\`\`\`\n${draftBotCommands.join('\n')}\n\`\`\``;
     }
 
     if (adminChannel) {
@@ -1652,6 +1746,10 @@ client.on('interactionCreate', async interaction => {
 
       const adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
       const { distributionResults, playerStatus } = await distributeWithChecks(ranking, memberIndex, votesConfig, monthName, adminChannel);
+      let reportChannel = null;
+      try { reportChannel = await client.channels.fetch(VOTE_REPORT_CHANNEL_ID); } catch (e) {
+        console.warn('⚠️ [VOTES] Salon de rapport introuvable:', VOTE_REPORT_CHANNEL_ID);
+      }
 
       let resultsMessage = `# ${votesConfig.STYLE.fireworks} Résultats des votes de ${monthName} ${votesConfig.STYLE.fireworks}\n\n`;
       const msg = votesConfig.MESSAGE || {};
@@ -1730,29 +1828,33 @@ client.on('interactionCreate', async interaction => {
       }
 
       const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);
-      
-      let adminMessage = `📊 **Rapport de distribution - ${monthName}**\n\n`;
-      adminMessage += `💎 **Distribution UnbelievaBoat:**\n`;
-      adminMessage += `   • ${distributionResults.success} joueurs récompensés\n`;
-      if (distributionResults.failed > 0) {
-        adminMessage += `   • ${distributionResults.failed} échecs\n`;
-      }
-      if (distributionResults.pendingDuplicates > 0) {
-        adminMessage += `   • ⏳ ${distributionResults.pendingDuplicates} doublon(s) en attente de validation\n`;
-      }
-      if (distributionResults.pendingNotFound > 0) {
-        adminMessage += `   • ⏳ ${distributionResults.pendingNotFound} joueur(s) non trouvé(s) en attente\n`;
+
+      // Rapport de distribution dans le salon dédié
+      if (reportChannel) {
+        const reportMsg = buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus, monthName, 'manual');
+        await reportChannel.send(reportMsg);
       }
 
+      // Message admin (doublons, non trouvés, commandes DraftBot)
+      let adminMessage = `📊 **Rapport admin — ${monthName}**\n\n`;
+      adminMessage += `💎 **UnbelievaBoat :** ${distributionResults.success} distribué(s)`;
+      if (distributionResults.failed > 0) adminMessage += `, ${distributionResults.failed} échec(s)`;
+      adminMessage += `\n📦 **Inventaire :** ${distributionResults.inventoryResults.length} crédit(s)\n`;
+      if (distributionResults.pendingDuplicates > 0) {
+        adminMessage += `⏳ ${distributionResults.pendingDuplicates} doublon(s) en attente de validation\n`;
+      }
+      if (distributionResults.pendingNotFound > 0) {
+        adminMessage += `⏳ ${distributionResults.pendingNotFound} joueur(s) non trouvé(s) en attente\n`;
+      }
       if (draftBotCommands.length > 0) {
-        adminMessage += `\n🎁 **Commandes DraftBot à copier-coller:**\n\`\`\`\n${draftBotCommands.join('\n')}\n\`\`\``;
+        adminMessage += `\n🎁 **Commandes DraftBot :**\n\`\`\`\n${draftBotCommands.join('\n')}\n\`\`\``;
       }
 
       if (adminChannel) {
         await adminChannel.send(adminMessage);
       }
 
-      let replyText = `✅ Résultats publiés dans <#${votesConfig.RESULTS_CHANNEL_ID}>`;
+      let replyText = `✅ Résultats publiés dans <#${votesConfig.RESULTS_CHANNEL_ID}> | 📊 Rapport dans <#${VOTE_REPORT_CHANNEL_ID}>`;
       if (distributionResults.pendingDuplicates > 0 || distributionResults.pendingNotFound > 0) {
         replyText += ` | ⏳ ${distributionResults.pendingDuplicates + distributionResults.pendingNotFound} distribution(s) en attente dans <#${votesConfig.ADMIN_LOG_CHANNEL_ID}>`;
       }
