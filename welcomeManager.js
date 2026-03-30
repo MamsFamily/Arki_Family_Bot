@@ -133,6 +133,19 @@ async function loadImageSafe(url) {
   }
 }
 
+// Supprime les emojis et caractères non supportés par DejaVu Sans (canvas)
+function stripForCanvas(text) {
+  if (!text) return '';
+  text = text.replace(/<a?:\w+:\d+>/g, '');           // Emojis custom Discord
+  text = text.replace(/[\u{1F000}-\u{1FFFF}]/gu, ''); // Emoji principaux (🐶🏰👥…)
+  text = text.replace(/[\u{2600}-\u{26FF}]/gu, '');   // Divers symboles (☀☂…)
+  text = text.replace(/[\u{2700}-\u{27BF}]/gu, '');   // Dingbats (✦✂…)
+  text = text.replace(/[\u{1F900}-\u{1F9FF}]/gu, ''); // Symboles supplémentaires
+  text = text.replace(/[\u{FE00}-\u{FEFF}]/gu, '');   // Variation selectors
+  text = text.replace(/[\u200B-\u200D\uFEFF\uFE0E\uFE0F]/g, ''); // Zero-width + VS
+  return text.trim();
+}
+
 async function generateWelcomeBanner(member, guild, isNew, settings) {
   const W = 900, H = 280;
   const canvas = createCanvas(W, H);
@@ -207,12 +220,14 @@ async function generateWelcomeBanner(member, guild, isNew, settings) {
 
   // Texte principal
   const TEXT_X = 255;
-  const name = member.displayName || member.user.username;
+  // Nettoyer le nom : supprimer emojis et caractères non supportés par DejaVu Sans
+  const rawName = member.displayName || member.user.username;
+  const name = stripForCanvas(rawName) || rawName.replace(/[^\x20-\x7E\u00C0-\u024F]/g, '').trim() || 'Membre';
 
-  // Titre (Bienvenue / Bon retour)
+  // Titre (Bienvenue / Bon retour) — ◆ à la place de ✦ (supporté par DejaVu Sans)
   ctx.fillStyle = accentColor;
   ctx.font = 'bold 22px DejaVu Sans';
-  ctx.fillText(isNew ? '✦ Nouveau membre ✦' : '✦ De retour parmi nous ✦', TEXT_X, H / 2 - 55);
+  ctx.fillText(isNew ? '◆ Nouveau membre ◆' : '◆ De retour parmi nous ◆', TEXT_X, H / 2 - 55);
 
   // Nom du membre
   ctx.fillStyle = '#ffffff';
@@ -224,16 +239,16 @@ async function generateWelcomeBanner(member, guild, isNew, settings) {
   }
   ctx.fillText(nameText, TEXT_X, H / 2);
 
-  // Sous-texte
+  // Sous-texte (nettoyé lui aussi)
   ctx.fillStyle = 'rgba(255,255,255,0.75)';
   ctx.font = '18px DejaVu Sans';
-  ctx.fillText(overlayText, TEXT_X, H / 2 + 40);
+  ctx.fillText(stripForCanvas(overlayText) || overlayText, TEXT_X, H / 2 + 40);
 
-  // Nombre de membres
+  // Nombre de membres — sans emoji 👥
   const memberCount = guild.memberCount;
   ctx.fillStyle = accentColor;
   ctx.font = 'bold 16px DejaVu Sans';
-  ctx.fillText(`👥 ${memberCount.toLocaleString('fr-FR')} membres`, TEXT_X, H / 2 + 75);
+  ctx.fillText(`${memberCount.toLocaleString('fr-FR')} membres`, TEXT_X, H / 2 + 75);
 
   return canvas.toBuffer('image/png');
 }
