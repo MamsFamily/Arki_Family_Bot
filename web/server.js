@@ -333,6 +333,88 @@ function createWebServer(discordClient) {
     }
   });
 
+  // ─── WELCOME ──────────────────────────────────────────────────────────────
+  app.get('/welcome', requireAdmin, async (req, res) => {
+    const settings = getSettings();
+    const welcome = settings.welcome || {};
+    let channels = [];
+    if (discordClient) {
+      try {
+        const guild = discordClient.guilds.cache.first();
+        if (guild) {
+          channels = guild.channels.cache
+            .filter(ch => ch.type === 0)
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map(ch => ({ id: ch.id, name: ch.name }));
+        }
+      } catch {}
+    }
+    res.render('welcome', { welcome, channels, success: req.query.success || null, error: null });
+  });
+
+  app.post('/welcome', requireAdmin, async (req, res) => {
+    try {
+      const settings = getSettings();
+      const { updateSection } = require('../settingsManager');
+      await updateSection('welcome', {
+        enabled: req.body.enabled === '1',
+        channelId: req.body.channelId || '',
+        pingDelay: parseInt(req.body.pingDelay) || 10,
+        newColor: req.body.newColor || '#1de9b6',
+        returnColor: req.body.returnColor || '#ffc107',
+        bannerUrl: req.body.bannerUrl || '',
+        bannerOverlayText: req.body.bannerOverlayText || "Bienvenue sur Arki' Family",
+        newTitle: req.body.newTitle || '🎉 Bienvenue sur {server} !',
+        returnTitle: req.body.returnTitle || '👋 Bon retour parmi nous, {user} !',
+        newMessage: req.body.newMessage || '',
+        returnMessage: req.body.returnMessage || '',
+      });
+      res.redirect('/welcome?success=Paramètres+de+bienvenue+enregistrés');
+    } catch (err) {
+      const settings = getSettings();
+      res.render('welcome', { welcome: settings.welcome || {}, channels: [], success: null, error: 'Erreur : ' + err.message });
+    }
+  });
+
+  app.post('/welcome/test', requireAdmin, async (req, res) => {
+    try {
+      if (!discordClient) return res.json({ error: 'Bot Discord non connecté (mode dashboard uniquement)' });
+      const settings = getSettings();
+      const ws = settings.welcome || {};
+      if (!ws.channelId) return res.json({ error: 'Aucun salon de bienvenue configuré' });
+      const guild = discordClient.guilds.cache.first();
+      if (!guild) return res.json({ error: 'Aucun serveur Discord trouvé' });
+      const channel = guild.channels.cache.get(ws.channelId);
+      if (!channel) return res.json({ error: 'Salon introuvable (ID invalide ?)' });
+
+      const type = req.body.type || 'new';
+      const { buildWelcomeEmbed, recordJoin } = require('../welcomeManager');
+      const { getDatabase } = require('../database');
+
+      // Utiliser le membre qui fait la requête (session Discord)
+      const userId = req.session?.discordUser?.id || guild.ownerId;
+      const member = await guild.members.fetch(userId).catch(() => null);
+      if (!member) return res.json({ error: 'Membre introuvable pour le test' });
+
+      if (type === 'return') {
+        // Simuler un revenant : injecter 2 visites dans la DB
+        const db = getDatabase();
+        const now = Date.now();
+        const past1 = now - 90 * 24 * 3600 * 1000;
+        const past2 = now - 60 * 24 * 3600 * 1000;
+        db.prepare('INSERT OR IGNORE INTO member_history (user_id, guild_id, joined_at, left_at) VALUES (?, ?, ?, ?)').run(userId, guild.id, past1, past2);
+      }
+
+      const { embed, attachment } = await buildWelcomeEmbed(member, guild, discordClient);
+      const files = attachment ? [attachment] : [];
+      await channel.send({ embeds: [embed], files, content: `🧪 **Test** (${type === 'return' ? 'revenant' : 'nouveau membre'})` });
+      res.json({ message: '✅ Message de test envoyé dans #' + channel.name });
+    } catch (err) {
+      console.error('[Welcome test]', err);
+      res.json({ error: err.message });
+    }
+  });
+
   app.get('/roulette', requireAdmin, async (req, res) => {
     const config = await readConfig();
     res.render('roulette', { config, success: null, error: null });

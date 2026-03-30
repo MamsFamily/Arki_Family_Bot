@@ -62,6 +62,19 @@ const DEFAULTS = {
   giveaway: {
     defaultImageUrl: '',
   },
+  welcome: {
+    enabled: false,
+    channelId: '',
+    pingDelay: 10,
+    newColor: '#1de9b6',
+    returnColor: '#ffc107',
+    bannerUrl: '',
+    bannerOverlayText: "Bienvenue sur Arki' Family",
+    newTitle: "🎉 Bienvenue sur {server} !",
+    returnTitle: "👋 Bon retour parmi nous, {user} !",
+    newMessage: "Bienvenue {userMention} sur **{server}** !\nTu es notre **{memberCount}ème** membre 🎉\n\nOn espère que tu te sentiras ici chez toi !\n\n📌 **Salons importants :**\n• Lis le règlement\n• Ouvre un ticket pour commencer ton aventure",
+    returnMessage: "Content de te revoir {userMention} ! 🎉\nTu es notre **{memberCount}ème** membre actuel.",
+  },
   aliases: {},
 };
 

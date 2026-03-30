@@ -86,6 +86,9 @@
 
     <% if (role === 'admin') { %>
     <div class="nav-section">Système</div>
+    <a href="/welcome" class="nav-link <%= path === '/welcome' ? 'active' : '' %>">
+      <span class="icon">👋</span> Bienvenue
+    </a>
     <a href="/settings" class="nav-link <%= path === '/settings' ? 'active' : '' %>">
       <span class="icon">⚙️</span> Paramètres
     </a>

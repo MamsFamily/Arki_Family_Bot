@@ -21,6 +21,7 @@ const { initInventory, getItemTypes, getItemTypeById, getPlayerInventory, addToI
 const giveawayManager = require('./giveawayManager');
 const { initSpecialPacks, getSpecialPacks, getSpecialPack } = require('./specialPacksManager');
 const { handleShopCommand, handleShopInteraction } = require('./shopCommand');
+const { recordJoin, recordLeave, buildWelcomeEmbed } = require('./welcomeManager');
 
 const openaiConfig = {};
 if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
@@ -2777,6 +2778,45 @@ client.on('interactionCreate', async interaction => {
 });
 
 const token = process.env.DISCORD_TOKEN;
+
+// ─── WELCOME SYSTEM ────────────────────────────────────────────────────────
+client.on('guildMemberAdd', async (member) => {
+  try {
+    recordJoin(member.id, member.guild.id);
+
+    const settings = getSettings();
+    const ws = settings.welcome || {};
+    if (!ws.enabled || !ws.channelId) return;
+
+    const channel = member.guild.channels.cache.get(ws.channelId);
+    if (!channel) return;
+
+    const { embed, attachment } = await buildWelcomeEmbed(member, member.guild, client);
+    const files = attachment ? [attachment] : [];
+    await channel.send({ embeds: [embed], files });
+
+    // Ping après délai
+    const delay = Math.max(0, parseInt(ws.pingDelay) || 10) * 1000;
+    if (delay > 0) {
+      setTimeout(async () => {
+        try {
+          const pingMsg = await channel.send({ content: `<@${member.id}>` });
+          setTimeout(() => pingMsg.delete().catch(() => {}), 5000);
+        } catch {}
+      }, delay);
+    }
+  } catch (err) {
+    console.error('[Welcome] guildMemberAdd error:', err.message);
+  }
+});
+
+client.on('guildMemberRemove', (member) => {
+  try {
+    recordLeave(member.id, member.guild.id);
+  } catch (err) {
+    console.error('[Welcome] guildMemberRemove error:', err.message);
+  }
+});
 
 if (!token) {
   console.error('❌ Erreur: DISCORD_TOKEN manquant !');

@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Message de bienvenue - Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .var-table { width:100%; border-collapse:collapse; font-size:13px; }
+    .var-table th { text-align:left; padding:8px 12px; background:var(--bg-input); color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border-color); }
+    .var-table td { padding:8px 12px; border-bottom:1px solid var(--border-color); }
+    .var-table tr:last-child td { border-bottom:none; }
+    .var-table code { background:var(--bg-input); border:1px solid var(--border-color); border-radius:4px; padding:2px 6px; font-size:12px; color:var(--accent); cursor:pointer; }
+    .var-table code:hover { background:var(--accent-light); }
+    .tag-new { background:#0d3d3d; color:#1de9b6; border-radius:4px; padding:1px 7px; font-size:11px; font-weight:600; }
+    .tag-return { background:#3d2e00; color:#ffc107; border-radius:4px; padding:1px 7px; font-size:11px; font-weight:600; }
+    .tag-both { background:var(--bg-input); color:var(--text-secondary); border-radius:4px; padding:1px 7px; font-size:11px; }
+    .preview-embed { border-radius:6px; padding:16px; border-left:5px solid; max-width:520px; }
+    .preview-embed.new { background:#0a1628; border-color:#1de9b6; }
+    .preview-embed.return { background:#1a1200; border-color:#ffc107; }
+    .preview-title { font-weight:700; font-size:16px; margin-bottom:8px; }
+    .preview-title.new { color:#1de9b6; }
+    .preview-title.return { color:#ffc107; }
+    .preview-desc { font-size:14px; color:rgba(255,255,255,0.85); white-space:pre-wrap; line-height:1.5; }
+    .color-row { display:flex; align-items:center; gap:10px; }
+    .color-preview { width:36px; height:36px; border-radius:6px; border:1px solid var(--border-color); flex-shrink:0; }
+    .toggle-switch { position:relative; display:inline-block; width:48px; height:26px; }
+    .toggle-switch input { display:none; }
+    .toggle-slider { position:absolute; cursor:pointer; top:0;left:0;right:0;bottom:0; background:#444; border-radius:26px; transition:.3s; }
+    .toggle-slider:before { content:''; position:absolute; height:20px; width:20px; left:3px; bottom:3px; background:white; border-radius:50%; transition:.3s; }
+    .toggle-switch input:checked + .toggle-slider { background:var(--accent); }
+    .toggle-switch input:checked + .toggle-slider:before { transform:translateX(22px); }
+    .section-tabs { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
+    .section-tab { padding:7px 18px; border-radius:6px; border:1px solid var(--border-color); cursor:pointer; font-size:13px; font-weight:600; background:var(--bg-input); color:var(--text-secondary); transition:all .15s; }
+    .section-tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .tab-content { display:none; }
+    .tab-content.active { display:block; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>👋 Message de bienvenue</h1>
+        <p>Configurez les messages d'accueil pour les nouveaux membres et les revenants</p>
+      </div>
+
+      <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
+      <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+      <form method="POST" action="/welcome" id="welcomeForm">
+
+        <!-- Activation + Salon -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-header">
+            <h2>⚙️ Configuration générale</h2>
+            <label class="toggle-switch">
+              <input type="checkbox" name="enabled" id="enabledToggle" value="1" <%= welcome.enabled ? 'checked' : '' %> onchange="document.getElementById('enabledLabel').textContent=this.checked?'Activé':'Désactivé'">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="card-body">
+            <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;flex-wrap:wrap;">
+              <div class="form-group">
+                <label class="form-label">Statut</label>
+                <div style="padding:8px 0;font-weight:600;color:var(--accent)" id="enabledLabel"><%= welcome.enabled ? 'Activé' : 'Désactivé' %></div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Salon de bienvenue</label>
+                <% if (channels && channels.length > 0) { %>
+                  <select name="channelId" class="form-control">
+                    <option value="">— Choisir un salon —</option>
+                    <% channels.forEach(ch => { %>
+                      <option value="<%= ch.id %>" <%= welcome.channelId === ch.id ? 'selected' : '' %>>#<%= ch.name %></option>
+                    <% }) %>
+                  </select>
+                <% } else { %>
+                  <input type="text" name="channelId" class="form-control" value="<%= welcome.channelId %>" placeholder="ID du salon">
+                <% } %>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Délai ping (secondes)</label>
+                <input type="number" name="pingDelay" class="form-control" value="<%= welcome.pingDelay %>" min="0" max="300" placeholder="10">
+                <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Le membre sera mentionné après ce délai, puis le message est supprimé (0 = désactivé)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Onglets Nouveau / Revenant -->
+        <div class="section-tabs">
+          <button type="button" class="section-tab active" onclick="switchTab('new', this)">🔵 Nouveau membre</button>
+          <button type="button" class="section-tab" onclick="switchTab('return', this)">🟡 Membre revenant</button>
+          <button type="button" class="section-tab" onclick="switchTab('banner', this)">🖼️ Bannière</button>
+        </div>
+
+        <!-- Nouveau membre -->
+        <div id="tab-new" class="tab-content active">
+          <div class="card" style="margin-bottom:20px;">
+            <div class="card-header"><h2>🔵 Nouveau membre</h2><span style="font-size:12px;color:var(--text-muted)">Couleur de l'embed</span></div>
+            <div class="card-body">
+              <div class="form-group" style="margin-bottom:16px;">
+                <label class="form-label">Couleur (turquoise par défaut)</label>
+                <div class="color-row">
+                  <div class="color-preview" id="newColorPreview" style="background:<%= welcome.newColor %>"></div>
+                  <input type="color" name="newColor" class="form-control" value="<%= welcome.newColor %>" style="width:60px;height:38px;padding:2px;" oninput="document.getElementById('newColorPreview').style.background=this.value;updatePreview()">
+                </div>
+              </div>
+              <div class="form-group" style="margin-bottom:16px;">
+                <label class="form-label">Titre de l'embed <span style="color:var(--text-muted);font-weight:400">(variables disponibles ci-dessous)</span></label>
+                <input type="text" name="newTitle" class="form-control" value="<%= welcome.newTitle %>" oninput="updatePreview()" placeholder="🎉 Bienvenue sur {server} !">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Message (description)</label>
+                <textarea name="newMessage" class="form-control" rows="6" oninput="updatePreview()" placeholder="Bienvenue {userMention} !"><%= welcome.newMessage %></textarea>
+              </div>
+              <div style="margin-top:16px;">
+                <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-secondary)">Aperçu</div>
+                <div class="preview-embed new" id="preview-new">
+                  <div class="preview-title new" id="pn-title"></div>
+                  <div class="preview-desc" id="pn-desc"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Membre revenant -->
+        <div id="tab-return" class="tab-content">
+          <div class="card" style="margin-bottom:20px;">
+            <div class="card-header"><h2>🟡 Membre revenant</h2><span style="font-size:12px;color:var(--text-muted)">Couleur de l'embed</span></div>
+            <div class="card-body">
+              <div class="form-group" style="margin-bottom:16px;">
+                <label class="form-label">Couleur (jaune par défaut)</label>
+                <div class="color-row">
+                  <div class="color-preview" id="returnColorPreview" style="background:<%= welcome.returnColor %>"></div>
+                  <input type="color" name="returnColor" class="form-control" value="<%= welcome.returnColor %>" style="width:60px;height:38px;padding:2px;" oninput="document.getElementById('returnColorPreview').style.background=this.value;updatePreview()">
+                </div>
+              </div>
+              <div class="form-group" style="margin-bottom:16px;">
+                <label class="form-label">Titre de l'embed</label>
+                <input type="text" name="returnTitle" class="form-control" value="<%= welcome.returnTitle %>" oninput="updatePreview()" placeholder="👋 Bon retour parmi nous, {user} !">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Message (description)</label>
+                <textarea name="returnMessage" class="form-control" rows="6" oninput="updatePreview()" placeholder="Content de te revoir {userMention} !"><%= welcome.returnMessage %></textarea>
+              </div>
+              <div style="margin-top:16px;">
+                <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-secondary)">Aperçu (exemple revenant)</div>
+                <div class="preview-embed return" id="preview-return">
+                  <div class="preview-title return" id="pr-title"></div>
+                  <div class="preview-desc" id="pr-desc"></div>
+                  <div style="margin-top:12px;display:flex;gap:20px;flex-wrap:wrap;">
+                    <div style="font-size:12px;color:rgba(255,255,255,.6)"><span style="font-weight:600;color:rgba(255,255,255,.9)">🔁 Visite</span><br>3ème fois ici</div>
+                    <div style="font-size:12px;color:rgba(255,255,255,.6)"><span style="font-weight:600;color:rgba(255,255,255,.9)">📅 Absent depuis</span><br>il y a 2 mois</div>
+                    <div style="font-size:12px;color:rgba(255,255,255,.6)"><span style="font-weight:600;color:rgba(255,255,255,.9)">⏱️ Séjour précédent</span><br>18 jours</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bannière -->
+        <div id="tab-banner" class="tab-content">
+          <div class="card" style="margin-bottom:20px;">
+            <div class="card-header"><h2>🖼️ Bannière générée</h2></div>
+            <div class="card-body">
+              <div class="form-group" style="margin-bottom:16px;">
+                <label class="form-label">Texte affiché sur la bannière</label>
+                <input type="text" name="bannerOverlayText" class="form-control" value="<%= welcome.bannerOverlayText %>" placeholder="Bienvenue sur Arki' Family">
+              </div>
+              <div class="form-group">
+                <label class="form-label">URL de bannière personnalisée <span style="color:var(--text-muted);font-weight:400">(facultatif — sinon bannière Discord du serveur)</span></label>
+                <input type="text" name="bannerUrl" class="form-control" value="<%= welcome.bannerUrl %>" placeholder="https://...">
+              </div>
+              <div style="margin-top:12px;padding:12px;background:var(--bg-input);border-radius:6px;font-size:13px;color:var(--text-muted);">
+                ℹ️ Une bannière est générée automatiquement avec : la photo de profil du membre (cercle), la bannière du serveur en fond, le texte personnalisé et le nombre de membres. La bannière apparaît en bas de l'embed.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Variables disponibles -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-header"><h2>📋 Variables disponibles</h2><span style="font-size:12px;color:var(--text-muted)">Cliquez pour copier</span></div>
+          <div class="card-body" style="padding:0;">
+            <table class="var-table">
+              <thead>
+                <tr>
+                  <th>Variable</th>
+                  <th>Description</th>
+                  <th>Exemple</th>
+                  <th>Contexte</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td><code onclick="copyVar('{user}')">&#123;user&#125;</code></td><td>Pseudo Discord du membre</td><td>Zeus</td><td><span class="tag-both">Les deux</span></td></tr>
+                <tr><td><code onclick="copyVar('{userMention}')">&#123;userMention&#125;</code></td><td>Mention @membre</td><td>@Zeus</td><td><span class="tag-both">Les deux</span></td></tr>
+                <tr><td><code onclick="copyVar('{memberCount}')">&#123;memberCount&#125;</code></td><td>Nombre de membres avec le nouveau</td><td>509</td><td><span class="tag-both">Les deux</span></td></tr>
+                <tr><td><code onclick="copyVar('{server}')">&#123;server&#125;</code></td><td>Nom du serveur Discord</td><td>Arki' Family</td><td><span class="tag-both">Les deux</span></td></tr>
+                <tr><td><code onclick="copyVar('{visitCount}')">&#123;visitCount&#125;</code></td><td>Numéro de la visite (chiffre)</td><td>3</td><td><span class="tag-return">Revenant</span></td></tr>
+                <tr><td><code onclick="copyVar('{visitOrdinal}')">&#123;visitOrdinal&#125;</code></td><td>Numéro ordinal de la visite</td><td>3ème</td><td><span class="tag-return">Revenant</span></td></tr>
+                <tr><td><code onclick="copyVar('{lastLeft}')">&#123;lastLeft&#125;</code></td><td>Depuis quand il était parti</td><td>il y a 2 mois</td><td><span class="tag-return">Revenant</span></td></tr>
+                <tr><td><code onclick="copyVar('{lastDuration}')">&#123;lastDuration&#125;</code></td><td>Durée de son séjour précédent</td><td>18 jours</td><td><span class="tag-return">Revenant</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
+          <button type="button" class="btn btn-secondary" onclick="sendTest('new')">🔵 Tester nouveau membre</button>
+          <button type="button" class="btn btn-secondary" onclick="sendTest('return')">🟡 Tester revenant</button>
+        </div>
+
+      </form>
+    </main>
+  </div>
+
+  <script>
+    function switchTab(tab, btn) {
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.section-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('tab-' + tab).classList.add('active');
+      btn.classList.add('active');
+    }
+
+    function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    var previewVarsNew = {
+      user: 'Zeus',
+      userMention: '<b style="color:#5865f2">@Zeus</b>',
+      memberCount: '510',
+      server: "Arki' Family",
+      visitCount: '1',
+      visitOrdinal: '1ère',
+      lastLeft: '—',
+      lastDuration: '—',
+    };
+    var previewVarsReturn = {
+      user: 'alpha8037',
+      userMention: '<b style="color:#5865f2">@alpha8037</b>',
+      memberCount: '510',
+      server: "Arki' Family",
+      visitCount: '3',
+      visitOrdinal: '3ème',
+      lastLeft: 'il y a 2 mois',
+      lastDuration: '18 jours',
+    };
+
+    function applyVars(text, vars) {
+      if (!text) return '';
+      var result = text;
+      for (var k in vars) {
+        result = result.replace(new RegExp('\\{' + k + '\\}', 'g'), vars[k]);
+      }
+      return result.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+    }
+
+    function updatePreview() {
+      var nTitle = document.querySelector('[name="newTitle"]')?.value || '';
+      var nDesc = document.querySelector('[name="newMessage"]')?.value || '';
+      var rTitle = document.querySelector('[name="returnTitle"]')?.value || '';
+      var rDesc = document.querySelector('[name="returnMessage"]')?.value || '';
+
+      document.getElementById('pn-title').innerHTML = applyVars(escHtml(nTitle).replace(/&lt;b&gt;/g,'<b>').replace(/&lt;\/b&gt;/g,'</b>'), previewVarsNew);
+      document.getElementById('pn-desc').innerHTML = applyVars(escHtml(nDesc), previewVarsNew);
+      document.getElementById('pr-title').innerHTML = applyVars(escHtml(rTitle), previewVarsReturn);
+      document.getElementById('pr-desc').innerHTML = applyVars(escHtml(rDesc), previewVarsReturn);
+
+      var newColor = document.querySelector('[name="newColor"]')?.value || '#1de9b6';
+      var retColor = document.querySelector('[name="returnColor"]')?.value || '#ffc107';
+      document.getElementById('preview-new').style.borderColor = newColor;
+      document.getElementById('pn-title').style.color = newColor;
+      document.getElementById('preview-return').style.borderColor = retColor;
+      document.getElementById('pr-title').style.color = retColor;
+    }
+
+    function copyVar(v) {
+      navigator.clipboard?.writeText(v).catch(() => {});
+      var tmp = document.createElement('textarea');
+      tmp.value = v;
+      document.body.appendChild(tmp);
+      tmp.select();
+      document.execCommand('copy');
+      document.body.removeChild(tmp);
+    }
+
+    async function sendTest(type) {
+      var res = await fetch('/welcome/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type }),
+      });
+      var d = await res.json();
+      alert(d.message || (d.error ? '❌ ' + d.error : '✅ Test envoyé !'));
+    }
+
+    updatePreview();
+  </script>
+</body>
+</html>
