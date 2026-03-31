@@ -365,13 +365,14 @@ function createWebServer(discordClient) {
         }
       } catch {}
     }
-    res.render('welcome', { welcome, channels, success: req.query.success || null, error: null });
+    res.render('welcome', { welcome, channels, success: req.query.success || null, error: null,
+      botUser: discordClient?.user || null, discordUser: req.session?.discordUser || null, role: req.session?.role || 'admin' });
   });
 
   app.post('/welcome', requireAdmin, async (req, res) => {
     try {
       const settings = getSettings();
-      const { updateSection } = require('../settingsManager');
+      const existing = settings.welcome || {};
       await updateSection('welcome', {
         enabled: req.body.enabled === '1',
         channelId: req.body.channelId || '',
@@ -386,11 +387,18 @@ function createWebServer(discordClient) {
         returnMessage: req.body.returnMessage || '',
         dmEnabled: req.body.dmEnabled === '1',
         dmMessage: req.body.dmMessage || '',
+        autoRolesNew: existing.autoRolesNew || [],
+        autoRolesReturn: existing.autoRolesReturn || [],
+        arrivalPhrasesNew: existing.arrivalPhrasesNew,
+        arrivalPhrasesReturn: existing.arrivalPhrasesReturn,
+        greetPhrasesNew: existing.greetPhrasesNew,
+        greetPhrasesReturn: existing.greetPhrasesReturn,
       });
       res.redirect('/welcome?success=Paramètres+de+bienvenue+enregistrés');
     } catch (err) {
       const settings = getSettings();
-      res.render('welcome', { welcome: settings.welcome || {}, channels: [], success: null, error: 'Erreur : ' + err.message });
+      res.render('welcome', { welcome: settings.welcome || {}, channels: [], success: null, error: 'Erreur : ' + err.message,
+        botUser: discordClient?.user || null, discordUser: req.session?.discordUser || null, role: req.session?.role || 'admin' });
     }
   });
 
@@ -466,6 +474,57 @@ function createWebServer(discordClient) {
     } catch (err) {
       console.error('[Welcome test]', err);
       res.json({ error: err.message });
+    }
+  });
+
+  // ─── Rôles automatiques bienvenue ────────────────────────────────────────
+  app.get('/api/guild-roles', requireAdmin, async (req, res) => {
+    try {
+      const guildId = getSettings().guild?.guildId;
+      const token = process.env.DISCORD_TOKEN;
+      if (!token || !guildId) return res.json({ roles: [] });
+      const resp = await axios.get(`https://discord.com/api/v10/guilds/${guildId}/roles`, {
+        headers: { Authorization: `Bot ${token}` },
+      });
+      const roles = resp.data
+        .filter(r => r.name !== '@everyone')
+        .sort((a, b) => b.position - a.position)
+        .map(r => ({ id: r.id, name: r.name, color: r.color ? '#' + r.color.toString(16).padStart(6, '0') : null }));
+      res.json({ roles });
+    } catch (e) {
+      res.json({ roles: [], error: e.message });
+    }
+  });
+
+  app.post('/welcome/roles/add', requireAdmin, async (req, res) => {
+    try {
+      const { roleId, roleName, type } = req.body;
+      const key = type === 'return' ? 'autoRolesReturn' : 'autoRolesNew';
+      if (!roleId || !roleName) return res.json({ ok: false, error: 'Données manquantes' });
+      const settings = getSettings();
+      const ws = settings.welcome || {};
+      const list = Array.isArray(ws[key]) ? [...ws[key]] : [];
+      if (!list.find(r => r.id === roleId)) {
+        list.push({ id: roleId, name: roleName });
+        await updateSection('welcome', { ...ws, [key]: list });
+      }
+      res.json({ ok: true });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/welcome/roles/delete', requireAdmin, async (req, res) => {
+    try {
+      const { roleId, type } = req.body;
+      const key = type === 'return' ? 'autoRolesReturn' : 'autoRolesNew';
+      const settings = getSettings();
+      const ws = settings.welcome || {};
+      const list = (ws[key] || []).filter(r => r.id !== roleId);
+      await updateSection('welcome', { ...ws, [key]: list });
+      res.json({ ok: true });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
     }
   });
 

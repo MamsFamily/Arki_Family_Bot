@@ -76,6 +76,8 @@ const DEFAULTS = {
     returnMessage: "Content de te revoir {userMention} ! 🎉\nTu es notre **{memberCount}ème** membre actuel.",
     dmEnabled: false,
     dmMessage: "👋 Bienvenue sur **{server}**, {user} !\n\nN'hésite pas à lire le règlement et à ouvrir un ticket pour commencer ton aventure ARK.",
+    autoRolesNew: [],
+    autoRolesReturn: [],
     arrivalPhrasesNew: [
       "C'est un plaisir de t'accueillir, **{name}** ! 🎉",
       "Bienvenue parmi nous, **{name}** ! 😊",

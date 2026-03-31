@@ -37,6 +37,13 @@
     .section-tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
     .tab-content { display:none; }
     .tab-content.active { display:block; }
+    .role-tag { display:inline-flex; align-items:center; gap:6px; background:var(--bg-input); border:1px solid var(--border); border-radius:20px; padding:4px 10px 4px 12px; font-size:13px; font-weight:600; }
+    .role-tag button { background:none; border:none; cursor:pointer; color:var(--text-muted); font-size:12px; padding:0; line-height:1; }
+    .role-tag button:hover { color:#ef4444; }
+    .role-drop-item { padding:9px 14px; cursor:pointer; font-size:13px; display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--border); }
+    .role-drop-item:last-child { border-bottom:none; }
+    .role-drop-item:hover { background:var(--accent-light); }
+    .role-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
   </style>
 </head>
 <body>
@@ -97,6 +104,7 @@
           <button type="button" class="section-tab" onclick="switchTab('banner', this)">🖼️ Bannière</button>
           <button type="button" class="section-tab" onclick="switchTab('dm', this)">✉️ Message privé</button>
           <button type="button" class="section-tab" onclick="switchTab('annexe', this)">📖 Annexe variables</button>
+          <button type="button" class="section-tab" onclick="switchTab('roles', this)">🎭 Rôles auto</button>
         </div>
 
         <!-- Nouveau membre -->
@@ -429,6 +437,74 @@
         <p style="font-size:12px;opacity:0.6;margin-top:6px;">💡 Sans bot connecté (mode Replit), les données sont enregistrées en base mais le message Discord est envoyé uniquement depuis Railway.</p>
 
       </form>
+
+      <!-- ═══ ONGLET RÔLES AUTO (hors form pour éviter conflits) ══════════ -->
+      <div id="tab-roles" class="tab-content">
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-header">
+            <h2>🎭 Rôles automatiques</h2>
+            <span style="font-size:12px;color:var(--text-muted)">Attribués dès qu'un membre rejoint le serveur</span>
+          </div>
+          <div class="card-body">
+            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:20px;">
+              Les rôles ci-dessous sont attribués automatiquement lors de l'arrivée d'un membre, selon son statut.
+              Le bot doit avoir la permission <strong>Gérer les rôles</strong> et ses rôles doivent être plus hauts dans la hiérarchie que ceux attribués.
+            </p>
+
+            <!-- Recherche de rôles -->
+            <div style="margin-bottom:24px;">
+              <label class="form-label">🔍 Rechercher un rôle</label>
+              <div style="position:relative;max-width:420px;">
+                <input type="text" id="roleSearch" class="form-control" placeholder="Tapez le nom d'un rôle..." autocomplete="off"
+                  oninput="filterRoles(this.value)" onfocus="showDropdown()" style="padding-right:36px;">
+                <div id="roleDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--card-bg);border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;z-index:100;max-height:240px;overflow-y:auto;"></div>
+              </div>
+              <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+                <button type="button" class="btn btn-secondary" style="font-size:12px;padding:6px 14px;" onclick="addSelectedRole('new')">+ Ajouter aux nouveaux membres</button>
+                <button type="button" class="btn btn-secondary" style="font-size:12px;padding:6px 14px;" onclick="addSelectedRole('return')">+ Ajouter aux revenants</button>
+              </div>
+              <div id="roleMsg" style="margin-top:8px;font-size:12px;min-height:18px;"></div>
+            </div>
+
+            <!-- Deux colonnes -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+
+              <!-- Nouveau membre -->
+              <div>
+                <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:#1de9b6;">🔵 Nouveau membre</div>
+                <div id="roles-new" style="display:flex;flex-wrap:wrap;gap:8px;min-height:48px;padding:10px;background:var(--bg-input);border-radius:8px;border:1px solid var(--border);">
+                  <% (welcome.autoRolesNew || []).forEach(function(r) { %>
+                    <span class="role-tag" data-id="<%= r.id %>" data-type="new">
+                      @<%= r.name %>
+                      <button type="button" onclick="deleteRole('<%= r.id %>', 'new', this)" title="Retirer">✕</button>
+                    </span>
+                  <% }) %>
+                  <% if (!(welcome.autoRolesNew || []).length) { %>
+                    <span id="roles-new-empty" style="font-size:12px;opacity:0.45;align-self:center;">Aucun rôle configuré</span>
+                  <% } %>
+                </div>
+              </div>
+
+              <!-- Revenant -->
+              <div>
+                <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:#ffc107;">🟡 Revenant</div>
+                <div id="roles-return" style="display:flex;flex-wrap:wrap;gap:8px;min-height:48px;padding:10px;background:var(--bg-input);border-radius:8px;border:1px solid var(--border);">
+                  <% (welcome.autoRolesReturn || []).forEach(function(r) { %>
+                    <span class="role-tag" data-id="<%= r.id %>" data-type="return">
+                      @<%= r.name %>
+                      <button type="button" onclick="deleteRole('<%= r.id %>', 'return', this)" title="Retirer">✕</button>
+                    </span>
+                  <% }) %>
+                  <% if (!(welcome.autoRolesReturn || []).length) { %>
+                    <span id="roles-return-empty" style="font-size:12px;opacity:0.45;align-self:center;">Aucun rôle configuré</span>
+                  <% } %>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 
@@ -513,6 +589,106 @@
     }
 
     updatePreview();
+
+    // ─── Gestion des rôles automatiques ────────────────────────────────────
+    let allRoles = [];
+    let selectedRole = null;
+
+    async function loadRoles() {
+      try {
+        const r = await fetch('/api/guild-roles');
+        const data = await r.json();
+        allRoles = data.roles || [];
+      } catch {}
+    }
+    loadRoles();
+
+    function filterRoles(q) {
+      const dd = document.getElementById('roleDropdown');
+      if (!q.trim()) { dd.style.display = 'none'; selectedRole = null; return; }
+      const matches = allRoles.filter(r => r.name.toLowerCase().includes(q.toLowerCase())).slice(0, 20);
+      if (!matches.length) { dd.innerHTML = '<div class="role-drop-item" style="opacity:.5">Aucun rôle trouvé</div>'; dd.style.display = 'block'; return; }
+      dd.innerHTML = matches.map(r =>
+        `<div class="role-drop-item" onclick="selectRole('${r.id}','${r.name.replace(/'/g,"\\'")}','${r.color||''}')">
+          <span class="role-dot" style="background:${r.color && r.color!=='#000000' ? r.color : 'var(--text-muted)'}"></span>@${r.name}
+        </div>`
+      ).join('');
+      dd.style.display = 'block';
+    }
+
+    function showDropdown() {
+      if (allRoles.length === 0) loadRoles();
+    }
+
+    function selectRole(id, name, color) {
+      selectedRole = { id, name, color };
+      document.getElementById('roleSearch').value = name;
+      document.getElementById('roleDropdown').style.display = 'none';
+    }
+
+    document.addEventListener('click', e => {
+      if (!e.target.closest('#roleSearch') && !e.target.closest('#roleDropdown')) {
+        document.getElementById('roleDropdown').style.display = 'none';
+      }
+    });
+
+    async function addSelectedRole(type) {
+      if (!selectedRole) { showRoleMsg('⚠️ Sélectionnez d\'abord un rôle dans la liste', '#ff9800'); return; }
+      const container = document.getElementById('roles-' + type);
+      if (container.querySelector(`[data-id="${selectedRole.id}"]`)) {
+        showRoleMsg('Ce rôle est déjà dans cette liste', '#ff9800'); return;
+      }
+      try {
+        const r = await fetch('/welcome/roles/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roleId: selectedRole.id, roleName: selectedRole.name, type }),
+        });
+        const data = await r.json();
+        if (!data.ok) { showRoleMsg('Erreur : ' + (data.error || ''), '#ef4444'); return; }
+        const emptyEl = document.getElementById('roles-' + type + '-empty');
+        if (emptyEl) emptyEl.remove();
+        const tag = document.createElement('span');
+        tag.className = 'role-tag';
+        tag.dataset.id = selectedRole.id;
+        tag.dataset.type = type;
+        tag.innerHTML = `@${selectedRole.name} <button type="button" onclick="deleteRole('${selectedRole.id}','${type}',this)" title="Retirer">✕</button>`;
+        container.appendChild(tag);
+        document.getElementById('roleSearch').value = '';
+        selectedRole = null;
+        showRoleMsg('✅ Rôle ajouté', '#4caf50');
+      } catch (e) { showRoleMsg('Erreur réseau', '#ef4444'); }
+    }
+
+    async function deleteRole(roleId, type, btn) {
+      try {
+        const r = await fetch('/welcome/roles/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roleId, type }),
+        });
+        const data = await r.json();
+        if (!data.ok) { showRoleMsg('Erreur : ' + (data.error || ''), '#ef4444'); return; }
+        const tag = btn.closest('.role-tag');
+        const container = tag.parentElement;
+        tag.remove();
+        if (!container.querySelector('.role-tag')) {
+          const empty = document.createElement('span');
+          empty.id = 'roles-' + type + '-empty';
+          empty.style = 'font-size:12px;opacity:0.45;align-self:center;';
+          empty.textContent = 'Aucun rôle configuré';
+          container.appendChild(empty);
+        }
+        showRoleMsg('Rôle retiré', '#4caf50');
+      } catch (e) { showRoleMsg('Erreur réseau', '#ef4444'); }
+    }
+
+    function showRoleMsg(msg, color) {
+      const el = document.getElementById('roleMsg');
+      el.textContent = msg;
+      el.style.color = color;
+      setTimeout(() => { el.textContent = ''; }, 3000);
+    }
   </script>
 </body>
 </html>

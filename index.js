@@ -2931,6 +2931,16 @@ client.on('guildMemberAdd', async (member) => {
     const files = attachment ? [attachment] : [];
     await channel.send({ embeds: [embed], files });
 
+    // Attribution automatique des rôles
+    const rolesToAdd = isNew ? (ws.autoRolesNew || []) : (ws.autoRolesReturn || []);
+    for (const roleData of rolesToAdd) {
+      try {
+        await member.roles.add(roleData.id, 'Rôle bienvenue automatique');
+      } catch (e) {
+        console.warn(`[Welcome] Impossible d'ajouter le rôle ${roleData.name} (${roleData.id}):`, e.message);
+      }
+    }
+
     // Message de bienvenue + bouton "Souhaiter la bienvenue"
     const displayName = member.displayName || member.user.username;
     const arrivalPhrase = getRandomArrivalPhrase(displayName, isNew);
