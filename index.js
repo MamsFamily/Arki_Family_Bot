@@ -1,6 +1,8 @@
 const { Client, GatewayIntentBits, Partials, AttachmentBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, REST, Routes } = require('discord.js');
 const commands = require('./commands');
 const fs = require('fs');
+const path = require('path');
+const VOTE_BANNER_PATH = path.join(__dirname, 'assets/vote-banner.jpg');
 const cron = require('node-cron');
 const RouletteWheel = require('./rouletteWheel');
 const { initDatabase } = require('./database');
@@ -381,6 +383,9 @@ async function autoPublishVotes() {
       let finalMessage = resultsMessage;
       if (votesConfig.STYLE.everyonePing) {
         finalMessage = `|| @everyone ||\n` + finalMessage;
+      }
+      if (fs.existsSync(VOTE_BANNER_PATH)) {
+        await resultsChannel.send({ files: [{ attachment: VOTE_BANNER_PATH, name: 'recompenses-votes.jpg' }] });
       }
       await resultsChannel.send({ content: finalMessage, components: [row] });
     }
@@ -1805,6 +1810,9 @@ client.on('interactionCreate', async interaction => {
         if (votesConfig.STYLE.everyonePing) {
           finalMessage = `|| @everyone ||\n` + finalMessage;
         }
+        if (fs.existsSync(VOTE_BANNER_PATH)) {
+          await resultsChannel.send({ files: [{ attachment: VOTE_BANNER_PATH, name: 'recompenses-votes.jpg' }] });
+        }
         await resultsChannel.send({ content: finalMessage, components: [row] });
       }
 
@@ -1949,6 +1957,9 @@ client.on('interactionCreate', async interaction => {
 
       const testChannel = interaction.channel;
       await testChannel.send(`⚠️ **TEST - PRÉVISUALISATION** ⚠️`);
+      if (fs.existsSync(VOTE_BANNER_PATH)) {
+        await testChannel.send({ files: [{ attachment: VOTE_BANNER_PATH, name: 'recompenses-votes.jpg' }] });
+      }
       let finalMessage = previewMessage;
       if (votesConfig.STYLE.everyonePing) {
         finalMessage = `|| @everyone ||\n` + finalMessage;
