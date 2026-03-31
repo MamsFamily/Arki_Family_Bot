@@ -403,15 +403,19 @@ function createWebServer(discordClient) {
       const userId = req.body.userId || req.session?.discordUser?.id;
       const guildId = settings.guild?.guildId || '';
 
-      const { buildWelcomeEmbed, insertMemberHistory, getMemberVisits } = require('../welcomeManager');
+      const { buildWelcomeEmbed, insertMemberHistory, getMemberVisits, getRandomArrivalPhrase, getRandomGreetPhrase } = require('../welcomeManager');
+      const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
       if (type === 'return') {
         // Injecter un séjour passé en base (PostgreSQL ou SQLite selon l'env)
         const now = Date.now();
-        const joined = now - 90 * 24 * 3600 * 1000; // parti il y a 90 jours
-        const left   = now - 30 * 24 * 3600 * 1000; // revenu il y a 30 jours
+        const joined = now - 90 * 24 * 3600 * 1000;
+        const left   = now - 30 * 24 * 3600 * 1000;
         await insertMemberHistory(userId, guildId, joined, left);
       }
+
+      // Forcer le type pour contourner l'historique réel en base
+      const forceIsNew = type === 'new' ? true : type === 'return' ? false : null;
 
       // Si le bot est connecté, envoyer le message Discord
       if (discordClient) {
@@ -423,10 +427,32 @@ function createWebServer(discordClient) {
         const member = await guild.members.fetch(userId).catch(() => null);
         if (!member) return res.json({ error: `Membre <@${userId}> introuvable sur le serveur. Il doit être présent pour que le test envoie le message Discord.` });
 
-        const { embed, attachment } = await buildWelcomeEmbed(member, guild, discordClient);
+        const { embed, attachment } = await buildWelcomeEmbed(member, guild, discordClient, forceIsNew);
         const files = attachment ? [attachment] : [];
         const label = type === 'return' ? 'revenant' : 'nouveau membre';
         await channel.send({ embeds: [embed], files, content: `🧪 **Test** (${label})` });
+
+        // Message d'arrivée + bouton
+        const isNew = forceIsNew !== false;
+        const displayName = member.displayName || member.user.username;
+        const arrivalPhrase = getRandomArrivalPhrase(displayName, isNew);
+        const btnLabel = isNew ? '🎉 Souhaiter la bienvenue' : '🤗 Souhaiter un bon retour';
+        const greetBtn = new ButtonBuilder()
+          .setCustomId(`welcome_greet:${member.id}:${isNew ? 'new' : 'return'}`)
+          .setLabel(btnLabel)
+          .setStyle(ButtonStyle.Primary);
+        const greetRow = new ActionRowBuilder().addComponents(greetBtn);
+        await channel.send({ content: arrivalPhrase, components: [greetRow] });
+
+        // Ping auto-supprimé après 5s
+        const delay = Math.max(0, parseInt(ws.pingDelay) || 5) * 1000;
+        setTimeout(async () => {
+          try {
+            const pingMsg = await channel.send({ content: `<@${member.id}>` });
+            setTimeout(() => pingMsg.delete().catch(() => {}), 5000);
+          } catch {}
+        }, delay);
+
         return res.json({ message: `✅ Message de test envoyé dans #${channel.name}` });
       }
 

@@ -23,7 +23,7 @@ const { initInventory, getItemTypes, getItemTypeById, getPlayerInventory, addToI
 const giveawayManager = require('./giveawayManager');
 const { initSpecialPacks, getSpecialPacks, getSpecialPack } = require('./specialPacksManager');
 const { handleShopCommand, handleShopInteraction } = require('./shopCommand');
-const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM } = require('./welcomeManager');
+const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase } = require('./welcomeManager');
 
 const openaiConfig = {};
 if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
@@ -964,6 +964,16 @@ client.on('interactionCreate', async interaction => {
       }
       return interaction.reply({ content: '🎉 Tu participes au giveaway ! Bonne chance !\n-# Pour retirer ta participation, appuie de nouveau sur **Je participe**.', ephemeral: true });
     }
+  }
+
+  // ─── Bouton "Souhaiter la bienvenue / bon retour" ────────────────────────
+  if (interaction.isButton() && interaction.customId.startsWith('welcome_greet:')) {
+    const [, memberId, type] = interaction.customId.split(':');
+    const isNew = type === 'new';
+    const mention = `<@${memberId}>`;
+    const phrase = getRandomGreetPhrase(mention, isNew);
+    await interaction.reply({ content: phrase });
+    return;
   }
 
   if (interaction.isButton()) {
@@ -2904,12 +2914,24 @@ client.on('guildMemberAdd', async (member) => {
     const channel = member.guild.channels.cache.get(ws.channelId);
     if (!channel) return;
 
-    const { embed, attachment } = await buildWelcomeEmbed(member, member.guild, client);
+    const { embed, attachment, isNew } = await buildWelcomeEmbed(member, member.guild, client);
     const files = attachment ? [attachment] : [];
     await channel.send({ embeds: [embed], files });
+
+    // Message de bienvenue + bouton "Souhaiter la bienvenue"
+    const displayName = member.displayName || member.user.username;
+    const arrivalPhrase = getRandomArrivalPhrase(displayName, isNew);
+    const btnLabel = isNew ? '🎉 Souhaiter la bienvenue' : '🤗 Souhaiter un bon retour';
+    const greetBtn = new ButtonBuilder()
+      .setCustomId(`welcome_greet:${member.id}:${isNew ? 'new' : 'return'}`)
+      .setLabel(btnLabel)
+      .setStyle(ButtonStyle.Primary);
+    const greetRow = new ActionRowBuilder().addComponents(greetBtn);
+    await channel.send({ content: arrivalPhrase, components: [greetRow] });
+
     await sendWelcomeDM(member, member.guild);
 
-    // Ping après délai
+    // Ping après délai (s'auto-supprime après 5s)
     const delay = Math.max(0, parseInt(ws.pingDelay) || 10) * 1000;
     if (delay > 0) {
       setTimeout(async () => {
