@@ -437,6 +437,10 @@ async function autoPublishVotes() {
       await adminChannel.send(adminMessage);
     }
 
+    // Marquer la publication pour éviter les doublons (rattrapage au redémarrage)
+    const pubKey = `${new Date().getFullYear()}-${String(lastMonth + 1).padStart(2, '0')}`;
+    try { await pgStore.setData('vote_last_publish', pubKey); } catch {}
+
     console.log(`✅ [AUTO-VOTES] Résultats publiés automatiquement - ${distributionResults.success} récompensés, ${distributionResults.notFound.length} non trouvés`);
 
   } catch (error) {
@@ -493,6 +497,34 @@ client.once('clientReady', async () => {
     timezone: 'Europe/Paris'
   });
   console.log('⏰ Publication automatique des votes programmée : 1er de chaque mois à 00h00 (Europe/Paris)');
+
+  // ─── Rattrapage au démarrage ─────────────────────────────────────────────
+  // Si le bot redémarre après minuit le 1er du mois et a raté le cron
+  try {
+    const nowParis = new Intl.DateTimeFormat('fr-FR', {
+      timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(new Date());
+    const dayParis  = parseInt(nowParis.find(p => p.type === 'day').value, 10);
+    const monParis  = parseInt(nowParis.find(p => p.type === 'month').value, 10);
+    const yearParis = parseInt(nowParis.find(p => p.type === 'year').value, 10);
+
+    if (dayParis === 1) {
+      // Mois précédent (le mois dont on publie les votes)
+      const prevMon  = monParis === 1 ? 12 : monParis - 1;
+      const prevYear = monParis === 1 ? yearParis - 1 : yearParis;
+      const expectedKey = `${prevYear}-${String(prevMon).padStart(2, '0')}`;
+
+      const lastPublish = await pgStore.getData('vote_last_publish', null);
+      if (lastPublish !== expectedKey) {
+        console.log(`⚡ [RATTRAPAGE] Cron manqué — publication des votes ${expectedKey} dans 30s...`);
+        setTimeout(() => autoPublishVotes(), 30 * 1000);
+      } else {
+        console.log(`✅ [RATTRAPAGE] Votes ${expectedKey} déjà publiés, aucun rattrapage nécessaire.`);
+      }
+    }
+  } catch (e) {
+    console.warn('[RATTRAPAGE] Vérification échouée:', e.message);
+  }
 });
 
 const reactionTracker = new Map();
