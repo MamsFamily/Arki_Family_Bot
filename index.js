@@ -221,9 +221,17 @@ async function distributeWithChecks(ranking, memberIndex, votesConfig, monthName
         // Top 1/2/3 : ajouter le pack spécial dans l'inventaire
         if (rankIdx >= 1 && rankIdx <= 3) {
           const packNames = ['pack 1ere place vote', 'pack 2eme place vote', 'pack 3eme place vote'];
-          const votePack = getSpecialPacks().packs.find(p =>
-            p.name.toLowerCase() === packNames[rankIdx - 1]
-          );
+          const configuredId = (votesConfig.VOTE_PACK_IDS || {})[rankIdx];
+          let votePack = configuredId
+            ? getSpecialPacks().packs.find(p => p.id === configuredId)
+            : null;
+          // Fallback : recherche par nom si pas d'ID configuré
+          if (!votePack) {
+            votePack = getSpecialPacks().packs.find(p =>
+              p.name.toLowerCase().replace(/[èéê]/g, 'e').replace(/[àâ]/g, 'a')
+                === packNames[rankIdx - 1].replace(/[èéê]/g, 'e')
+            );
+          }
           if (votePack) {
             await addToInventory(memberId, votePack.id, 1, 'system', `${votePack.name} — Votes ${monthName}`);
             distributionResults.inventoryResults.push({
@@ -234,7 +242,15 @@ async function distributeWithChecks(ranking, memberIndex, votesConfig, monthName
               packName: votePack.name,
             });
           } else {
-            console.warn(`⚠️ [VOTES] Pack introuvable pour la ${rankIdx}ème place : "${packNames[rankIdx - 1]}"`);
+            const ordinal = rankIdx === 1 ? '1ère' : `${rankIdx}ème`;
+            console.warn(`⚠️ [VOTES] Pack introuvable pour la ${ordinal} place (ID configuré: "${configuredId || 'aucun'}", nom cherché: "${packNames[rankIdx - 1]}")`);
+            if (adminChannel) {
+              await adminChannel.send(
+                `⚠️ **Pack vote non distribué — ${ordinal} place**\n` +
+                `Le joueur **${player.playername}** (<@${memberId}>) aurait dû recevoir le pack vote ${ordinal} place, mais aucun pack correspondant n'a été trouvé dans l'inventaire.\n` +
+                `-# Configurez le pack dans le dashboard → Récompenses → Packs vote, ou vérifiez que le pack existe dans Packs spéciaux.`
+              );
+            }
             distributionResults.inventoryResults.push({
               playername: player.playername,
               rankIdx,

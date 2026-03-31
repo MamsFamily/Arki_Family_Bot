@@ -633,7 +633,9 @@ function createWebServer(discordClient) {
 
   app.get('/rewards', requireAdmin, (req, res) => {
     const settings = getSettings();
-    res.render('rewards', { settings, success: null, error: null });
+    const { getSpecialPacks } = require('../specialPacksManager');
+    const specialPacks = getSpecialPacks().packs || [];
+    res.render('rewards', { settings, specialPacks, success: null, error: null });
   });
 
   app.post('/rewards', requireAdmin, async (req, res) => {
@@ -661,14 +663,23 @@ function createWebServer(discordClient) {
       topLots[place] = lot;
     }
 
+    const votePackIds = {
+      1: req.body.votePackId1 || '',
+      2: req.body.votePackId2 || '',
+      3: req.body.votePackId3 || '',
+    };
+
     await updateSection('rewards', {
       diamondsPerVote: parseInt(diamondsPerVote) || 100,
       topDiamonds,
       topLots,
+      votePackIds,
     });
 
     const settings = getSettings();
-    res.render('rewards', { settings, success: 'Récompenses sauvegardées !', error: null });
+    const { getSpecialPacks } = require('../specialPacksManager');
+    const specialPacks = getSpecialPacks().packs || [];
+    res.render('rewards', { settings, specialPacks, success: 'Récompenses sauvegardées !', error: null });
   });
 
   app.get('/message', requireAdmin, (req, res) => {
