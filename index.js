@@ -381,11 +381,10 @@ async function autoPublishVotes() {
     const resultsChannel = await client.channels.fetch(votesConfig.RESULTS_CHANNEL_ID);
     if (resultsChannel) {
       let finalMessage = resultsMessage;
-      if (votesConfig.STYLE.everyonePing) {
-        finalMessage = `|| @everyone ||\n` + finalMessage;
-      }
+      const pingPrefix = votesConfig.STYLE.everyonePing ? '|| @everyone ||\n' : '';
+      if (pingPrefix) finalMessage = pingPrefix + finalMessage;
       if (fs.existsSync(VOTE_BANNER_PATH)) {
-        await resultsChannel.send({ files: [{ attachment: VOTE_BANNER_PATH, name: 'recompenses-votes.jpg' }] });
+        await resultsChannel.send({ content: pingPrefix || undefined, files: [{ attachment: VOTE_BANNER_PATH, name: 'recompenses-votes.jpg' }] });
       }
       await resultsChannel.send({ content: finalMessage, components: [row] });
     }
@@ -398,15 +397,16 @@ async function autoPublishVotes() {
     const attachment = new AttachmentBuilder(gifBuffer, { name: 'dino-shiny-roulette.gif' });
 
     if (resultsChannel) {
+      const pingPrefix = votesConfig.STYLE.everyonePing ? '|| @everyone ||\n' : '';
       await resultsChannel.send({
-        content: `## 🦖 Tirage Dino Shiny du mois !\n\nParticipants :\n${top10.map((p, i) => {
+        content: `${pingPrefix}## 🦖 Tirage Dino Shiny du mois !\n\nParticipants :\n${top10.map((p, i) => {
           return `${i + 1}. **${p.playername}**`;
         }).join('\n')}\n\n🎰 C'est parti !`,
         files: [attachment]
       });
 
       const dinoWinText = msg.dinoWinText || 'Tu remportes le **Dino Shiny** du mois ! 🦖✨';
-      await resultsChannel.send(`## 🎉 Félicitations **${winningChoice}** !\n\n${dinoWinText}`);
+      await resultsChannel.send(`${pingPrefix}## 🎉 Félicitations **${winningChoice}** !\n\n${dinoWinText}`);
     }
 
     const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);
@@ -1807,11 +1807,10 @@ client.on('interactionCreate', async interaction => {
       const resultsChannel = await client.channels.fetch(votesConfig.RESULTS_CHANNEL_ID);
       if (resultsChannel) {
         let finalMessage = resultsMessage;
-        if (votesConfig.STYLE.everyonePing) {
-          finalMessage = `|| @everyone ||\n` + finalMessage;
-        }
+        const pingPrefix = votesConfig.STYLE.everyonePing ? '|| @everyone ||\n' : '';
+        if (pingPrefix) finalMessage = pingPrefix + finalMessage;
         if (fs.existsSync(VOTE_BANNER_PATH)) {
-          await resultsChannel.send({ files: [{ attachment: VOTE_BANNER_PATH, name: 'recompenses-votes.jpg' }] });
+          await resultsChannel.send({ content: pingPrefix || undefined, files: [{ attachment: VOTE_BANNER_PATH, name: 'recompenses-votes.jpg' }] });
         }
         await resultsChannel.send({ content: finalMessage, components: [row] });
       }
@@ -1824,15 +1823,16 @@ client.on('interactionCreate', async interaction => {
       const attachment = new AttachmentBuilder(gifBuffer, { name: 'dino-shiny-roulette.gif' });
       
       if (resultsChannel) {
+        const pingPrefix = votesConfig.STYLE.everyonePing ? '|| @everyone ||\n' : '';
         await resultsChannel.send({
-          content: `## 🦖 Tirage Dino Shiny du mois !\n\nParticipants :\n${top10.map((p, i) => {
+          content: `${pingPrefix}## 🦖 Tirage Dino Shiny du mois !\n\nParticipants :\n${top10.map((p, i) => {
             return `${i + 1}. **${p.playername}**`;
           }).join('\n')}\n\n🎰 C'est parti !`,
           files: [attachment]
         });
         
         const dinoWinText = msg.dinoWinText || 'Tu remportes le **Dino Shiny** du mois ! 🦖✨';
-        await resultsChannel.send(`## 🎉 Félicitations **${winningChoice}** !\n\n${dinoWinText}`);
+        await resultsChannel.send(`${pingPrefix}## 🎉 Félicitations **${winningChoice}** !\n\n${dinoWinText}`);
       }
 
       const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);
