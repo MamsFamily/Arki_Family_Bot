@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phrases d'accueil - Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .phrases-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:24px; }
+    @media(max-width:900px){ .phrases-grid{ grid-template-columns:1fr; } }
+    .phrase-section { background:var(--card-bg); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+    .phrase-section-header { padding:14px 18px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--border); }
+    .phrase-section-header h3 { margin:0; font-size:14px; font-weight:700; }
+    .phrase-count { font-size:12px; opacity:0.6; margin-left:auto; }
+    .tag-new { background:#0d3d3d; color:#1de9b6; border-radius:4px; padding:2px 8px; font-size:11px; font-weight:600; }
+    .tag-return { background:#3d2e00; color:#ffc107; border-radius:4px; padding:2px 8px; font-size:11px; font-weight:600; }
+    .tag-btn { background:#1a1f3d; color:#7c8cf8; border-radius:4px; padding:2px 8px; font-size:11px; font-weight:600; }
+    .phrase-list { padding:0; }
+    .phrase-item { display:flex; align-items:flex-start; gap:10px; padding:10px 18px; border-bottom:1px solid var(--border); }
+    .phrase-item:last-child { border-bottom:none; }
+    .phrase-text { flex:1; font-size:13px; line-height:1.5; word-break:break-word; }
+    .phrase-text em { font-style:normal; color:var(--accent); }
+    .phrase-index { font-size:11px; color:var(--text-muted); min-width:20px; padding-top:2px; }
+    .btn-del { background:none; border:1px solid rgba(239,68,68,0.3); color:#ef4444; border-radius:5px; padding:3px 10px; font-size:12px; cursor:pointer; white-space:nowrap; }
+    .btn-del:hover { background:rgba(239,68,68,0.1); }
+    .phrase-empty { padding:16px 18px; font-size:13px; opacity:0.5; text-align:center; font-style:italic; }
+    .phrase-add { padding:14px 18px; border-top:1px solid var(--border); display:flex; gap:8px; }
+    .phrase-add input { flex:1; padding:8px 12px; border-radius:6px; border:1px solid var(--border); background:var(--bg-input); color:var(--text); font-size:13px; }
+    .phrase-add input:focus { outline:none; border-color:var(--accent); }
+    .btn-add { padding:8px 16px; background:var(--accent); color:#000; border:none; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; }
+    .btn-add:hover { opacity:0.85; }
+    .alert { padding:10px 16px; border-radius:6px; margin-bottom:16px; font-size:13px; }
+    .alert-ok { background:#0d3d1a; color:#4caf50; border:1px solid #4caf50; }
+    .alert-err { background:#3d0d0d; color:#ef4444; border:1px solid #ef4444; }
+    .tip-box { background:var(--card-bg); border:1px solid var(--border); border-radius:8px; padding:14px 18px; margin-bottom:24px; font-size:13px; line-height:1.7; }
+    .tip-box code { background:var(--bg-input); border:1px solid var(--border); border-radius:4px; padding:1px 6px; color:var(--accent); font-size:12px; }
+    .tip-box strong { color:var(--text); }
+    .preview-phrase { background:var(--bg-input); border-radius:6px; padding:8px 12px; font-size:12px; margin-top:4px; opacity:0.8; }
+  </style>
+</head>
+<body>
+  <%- include('sidebar', { path: '/welcome/phrases', botUser, discordUser, role }) %>
+  <div class="main-content">
+    <main class="content-area">
+      <div class="page-header">
+        <h1 class="page-title">💬 Phrases d'accueil</h1>
+        <p class="page-subtitle">Gérez les phrases publiées dans le salon bienvenue</p>
+      </div>
+
+      <% if (typeof success !== 'undefined' && success) { %>
+        <div class="alert alert-ok">✅ <%= success %></div>
+      <% } %>
+      <% if (typeof error !== 'undefined' && error) { %>
+        <div class="alert alert-err">❌ <%= error %></div>
+      <% } %>
+
+      <div class="tip-box">
+        <strong>Variables disponibles :</strong><br>
+        • <code>{name}</code> → pseudo du membre arrivant (phrases d'arrivée uniquement)<br>
+        • <code>{mention}</code> → mention @membre (phrases du bouton uniquement)<br>
+        <strong>Markdown Discord supporté :</strong> <code>**gras**</code>, <code>*italique*</code>, emojis ✅<br>
+        <strong>Minimum recommandé :</strong> 3 phrases par catégorie pour varier.
+      </div>
+
+      <div class="phrases-grid">
+
+        <!-- ARRIVÉE — Nouveau membre -->
+        <div class="phrase-section">
+          <div class="phrase-section-header">
+            <span class="tag-new">Nouveau</span>
+            <h3>Phrases d'arrivée</h3>
+            <span class="phrase-count"><%= phrases.arrivalNew.length %> phrase<%= phrases.arrivalNew.length > 1 ? 's' : '' %></span>
+          </div>
+          <div class="phrase-list">
+            <% if (phrases.arrivalNew.length === 0) { %>
+              <div class="phrase-empty">Aucune phrase — les phrases par défaut seront utilisées</div>
+            <% } else { phrases.arrivalNew.forEach(function(p, i) { %>
+              <div class="phrase-item">
+                <span class="phrase-index">#<%= i+1 %></span>
+                <span class="phrase-text"><%= p %></span>
+                <form method="POST" action="/welcome/phrases/delete" style="margin:0">
+                  <input type="hidden" name="category" value="arrivalNew">
+                  <input type="hidden" name="index" value="<%= i %>">
+                  <button type="submit" class="btn-del">✕</button>
+                </form>
+              </div>
+            <% }) } %>
+          </div>
+          <div class="phrase-add">
+            <form method="POST" action="/welcome/phrases/add" style="display:flex;gap:8px;width:100%">
+              <input type="hidden" name="category" value="arrivalNew">
+              <input type="text" name="phrase" placeholder="Ex : Bienvenue {name} ! 🎉" required>
+              <button type="submit" class="btn-add">+ Ajouter</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- ARRIVÉE — Revenant -->
+        <div class="phrase-section">
+          <div class="phrase-section-header">
+            <span class="tag-return">Revenant</span>
+            <h3>Phrases d'arrivée</h3>
+            <span class="phrase-count"><%= phrases.arrivalReturn.length %> phrase<%= phrases.arrivalReturn.length > 1 ? 's' : '' %></span>
+          </div>
+          <div class="phrase-list">
+            <% if (phrases.arrivalReturn.length === 0) { %>
+              <div class="phrase-empty">Aucune phrase — les phrases par défaut seront utilisées</div>
+            <% } else { phrases.arrivalReturn.forEach(function(p, i) { %>
+              <div class="phrase-item">
+                <span class="phrase-index">#<%= i+1 %></span>
+                <span class="phrase-text"><%= p %></span>
+                <form method="POST" action="/welcome/phrases/delete" style="margin:0">
+                  <input type="hidden" name="category" value="arrivalReturn">
+                  <input type="hidden" name="index" value="<%= i %>">
+                  <button type="submit" class="btn-del">✕</button>
+                </form>
+              </div>
+            <% }) } %>
+          </div>
+          <div class="phrase-add">
+            <form method="POST" action="/welcome/phrases/add" style="display:flex;gap:8px;width:100%">
+              <input type="hidden" name="category" value="arrivalReturn">
+              <input type="text" name="phrase" placeholder="Ex : Oh, {name} est de retour ! 😄" required>
+              <button type="submit" class="btn-add">+ Ajouter</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- BOUTON — Nouveau membre -->
+        <div class="phrase-section">
+          <div class="phrase-section-header">
+            <span class="tag-new">Nouveau</span>
+            <span class="tag-btn">Bouton</span>
+            <h3>Souhaiter la bienvenue</h3>
+            <span class="phrase-count"><%= phrases.greetNew.length %> phrase<%= phrases.greetNew.length > 1 ? 's' : '' %></span>
+          </div>
+          <div class="phrase-list">
+            <% if (phrases.greetNew.length === 0) { %>
+              <div class="phrase-empty">Aucune phrase — les phrases par défaut seront utilisées</div>
+            <% } else { phrases.greetNew.forEach(function(p, i) { %>
+              <div class="phrase-item">
+                <span class="phrase-index">#<%= i+1 %></span>
+                <span class="phrase-text"><%= p %></span>
+                <form method="POST" action="/welcome/phrases/delete" style="margin:0">
+                  <input type="hidden" name="category" value="greetNew">
+                  <input type="hidden" name="index" value="<%= i %>">
+                  <button type="submit" class="btn-del">✕</button>
+                </form>
+              </div>
+            <% }) } %>
+          </div>
+          <div class="phrase-add">
+            <form method="POST" action="/welcome/phrases/add" style="display:flex;gap:8px;width:100%">
+              <input type="hidden" name="category" value="greetNew">
+              <input type="text" name="phrase" placeholder="Ex : Bienvenue {mention} ! 🎊" required>
+              <button type="submit" class="btn-add">+ Ajouter</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- BOUTON — Revenant -->
+        <div class="phrase-section">
+          <div class="phrase-section-header">
+            <span class="tag-return">Revenant</span>
+            <span class="tag-btn">Bouton</span>
+            <h3>Souhaiter un bon retour</h3>
+            <span class="phrase-count"><%= phrases.greetReturn.length %> phrase<%= phrases.greetReturn.length > 1 ? 's' : '' %></span>
+          </div>
+          <div class="phrase-list">
+            <% if (phrases.greetReturn.length === 0) { %>
+              <div class="phrase-empty">Aucune phrase — les phrases par défaut seront utilisées</div>
+            <% } else { phrases.greetReturn.forEach(function(p, i) { %>
+              <div class="phrase-item">
+                <span class="phrase-index">#<%= i+1 %></span>
+                <span class="phrase-text"><%= p %></span>
+                <form method="POST" action="/welcome/phrases/delete" style="margin:0">
+                  <input type="hidden" name="category" value="greetReturn">
+                  <input type="hidden" name="index" value="<%= i %>">
+                  <button type="submit" class="btn-del">✕</button>
+                </form>
+              </div>
+            <% }) } %>
+          </div>
+          <div class="phrase-add">
+            <form method="POST" action="/welcome/phrases/add" style="display:flex;gap:8px;width:100%">
+              <input type="hidden" name="category" value="greetReturn">
+              <input type="text" name="phrase" placeholder="Ex : Bon retour {mention} ! 🤗" required>
+              <button type="submit" class="btn-add">+ Ajouter</button>
+            </form>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+</body>
+</html>

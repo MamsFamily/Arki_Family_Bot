@@ -469,6 +469,50 @@ function createWebServer(discordClient) {
     }
   });
 
+  // ─── Phrases d'accueil ────────────────────────────────────────────────────
+  app.get('/welcome/phrases', requireAdmin, (req, res) => {
+    const { getWelcomePhrases } = require('../welcomeManager');
+    const phrases = getWelcomePhrases();
+    res.render('welcome-phrases', { phrases, botUser: discordClient?.user || null, discordUser: req.session?.discordUser || null, role: req.session?.role || 'admin', success: req.query.success, error: req.query.error });
+  });
+
+  app.post('/welcome/phrases/add', requireAdmin, async (req, res) => {
+    try {
+      const { category, phrase } = req.body;
+      const keyMap = { arrivalNew: 'arrivalPhrasesNew', arrivalReturn: 'arrivalPhrasesReturn', greetNew: 'greetPhrasesNew', greetReturn: 'greetPhrasesReturn' };
+      const key = keyMap[category];
+      if (!key || !phrase?.trim()) return res.redirect('/welcome/phrases?error=Phrase+vide+ou+catégorie+invalide');
+      const settings = getSettings();
+      const ws = settings.welcome || {};
+      const list = Array.isArray(ws[key]) ? [...ws[key]] : [];
+      list.push(phrase.trim());
+      await updateSection('welcome', { ...ws, [key]: list });
+      res.redirect('/welcome/phrases?success=Phrase+ajoutée');
+    } catch (e) {
+      res.redirect('/welcome/phrases?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  app.post('/welcome/phrases/delete', requireAdmin, async (req, res) => {
+    try {
+      const { category, index } = req.body;
+      const keyMap = { arrivalNew: 'arrivalPhrasesNew', arrivalReturn: 'arrivalPhrasesReturn', greetNew: 'greetPhrasesNew', greetReturn: 'greetPhrasesReturn' };
+      const key = keyMap[category];
+      if (!key) return res.redirect('/welcome/phrases?error=Catégorie+invalide');
+      const settings = getSettings();
+      const ws = settings.welcome || {};
+      const list = Array.isArray(ws[key]) ? [...ws[key]] : [];
+      const idx = parseInt(index);
+      if (isNaN(idx) || idx < 0 || idx >= list.length) return res.redirect('/welcome/phrases?error=Index+invalide');
+      if (list.length <= 1) return res.redirect('/welcome/phrases?error=Impossible+de+supprimer+la+dernière+phrase');
+      list.splice(idx, 1);
+      await updateSection('welcome', { ...ws, [key]: list });
+      res.redirect('/welcome/phrases?success=Phrase+supprimée');
+    } catch (e) {
+      res.redirect('/welcome/phrases?error=' + encodeURIComponent(e.message));
+    }
+  });
+
   app.get('/discord-ref', requireAdmin, (req, res) => {
     res.render('discord-ref');
   });

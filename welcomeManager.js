@@ -298,8 +298,8 @@ async function getWelcomeStats(guildId) {
   };
 }
 
-// ─── Phrases d'accueil aléatoires ──────────────────────────────────────────
-const ARRIVAL_PHRASES_NEW = [
+// ─── Phrases d'accueil — lues depuis les settings (éditables via dashboard) ─
+const DEFAULT_ARRIVAL_NEW = [
   "C'est un plaisir de t'accueillir, **{name}** ! 🎉",
   "Bienvenue parmi nous, **{name}** ! 😊",
   "On est vraiment ravis de t'avoir avec nous, **{name}** ! 🌟",
@@ -307,14 +307,14 @@ const ARRIVAL_PHRASES_NEW = [
   "**{name}** vient de débarquer ! Soyez sympas ! 🎊",
   "Heyy **{name}** ! Bienvenue dans la famille ! 🥳",
 ];
-const ARRIVAL_PHRASES_RETURN = [
+const DEFAULT_ARRIVAL_RETURN = [
   "Oh mais c'est **{name}** qui revient ! 😄",
   "Que c'est bon de te revoir, **{name}** ! 🤗",
   "**{name}** est de retour ! L'aventure continue ! ⚡",
   "Tiens tiens, **{name}** ! On ne t'avait pas oublié ! 😉",
   "**{name}** revient parmi nous ! Bienvenue à nouveau ! 🎊",
 ];
-const GREET_PHRASES_NEW = [
+const DEFAULT_GREET_NEW = [
   "Bienvenue **{mention}** ! Super content(e) de t'avoir parmi nous ! 🎉",
   "Heyy **{mention}** ! Bienvenue dans la famille ! 🥳",
   "Bienvenue **{mention}** ! N'hésite pas si tu as des questions ! 😊",
@@ -322,7 +322,7 @@ const GREET_PHRASES_NEW = [
   "Oh une nouvelle tête ! Bienvenue **{mention}**, on espère que tu t'y plairas ! 🌟",
   "**{mention}** est parmi nous ! Bienvenue et bonne aventure ! 🏹",
 ];
-const GREET_PHRASES_RETURN = [
+const DEFAULT_GREET_RETURN = [
   "Bon retour **{mention}** ! On t'attendait ! 🤗",
   "Enfin de retour **{mention}** ! La famille est au complet ! 🎊",
   "Bon retour parmi nous **{mention}** ! Content(e) de te revoir ! 😄",
@@ -330,12 +330,24 @@ const GREET_PHRASES_RETURN = [
   "**{mention}** est de retour ! L'aventure reprend ! ⚡",
 ];
 
+function getWelcomePhrases() {
+  const ws = getSettings().welcome || {};
+  return {
+    arrivalNew:    (ws.arrivalPhrasesNew    && ws.arrivalPhrasesNew.length)    ? ws.arrivalPhrasesNew    : DEFAULT_ARRIVAL_NEW,
+    arrivalReturn: (ws.arrivalPhrasesReturn && ws.arrivalPhrasesReturn.length) ? ws.arrivalPhrasesReturn : DEFAULT_ARRIVAL_RETURN,
+    greetNew:      (ws.greetPhrasesNew      && ws.greetPhrasesNew.length)      ? ws.greetPhrasesNew      : DEFAULT_GREET_NEW,
+    greetReturn:   (ws.greetPhrasesReturn   && ws.greetPhrasesReturn.length)   ? ws.greetPhrasesReturn   : DEFAULT_GREET_RETURN,
+  };
+}
+
 function getRandomArrivalPhrase(name, isNew) {
-  const list = isNew ? ARRIVAL_PHRASES_NEW : ARRIVAL_PHRASES_RETURN;
+  const phrases = getWelcomePhrases();
+  const list = isNew ? phrases.arrivalNew : phrases.arrivalReturn;
   return list[Math.floor(Math.random() * list.length)].replace(/{name}/g, name);
 }
 function getRandomGreetPhrase(mention, isNew) {
-  const list = isNew ? GREET_PHRASES_NEW : GREET_PHRASES_RETURN;
+  const phrases = getWelcomePhrases();
+  const list = isNew ? phrases.greetNew : phrases.greetReturn;
   return list[Math.floor(Math.random() * list.length)].replace(/{mention}/g, mention);
 }
 
@@ -476,4 +488,5 @@ module.exports = {
   isMilestone,
   getRandomArrivalPhrase,
   getRandomGreetPhrase,
+  getWelcomePhrases,
 };
