@@ -972,7 +972,7 @@ client.on('interactionCreate', async interaction => {
     const isNew = type === 'new';
     const mention = `<@${memberId}>`;
     const phrase = getRandomGreetPhrase(mention, isNew);
-    await interaction.reply({ content: phrase });
+    await interaction.reply({ content: `→ ${phrase}` });
     return;
   }
 
