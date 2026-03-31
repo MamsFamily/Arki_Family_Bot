@@ -22,9 +22,7 @@
     .preview-embed { border-radius:6px; padding:16px; border-left:5px solid; max-width:520px; }
     .preview-embed.new { background:#0a1628; border-color:#1de9b6; }
     .preview-embed.return { background:#1a1200; border-color:#ffc107; }
-    .preview-title { font-weight:700; font-size:16px; margin-bottom:8px; }
-    .preview-title.new { color:#1de9b6; }
-    .preview-title.return { color:#ffc107; }
+    .preview-title { font-weight:800; font-size:22px; margin-bottom:8px; line-height:1.2; color:var(--text); }
     .preview-desc { font-size:14px; color:rgba(255,255,255,0.85); white-space:pre-wrap; line-height:1.5; }
     .color-row { display:flex; align-items:center; gap:10px; }
     .color-preview { width:36px; height:36px; border-radius:6px; border:1px solid var(--border-color); flex-shrink:0; }
@@ -488,9 +486,7 @@
       var newColor = document.querySelector('[name="newColor"]')?.value || '#1de9b6';
       var retColor = document.querySelector('[name="returnColor"]')?.value || '#ffc107';
       document.getElementById('preview-new').style.borderColor = newColor;
-      document.getElementById('pn-title').style.color = newColor;
       document.getElementById('preview-return').style.borderColor = retColor;
-      document.getElementById('pr-title').style.color = retColor;
     }
 
     function copyVar(v) {

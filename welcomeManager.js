@@ -403,13 +403,14 @@ async function buildWelcomeEmbed(member, guild, client, forceIsNew = null) {
     baseTitle = `🎊 ${baseTitle} — **${memberCount.toLocaleString('fr-FR')}ème membre !**`;
   }
 
-  const description = isNew
+  const bodyText = isNew
     ? applyVariables(ws.newMessage || 'Bienvenue {userMention} ! Tu es notre **{memberCount}ème** membre ! 🎉', vars)
     : applyVariables(ws.returnMessage || 'Ravi de te revoir {userMention} ! Tu es notre **{memberCount}ème** membre actuel 🎉', vars);
 
+  const description = `# ${baseTitle}\n${bodyText}`;
+
   const embed = new EmbedBuilder()
     .setColor(embedColor)
-    .setTitle(baseTitle)
     .setDescription(description)
     .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }));
 
