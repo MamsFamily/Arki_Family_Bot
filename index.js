@@ -341,7 +341,7 @@ async function autoPublishVotes() {
       const status = playerStatus[player.playername];
       const statusIcon = status === 'success' ? '' : status === 'failed' ? ' ❌' : ' ⚠️';
 
-      resultsMessage += `**${i + 1}** - **${player.playername}**${statusIcon}\n`;
+      resultsMessage += `${votesConfig.STYLE.animeArrow} **${i + 1}** - **${player.playername}**${statusIcon}\n`;
       resultsMessage += `Votes : ${player.votes} | Gains : ${totalDiamonds.toLocaleString('fr-FR')} ${votesConfig.STYLE.sparkly}\n`;
 
       if (i === 0) {
@@ -1764,7 +1764,7 @@ client.on('interactionCreate', async interaction => {
         const status = playerStatus[player.playername];
         const statusIcon = status === 'success' ? '' : status === 'pending' ? ' ⏳' : status === 'failed' ? ' ❌' : ' ⚠️';
         
-        resultsMessage += `**${i + 1}** - **${player.playername}**${statusIcon}\n`;
+        resultsMessage += `${votesConfig.STYLE.animeArrow} **${i + 1}** - **${player.playername}**${statusIcon}\n`;
         resultsMessage += `Votes : ${player.votes} | Gains : ${totalDiamonds.toLocaleString('fr-FR')} ${votesConfig.STYLE.sparkly}\n`;
         
         if (i === 0) {
@@ -1908,7 +1908,7 @@ client.on('interactionCreate', async interaction => {
         const bonusDiamonds = votesConfig.TOP_DIAMONDS[i + 1] || 0;
         const memberId = resolvePlayer(memberIndex, player.playername);
         
-        previewMessage += `**${i + 1}** - **${player.playername}**\n`;
+        previewMessage += `${votesConfig.STYLE.animeArrow} **${i + 1}** - **${player.playername}**\n`;
         previewMessage += `Votes : ${player.votes} | Gains : ${totalDiamonds.toLocaleString('fr-FR')} ${votesConfig.STYLE.sparkly}\n`;
         
         if (i === 0) {
