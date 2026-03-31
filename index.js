@@ -273,9 +273,9 @@ function buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus
   if (source === 'auto') msg += `-# 🕐 Publication automatique du 1er du mois\n`;
   msg += `\n`;
 
-  const top10 = ranking.slice(0, 10);
-  for (let i = 0; i < top10.length; i++) {
-    const player = top10[i];
+  // Tous les joueurs du classement
+  for (let i = 0; i < ranking.length; i++) {
+    const player = ranking[i];
     const rankIdx = i + 1;
     const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
     const bonusDiamonds = votesConfig.TOP_DIAMONDS[rankIdx] || 0;
@@ -288,7 +288,7 @@ function buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus
 
     msg += `**${rankIdx}.** ${mention} — ${player.votes} votes → ${ubGain.toLocaleString('fr-FR')} ${sparkly} ${statusIcon}`;
 
-    if (rankIdx >= 1 && rankIdx <= 3) {
+    if (rankIdx <= 3) {
       const packLabels = ['Pack 1ère place vote', 'Pack 2ème place vote', 'Pack 3ème place vote'];
       msg += ` + 📦 ${packLabels[rankIdx - 1]}`;
     }
@@ -298,6 +298,7 @@ function buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus
     msg += `\n`;
   }
 
+  // Résumé global
   msg += `\n`;
   const vals = Object.values(playerStatus);
   const sCount = vals.filter(s => s === 'success').length;
@@ -306,6 +307,21 @@ function buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus
   msg += `✅ ${sCount} distribué(s)`;
   if (pCount > 0) msg += ` | ⏳ ${pCount} en attente`;
   if (fCount > 0) msg += ` | ❌ ${fCount} échec(s)`;
+
+  // Section dédiée aux joueurs non trouvés
+  const notFoundPlayers = ranking.filter(p => !resolvePlayer(memberIndex, p.playername));
+  if (notFoundPlayers.length > 0) {
+    msg += `\n\n⚠️ **${notFoundPlayers.length} joueur(s) non identifié(s) sur Discord — récompenses non envoyées :**\n`;
+    for (const p of notFoundPlayers) {
+      const rankIdx = ranking.indexOf(p) + 1;
+      const totalDiamonds = p.votes * votesConfig.DIAMONDS_PER_VOTE;
+      const bonusDiamonds = votesConfig.TOP_DIAMONDS[rankIdx] || 0;
+      const totalGain = totalDiamonds + bonusDiamonds;
+      msg += `• \`${p.playername}\` (rank #${rankIdx}) — ${p.votes} votes — **${totalGain.toLocaleString('fr-FR')} ${sparkly} dûs**\n`;
+    }
+    msg += `-# Utilisez \`/vote-rapport\` pour voir les liens pseudo → Discord, ou résolvez via le salon admin.\n`;
+  }
+
   return msg;
 }
 
@@ -445,7 +461,9 @@ async function autoPublishVotes() {
     // Rapport de distribution dans le salon dédié
     if (reportChannel) {
       const reportMsg = buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus, monthName, 'auto');
-      await reportChannel.send(reportMsg);
+      for (const chunk of splitMessage(reportMsg, 1900)) {
+        await reportChannel.send(chunk);
+      }
     }
 
     // Message admin (doublons, non trouvés, commandes DraftBot)
@@ -1939,7 +1957,9 @@ client.on('interactionCreate', async interaction => {
       // Rapport de distribution dans le salon dédié
       if (reportChannel) {
         const reportMsg = buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus, monthName, 'manual');
-        await reportChannel.send(reportMsg);
+        for (const chunk of splitMessage(reportMsg, 1900)) {
+          await reportChannel.send(chunk);
+        }
       }
 
       // Message admin (doublons, non trouvés, commandes DraftBot)
@@ -2198,6 +2218,86 @@ client.on('interactionCreate', async interaction => {
       await interaction.editReply({
         content: '❌ Une erreur est survenue.',
       });
+    }
+  }
+
+  if (commandName === 'vote-rapport') {
+    if (!hasRoulettePermission(interaction.member)) {
+      return interaction.reply({ content: '❌ Seuls les administrateurs et les Modos peuvent utiliser cette commande !', ephemeral: true });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      const votesConfig = getVotesConfig();
+      const ranking = await fetchTopserveursRanking(votesConfig.TOPSERVEURS_RANKING_URL);
+
+      if (ranking.length === 0) {
+        return interaction.editReply({ content: '❌ Impossible de récupérer le classement des votes (API indisponible ou aucun votant).' });
+      }
+
+      const guild = interaction.guild;
+      const memberIndex = await buildMemberIndex(guild);
+
+      const parisMonth = parseInt(new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', month: 'numeric' }).format(new Date()), 10);
+      const lastMonth = parisMonth === 1 ? 11 : parisMonth - 2;
+      const monthName = monthNameFr(lastMonth);
+      const sparkly = votesConfig.STYLE?.sparkly || '💎';
+
+      let report = `📊 **Rapport de distribution — ${monthName}**\n`;
+      report += `-# Généré le ${new Date().toLocaleDateString('fr-FR')} — ne relance pas les paiements\n\n`;
+
+      const notFoundList = [];
+      for (let i = 0; i < ranking.length; i++) {
+        const player = ranking[i];
+        const rankIdx = i + 1;
+        const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
+        const bonusDiamonds = votesConfig.TOP_DIAMONDS[rankIdx] || 0;
+        const isRank4or5 = rankIdx === 4 || rankIdx === 5;
+        const ubGain = isRank4or5 ? totalDiamonds : totalDiamonds + bonusDiamonds;
+        const memberId = resolvePlayer(memberIndex, player.playername);
+
+        if (memberId) {
+          report += `**${rankIdx}.** <@${memberId}> (\`${player.playername}\`) — ${player.votes} votes → ${ubGain.toLocaleString('fr-FR')} ${sparkly}`;
+        } else {
+          report += `**${rankIdx}.** ⚠️ \`${player.playername}\` *(non trouvé)* — ${player.votes} votes → ${ubGain.toLocaleString('fr-FR')} ${sparkly} **non envoyé**`;
+          notFoundList.push({ player, rankIdx, ubGain });
+        }
+
+        if (rankIdx <= 3) {
+          const packLabels = ['Pack 1ère place vote', 'Pack 2ème place vote', 'Pack 3ème place vote'];
+          report += ` + 📦 ${packLabels[rankIdx - 1]}`;
+        }
+        if (isRank4or5 && bonusDiamonds > 0) {
+          report += ` + ${bonusDiamonds.toLocaleString('fr-FR')} ${sparkly} *(inventaire)*`;
+        }
+        report += `\n`;
+      }
+
+      // Résumé
+      const identified = ranking.length - notFoundList.length;
+      report += `\n✅ **${identified}** membres identifiés | ⚠️ **${notFoundList.length}** non trouvés`;
+      report += ` | ${ranking.length} votants au total\n`;
+
+      if (notFoundList.length > 0) {
+        report += `\n⚠️ **Joueurs sans compte Discord identifié — à payer manuellement :**\n`;
+        for (const { player, rankIdx, ubGain } of notFoundList) {
+          report += `• \`${player.playername}\` — rank #${rankIdx} — ${player.votes} votes — **${ubGain.toLocaleString('fr-FR')} ${sparkly}** dûs\n`;
+        }
+        report += `-# Pour les relier à un Discord : utilisez le bouton de résolution dans le salon admin lors du prochain \`/publish-votes\`.\n`;
+      }
+
+      // Envoi dans le salon courant (visible admin seulement)
+      const chunks = splitMessage(report, 1900);
+      for (const chunk of chunks) {
+        await interaction.channel.send({ content: chunk });
+      }
+
+      await interaction.editReply({ content: `✅ Rapport publié dans ce salon (${chunks.length} message(s)).` });
+
+    } catch (error) {
+      console.error('Erreur /vote-rapport:', error);
+      await interaction.editReply({ content: '❌ Une erreur est survenue lors de la génération du rapport.' });
     }
   }
 

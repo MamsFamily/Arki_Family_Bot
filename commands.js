@@ -36,6 +36,10 @@ const commands = [
     description: 'Publie la liste complète des votes avec récompenses distribuées (Admin et Modo)',
   },
   {
+    name: 'vote-rapport',
+    description: 'Publie le rapport de distribution : qui a été payé, qui ne l\'a pas été (Admin et Modo)',
+  },
+  {
     name: 'dino-roulette',
     description: 'Lance la roulette Dino Shiny avec le top 10 des votants (Admin et Modo)',
   },
