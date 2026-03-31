@@ -220,35 +220,36 @@ async function generateWelcomeBanner(member, guild, isNew, settings) {
 
   // Texte principal
   const TEXT_X = 255;
-  // Nettoyer le nom : supprimer emojis et caractères non supportés par DejaVu Sans
-  const rawName = member.displayName || member.user.username;
-  const name = stripForCanvas(rawName) || rawName.replace(/[^\x20-\x7E\u00C0-\u024F]/g, '').trim() || 'Membre';
+  const textMax = W - TEXT_X - 30;
 
-  // Titre (Bienvenue / Bon retour) — ◆ à la place de ✦ (supporté par DejaVu Sans)
-  ctx.fillStyle = accentColor;
-  ctx.font = 'bold 22px DejaVu Sans';
-  ctx.fillText(isNew ? '◆ Nouveau membre ◆' : '◆ De retour parmi nous ◆', TEXT_X, H / 2 - 55);
-
-  // Nom du membre
+  // Ligne 1 — mot principal : "Bienvenue" ou "Bon retour" (grand, blanc)
+  const mainWord = isNew ? 'Bienvenue' : 'Bon retour';
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 38px DejaVu Sans';
-  const nameMax = W - TEXT_X - 30;
-  let nameText = name;
-  while (ctx.measureText(nameText).width > nameMax && nameText.length > 3) {
-    nameText = nameText.slice(0, -2) + '…';
+  ctx.font = 'bold 58px DejaVu Sans';
+  // Réduire si trop large
+  let mainFontSize = 58;
+  while (ctx.measureText(mainWord).width > textMax && mainFontSize > 28) {
+    mainFontSize -= 2;
+    ctx.font = `bold ${mainFontSize}px DejaVu Sans`;
   }
-  ctx.fillText(nameText, TEXT_X, H / 2);
+  ctx.fillText(mainWord, TEXT_X, H / 2 - 10);
 
-  // Sous-texte (nettoyé lui aussi)
-  ctx.fillStyle = 'rgba(255,255,255,0.75)';
-  ctx.font = '18px DejaVu Sans';
-  ctx.fillText(stripForCanvas(overlayText) || overlayText, TEXT_X, H / 2 + 40);
-
-  // Nombre de membres — sans emoji 👥
-  const memberCount = guild.memberCount;
+  // Ligne 2 — "sur Arki' Family" (accent color, plus petit)
+  const subLine = "sur Arki' Family";
   ctx.fillStyle = accentColor;
-  ctx.font = 'bold 16px DejaVu Sans';
-  ctx.fillText(`${memberCount.toLocaleString('fr-FR')} membres`, TEXT_X, H / 2 + 75);
+  ctx.font = 'bold 30px DejaVu Sans';
+  let subFontSize = 30;
+  while (ctx.measureText(subLine).width > textMax && subFontSize > 16) {
+    subFontSize -= 2;
+    ctx.font = `bold ${subFontSize}px DejaVu Sans`;
+  }
+  ctx.fillText(subLine, TEXT_X, H / 2 + 40);
+
+  // Ligne 3 — nombre de membres (petit, discret)
+  const memberCount = guild.memberCount;
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.font = '16px DejaVu Sans';
+  ctx.fillText(`${memberCount.toLocaleString('fr-FR')} membres`, TEXT_X, H / 2 + 82);
 
   return canvas.toBuffer('image/png');
 }
