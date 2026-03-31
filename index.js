@@ -973,7 +973,19 @@ client.on('interactionCreate', async interaction => {
     const mention = `<@${memberId}>`;
     const phrase = getRandomGreetPhrase(mention, isNew);
     await interaction.deferUpdate();
-    await interaction.channel.send({ content: `→ ${phrase}` });
+    try {
+      const clickerName = (interaction.member?.displayName) || interaction.user.username;
+      const clickerAvatar = interaction.user.displayAvatarURL({ extension: 'png', size: 256 });
+      const webhooks = await interaction.channel.fetchWebhooks();
+      let webhook = webhooks.find(wh => wh.owner?.id === client.user.id && wh.name === 'Arki Welcome');
+      if (!webhook) {
+        webhook = await interaction.channel.createWebhook({ name: 'Arki Welcome', reason: 'Bouton bienvenue' });
+      }
+      await webhook.send({ content: `→ ${phrase}`, username: clickerName, avatarURL: clickerAvatar });
+    } catch (err) {
+      console.error('[Welcome] Erreur webhook greet:', err.message);
+      await interaction.channel.send({ content: `→ ${phrase}` });
+    }
     return;
   }
 
