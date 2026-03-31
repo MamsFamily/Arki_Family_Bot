@@ -323,12 +323,17 @@ async function autoPublishVotes() {
     const lastMonth = parisMonth === 1 ? 11 : parisMonth - 2;
     const monthName = monthNameFr(lastMonth);
 
-    const adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
-    const { distributionResults, playerStatus } = await distributeWithChecks(ranking, memberIndex, votesConfig, monthName, adminChannel);
+    let adminChannel = null;
+    try {
+      if (votesConfig.ADMIN_LOG_CHANNEL_ID) adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
+    } catch (e) {
+      console.warn('⚠️ [AUTO-VOTES] Salon admin introuvable:', votesConfig.ADMIN_LOG_CHANNEL_ID, e.message);
+    }
     let reportChannel = null;
     try { reportChannel = await client.channels.fetch(VOTE_REPORT_CHANNEL_ID); } catch (e) {
       console.warn('⚠️ [AUTO-VOTES] Salon de rapport introuvable:', VOTE_REPORT_CHANNEL_ID);
     }
+    const { distributionResults, playerStatus } = await distributeWithChecks(ranking, memberIndex, votesConfig, monthName, adminChannel);
 
     let resultsMessage = `# ${votesConfig.STYLE.fireworks} Résultats des votes de ${monthName} ${votesConfig.STYLE.fireworks}\n\n`;
     const msg = votesConfig.MESSAGE || {};
@@ -1804,12 +1809,17 @@ client.on('interactionCreate', async interaction => {
       const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
       const monthName = monthNameFr(lastMonth);
 
-      const adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
-      const { distributionResults, playerStatus } = await distributeWithChecks(ranking, memberIndex, votesConfig, monthName, adminChannel);
+      let adminChannel = null;
+      try {
+        if (votesConfig.ADMIN_LOG_CHANNEL_ID) adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
+      } catch (e) {
+        console.warn('⚠️ [VOTES] Salon admin introuvable:', votesConfig.ADMIN_LOG_CHANNEL_ID, e.message);
+      }
       let reportChannel = null;
       try { reportChannel = await client.channels.fetch(VOTE_REPORT_CHANNEL_ID); } catch (e) {
         console.warn('⚠️ [VOTES] Salon de rapport introuvable:', VOTE_REPORT_CHANNEL_ID);
       }
+      const { distributionResults, playerStatus } = await distributeWithChecks(ranking, memberIndex, votesConfig, monthName, adminChannel);
 
       let resultsMessage = `# ${votesConfig.STYLE.fireworks} Résultats des votes de ${monthName} ${votesConfig.STYLE.fireworks}\n\n`;
       const msg = votesConfig.MESSAGE || {};
@@ -2184,7 +2194,12 @@ client.on('interactionCreate', async interaction => {
       const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
       const monthName = monthNameFr(lastMonth);
 
-      const adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
+      let adminChannel = null;
+      try {
+        if (votesConfig.ADMIN_LOG_CHANNEL_ID) adminChannel = await client.channels.fetch(votesConfig.ADMIN_LOG_CHANNEL_ID);
+      } catch (e) {
+        console.warn('⚠️ [VOTES] Salon admin introuvable:', votesConfig.ADMIN_LOG_CHANNEL_ID, e.message);
+      }
       const { distributionResults } = await distributeWithChecks(ranking, memberIndex, votesConfig, monthName, adminChannel);
 
       const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);
