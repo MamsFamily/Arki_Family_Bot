@@ -57,6 +57,23 @@ let config = { rouletteChoices: [], rouletteTitle: 'ARKI' };
 // Stocke temporairement le contexte des modaux d'item libre
 const pendingLibreItems = new Map();
 
+function splitMessage(text, maxLength = 1900) {
+  if (text.length <= maxLength) return [text];
+  const chunks = [];
+  let current = '';
+  for (const line of text.split('\n')) {
+    const addition = (current ? '\n' : '') + line;
+    if ((current + addition).length > maxLength) {
+      if (current) chunks.push(current);
+      current = line.length > maxLength ? line.slice(0, maxLength) : line;
+    } else {
+      current += addition;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
 function hasRoulettePermission(member) {
   const votesConfig = getVotesConfig();
   const MODO_ROLE_ID = votesConfig.MODO_ROLE_ID || '1157803768893689877';
@@ -383,15 +400,24 @@ async function autoPublishVotes() {
       .setStyle(ButtonStyle.Secondary);
     const row = new ActionRowBuilder().addComponents(button);
 
-    const resultsChannel = await client.channels.fetch(votesConfig.RESULTS_CHANNEL_ID);
+    let resultsChannel = null;
+    try {
+      if (votesConfig.RESULTS_CHANNEL_ID) resultsChannel = await client.channels.fetch(votesConfig.RESULTS_CHANNEL_ID);
+    } catch (e) {
+      console.error('❌ [AUTO-VOTES] Salon de résultats introuvable:', votesConfig.RESULTS_CHANNEL_ID, e.message);
+    }
     if (resultsChannel) {
-      let finalMessage = resultsMessage;
       const pingPrefix = votesConfig.STYLE.everyonePing ? '|| @everyone ||\n' : '';
-      if (pingPrefix) finalMessage = pingPrefix + finalMessage;
       if (fs.existsSync(VOTE_BANNER_PATH)) {
         await resultsChannel.send({ content: pingPrefix || undefined, files: [{ attachment: VOTE_BANNER_PATH, name: 'recompenses-votes.jpg' }] });
       }
-      await resultsChannel.send({ content: finalMessage, components: [row] });
+      // Découpage automatique si > 1900 chars (limite Discord = 2000)
+      const fullText = pingPrefix + resultsMessage;
+      const chunks = splitMessage(fullText, 1900);
+      for (let ci = 0; ci < chunks.length; ci++) {
+        const isLast = ci === chunks.length - 1;
+        await resultsChannel.send({ content: chunks[ci], components: isLast ? [row] : [] });
+      }
     }
 
     const dinoTitle = msg.dinoTitle || 'DINO';
@@ -1869,15 +1895,23 @@ client.on('interactionCreate', async interaction => {
         .setStyle(ButtonStyle.Secondary);
       const row = new ActionRowBuilder().addComponents(button);
 
-      const resultsChannel = await client.channels.fetch(votesConfig.RESULTS_CHANNEL_ID);
+      let resultsChannel = null;
+      try {
+        if (votesConfig.RESULTS_CHANNEL_ID) resultsChannel = await client.channels.fetch(votesConfig.RESULTS_CHANNEL_ID);
+      } catch (e) {
+        console.error('❌ [VOTES] Salon de résultats introuvable:', votesConfig.RESULTS_CHANNEL_ID, e.message);
+      }
       if (resultsChannel) {
-        let finalMessage = resultsMessage;
         const pingPrefix = votesConfig.STYLE.everyonePing ? '|| @everyone ||\n' : '';
-        if (pingPrefix) finalMessage = pingPrefix + finalMessage;
         if (fs.existsSync(VOTE_BANNER_PATH)) {
           await resultsChannel.send({ content: pingPrefix || undefined, files: [{ attachment: VOTE_BANNER_PATH, name: 'recompenses-votes.jpg' }] });
         }
-        await resultsChannel.send({ content: finalMessage, components: [row] });
+        const fullText = pingPrefix + resultsMessage;
+        const chunks = splitMessage(fullText, 1900);
+        for (let ci = 0; ci < chunks.length; ci++) {
+          const isLast = ci === chunks.length - 1;
+          await resultsChannel.send({ content: chunks[ci], components: isLast ? [row] : [] });
+        }
       }
 
       const dinoTitle = msg.dinoTitle || 'DINO';
