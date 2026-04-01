@@ -2633,6 +2633,19 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
+  if (commandName === 'monnaie') {
+    const inventory = getPlayerInventory(interaction.user.id);
+    const diamants = (inventory['diamants'] || 0).toLocaleString('fr-FR');
+    const fraises  = (inventory['fraises']  || 0).toLocaleString('fr-FR');
+
+    return interaction.reply({
+      content:
+        `>>> **Votre porte monnaie contient actuellement** :\n\n` +
+        `* ${diamants} Diamants <a:SparklyCrystal:1366174439003263087>\n` +
+        `* ${fraises} Fraises <:fraises:1328148609585123379>`,
+    });
+  }
+
   if (commandName === 'inventaire-admin') {
     if (!hasRoulettePermission(interaction.member)) {
       return interaction.reply({

@@ -63,6 +63,10 @@ const commands = [
     options: [],
   },
   {
+    name: 'monnaie',
+    description: 'Affiche le contenu de ton porte-monnaie (diamants et fraises)',
+  },
+  {
     name: 'shop',
     description: 'Parcourir et commander dans le shop Arki (éphémère)',
   },
