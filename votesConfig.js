@@ -15,7 +15,7 @@ function getVotesConfig() {
     DIAMONDS_PER_REWARD_DISPLAY: 1000,
     TOP_LOTS: s.rewards.topLots,
     TOP_DIAMONDS: s.rewards.topDiamonds,
-    VOTE_PACK_IDS: s.rewards.votePackIds || { 1: '', 2: '', 3: '' },
+    VOTE_PACK_IDS: s.rewards.votePackIds || { 1: '', 2: '', 3: '', 4: '', 5: '' },
     STYLE: {
       everyonePing: s.style.everyonePing,
       logo: s.style.logo,

@@ -218,47 +218,50 @@ async function distributeWithChecks(ranking, memberIndex, votesConfig, monthName
         distributionResults.success++;
         playerStatus[player.playername] = 'success';
 
-        // Top 1/2/3 : ajouter le pack spécial dans l'inventaire
-        if (rankIdx >= 1 && rankIdx <= 3) {
-          const packNames = ['pack 1ere place vote', 'pack 2eme place vote', 'pack 3eme place vote'];
+        // Top 1 à 5 : ajouter le pack spécial dans l'inventaire si configuré
+        if (rankIdx >= 1 && rankIdx <= 5) {
+          const packNames = [
+            'pack 1ere place vote', 'pack 2eme place vote', 'pack 3eme place vote',
+            'pack 4eme place vote', 'pack 5eme place vote',
+          ];
           const configuredId = (votesConfig.VOTE_PACK_IDS || {})[rankIdx];
-          let votePack = configuredId
-            ? getSpecialPacks().packs.find(p => p.id === configuredId)
-            : null;
-          // Fallback : recherche par nom si pas d'ID configuré
-          if (!votePack) {
-            votePack = getSpecialPacks().packs.find(p =>
-              p.name.toLowerCase().replace(/[èéê]/g, 'e').replace(/[àâ]/g, 'a')
-                === packNames[rankIdx - 1].replace(/[èéê]/g, 'e')
-            );
-          }
-          if (votePack) {
-            await addToInventory(memberId, votePack.id, 1, 'system', `${votePack.name} — Votes ${monthName}`);
-            distributionResults.inventoryResults.push({
-              playername: player.playername,
-              rankIdx,
-              type: 'pack',
-              packId: votePack.id,
-              packName: votePack.name,
-            });
-          } else {
-            const ordinal = rankIdx === 1 ? '1ère' : `${rankIdx}ème`;
-            console.warn(`⚠️ [VOTES] Pack introuvable pour la ${ordinal} place (ID configuré: "${configuredId || 'aucun'}", nom cherché: "${packNames[rankIdx - 1]}")`);
-            if (adminChannel) {
-              await adminChannel.send(
-                `⚠️ **Pack vote non distribué — ${ordinal} place**\n` +
-                `Le joueur **${player.playername}** (<@${memberId}>) aurait dû recevoir le pack vote ${ordinal} place, mais aucun pack correspondant n'a été trouvé dans l'inventaire.\n` +
-                `-# Configurez le pack dans le dashboard → Récompenses → Packs vote, ou vérifiez que le pack existe dans Packs spéciaux.`
+          if (configuredId) {
+            let votePack = getSpecialPacks().packs.find(p => p.id === configuredId);
+            // Fallback : recherche par nom si l'ID ne correspond plus
+            if (!votePack) {
+              votePack = getSpecialPacks().packs.find(p =>
+                p.name.toLowerCase().replace(/[èéê]/g, 'e').replace(/[àâ]/g, 'a')
+                  === packNames[rankIdx - 1].replace(/[èéê]/g, 'e')
               );
             }
-            distributionResults.inventoryResults.push({
-              playername: player.playername,
-              rankIdx,
-              type: 'pack',
-              packId: null,
-              packName: packNames[rankIdx - 1],
-              notFound: true,
-            });
+            if (votePack) {
+              await addToInventory(memberId, votePack.id, 1, 'system', `${votePack.name} — Votes ${monthName}`);
+              distributionResults.inventoryResults.push({
+                playername: player.playername,
+                rankIdx,
+                type: 'pack',
+                packId: votePack.id,
+                packName: votePack.name,
+              });
+            } else {
+              const ordinal = rankIdx === 1 ? '1ère' : `${rankIdx}ème`;
+              console.warn(`⚠️ [VOTES] Pack introuvable pour la ${ordinal} place (ID configuré: "${configuredId}")`);
+              if (adminChannel) {
+                await adminChannel.send(
+                  `⚠️ **Pack vote non distribué — ${ordinal} place**\n` +
+                  `Le joueur **${player.playername}** (<@${memberId}>) aurait dû recevoir le pack vote ${ordinal} place, mais aucun pack correspondant n'a été trouvé.\n` +
+                  `-# Vérifiez que le pack existe dans Packs spéciaux ou reconfigurez le dashboard → Récompenses → Packs vote.`
+                );
+              }
+              distributionResults.inventoryResults.push({
+                playername: player.playername,
+                rankIdx,
+                type: 'pack',
+                packId: null,
+                packName: packNames[rankIdx - 1],
+                notFound: true,
+              });
+            }
           }
         }
 
@@ -304,12 +307,9 @@ function buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus
 
     msg += `**${rankIdx}.** ${mention} — ${player.votes} votes → ${ubGain.toLocaleString('fr-FR')} ${sparkly} ${statusIcon}`;
 
-    if (rankIdx <= 3) {
-      const packLabels = ['Pack 1ère place vote', 'Pack 2ème place vote', 'Pack 3ème place vote'];
+    if (rankIdx >= 1 && rankIdx <= 5 && (votesConfig.VOTE_PACK_IDS || {})[rankIdx]) {
+      const packLabels = ['Pack 1ère place vote', 'Pack 2ème place vote', 'Pack 3ème place vote', 'Pack 4ème place vote', 'Pack 5ème place vote'];
       msg += ` + 📦 ${packLabels[rankIdx - 1]}`;
-    }
-    if (isRank4or5 && bonusDiamonds > 0) {
-      msg += ` + ${bonusDiamonds.toLocaleString('fr-FR')} ${sparkly} *(inventaire)*`;
     }
     msg += `\n`;
   }
@@ -331,9 +331,7 @@ function buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus
     for (const p of notFoundPlayers) {
       const rankIdx = ranking.indexOf(p) + 1;
       const totalDiamonds = p.votes * votesConfig.DIAMONDS_PER_VOTE;
-      const bonusDiamonds = votesConfig.TOP_DIAMONDS[rankIdx] || 0;
-      const totalGain = totalDiamonds + bonusDiamonds;
-      msg += `• \`${p.playername}\` (rank #${rankIdx}) — ${p.votes} votes — **${totalGain.toLocaleString('fr-FR')} ${sparkly} dûs**\n`;
+      msg += `• \`${p.playername}\` (rank #${rankIdx}) — ${p.votes} votes — **${totalDiamonds.toLocaleString('fr-FR')} ${sparkly} dûs**\n`;
     }
     msg += `-# Utilisez \`/vote-rapport\` pour voir les liens pseudo → Discord, ou résolvez via le salon admin.\n`;
   }

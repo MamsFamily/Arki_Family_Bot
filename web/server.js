@@ -639,40 +639,18 @@ function createWebServer(discordClient) {
   });
 
   app.post('/rewards', requireAdmin, async (req, res) => {
-    const { diamondsPerVote, bonus4, bonus5 } = req.body;
-
-    const topDiamonds = {};
-    if (parseInt(bonus4) > 0) topDiamonds[4] = parseInt(bonus4);
-    if (parseInt(bonus5) > 0) topDiamonds[5] = parseInt(bonus5);
-
-    const topLots = {};
-    for (let place = 1; place <= 3; place++) {
-      const lot = {};
-      const dino = parseInt(req.body[`lot${place}_dino`]) || 0;
-      const art = parseInt(req.body[`lot${place}_art`]) || 0;
-      const badge = parseInt(req.body[`lot${place}_badge`]) || 0;
-      const fraises = parseInt(req.body[`lot${place}_fraises`]) || 0;
-      const diamants = parseInt(req.body[`lot${place}_diamants`]) || 0;
-
-      if (dino > 0) lot['🦖'] = dino;
-      if (art > 0) lot['🎨'] = art;
-      if (badge > 0) lot[`${place}️⃣`] = badge;
-      if (fraises > 0) lot['🍓'] = fraises;
-      if (diamants > 0) lot['💎'] = diamants;
-
-      topLots[place] = lot;
-    }
+    const { diamondsPerVote } = req.body;
 
     const votePackIds = {
       1: req.body.votePackId1 || '',
       2: req.body.votePackId2 || '',
       3: req.body.votePackId3 || '',
+      4: req.body.votePackId4 || '',
+      5: req.body.votePackId5 || '',
     };
 
     await updateSection('rewards', {
       diamondsPerVote: parseInt(diamondsPerVote) || 100,
-      topDiamonds,
-      topLots,
       votePackIds,
     });
 

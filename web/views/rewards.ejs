@@ -38,74 +38,18 @@
 
         <div class="card">
           <div class="card-header">
-            <h2>🏅 Bonus diamants (places 4 et 5)</h2>
-          </div>
-          <div class="card-body">
-            <div class="form-row">
-              <div class="form-group">
-                <label for="bonus4">Bonus 4ème place</label>
-                <input type="number" id="bonus4" name="bonus4" value="<%= settings.rewards.topDiamonds[4] || 0 %>" min="0" max="100000">
-              </div>
-              <div class="form-group">
-                <label for="bonus5">Bonus 5ème place</label>
-                <input type="number" id="bonus5" name="bonus5" value="<%= settings.rewards.topDiamonds[5] || 0 %>" min="0" max="100000">
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <h2>🎁 Lots du Top 3 (items DraftBot)</h2>
-          </div>
-          <div class="card-body">
-            <% for (let place = 1; place <= 3; place++) {
-              const lot = settings.rewards.topLots[place] || {};
-              const medal = place === 1 ? '🥇' : place === 2 ? '🥈' : '🥉';
-            %>
-              <div class="lot-section">
-                <h3><%= medal %> <%= place %><%= place === 1 ? 'ère' : 'ème' %> place</h3>
-                <div class="form-row lot-row">
-                  <div class="form-group form-sm">
-                    <label>🦖 Dino</label>
-                    <input type="number" name="lot<%= place %>_dino" value="<%= lot['🦖'] || 0 %>" min="0">
-                  </div>
-                  <div class="form-group form-sm">
-                    <label>🎨 Art</label>
-                    <input type="number" name="lot<%= place %>_art" value="<%= lot['🎨'] || 0 %>" min="0">
-                  </div>
-                  <div class="form-group form-sm">
-                    <label><%= place %>️⃣ Badge</label>
-                    <input type="number" name="lot<%= place %>_badge" value="<%= lot[place + '️⃣'] || 0 %>" min="0">
-                  </div>
-                  <div class="form-group form-sm">
-                    <label>🍓 Fraises</label>
-                    <input type="number" name="lot<%= place %>_fraises" value="<%= lot['🍓'] || 0 %>" min="0">
-                  </div>
-                  <div class="form-group form-sm">
-                    <label>💎 Diamants</label>
-                    <input type="number" name="lot<%= place %>_diamants" value="<%= lot['💎'] || 0 %>" min="0">
-                  </div>
-                </div>
-              </div>
-            <% } %>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <h2>📦 Packs vote (inventaire Top 3)</h2>
+            <h2>📦 Packs vote (inventaire Top 5)</h2>
           </div>
           <div class="card-body">
             <p class="help-text" style="margin-bottom:16px;">Sélectionnez quel pack spécial est attribué dans l'inventaire pour chaque place. Si aucun pack n'est sélectionné, le bot tentera une recherche par nom (<code>pack 1ere place vote</code>, etc.).</p>
             <% const votePackIds = settings.rewards.votePackIds || {}; %>
-            <% const rankLabels = ['🥇 1ère place', '🥈 2ème place', '🥉 3ème place']; %>
+            <% const rankLabels = ['🥇 1ère place', '🥈 2ème place', '🥉 3ème place', '4️⃣ 4ème place', '5️⃣ 5ème place']; %>
             <div class="form-row" style="flex-wrap:wrap; gap:16px;">
-              <% for (let place = 1; place <= 3; place++) { %>
+              <% for (let place = 1; place <= 5; place++) { %>
                 <div class="form-group" style="flex:1; min-width:200px;">
                   <label><%= rankLabels[place - 1] %></label>
                   <select name="votePackId<%= place %>" class="form-select">
-                    <option value="">— Recherche automatique par nom —</option>
+                    <option value="">— Aucun pack —</option>
                     <% if (typeof specialPacks !== 'undefined') { %>
                       <% specialPacks.forEach(pack => { %>
                         <option value="<%= pack.id %>" <%= votePackIds[place] === pack.id ? 'selected' : '' %>><%= pack.name %></option>
