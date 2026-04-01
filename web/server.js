@@ -538,7 +538,7 @@ function createWebServer(discordClient) {
   app.post('/welcome/phrases/add', requireAdmin, async (req, res) => {
     try {
       const { category, phrase } = req.body;
-      const keyMap = { arrivalNew: 'arrivalPhrasesNew', arrivalReturn: 'arrivalPhrasesReturn', greetNew: 'greetPhrasesNew', greetReturn: 'greetPhrasesReturn' };
+      const keyMap = { arrivalNew: 'arrivalPhrasesNew', arrivalReturn: 'arrivalPhrasesReturn', greetNew: 'greetPhrasesNew', greetReturn: 'greetPhrasesReturn', greetGone: 'greetPhrasesGone' };
       const key = keyMap[category];
       if (!key || !phrase?.trim()) return res.redirect('/welcome/phrases?error=Phrase+vide+ou+catégorie+invalide');
       const settings = getSettings();
@@ -555,7 +555,7 @@ function createWebServer(discordClient) {
   app.post('/welcome/phrases/delete', requireAdmin, async (req, res) => {
     try {
       const { category, index } = req.body;
-      const keyMap = { arrivalNew: 'arrivalPhrasesNew', arrivalReturn: 'arrivalPhrasesReturn', greetNew: 'greetPhrasesNew', greetReturn: 'greetPhrasesReturn' };
+      const keyMap = { arrivalNew: 'arrivalPhrasesNew', arrivalReturn: 'arrivalPhrasesReturn', greetNew: 'greetPhrasesNew', greetReturn: 'greetPhrasesReturn', greetGone: 'greetPhrasesGone' };
       const key = keyMap[category];
       if (!key) return res.redirect('/welcome/phrases?error=Catégorie+invalide');
       const settings = getSettings();

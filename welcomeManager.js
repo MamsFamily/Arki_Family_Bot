@@ -329,6 +329,16 @@ const DEFAULT_GREET_RETURN = [
   "Heyy **{mention}** ! Tu nous avais manqué ! 🥳",
   "**{mention}** est de retour ! L'aventure reprend ! ⚡",
 ];
+const DEFAULT_GREET_GONE = [
+  "Euh... {mention} est déjà reparti(e) 💨 T'as voulu souhaiter la bienvenue à un fantôme ?",
+  "Trop tard ! {mention} a fait le tour du propriétaire et s'est barré en vitesse 🚪💨",
+  "{mention} ? Connais pas. Il/Elle est passé(e) en coup de vent et a disparu avant même qu'on puisse dire \"bienvenue\" 😅",
+  "Bonne nouvelle : {mention} a rejoint le serveur. Mauvaise nouvelle : il/elle est déjà parti(e) 👋 Belle visite éclair !",
+  "Rip {mention} 🪦 A vécu sur ce serveur environ 3 secondes. Une belle carrière.",
+  "{mention} a jeté un œil, n'a pas aimé ce qu'il/elle a vu, et s'est évaporé(e) 🌫️ Brutal.",
+  "Ah... {mention} voulait juste vérifier que le serveur existait. Mission accomplie, au revoir 🕵️",
+  "Trop tard pour {mention} 💀 Il/Elle court encore. Bonne chance pour le rattraper.",
+];
 
 function getWelcomePhrases() {
   const ws = getSettings().welcome || {};
@@ -337,6 +347,7 @@ function getWelcomePhrases() {
     arrivalReturn: (ws.arrivalPhrasesReturn && ws.arrivalPhrasesReturn.length) ? ws.arrivalPhrasesReturn : DEFAULT_ARRIVAL_RETURN,
     greetNew:      (ws.greetPhrasesNew      && ws.greetPhrasesNew.length)      ? ws.greetPhrasesNew      : DEFAULT_GREET_NEW,
     greetReturn:   (ws.greetPhrasesReturn   && ws.greetPhrasesReturn.length)   ? ws.greetPhrasesReturn   : DEFAULT_GREET_RETURN,
+    greetGone:     (ws.greetPhrasesGone     && ws.greetPhrasesGone.length)     ? ws.greetPhrasesGone     : DEFAULT_GREET_GONE,
   };
 }
 
@@ -348,6 +359,11 @@ function getRandomArrivalPhrase(name, isNew) {
 function getRandomGreetPhrase(mention, isNew) {
   const phrases = getWelcomePhrases();
   const list = isNew ? phrases.greetNew : phrases.greetReturn;
+  return list[Math.floor(Math.random() * list.length)].replace(/{mention}/g, mention);
+}
+function getRandomGreetGonePhrase(mention) {
+  const phrases = getWelcomePhrases();
+  const list = phrases.greetGone;
   return list[Math.floor(Math.random() * list.length)].replace(/{mention}/g, mention);
 }
 
@@ -489,5 +505,6 @@ module.exports = {
   isMilestone,
   getRandomArrivalPhrase,
   getRandomGreetPhrase,
+  getRandomGreetGonePhrase,
   getWelcomePhrases,
 };

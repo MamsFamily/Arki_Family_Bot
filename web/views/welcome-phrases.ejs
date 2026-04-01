@@ -190,6 +190,38 @@
           </div>
         </div>
 
+        <!-- BOUTON — Déjà parti (pleine largeur) -->
+        <div class="phrase-section" style="grid-column:1/-1;">
+          <div class="phrase-section-header">
+            <span class="tag-btn" style="background:#3d1a00;color:#ff7043;">Déjà parti 💨</span>
+            <h3>Quand le membre a quitté le serveur</h3>
+            <span class="phrase-count"><%= phrases.greetGone.length %> phrase<%= phrases.greetGone.length > 1 ? 's' : '' %></span>
+          </div>
+          <p style="padding:10px 18px 0;font-size:12px;opacity:0.6;margin:0;">Affiché quand quelqu'un clique sur "Souhaiter la bienvenue" mais que le membre est <strong>déjà parti</strong>. Variable : <code>{mention}</code></p>
+          <div class="phrase-list">
+            <% if (phrases.greetGone.length === 0) { %>
+              <div class="phrase-empty">Aucune phrase — les phrases par défaut seront utilisées</div>
+            <% } else { phrases.greetGone.forEach(function(p, i) { %>
+              <div class="phrase-item">
+                <span class="phrase-index">#<%= i+1 %></span>
+                <span class="phrase-text"><%= p %></span>
+                <form method="POST" action="/welcome/phrases/delete" style="margin:0">
+                  <input type="hidden" name="category" value="greetGone">
+                  <input type="hidden" name="index" value="<%= i %>">
+                  <button type="submit" class="btn-del">✕</button>
+                </form>
+              </div>
+            <% }) } %>
+          </div>
+          <div class="phrase-add">
+            <form method="POST" action="/welcome/phrases/add" style="display:flex;gap:8px;width:100%">
+              <input type="hidden" name="category" value="greetGone">
+              <input type="text" name="phrase" placeholder="Ex : {mention} est déjà parti(e)... quelle visite éclair ! 💨" required>
+              <button type="submit" class="btn-add">+ Ajouter</button>
+            </form>
+          </div>
+        </div>
+
       </div>
     </main>
   </div>

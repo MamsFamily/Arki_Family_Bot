@@ -23,7 +23,7 @@ const { initInventory, getItemTypes, getItemTypeById, getPlayerInventory, addToI
 const giveawayManager = require('./giveawayManager');
 const { initSpecialPacks, getSpecialPacks, getSpecialPack } = require('./specialPacksManager');
 const { handleShopCommand, handleShopInteraction } = require('./shopCommand');
-const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase } = require('./welcomeManager');
+const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
 
 const openaiConfig = {};
 if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
@@ -1066,7 +1066,13 @@ client.on('interactionCreate', async interaction => {
     const [, memberId, type] = interaction.customId.split(':');
     const isNew = type === 'new';
     const mention = `<@${memberId}>`;
-    const phrase = getRandomGreetPhrase(mention, isNew);
+
+    // Vérifier si le membre est encore sur le serveur
+    const stillHere = await interaction.guild.members.fetch(memberId).catch(() => null);
+    const phrase = stillHere
+      ? getRandomGreetPhrase(mention, isNew)
+      : getRandomGreetGonePhrase(mention);
+
     await interaction.deferUpdate();
     try {
       const clickerName = (interaction.member?.displayName) || interaction.user.username;
