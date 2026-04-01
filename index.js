@@ -1520,47 +1520,6 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
-    if (interaction.customId.startsWith('inv_qty_')) {
-      const context = pendingLibreItems.get(interaction.customId);
-      if (!context) {
-        return interaction.reply({ content: '❌ Session expirée. Relance la commande.', ephemeral: true });
-      }
-      pendingLibreItems.delete(interaction.customId);
-
-      const qtyRaw = interaction.fields.getTextInputValue('item_qty').trim();
-      const modalQty = parseInt(qtyRaw, 10);
-      if (!modalQty || modalQty < 1) {
-        return interaction.reply({ content: '❌ Quantité invalide. Saisis un nombre entier supérieur à 0.', ephemeral: true });
-      }
-
-      await addToInventory(context.targetUserId, context.itemTypeId, modalQty, context.adminId, context.reason);
-
-      const embed = new EmbedBuilder()
-        .setColor('#00BFFF')
-        .setTitle('✅ Item ajouté')
-        .setDescription(`**${context.itemLabel}** x${modalQty} ajouté à <@${context.targetUserId}>`)
-        .setTimestamp();
-
-      if (context.reason) {
-        embed.addFields({ name: 'Raison', value: context.reason, inline: false });
-      }
-
-      await interaction.reply({ embeds: [embed] });
-
-      try {
-        const settings = getSettings();
-        const logChannelId = settings.guild?.inventoryLogChannelId;
-        if (logChannelId) {
-          const logChannel = await client.channels.fetch(logChannelId);
-          if (logChannel) {
-            const member = await interaction.guild.members.fetch(context.adminId).catch(() => null);
-            const adminName = member ? member.displayName : context.adminId;
-            await logChannel.send(`**${adminName}** a ajouté **${modalQty}x ${context.itemLabel}** à l'inventaire de <@${context.targetUserId}>`);
-          }
-        }
-      } catch (e) {}
-      return;
-    }
   }
 
   if (interaction.isAutocomplete()) {
@@ -2768,34 +2727,6 @@ client.on('interactionCreate', async interaction => {
 
       const isCustomEmoji = /^<a?:\w+:\d+>$/.test(itemType.emoji);
       const itemLabel = isCustomEmoji ? itemType.name : `${itemType.emoji} ${itemType.name}`;
-
-      // Si pas de quantité fournie → ouvrir une modale pour la saisir
-      if (!commandQty || commandQty < 1) {
-        const modalKey = `inv_qty_${interaction.id}`;
-        pendingLibreItems.set(modalKey, {
-          targetUserId: targetUser.id,
-          itemTypeId: rawItem,
-          itemLabel,
-          reason,
-          adminId: interaction.user.id,
-          guildId: interaction.guild.id,
-        });
-        setTimeout(() => pendingLibreItems.delete(modalKey), 10 * 60 * 1000);
-
-        const modal = new ModalBuilder()
-          .setCustomId(modalKey)
-          .setTitle(`Quantité → ${itemLabel}`.slice(0, 45));
-        const qtyInput = new TextInputBuilder()
-          .setCustomId('item_qty')
-          .setLabel(`Quantité à ajouter pour ${targetUser.displayName || targetUser.username}`)
-          .setStyle(TextInputStyle.Short)
-          .setPlaceholder('Ex: 1')
-          .setRequired(true)
-          .setMaxLength(6)
-          .setMinLength(1);
-        modal.addComponents(new ActionRowBuilder().addComponents(qtyInput));
-        return interaction.showModal(modal);
-      }
 
       const quantity = commandQty;
       await addToInventory(targetUser.id, rawItem, quantity, interaction.user.id, reason);
