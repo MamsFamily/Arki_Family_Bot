@@ -137,6 +137,35 @@ function createWebServer(discordClient) {
     await updateSection('api', { inventoryApiKey: key });
     res.json({ success: true, key });
   });
+
+  // ─── Endpoint adaptateur pour bots externes (format flexible) ───────────────
+  // Accepte le format : { discord_user_id, amount, currency, source, apiKey }
+  app.post('/api/quizz/reward', async (req, res) => {
+    if (!validateApiKey(req)) {
+      return res.status(401).json({ error: 'Clé API invalide ou manquante' });
+    }
+
+    // Mapping des champs entrants vers notre format interne
+    const playerId   = req.body.discord_user_id || req.body.user_id || req.body.playerId;
+    const quantity   = parseInt(req.body.amount  || req.body.quantity) || 0;
+    const reason     = req.body.source || req.body.reason || 'quizz';
+
+    // Normalisation de la devise : "fraise" → "fraises", etc.
+    const currencyRaw = (req.body.currency || req.body.itemId || '').toLowerCase().trim();
+    const currencyMap = { fraise: 'fraises', fraises: 'fraises', diamant: 'diamants', diamants: 'diamants' };
+    const itemId = currencyMap[currencyRaw] || currencyRaw;
+
+    if (!playerId || !itemId || quantity < 1) {
+      return res.status(400).json({ error: 'Champs requis : discord_user_id, amount (>0), currency' });
+    }
+
+    try {
+      const result = await inventoryManager.addToInventory(playerId, itemId, quantity, 'api-quizz', reason);
+      return res.json({ success: true, playerId, itemId, quantity, newQuantity: result.newQuantity });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
   // ────────────────────────────────────────────────────────────────────────────
 
   function getBaseUrl(req) {
