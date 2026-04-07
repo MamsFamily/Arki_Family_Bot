@@ -85,7 +85,7 @@
     }
     .player-inv-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
       gap: 10px;
       margin-top: 16px;
     }
@@ -93,27 +93,95 @@
       background: var(--bg-input);
       border: 1px solid var(--border);
       border-radius: var(--radius-sm);
-      padding: 12px 16px;
+      padding: 10px 14px;
       display: flex;
       align-items: center;
       gap: 10px;
+      min-width: 0;
     }
-    .player-inv-item .inv-emoji { font-size: 22px; }
-    .player-inv-item .inv-name { font-size: 13px; color: var(--text-secondary); }
+    .player-inv-item .inv-emoji {
+      font-size: 22px;
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(124, 92, 252, 0.1);
+      border-radius: 8px;
+    }
+    .player-inv-item .inv-name {
+      font-size: 13px;
+      color: var(--text-secondary);
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .player-inv-item.zero-qty { opacity: 0.45; }
+    .player-inv-item.zero-qty .inv-qty { color: var(--text-muted); font-size: 14px; }
     .player-inv-item .inv-qty {
-      font-size: 18px; font-weight: 700; color: #fff; margin-left: auto;
-      cursor: pointer; padding: 2px 8px; border-radius: 6px;
+      font-size: 17px; font-weight: 700; color: #fff;
+      cursor: pointer; padding: 3px 10px; border-radius: 20px;
       transition: background 0.15s;
-      min-width: 36px; text-align: right;
+      min-width: 38px; text-align: center;
+      background: rgba(124,92,252,0.12);
+      border: 1px solid rgba(124,92,252,0.2);
+      flex-shrink: 0;
     }
-    .player-inv-item .inv-qty:hover { background: rgba(124,92,252,0.18); }
+    .player-inv-item .inv-qty:hover { background: rgba(124,92,252,0.3); }
     .player-inv-item .inv-qty.saving { opacity: 0.5; }
     .inv-qty-input {
       width: 72px; font-size: 16px; font-weight: 700;
       background: var(--bg-card); border: 2px solid var(--accent);
       border-radius: 6px; color: #fff; text-align: right;
-      padding: 2px 8px; outline: none; margin-left: auto;
+      padding: 2px 8px; outline: none;
       font-family: inherit;
+    }
+    /* Emoji Discord en image : taille fixe dans le conteneur */
+    .inv-emoji .discord-emoji {
+      width: 22px !important;
+      height: 22px !important;
+      vertical-align: middle;
+    }
+    .inv-emoji .emoji-fallback {
+      font-size: 11px;
+      color: var(--text-secondary);
+      font-weight: 600;
+      text-align: center;
+      word-break: break-all;
+      line-height: 1.1;
+    }
+    /* ── Responsive mobile ──────────────────────────────────── */
+    @media (max-width: 640px) {
+      .player-inv-grid {
+        grid-template-columns: 1fr;
+      }
+      .item-type-grid {
+        grid-template-columns: 1fr;
+      }
+      .inv-tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        gap: 0;
+      }
+      .inv-tab {
+        padding: 10px 14px;
+        font-size: 12px;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+      .player-search-box {
+        flex-direction: column;
+      }
+      .player-inv-actions {
+        flex-direction: column;
+      }
+      .player-inv-actions .btn {
+        width: 100%;
+        text-align: center;
+      }
     }
     .tx-table {
       width: 100%;
@@ -539,7 +607,11 @@
       var m = emoji.match(/^<(a?):(\w+):(\d+)>$/);
       if (m) {
         var ext = m[1] === 'a' ? 'gif' : 'png';
-        return '<img src="https://cdn.discordapp.com/emojis/' + m[3] + '.' + ext + '" alt="' + m[2] + '" class="discord-emoji">';
+        var url = 'https://cdn.discordapp.com/emojis/' + m[3] + '.' + ext + '?size=64';
+        var name = escapeHtml(m[2]);
+        // Fallback : si l'image échoue, afficher le nom en abrégé
+        var fb = name.length > 6 ? name.slice(0, 5) + '…' : name;
+        return '<img src="' + url + '" alt="' + name + '" class="discord-emoji" onerror="this.outerHTML=\'<span class=\\\'emoji-fallback\\\'>' + fb + '</span>\'">';
       }
       return escapeHtml(emoji);
     }
@@ -876,10 +948,11 @@
         var qty = inv[it.id] || 0;
         if (qty > 0) hasItems = true;
         var safeId = escapeHtml(it.id);
-        html += '<div class="player-inv-item">';
+        var zeroClass = qty === 0 ? ' zero-qty' : '';
+        html += '<div class="player-inv-item' + zeroClass + '">';
         html += '<span class="inv-emoji">' + renderEmoji(it.emoji) + '</span>';
-        html += '<span class="inv-name">' + escapeHtml(it.name) + '</span>';
-        html += '<span class="inv-qty" title="Cliquer pour modifier" onclick="startInlineEdit(this, \'' + escapeHtml(playerId) + '\', \'' + safeId + '\', ' + qty + ')">' + qty + '</span>';
+        html += '<span class="inv-name" title="' + escapeHtml(it.name) + '">' + escapeHtml(it.name) + '</span>';
+        html += '<span class="inv-qty" title="Cliquer pour modifier" onclick="startInlineEdit(this, \'' + escapeHtml(playerId) + '\', \'' + safeId + '\', ' + qty + ')">' + qty.toLocaleString("fr-FR") + '</span>';
         html += '</div>';
       });
 

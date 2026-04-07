@@ -71,6 +71,7 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 .layout {
@@ -802,7 +803,7 @@ body {
   width: 1.2em;
   height: 1.2em;
   vertical-align: middle;
-  display: inline;
+  display: inline-block;
   object-fit: contain;
 }
 
@@ -819,6 +820,21 @@ body {
 .tx-table .discord-emoji {
   width: 16px;
   height: 16px;
+}
+
+/* Fallback texte quand l'image emoji Discord ne se charge pas */
+.emoji-fallback {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.1;
+  word-break: break-all;
+  max-width: 100%;
+}
+.item-type-emoji .emoji-fallback {
+  font-size: 11px;
+  max-width: 40px;
 }
 
 .login-discord-note {
