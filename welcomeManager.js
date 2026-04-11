@@ -218,38 +218,68 @@ async function generateWelcomeBanner(member, guild, isNew, settings) {
   ctx.fillRect(230, 30, 3, H - 60);
   ctx.globalAlpha = 1;
 
-  // Texte principal
-  const TEXT_X = 255;
-  const textMax = W - TEXT_X - 30;
+  // ── Zone texte ──────────────────────────────────────────────────────────────
+  const TEXT_X = 258;
+  const textMax = W - TEXT_X - 24;
 
-  // Ligne 1 — mot principal : "Bienvenue" ou "Bon retour" (grand, blanc)
+  // Helper : texte avec ombre forte + contour blanc fin pour lisibilité maximale
+  function drawStrongText(text, x, y, fontSize, weight = 'bold', color = '#ffffff') {
+    ctx.save();
+    ctx.font = `${weight} ${fontSize}px DejaVu Sans`;
+
+    // Ombre portée profonde
+    ctx.shadowColor = 'rgba(0,0,0,0.95)';
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 3;
+
+    // Contour noir épais (lisibilité sur fond clair et foncé)
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+    ctx.lineWidth = fontSize > 40 ? 8 : 5;
+    ctx.lineJoin = 'round';
+    ctx.strokeText(text, x, y);
+
+    // Remplissage principal
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  // Helper : auto-réduit la taille de police pour tenir dans textMax
+  function fitFontSize(text, maxSize, minSize = 16) {
+    ctx.font = `bold ${maxSize}px DejaVu Sans`;
+    let size = maxSize;
+    while (ctx.measureText(text).width > textMax && size > minSize) {
+      size -= 2;
+      ctx.font = `bold ${size}px DejaVu Sans`;
+    }
+    return size;
+  }
+
+  // ── Ligne 1 : "Bienvenue" / "Bon retour" ── grand, blanc, gras ─────────────
   const mainWord = isNew ? 'Bienvenue' : 'Bon retour';
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 58px DejaVu Sans';
-  // Réduire si trop large
-  let mainFontSize = 58;
-  while (ctx.measureText(mainWord).width > textMax && mainFontSize > 28) {
-    mainFontSize -= 2;
-    ctx.font = `bold ${mainFontSize}px DejaVu Sans`;
-  }
-  ctx.fillText(mainWord, TEXT_X, H / 2 - 10);
+  const mainSize = fitFontSize(mainWord, 68, 28);
+  drawStrongText(mainWord, TEXT_X, H / 2 - 16, mainSize, 'bold', '#ffffff');
 
-  // Ligne 2 — "sur Arki' Family" (accent color, plus petit)
-  const subLine = "sur Arki' Family";
-  ctx.fillStyle = accentColor;
-  ctx.font = 'bold 30px DejaVu Sans';
-  let subFontSize = 30;
-  while (ctx.measureText(subLine).width > textMax && subFontSize > 16) {
-    subFontSize -= 2;
-    ctx.font = `bold ${subFontSize}px DejaVu Sans`;
-  }
-  ctx.fillText(subLine, TEXT_X, H / 2 + 40);
+  // ── Ligne 2 : "sur le serveur Discord," ── moyen, légèrement teinté ─────────
+  const midLine = 'sur le serveur Discord,';
+  const midSize = fitFontSize(midLine, 22, 14);
+  drawStrongText(midLine, TEXT_X, H / 2 + 18, midSize, 'normal', 'rgba(255,255,255,0.88)');
 
-  // Ligne 3 — nombre de membres (petit, discret)
+  // ── Ligne 3 : "Arki'Family" ── grand, couleur accent, gras ─────────────────
+  const serverLine = "Arki'Family";
+  const serverSize = fitFontSize(serverLine, 46, 22);
+  drawStrongText(serverLine, TEXT_X, H / 2 + 68, serverSize, 'bold', accentColor);
+
+  // ── Ligne 4 : nombre de membres ── petit, discret ────────────────────────────
   const memberCount = guild.memberCount;
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.font = '16px DejaVu Sans';
-  ctx.fillText(`${memberCount.toLocaleString('fr-FR')} membres`, TEXT_X, H / 2 + 82);
+  ctx.save();
+  ctx.font = '15px DejaVu Sans';
+  ctx.shadowColor = 'rgba(0,0,0,0.9)';
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.fillText(`${memberCount.toLocaleString('fr-FR')} membres`, TEXT_X, H / 2 + 96);
+  ctx.restore();
 
   return canvas.toBuffer('image/png');
 }
