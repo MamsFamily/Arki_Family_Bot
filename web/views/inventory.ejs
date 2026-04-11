@@ -194,6 +194,11 @@
     .mini-tx-date { color: var(--text-muted); flex-shrink: 0; }
     .mini-tx-reason { color: var(--text-muted); font-style: italic; font-size: 11px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     /* ── Responsive mobile ──────────────────────────────────── */
+    @media (max-width: 900px) {
+      .players-layout {
+        grid-template-columns: 1fr !important;
+      }
+    }
     @media (max-width: 640px) {
       .player-inv-grid {
         grid-template-columns: 1fr;
@@ -414,21 +419,44 @@
       </div>
 
       <div id="tab-players" class="inv-tab-content active">
-        <div class="card">
-          <div class="card-header">
-            <h2>👤 Rechercher un joueur</h2>
-          </div>
-          <div class="card-body">
-            <div class="player-search-box" style="position:relative;">
-              <div style="flex:1;position:relative;">
-                <input type="text" id="playerSearchInput" placeholder="Tapez un pseudo Discord ou un ID..." autocomplete="off" oninput="onPlayerSearchInput()" onkeydown="onPlayerSearchKeydown(event)">
-                <input type="hidden" id="playerSearchId" value="">
-                <div id="playerSuggestions" class="player-suggestions" style="display:none;"></div>
+        <div style="display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start;" class="players-layout">
+
+          <!-- Colonne gauche : recherche + résultat joueur -->
+          <div>
+            <div class="card">
+              <div class="card-header">
+                <h2>👤 Rechercher un joueur</h2>
               </div>
-              <button class="btn btn-primary" onclick="searchPlayer()">🔍 Rechercher</button>
+              <div class="card-body">
+                <div class="player-search-box" style="position:relative;">
+                  <div style="flex:1;position:relative;">
+                    <input type="text" id="playerSearchInput" placeholder="Tapez un pseudo Discord ou un ID..." autocomplete="off" oninput="onPlayerSearchInput()" onkeydown="onPlayerSearchKeydown(event)">
+                    <input type="hidden" id="playerSearchId" value="">
+                    <div id="playerSuggestions" class="player-suggestions" style="display:none;"></div>
+                  </div>
+                  <button class="btn btn-primary" onclick="searchPlayer()">🔍 Rechercher</button>
+                </div>
+                <div id="playerResult"></div>
+              </div>
             </div>
-            <div id="playerResult"></div>
           </div>
+
+          <!-- Colonne droite : flux d'activité globale -->
+          <div class="card" id="globalActivityCard">
+            <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+              <h2 style="font-size:15px;">📋 Activité récente</h2>
+              <button class="btn btn-sm btn-secondary" onclick="loadGlobalActivity()" style="padding:4px 10px;font-size:12px;">↻ Rafraîchir</button>
+            </div>
+            <div class="card-body" style="padding:12px;">
+              <div id="globalActivityFeed">
+                <div style="text-align:center;padding:16px;"><div class="loading-spinner"></div></div>
+              </div>
+              <div style="text-align:center;margin-top:10px;">
+                <a href="#" style="font-size:12px;color:var(--accent);" onclick="switchTab('transactions');return false;">Voir l'historique complet →</a>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -1098,6 +1126,78 @@
       loadTransactions();
     }
 
+    // ── Flux d'activité globale ──────────────────────────────────────────────
+    function loadGlobalActivity() {
+      var feed = document.getElementById('globalActivityFeed');
+      if (!feed) return;
+      feed.innerHTML = '<div style="text-align:center;padding:16px;"><div class="loading-spinner"></div></div>';
+
+      fetch('/inventory/api/transactions?limit=25')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var txs = data.transactions || [];
+          if (txs.length === 0) {
+            feed.innerHTML = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:16px;">Aucun mouvement enregistré</div>';
+            return;
+          }
+
+          var itemMap = {};
+          itemTypesData.forEach(function(it) { itemMap[it.id] = it; });
+
+          var html = '<div class="mini-tx-list">';
+          txs.slice().reverse().forEach(function(tx) {
+            var item = itemMap[tx.itemTypeId];
+            var emojiHtml = item ? renderEmoji(item.emoji) : '📦';
+            var itemName = item ? escapeHtml(item.name) : escapeHtml(tx.itemTypeId || '?');
+
+            var badgeClass = tx.type === 'add' ? 'add' : (tx.type === 'remove' ? 'remove' : 'reset');
+            var badgeLabel = tx.type === 'add' ? '+' : (tx.type === 'remove' ? '−' : '↺');
+            var qtyClass   = tx.type === 'add' ? 'pos' : (tx.type === 'remove' ? 'neg' : '');
+            var qtySign    = tx.type === 'add' ? '+' : (tx.type === 'remove' ? '−' : '↺');
+
+            var d = new Date(tx.timestamp);
+            var now = Date.now();
+            var diff = now - d.getTime();
+            var dateStr;
+            if (diff < 60000) dateStr = 'À l\'instant';
+            else if (diff < 3600000) dateStr = Math.floor(diff/60000) + 'min';
+            else if (diff < 86400000) dateStr = Math.floor(diff/3600000) + 'h';
+            else dateStr = d.toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'});
+
+            // adminId contient le nom d'affichage de l'admin (cf. route server.js)
+            var playerLabel = escapeHtml((tx.playerId  || '').slice(0, 18));
+            var adminLabel  = escapeHtml((tx.adminId   || 'système').slice(0, 22));
+            var reasonStr   = tx.reason ? escapeHtml(tx.reason.slice(0, 35)) : '';
+
+            html += '<div class="mini-tx-row" style="flex-wrap:wrap;gap:4px 6px;">';
+            html += '<span class="mini-tx-badge ' + badgeClass + '">' + badgeLabel + '</span>';
+            html += '<span style="font-size:13px;flex-shrink:0;">' + emojiHtml + '</span>';
+            html += '<span class="mini-tx-item" style="max-width:none;flex:1;min-width:80px;">';
+            html +=   '<span style="color:#fff;font-weight:600;">' + itemName + '</span>';
+            html += '</span>';
+            html += '<span class="mini-tx-qty ' + qtyClass + '" style="min-width:36px;text-align:right;">' + qtySign + Math.abs(tx.quantity).toLocaleString("fr-FR") + '</span>';
+            html += '<span class="mini-tx-date">' + dateStr + '</span>';
+            // Ligne de détail : joueur · admin · raison
+            html += '<div style="width:100%;padding-left:4px;font-size:11px;color:var(--text-muted);margin-top:1px;">';
+            html += '<span style="color:var(--accent-light);">👤 <code>' + playerLabel + '</code></span>';
+            html += '<span style="margin:0 5px;opacity:.4;">·</span>';
+            html += '<span>🛡 ' + adminLabel + '</span>';
+            if (reasonStr) html += '<span style="margin:0 5px;opacity:.4;">·</span><span style="font-style:italic;">' + reasonStr + '</span>';
+            html += '</div>';
+            html += '</div>';
+          });
+          html += '</div>';
+          feed.innerHTML = html;
+        })
+        .catch(function() {
+          if (feed) feed.innerHTML = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:16px;">Impossible de charger l\'activité</div>';
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      loadGlobalActivity();
+    });
+
     function startInlineEdit(span, playerId, itemId, currentQty) {
       if (span.querySelector('input')) return;
       var input = document.createElement('input');
@@ -1133,8 +1233,10 @@
               span.innerHTML = currentQty;
               alert('\u274C ' + data.error);
             } else {
-              span.innerHTML = data.newQuantity;
+              span.innerHTML = (data.newQuantity || 0).toLocaleString("fr-FR");
               span.onclick = function() { startInlineEdit(span, playerId, itemId, data.newQuantity); };
+              loadGlobalActivity();
+              loadRecentPlayerTransactions(playerId);
             }
           })
           .catch(function() {
@@ -1198,6 +1300,7 @@
           }
           closePlayerEditModal();
           searchPlayer();
+          loadGlobalActivity();
         })
         .catch(function(err) {
           alert('\u274C Erreur de connexion');
