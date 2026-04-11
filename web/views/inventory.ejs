@@ -153,6 +153,46 @@
       word-break: break-all;
       line-height: 1.1;
     }
+    /* ── Mouvements récents joueur ──────────────────────────── */
+    .player-recent-tx {
+      margin-top: 20px;
+      border-top: 1px solid var(--border);
+      padding-top: 16px;
+    }
+    .player-recent-tx h4 {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+    .mini-tx-list { display: flex; flex-direction: column; gap: 6px; }
+    .mini-tx-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      background: var(--bg-card);
+      border-radius: 8px;
+      font-size: 12px;
+    }
+    .mini-tx-badge {
+      font-weight: 700;
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+    .mini-tx-badge.add  { background: rgba(76,175,80,0.18); color: #4caf50; }
+    .mini-tx-badge.remove { background: rgba(244,67,54,0.18); color: #f44336; }
+    .mini-tx-badge.reset  { background: rgba(255,152,0,0.18); color: #ff9800; }
+    .mini-tx-item { flex: 1; color: #fff; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mini-tx-qty  { font-weight: 700; flex-shrink: 0; }
+    .mini-tx-qty.pos { color: #4caf50; }
+    .mini-tx-qty.neg { color: #f44336; }
+    .mini-tx-date { color: var(--text-muted); flex-shrink: 0; }
+    .mini-tx-reason { color: var(--text-muted); font-style: italic; font-size: 11px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     /* ── Responsive mobile ──────────────────────────────────── */
     @media (max-width: 640px) {
       .player-inv-grid {
@@ -430,7 +470,7 @@
               </div>
             </div>
             <div id="transactionsResult">
-              <div style="text-align:center;color:var(--text-muted);padding:30px;">Cliquez sur "Filtrer" pour charger l'historique</div>
+              <div style="text-align:center;padding:20px;"><div class="loading-spinner"></div></div>
             </div>
           </div>
         </div>
@@ -616,12 +656,19 @@
       return escapeHtml(emoji);
     }
 
+    var txTabLoaded = false;
+
     function switchTab(tabId) {
       document.querySelectorAll('.inv-tab').forEach(t => t.classList.remove('active'));
       document.querySelectorAll('.inv-tab-content').forEach(t => t.classList.remove('active'));
       document.getElementById('tab-' + tabId).classList.add('active');
       var idx = tabList.indexOf(tabId);
       if (idx >= 0) document.querySelectorAll('.inv-tab')[idx].classList.add('active');
+      // Auto-chargement à la première ouverture de l'onglet historique
+      if (tabId === 'transactions' && !txTabLoaded) {
+        txTabLoaded = true;
+        loadTransactions();
+      }
     }
 
     function openItemTypeModal(item) {
@@ -982,7 +1029,73 @@
       html += '<button class="btn btn-sm btn-secondary" onclick="openPlayerEdit(\'' + escapeHtml(playerId) + '\', \'remove\')">- Retirer des items</button>';
       html += '</div>';
 
+      // Section mouvements récents (chargée après injection)
+      html += '<div class="player-recent-tx">';
+      html += '<h4>🕘 Mouvements récents</h4>';
+      html += '<div id="playerRecentTxList"><div style="color:var(--text-muted);font-size:12px;padding:6px 0;">Chargement...</div></div>';
+      html += '</div>';
+
       container.innerHTML = html;
+      loadRecentPlayerTransactions(playerId);
+    }
+
+    function loadRecentPlayerTransactions(playerId) {
+      var listEl = document.getElementById('playerRecentTxList');
+      if (!listEl) return;
+
+      fetch('/inventory/api/transactions?playerId=' + encodeURIComponent(playerId) + '&limit=12')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var txs = data.transactions || [];
+          if (txs.length === 0) {
+            listEl.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:6px 0;">Aucun mouvement enregistré</div>';
+            return;
+          }
+
+          var itemMap = {};
+          itemTypesData.forEach(function(it) { itemMap[it.id] = it; });
+
+          var html2 = '<div class="mini-tx-list">';
+          txs.slice().reverse().forEach(function(tx) {
+            var item = itemMap[tx.itemTypeId];
+            var itemLabel = item ? (renderEmoji(item.emoji) + ' ' + escapeHtml(item.name)) : escapeHtml(tx.itemTypeId || '-');
+            var badgeClass = tx.type === 'add' ? 'add' : (tx.type === 'remove' ? 'remove' : 'reset');
+            var badgeLabel = tx.type === 'add' ? 'Ajout' : (tx.type === 'remove' ? 'Retrait' : 'Reset');
+            var qtySign = tx.type === 'add' ? '+' : (tx.type === 'remove' ? '' : '↺');
+            var qtyClass = tx.type === 'add' ? 'pos' : (tx.type === 'remove' ? 'neg' : '');
+            var d = new Date(tx.timestamp);
+            var dateStr = d.toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit'})
+              + ' ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+            var reasonStr = tx.reason ? escapeHtml(tx.reason) : (tx.source ? escapeHtml(tx.source) : '');
+
+            html2 += '<div class="mini-tx-row">';
+            html2 += '<span class="mini-tx-badge ' + badgeClass + '">' + badgeLabel + '</span>';
+            html2 += '<span class="mini-tx-item">' + itemLabel + '</span>';
+            html2 += '<span class="mini-tx-qty ' + qtyClass + '">' + qtySign + tx.quantity.toLocaleString("fr-FR") + '</span>';
+            if (reasonStr) html2 += '<span class="mini-tx-reason" title="' + reasonStr + '">' + reasonStr + '</span>';
+            html2 += '<span class="mini-tx-date">' + dateStr + '</span>';
+            html2 += '</div>';
+          });
+          html2 += '</div>';
+
+          if (txs.length >= 12) {
+            html2 += '<div style="text-align:right;margin-top:8px;">';
+            html2 += '<a href="#" style="font-size:12px;color:var(--accent);" onclick="goToPlayerHistory(\'' + escapeHtml(playerId) + '\');return false;">Voir tout l\'historique →</a>';
+            html2 += '</div>';
+          }
+          listEl.innerHTML = html2;
+        })
+        .catch(function() {
+          if (listEl) listEl.innerHTML = '<div style="color:var(--text-muted);font-size:12px;">Impossible de charger l\'historique</div>';
+        });
+    }
+
+    function goToPlayerHistory(playerId) {
+      document.getElementById('txSearchInput').value = '';
+      document.getElementById('txFilterPlayer').value = playerId;
+      txTabLoaded = true; // Évite le double chargement depuis switchTab
+      switchTab('transactions');
+      loadTransactions();
     }
 
     function startInlineEdit(span, playerId, itemId, currentQty) {
