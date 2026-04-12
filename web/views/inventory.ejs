@@ -623,9 +623,9 @@
       </div>
 
       <div class="modal-overlay" id="playerEditModal">
-        <div class="modal-card" style="max-width:450px;">
+        <div class="modal-card" style="max-width:460px;">
           <div class="modal-header">
-            <h2 id="playerEditTitle">&#x1F4E6; Modifier l'inventaire</h2>
+            <h2 id="playerEditTitle">📦 Modifier l'inventaire</h2>
             <button class="modal-close" onclick="closePlayerEditModal()">&times;</button>
           </div>
           <form id="playerEditForm" onsubmit="return submitPlayerEdit(event)">
@@ -634,24 +634,27 @@
             <div class="modal-body">
               <div class="form-group">
                 <label for="editItemType">Item</label>
-                <select id="editItemType" name="itemTypeId" required>
-                  <% itemTypes.forEach(it => { %>
-                    <option value="<%= it.id %>"><%= plainEmoji(it.emoji) %> <%= it.name %></option>
-                  <% }); %>
+                <select id="editItemType" name="itemTypeId" required onchange="onEditItemTypeChange()">
+                  <!-- Options peuplées dynamiquement par openPlayerEdit() -->
                 </select>
               </div>
+              <!-- Champ nom visible uniquement pour item temporaire (add) -->
+              <div class="form-group" id="editLibreGroup" style="display:none;">
+                <label for="editLibreName">Nom de l'item temporaire <span style="color:#FF6B6B">*</span></label>
+                <input type="text" id="editLibreName" placeholder="Ex: Skin Parasaur collector" maxlength="80">
+              </div>
               <div class="form-group">
-                <label for="editQuantity">Quantit&eacute;</label>
+                <label for="editQuantity">Quantité</label>
                 <input type="number" id="editQuantity" name="quantity" min="1" value="1" required>
               </div>
               <div class="form-group">
                 <label for="editReason">Raison (optionnel)</label>
-                <input type="text" id="editReason" name="reason" placeholder="Ex: Achat shop">
+                <input type="text" id="editReason" name="reason" placeholder="Ex: Achat shop, récompense event…">
               </div>
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" onclick="closePlayerEditModal()">Annuler</button>
-              <button type="submit" class="btn btn-primary" id="playerEditSubmitBtn">&#x1F4BE; Confirmer</button>
+              <button type="submit" class="btn btn-primary" id="playerEditSubmitBtn">✅ Confirmer</button>
             </div>
           </form>
         </div>
@@ -1002,12 +1005,14 @@
     }
 
     var currentPlayerId = '';
+    var currentPlayerInventory = {};
 
     function renderPlayerInventory(container, data) {
       var inv = data.inventory || {};
       var player = data.player || {};
       var playerId = data.playerId;
       currentPlayerId = playerId;
+      currentPlayerInventory = inv;
       var displayName = player.displayName || player.username || playerId;
 
       var html = '<div style="margin-bottom:16px;">';
@@ -1258,15 +1263,79 @@
       document.getElementById('editAction').value = action;
       document.getElementById('editQuantity').value = 1;
       document.getElementById('editReason').value = '';
+      document.getElementById('editLibreName').value = '';
+      document.getElementById('editLibreGroup').style.display = 'none';
+
+      var sel = document.getElementById('editItemType');
+      sel.innerHTML = '';
+
       if (action === 'add') {
-        document.getElementById('playerEditTitle').textContent = '\u2795 Ajouter des items';
-        document.getElementById('playerEditSubmitBtn').textContent = '\u2795 Ajouter';
+        document.getElementById('playerEditTitle').textContent = '➕ Ajouter des items';
+        document.getElementById('playerEditSubmitBtn').textContent = '➕ Ajouter';
         document.getElementById('playerEditSubmitBtn').className = 'btn btn-primary';
+
+        // Tous les types d'items enregistrés
+        itemTypesData.forEach(function(it) {
+          var opt = document.createElement('option');
+          opt.value = it.id;
+          opt.textContent = (it.emoji.match(/^<a?:\w+:\d+>$/) ? '' : it.emoji + ' ') + it.name;
+          sel.appendChild(opt);
+        });
+        // Option item temporaire en bas
+        var libreOpt = document.createElement('option');
+        libreOpt.value = '__libre__';
+        libreOpt.textContent = '✏️ Item temporaire (nom libre)';
+        libreOpt.style.fontStyle = 'italic';
+        sel.appendChild(libreOpt);
+
       } else {
-        document.getElementById('playerEditTitle').textContent = '\u2796 Retirer des items';
-        document.getElementById('playerEditSubmitBtn').textContent = '\u2796 Retirer';
+        document.getElementById('playerEditTitle').textContent = '➖ Retirer des items';
+        document.getElementById('playerEditSubmitBtn').textContent = '➖ Retirer';
         document.getElementById('playerEditSubmitBtn').className = 'btn btn-danger';
+
+        var inv = currentPlayerInventory;
+        var hasAny = false;
+
+        // Items enregistrés avec qty > 0
+        itemTypesData.forEach(function(it) {
+          var qty = inv[it.id] || 0;
+          if (qty <= 0) return;
+          hasAny = true;
+          var opt = document.createElement('option');
+          opt.value = it.id;
+          opt.textContent = (it.emoji.match(/^<a?:\w+:\d+>$/) ? '' : it.emoji + ' ') + it.name + ' (' + qty.toLocaleString('fr-FR') + ')';
+          sel.appendChild(opt);
+        });
+
+        // Items libres avec qty > 0
+        Object.keys(inv).forEach(function(key) {
+          if (!key.startsWith('[libre] ')) return;
+          var qty = inv[key];
+          if (qty <= 0) return;
+          hasAny = true;
+          var name = key.slice('[libre] '.length);
+          var opt = document.createElement('option');
+          opt.value = key;
+          opt.textContent = '📦 ' + name + ' (' + qty.toLocaleString('fr-FR') + ')';
+          opt.style.fontStyle = 'italic';
+          sel.appendChild(opt);
+        });
+
+        if (!hasAny) {
+          var opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = '⚠️ Inventaire vide';
+          opt.disabled = true;
+          opt.selected = true;
+          sel.appendChild(opt);
+        }
       }
+    }
+
+    function onEditItemTypeChange() {
+      var isLibre = document.getElementById('editItemType').value === '__libre__';
+      var action  = document.getElementById('editAction').value;
+      document.getElementById('editLibreGroup').style.display = (isLibre && action === 'add') ? '' : 'none';
     }
 
     function closePlayerEditModal() {
@@ -1279,18 +1348,29 @@
 
     function submitPlayerEdit(e) {
       e.preventDefault();
-      var playerId = document.getElementById('editPlayerId').value;
-      var action = document.getElementById('editAction').value;
-      var itemTypeId = document.getElementById('editItemType').value;
-      var quantity = parseInt(document.getElementById('editQuantity').value) || 1;
-      var reason = document.getElementById('editReason').value;
+      var playerId    = document.getElementById('editPlayerId').value;
+      var action      = document.getElementById('editAction').value;
+      var itemTypeId  = document.getElementById('editItemType').value;
+      var quantity    = parseInt(document.getElementById('editQuantity').value) || 1;
+      var reason      = document.getElementById('editReason').value;
+      var libreItemName = document.getElementById('editLibreName').value.trim();
+
+      if (itemTypeId === '__libre__' && !libreItemName) {
+        alert('❌ Merci de saisir le nom de l\'item temporaire.');
+        document.getElementById('editLibreName').focus();
+        return false;
+      }
+      if (!itemTypeId) {
+        alert('❌ Sélectionnez un item.');
+        return false;
+      }
 
       var url = '/inventory/player/' + encodeURIComponent(playerId) + '/' + action;
 
       fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemTypeId: itemTypeId, quantity: quantity, reason: reason })
+        body: JSON.stringify({ itemTypeId: itemTypeId, libreItemName: libreItemName, quantity: quantity, reason: reason })
       })
         .then(function(r) { return r.json(); })
         .then(function(data) {

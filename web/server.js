@@ -2040,15 +2040,23 @@ function createWebServer(discordClient) {
 
   app.post('/inventory/player/:playerId/add', requireAuth, async (req, res) => {
     const { playerId } = req.params;
-    const { itemTypeId, quantity, reason } = req.body;
+    const { itemTypeId, libreItemName, quantity, reason } = req.body;
     if (!itemTypeId || !quantity) {
       return res.json({ error: 'Item et quantité requis' });
     }
-    const itemType = inventoryManager.getItemTypeById(itemTypeId);
-    if (!itemType) {
-      return res.json({ error: 'Type d\'item introuvable' });
-    }
     const adminName = req.session.discordUser?.displayName || (req.session.role === 'admin' ? 'Admin' : 'Staff');
+
+    // Item temporaire (libre)
+    if (itemTypeId === '__libre__') {
+      const name = (libreItemName || '').trim();
+      if (!name) return res.json({ error: 'Nom de l\'item temporaire requis' });
+      const libreKey = `[libre] ${name}`;
+      const result = await inventoryManager.addToInventory(playerId, libreKey, parseInt(quantity) || 1, adminName, reason || '');
+      return res.json({ success: true, newQuantity: result.newQuantity });
+    }
+
+    const itemType = inventoryManager.getItemTypeById(itemTypeId);
+    if (!itemType) return res.json({ error: 'Type d\'item introuvable' });
     const result = await inventoryManager.addToInventory(playerId, itemTypeId, parseInt(quantity) || 1, adminName, reason || '');
     sendInventoryLog('add', adminName, itemType, parseInt(quantity) || 1, playerId);
     res.json({ success: true, newQuantity: result.newQuantity });
@@ -2060,11 +2068,16 @@ function createWebServer(discordClient) {
     if (!itemTypeId || !quantity) {
       return res.json({ error: 'Item et quantité requis' });
     }
-    const itemType = inventoryManager.getItemTypeById(itemTypeId);
-    if (!itemType) {
-      return res.json({ error: 'Type d\'item introuvable' });
-    }
     const adminName = req.session.discordUser?.displayName || (req.session.role === 'admin' ? 'Admin' : 'Staff');
+
+    // Item libre : retrait direct sans vérification de type
+    if (itemTypeId.startsWith('[libre] ')) {
+      const result = await inventoryManager.removeFromInventory(playerId, itemTypeId, parseInt(quantity) || 1, adminName, reason || '');
+      return res.json({ success: true, newQuantity: result.newQuantity });
+    }
+
+    const itemType = inventoryManager.getItemTypeById(itemTypeId);
+    if (!itemType) return res.json({ error: 'Type d\'item introuvable' });
     const result = await inventoryManager.removeFromInventory(playerId, itemTypeId, parseInt(quantity) || 1, adminName, reason || '');
     sendInventoryLog('remove', adminName, itemType, parseInt(quantity) || 1, playerId);
     res.json({ success: true, newQuantity: result.newQuantity });
