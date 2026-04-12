@@ -2131,7 +2131,7 @@ function createWebServer(discordClient) {
     res.json({ playerId, inventory, player });
   });
 
-  app.get('/inventory/api/transactions', requireAuth, (req, res) => {
+  app.get('/inventory/api/transactions', requireAuth, async (req, res) => {
     const filters = {};
     if (req.query.playerId) filters.playerId = req.query.playerId;
     if (req.query.itemTypeId) filters.itemTypeId = req.query.itemTypeId;
@@ -2139,6 +2139,34 @@ function createWebServer(discordClient) {
     if (req.query.limit) filters.limit = parseInt(req.query.limit);
     if (!filters.limit) filters.limit = 100;
     const result = inventoryManager.getTransactions(filters);
+
+    // Enrichissement : résoudre les noms Discord des joueurs
+    try {
+      if (discordClient && result.transactions && result.transactions.length > 0) {
+        const settings = getSettings();
+        const guildId = settings.guild.guildId;
+        const guild = guildId ? discordClient.guilds.cache.get(guildId) : discordClient.guilds.cache.first();
+        if (guild) {
+          // Collecter les IDs uniques (seulement vrais IDs Discord : ~18 chiffres)
+          const uniqueIds = [...new Set(result.transactions.map(t => t.playerId))]
+            .filter(id => /^\d{17,20}$/.test(id));
+          if (uniqueIds.length > 0) {
+            const fetched = await guild.members.fetch({ user: uniqueIds }).catch(() => null);
+            const nameMap = {};
+            if (fetched) {
+              fetched.forEach(m => {
+                nameMap[m.user.id] = m.displayName || m.user.username;
+              });
+            }
+            result.transactions = result.transactions.map(tx => ({
+              ...tx,
+              playerName: nameMap[tx.playerId] || null,
+            }));
+          }
+        }
+      }
+    } catch (e) { /* silencieux — on retourne les IDs bruts si échec */ }
+
     res.json(result);
   });
 

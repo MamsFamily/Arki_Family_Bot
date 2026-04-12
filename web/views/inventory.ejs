@@ -188,11 +188,13 @@
     .mini-tx-badge.remove { background: rgba(244,67,54,0.18); color: #f44336; }
     .mini-tx-badge.reset  { background: rgba(255,152,0,0.18); color: #ff9800; }
     .mini-tx-item { flex: 1; color: #fff; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .mini-tx-qty  { font-weight: 700; flex-shrink: 0; }
+    .mini-tx-qty  { font-weight: 800; flex-shrink: 0; font-size: 14px; min-width: 52px; text-align: right; letter-spacing: 0.2px; }
     .mini-tx-qty.pos { color: #4caf50; }
     .mini-tx-qty.neg { color: #f44336; }
-    .mini-tx-date { color: var(--text-muted); flex-shrink: 0; }
+    .mini-tx-date { color: var(--text-muted); flex-shrink: 0; font-size: 11px; }
     .mini-tx-reason { color: var(--text-muted); font-style: italic; font-size: 11px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mini-tx-player { color: var(--accent); font-weight: 600; font-size: 12px; }
+    .mini-tx-player-id { color: var(--text-muted); font-family: monospace; font-size: 10px; }
     /* ── Responsive mobile ──────────────────────────────────── */
     @media (max-width: 900px) {
       .players-layout {
@@ -1170,24 +1172,35 @@
             else dateStr = d.toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'});
 
             // adminId contient le nom d'affichage de l'admin (cf. route server.js)
-            var playerLabel = escapeHtml((tx.playerId  || '').slice(0, 18));
-            var adminLabel  = escapeHtml((tx.adminId   || 'système').slice(0, 22));
-            var reasonStr   = tx.reason ? escapeHtml(tx.reason.slice(0, 35)) : '';
+            var playerName  = tx.playerName || null;
+            var playerIdStr = escapeHtml((tx.playerId || '').slice(0, 18));
+            var adminLabel  = escapeHtml((tx.adminId  || 'système').slice(0, 26));
+            var reasonStr   = tx.reason ? escapeHtml(tx.reason.slice(0, 40)) : '';
 
             html += '<div class="mini-tx-row" style="flex-wrap:wrap;gap:4px 6px;">';
             html += '<span class="mini-tx-badge ' + badgeClass + '">' + badgeLabel + '</span>';
             html += '<span style="font-size:13px;flex-shrink:0;">' + emojiHtml + '</span>';
             html += '<span class="mini-tx-item" style="max-width:none;flex:1;min-width:80px;">';
-            html +=   '<span style="color:#fff;font-weight:600;">' + itemName + '</span>';
+            html +=   '<span style="color:#fff;font-weight:700;font-size:13px;">' + itemName + '</span>';
             html += '</span>';
-            html += '<span class="mini-tx-qty ' + qtyClass + '" style="min-width:36px;text-align:right;">' + qtySign + Math.abs(tx.quantity).toLocaleString("fr-FR") + '</span>';
+            // Quantité bien visible
+            html += '<span class="mini-tx-qty ' + qtyClass + '">' + qtySign + Math.abs(tx.quantity).toLocaleString("fr-FR") + '</span>';
             html += '<span class="mini-tx-date">' + dateStr + '</span>';
-            // Ligne de détail : joueur · admin · raison
-            html += '<div style="width:100%;padding-left:4px;font-size:11px;color:var(--text-muted);margin-top:1px;">';
-            html += '<span style="color:var(--accent-light);">👤 <code>' + playerLabel + '</code></span>';
-            html += '<span style="margin:0 5px;opacity:.4;">·</span>';
+            // Ligne de détail : joueur (nom discord si dispo) · admin · raison
+            html += '<div style="width:100%;padding-left:4px;font-size:11px;color:var(--text-muted);margin-top:2px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;">';
+            html += '<span>👤</span>';
+            if (playerName) {
+              html += '<span class="mini-tx-player">' + escapeHtml(playerName) + '</span>';
+              html += '<span class="mini-tx-player-id">(' + playerIdStr + ')</span>';
+            } else {
+              html += '<span class="mini-tx-player-id">' + playerIdStr + '</span>';
+            }
+            html += '<span style="opacity:.4;">·</span>';
             html += '<span>🛡 ' + adminLabel + '</span>';
-            if (reasonStr) html += '<span style="margin:0 5px;opacity:.4;">·</span><span style="font-style:italic;">' + reasonStr + '</span>';
+            if (reasonStr) {
+              html += '<span style="opacity:.4;">·</span>';
+              html += '<span style="font-style:italic;">' + reasonStr + '</span>';
+            }
             html += '</div>';
             html += '</div>';
           });
@@ -1439,13 +1452,22 @@
         var date = new Date(tx.timestamp);
         var dateStr = date.toLocaleDateString('fr-FR') + ' ' + date.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
 
+        var qtyColor = tx.quantity > 0 ? '#4caf50' : '#f44336';
+        var qtyStr = (tx.quantity > 0 ? '+' : '') + tx.quantity.toLocaleString('fr-FR');
+        var playerCell = '';
+        if (tx.playerName) {
+          playerCell = '<span style="font-weight:700;color:var(--accent);">' + escapeHtml(tx.playerName) + '</span><br>'
+                     + '<code style="font-size:10px;color:var(--text-muted);">' + escapeHtml(tx.playerId) + '</code>';
+        } else {
+          playerCell = '<code>' + escapeHtml(tx.playerId) + '</code>';
+        }
         html += '<tr>';
         html += '<td style="white-space:nowrap;">' + dateStr + '</td>';
-        html += '<td><code>' + escapeHtml(tx.playerId) + '</code></td>';
+        html += '<td>' + playerCell + '</td>';
         html += '<td>' + itemLabel + '</td>';
         html += '<td><span class="' + typeClass + '">' + typeLabel + '</span></td>';
-        html += '<td style="font-weight:700;">' + (tx.quantity > 0 ? '+' : '') + tx.quantity + '</td>';
-        html += '<td><code>' + escapeHtml(tx.adminId) + '</code></td>';
+        html += '<td style="font-weight:800;font-size:15px;color:' + qtyColor + ';">' + qtyStr + '</td>';
+        html += '<td style="font-size:12px;">' + escapeHtml(tx.adminId) + '</td>';
         html += '<td>' + escapeHtml(tx.reason || '-') + '</td>';
         html += '</tr>';
       });
