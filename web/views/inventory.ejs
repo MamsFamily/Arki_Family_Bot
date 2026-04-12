@@ -93,42 +93,45 @@
       background: var(--bg-input);
       border: 1px solid var(--border);
       border-radius: var(--radius-sm);
-      padding: 10px 14px;
+      padding: 8px 10px;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 6px;
       min-width: 0;
     }
     .player-inv-item .inv-emoji {
-      font-size: 22px;
+      font-size: 20px;
       flex-shrink: 0;
-      width: 32px;
-      height: 32px;
+      width: 28px;
+      height: 28px;
       display: flex;
       align-items: center;
       justify-content: center;
       background: rgba(124, 92, 252, 0.1);
-      border-radius: 8px;
+      border-radius: 7px;
     }
     .player-inv-item .inv-name {
-      font-size: 13px;
+      font-size: 12px;
       color: var(--text-secondary);
-      flex: 1;
+      flex-shrink: 1;
+      flex-grow: 0;
       min-width: 0;
+      max-width: 90px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
     .player-inv-item.zero-qty { opacity: 0.45; }
-    .player-inv-item.zero-qty .inv-qty { color: var(--text-muted); font-size: 14px; }
+    .player-inv-item.zero-qty .inv-qty { color: var(--text-muted); font-size: 13px; }
     .player-inv-item .inv-qty {
-      font-size: 17px; font-weight: 700; color: #fff;
-      cursor: pointer; padding: 3px 10px; border-radius: 20px;
+      font-size: 16px; font-weight: 700; color: #fff;
+      cursor: pointer; padding: 3px 9px; border-radius: 20px;
       transition: background 0.15s;
-      min-width: 38px; text-align: center;
+      min-width: 34px; text-align: center;
       background: rgba(124,92,252,0.12);
       border: 1px solid rgba(124,92,252,0.2);
       flex-shrink: 0;
+      margin-left: auto;
     }
     .player-inv-item .inv-qty:hover { background: rgba(124,92,252,0.3); }
     .player-inv-item .inv-qty.saving { opacity: 0.5; }
@@ -138,6 +141,7 @@
       border-radius: 6px; color: #fff; text-align: right;
       padding: 2px 8px; outline: none;
       font-family: inherit;
+      -webkit-text-size-adjust: 100%;
     }
     /* Emoji Discord en image : taille fixe dans le conteneur */
     .inv-emoji .discord-emoji {
@@ -1216,13 +1220,25 @@
       loadGlobalActivity();
     });
 
+    function resetMobileZoom() {
+      var meta = document.querySelector('meta[name="viewport"]');
+      if (!meta) return;
+      var orig = meta.content;
+      // force le zoom à 1 puis rétablit
+      meta.content = orig + ', maximum-scale=1, minimum-scale=1';
+      setTimeout(function() { meta.content = orig; }, 250);
+    }
+
     function startInlineEdit(span, playerId, itemId, currentQty) {
       if (span.querySelector('input')) return;
       var input = document.createElement('input');
-      input.type = 'number';
+      // type="text" + inputmode="numeric" → clavier numérique sans zoom iOS
+      input.type = 'text';
+      input.inputMode = 'numeric';
+      input.pattern = '[0-9]*';
       input.className = 'inv-qty-input';
+      input.style.fontSize = '16px'; // garantit pas de zoom iOS
       input.value = currentQty;
-      input.min = 0;
       span.innerHTML = '';
       span.appendChild(input);
       input.focus();
@@ -1265,9 +1281,9 @@
 
       input.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') { input.blur(); }
-        if (e.key === 'Escape') { confirmed = true; span.innerHTML = currentQty; }
+        if (e.key === 'Escape') { confirmed = true; span.innerHTML = currentQty; resetMobileZoom(); }
       });
-      input.addEventListener('blur', confirm);
+      input.addEventListener('blur', function() { resetMobileZoom(); confirm(); });
     }
 
     function openPlayerEdit(playerId, action) {
