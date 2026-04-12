@@ -2023,6 +2023,18 @@ function createWebServer(discordClient) {
     }
   });
 
+  async function resolvePlayerName(playerId) {
+    try {
+      if (!discordClient || !/^\d{17,20}$/.test(playerId)) return playerId;
+      const settings = getSettings();
+      const guildId = settings.guild.guildId;
+      const guild = guildId ? discordClient.guilds.cache.get(guildId) : discordClient.guilds.cache.first();
+      if (!guild) return playerId;
+      const member = await guild.members.fetch(playerId).catch(() => null);
+      return member ? (member.displayName || member.user.username) : playerId;
+    } catch (e) { return playerId; }
+  }
+
   async function sendInventoryLog(action, adminName, itemType, quantity, playerId) {
     try {
       const settings = getSettings();
@@ -2032,7 +2044,8 @@ function createWebServer(discordClient) {
       if (!channel) return;
       const verb = action === 'add' ? 'a ajouté' : 'a retiré';
       const prep = action === 'add' ? 'à l\'inventaire de' : 'de l\'inventaire de';
-      await channel.send(`${itemType.emoji} **${adminName}** ${verb} **${quantity} ${itemType.name}** ${prep} <@${playerId}>`);
+      const playerName = await resolvePlayerName(playerId);
+      await channel.send(`${itemType.emoji} **${adminName}** ${verb} **${quantity} ${itemType.name}** ${prep} **${playerName}**`);
     } catch (e) {
       console.error('Erreur log inventaire Discord:', e.message);
     }
@@ -2100,7 +2113,8 @@ function createWebServer(discordClient) {
         if (channel) {
           const itemType = inventoryManager.getItemTypeById(itemTypeId);
           const label = itemType ? `${itemType.emoji} ${itemType.name}` : itemTypeId;
-          await channel.send(`✏️ **${adminName}** a défini **${label}** à **${qty}** pour <@${playerId}>`);
+          const playerName = await resolvePlayerName(playerId);
+          await channel.send(`✏️ **${adminName}** a défini **${label}** à **${qty}** pour **${playerName}**`);
         }
       }
     } catch (e) {}
