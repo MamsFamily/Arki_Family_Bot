@@ -167,6 +167,34 @@ const commands = [
     description: '🔒 Admin — Importe les soldes UnbelievaBoat (cash + banque) → Diamants Arki',
     default_member_permissions: '8',
   },
+  {
+    name: 'bonus',
+    description: '💎 Récupère ton bonus quotidien de diamants (utilisable toutes les 4h)',
+  },
+  {
+    name: 'revenu',
+    description: '💰 Récupère ton revenu hebdomadaire selon tes rôles',
+  },
+  {
+    name: 'envoyer',
+    description: '🤝 Envoie des diamants à un autre joueur',
+    options: [
+      { name: 'joueur', type: 6, description: 'Le joueur qui reçoit les diamants', required: true },
+      { name: 'montant', type: 4, description: 'Nombre de diamants à envoyer', required: true, min_value: 1 },
+      { name: 'raison', type: 3, description: 'Raison du transfert (optionnel)', required: false },
+    ],
+  },
+  {
+    name: 'amende',
+    description: '🔒 Admin — Inflige une amende en diamants à un joueur',
+    default_member_permissions: '8',
+    options: [
+      { name: 'joueur', type: 6, description: 'Le joueur pénalisé', required: true },
+      { name: 'montant', type: 4, description: 'Montant de l\'amende en diamants', required: true, min_value: 1 },
+      { name: 'raison', type: 3, description: 'Motif de l\'amende', required: true },
+      { name: 'photo', type: 11, description: 'Fichier justificatif (image, vidéo…)', required: false },
+    ],
+  },
 ];
 
 module.exports = commands;

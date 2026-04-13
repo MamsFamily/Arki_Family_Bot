@@ -30,6 +30,7 @@ const { getConfig: readConfig, saveConfig } = require('../configManager');
 const inventoryManager = require('../inventoryManager');
 const { getSpecialPacks, getSpecialPack, addSpecialPack, updateSpecialPack, deleteSpecialPack } = require('../specialPacksManager');
 const giveawayManager = require('../giveawayManager');
+const economyManager = require('../economyManager');
 
 const pgStore = require('../pgStore');
 
@@ -2222,6 +2223,54 @@ function createWebServer(discordClient) {
       if (file.mimetype.startsWith('image/')) cb(null, true);
       else cb(new Error('Fichier non supporté'));
     },
+  });
+
+  // ── Revenus de rôles ───────────────────────────────────────────────────────
+  app.get('/economy', requireAdmin, async (req, res) => {
+    const roles = await economyManager.getRoleIncomes();
+    const discordRoles = [];
+    try {
+      const settings = getSettings();
+      const guildId = settings.guild?.guildId;
+      if (discordClient && guildId) {
+        const guild = discordClient.guilds.cache.get(guildId) || discordClient.guilds.cache.first();
+        if (guild) {
+          const allRoles = [...guild.roles.cache.values()]
+            .filter(r => r.name !== '@everyone')
+            .sort((a, b) => b.position - a.position);
+          allRoles.forEach(r => discordRoles.push({ id: r.id, name: r.name }));
+        }
+      }
+    } catch (e) {}
+    res.render('economy', {
+      path: '/economy',
+      roles,
+      discordRoles,
+      botUser: discordClient?.user || null,
+      discordUser: req.session.discordUser || null,
+      role: req.session.role || 'admin',
+      success: req.query.success || null,
+      error: req.query.error || null,
+    });
+  });
+
+  app.post('/economy/roles/add', requireAdmin, express.json(), async (req, res) => {
+    const { roleId, roleName, income, shopDiscount } = req.body;
+    if (!roleId || !income) return res.json({ error: 'Données manquantes' });
+    await economyManager.setRoleIncome(roleId, roleName || roleId, income, shopDiscount || 0);
+    res.json({ ok: true });
+  });
+
+  app.post('/economy/roles/delete', requireAdmin, express.json(), async (req, res) => {
+    const { roleId } = req.body;
+    if (!roleId) return res.json({ error: 'roleId manquant' });
+    await economyManager.deleteRoleIncome(roleId);
+    res.json({ ok: true });
+  });
+
+  app.get('/economy/api/roles', requireAdmin, async (req, res) => {
+    const roles = await economyManager.getRoleIncomes();
+    res.json(roles);
   });
 
   app.get('/giveaways', requireAuth, (req, res) => {
