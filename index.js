@@ -2741,6 +2741,35 @@ client.on('interactionCreate', async interaction => {
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
+  // ── /xp-forcer-niveau ───────────────────────────────────────────────────────
+  if (commandName === 'xp-forcer-niveau') {
+    const target    = interaction.options.getUser('joueur');
+    const targetLvl = interaction.options.getInteger('niveau');
+
+    const oldData  = await xpManager.getUserData(target.id);
+    const oldLevel = xpManager.calcLevel(oldData.totalXp || 0);
+
+    // XP exact pour démarrer AU DÉBUT du niveau cible (0 XP dans ce niveau)
+    const newTotalXp = xpManager.totalXpForLevel(targetLvl);
+    await xpManager.setXp(target.id, newTotalXp);
+
+    const embed = new EmbedBuilder()
+      .setColor(0xff9800)
+      .setTitle('🔧 Niveau forcé (migration)')
+      .setDescription(
+        `Le niveau de **${target.displayName || target.username}** a été défini à **${targetLvl}** sans déclencher les récompenses.`
+      )
+      .addFields(
+        { name: '📉 Ancien niveau', value: `${oldLevel}`, inline: true },
+        { name: '📈 Nouveau niveau', value: `${targetLvl}`, inline: true },
+        { name: '✨ XP défini', value: `${newTotalXp.toLocaleString('fr-FR')}`, inline: true },
+      )
+      .setFooter({ text: `Action effectuée par ${interaction.member?.displayName || interaction.user.username} • aucun diamant distribué` })
+      .setTimestamp();
+
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
   // ── /classement-xp ──────────────────────────────────────────────────────────
   if (commandName === 'classement-xp') {
     await interaction.deferReply();

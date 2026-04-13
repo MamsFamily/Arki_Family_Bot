@@ -204,6 +204,15 @@ const commands = [
     ],
   },
   {
+    name: 'xp-forcer-niveau',
+    description: '🔒 Admin — Force le niveau d\'un joueur SANS distribuer les récompenses (migration)',
+    default_member_permissions: '8',
+    options: [
+      { name: 'joueur', type: 6, description: 'Joueur ciblé', required: true },
+      { name: 'niveau', type: 4, description: 'Niveau cible (0 = réinitialiser)', required: true, min_value: 0 },
+    ],
+  },
+  {
     name: 'travail',
     description: '💼 Travaille pour gagner entre 50 et 250 💎 (utilisable toutes les 4h)',
   },
