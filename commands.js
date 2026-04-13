@@ -175,6 +175,35 @@ const commands = [
     default_member_permissions: '8',
   },
   {
+    name: 'niveau',
+    description: '⭐ Affiche ton niveau XP et ta progression',
+    options: [
+      { name: 'membre', type: 6, description: 'Voir le niveau d\'un autre joueur (optionnel)', required: false },
+    ],
+  },
+  {
+    name: 'classement-xp',
+    description: '🏅 Classement des joueurs par niveau XP',
+  },
+  {
+    name: 'xp-donner',
+    description: '🔒 Admin — Donne de l\'XP à un joueur',
+    default_member_permissions: '8',
+    options: [
+      { name: 'joueur', type: 6, description: 'Joueur ciblé', required: true },
+      { name: 'montant', type: 4, description: 'Quantité d\'XP à donner', required: true, min_value: 1 },
+    ],
+  },
+  {
+    name: 'xp-retirer',
+    description: '🔒 Admin — Retire de l\'XP à un joueur',
+    default_member_permissions: '8',
+    options: [
+      { name: 'joueur', type: 6, description: 'Joueur ciblé', required: true },
+      { name: 'montant', type: 4, description: 'Quantité d\'XP à retirer', required: true, min_value: 1 },
+    ],
+  },
+  {
     name: 'travail',
     description: '💼 Travaille pour gagner entre 50 et 250 💎 (utilisable toutes les 4h)',
   },

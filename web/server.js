@@ -31,6 +31,7 @@ const inventoryManager = require('../inventoryManager');
 const { getSpecialPacks, getSpecialPack, addSpecialPack, updateSpecialPack, deleteSpecialPack } = require('../specialPacksManager');
 const giveawayManager = require('../giveawayManager');
 const economyManager = require('../economyManager');
+const xpManager = require('../xpManager');
 
 const pgStore = require('../pgStore');
 
@@ -2271,6 +2272,71 @@ function createWebServer(discordClient) {
   app.get('/economy/api/roles', requireAdmin, async (req, res) => {
     const roles = await economyManager.getRoleIncomes();
     res.json(roles);
+  });
+
+  // ── Niveaux & XP ────────────────────────────────────────────────────────────
+  app.get('/xp', requireAdmin, async (req, res) => {
+    const config = await xpManager.loadXpConfig();
+    const discordRoles = [];
+    const discordChannels = [];
+    try {
+      const guild = discordClient?.guilds.cache.first();
+      if (guild) {
+        [...guild.roles.cache.values()]
+          .filter(r => r.name !== '@everyone')
+          .sort((a, b) => b.position - a.position)
+          .forEach(r => discordRoles.push({ id: r.id, name: r.name }));
+        [...guild.channels.cache.values()]
+          .filter(c => c.type === 0)
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .forEach(c => discordChannels.push({ id: c.id, name: c.name }));
+      }
+    } catch (e) {}
+    res.render('xp', {
+      path: '/xp',
+      config,
+      discordRoles,
+      discordChannels,
+      botUser: discordClient?.user || null,
+      discordUser: req.session.discordUser || null,
+      role: req.session.role || 'admin',
+    });
+  });
+
+  app.post('/xp/config', requireAdmin, express.json(), async (req, res) => {
+    const config = await xpManager.loadXpConfig();
+    const { roleId, channelId, minXp, maxXp, cooldownMs, rewardMultiplier, excludedChannels } = req.body;
+    if (roleId !== undefined)         config.roleId           = roleId;
+    if (channelId !== undefined)      config.channelId        = channelId || null;
+    if (minXp !== undefined)          config.minXp            = parseInt(minXp) || 3;
+    if (maxXp !== undefined)          config.maxXp            = parseInt(maxXp) || 10;
+    if (cooldownMs !== undefined)     config.cooldownMs       = parseInt(cooldownMs) || 60000;
+    if (rewardMultiplier !== undefined) config.rewardMultiplier = parseInt(rewardMultiplier) || 1000;
+    if (excludedChannels !== undefined) config.excludedChannels = excludedChannels;
+    await xpManager.saveXpConfig(config);
+    res.json({ ok: true });
+  });
+
+  app.post('/xp/rewards/set', requireAdmin, express.json(), async (req, res) => {
+    const { level, diamonds } = req.body;
+    if (!level || diamonds === undefined) return res.json({ error: 'Données manquantes' });
+    const config = await xpManager.loadXpConfig();
+    config.customRewards[level] = parseInt(diamonds) || 0;
+    await xpManager.saveXpConfig(config);
+    res.json({ ok: true });
+  });
+
+  app.post('/xp/rewards/delete', requireAdmin, express.json(), async (req, res) => {
+    const { level } = req.body;
+    if (!level) return res.json({ error: 'level manquant' });
+    const config = await xpManager.loadXpConfig();
+    delete config.customRewards[level];
+    await xpManager.saveXpConfig(config);
+    res.json({ ok: true });
+  });
+
+  app.get('/xp/api/config', requireAdmin, async (req, res) => {
+    res.json(await xpManager.loadXpConfig());
   });
 
   app.get('/giveaways', requireAuth, (req, res) => {

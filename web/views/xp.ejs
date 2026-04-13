@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Niveaux & XP - Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .xp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; max-width: 960px; }
+    @media(max-width:750px){ .xp-grid { grid-template-columns: 1fr; } }
+    .xp-section { max-width: 960px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media(max-width:600px){ .form-row { grid-template-columns: 1fr; } }
+    .reward-table { width: 100%; border-collapse: collapse; }
+    .reward-table th, .reward-table td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .reward-table th { color: var(--text-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; }
+    .reward-table tr:last-child td { border-bottom: none; }
+    .reward-table tr:hover td { background: rgba(124,92,252,0.06); }
+    .lvl-badge { display: inline-block; background: linear-gradient(135deg,#7c5cfc,#9c27b0); color:#fff; border-radius:20px; padding:2px 12px; font-size:12px; font-weight:700; }
+    .diamonds-val { font-weight: 800; color: #f9c740; }
+    .btn-del-reward { background:none; border:none; color:#f44336; cursor:pointer; font-size:16px; padding:4px 8px; border-radius:6px; transition:background .15s; }
+    .btn-del-reward:hover { background:rgba(244,67,54,.15); }
+    .tag-ch { display:inline-flex; align-items:center; gap:6px; background:rgba(124,92,252,.15); border:1px solid rgba(124,92,252,.3); border-radius:20px; padding:3px 10px 3px 8px; font-size:12px; font-weight:600; color:var(--accent-light); margin:3px; }
+    .tag-ch button { background:none; border:none; cursor:pointer; color:#f44336; font-size:13px; padding:0 0 0 4px; }
+    .xp-formula { background:var(--bg-input); border:1px solid var(--border); border-radius:10px; padding:14px 18px; font-size:13px; color:var(--text-secondary); }
+    .xp-formula code { background:rgba(124,92,252,.15); padding:2px 6px; border-radius:4px; font-size:12px; }
+    select.form-control { appearance:none; background-image:url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237c5cfc' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); background-repeat:no-repeat; background-position:right 10px center; background-size:16px; padding-right:34px; }
+    .summary-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px; margin-bottom:20px; }
+    .summary-card { background:var(--bg-input); border:1px solid var(--border); border-radius:12px; padding:12px 16px; }
+    .summary-card .sc-label { font-size:11px; color:var(--text-muted); font-weight:600; text-transform:uppercase; margin-bottom:4px; }
+    .summary-card .sc-val { font-size:20px; font-weight:800; color:#fff; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>⭐ Niveaux &amp; XP</h1>
+        <p>Système d'expérience par messages — récompenses en Diamants à chaque palier</p>
+      </div>
+
+      <div class="xp-section">
+
+        <!-- Résumé formule -->
+        <div class="xp-formula" style="margin-bottom:20px;">
+          <strong>Courbe exponentielle ×1</strong> (identique à DraftBot) —
+          XP requis pour passer du niveau <em>N</em> au niveau <em>N+1</em> :
+          <code>5×N² + 50×N + 100</code>
+          &nbsp;|&nbsp; Récompense par défaut : <code>niveau × multiplicateur</code>
+        </div>
+
+        <!-- Cartes récap -->
+        <div class="summary-cards">
+          <div class="summary-card">
+            <div class="sc-label">📨 XP / message</div>
+            <div class="sc-val" id="sc-xp"><%= config.minXp %>–<%= config.maxXp %></div>
+          </div>
+          <div class="summary-card">
+            <div class="sc-label">⏱ Cooldown</div>
+            <div class="sc-val" id="sc-cd"><%= Math.round(config.cooldownMs/1000) %>s</div>
+          </div>
+          <div class="summary-card">
+            <div class="sc-label">💎 Multiplicateur</div>
+            <div class="sc-val" id="sc-mult"><%= config.rewardMultiplier %></div>
+          </div>
+          <div class="summary-card">
+            <div class="sc-label">🏷 Rôle requis</div>
+            <div class="sc-val" style="font-size:13px;" id="sc-role"><%= config.roleId || '—' %></div>
+          </div>
+        </div>
+
+        <div class="xp-grid">
+
+          <!-- Config générale -->
+          <div class="card">
+            <div class="card-header"><h2>⚙️ Configuration</h2></div>
+            <div class="card-body" style="display:flex;flex-direction:column;gap:14px;">
+
+              <div class="field">
+                <label class="form-label">🏷 Rôle requis pour gagner de l'XP</label>
+                <select id="cfgRole" class="form-control">
+                  <option value="">— Tous les membres —</option>
+                  <% discordRoles.forEach(r => { %>
+                    <option value="<%= r.id %>" <%= config.roleId === r.id ? 'selected' : '' %>><%= r.name %></option>
+                  <% }); %>
+                </select>
+              </div>
+
+              <div class="field">
+                <label class="form-label">📢 Salon d'annonce level-up</label>
+                <select id="cfgChannel" class="form-control">
+                  <option value="">— Désactivé —</option>
+                  <% discordChannels.forEach(c => { %>
+                    <option value="<%= c.id %>" <%= config.channelId === c.id ? 'selected' : '' %>>#<%= c.name %></option>
+                  <% }); %>
+                </select>
+              </div>
+
+              <div class="form-row">
+                <div class="field">
+                  <label class="form-label">XP min / message</label>
+                  <input type="number" id="cfgMinXp" class="form-control" value="<%= config.minXp %>" min="1">
+                </div>
+                <div class="field">
+                  <label class="form-label">XP max / message</label>
+                  <input type="number" id="cfgMaxXp" class="form-control" value="<%= config.maxXp %>" min="1">
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="field">
+                  <label class="form-label">Cooldown anti-spam (secondes)</label>
+                  <input type="number" id="cfgCooldown" class="form-control" value="<%= Math.round(config.cooldownMs/1000) %>" min="5">
+                </div>
+                <div class="field">
+                  <label class="form-label">💎 Multiplicateur récompense</label>
+                  <input type="number" id="cfgMult" class="form-control" value="<%= config.rewardMultiplier %>" min="0" step="100">
+                </div>
+              </div>
+
+              <button class="btn btn-primary" onclick="saveConfig()">💾 Enregistrer</button>
+              <p id="cfgMsg" style="font-size:12px;color:#4caf50;display:none;">✅ Enregistré !</p>
+            </div>
+          </div>
+
+          <!-- Salons exclus -->
+          <div class="card">
+            <div class="card-header"><h2>🚫 Salons exclus</h2></div>
+            <div class="card-body">
+              <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">Les messages dans ces salons ne rapportent pas d'XP.</p>
+
+              <div style="display:flex;gap:8px;margin-bottom:14px;">
+                <select id="selExclude" class="form-control" style="flex:1;">
+                  <option value="">— Choisir un salon —</option>
+                  <% discordChannels.forEach(c => { %>
+                    <option value="<%= c.id %>" data-name="<%= c.name %>">#<%= c.name %></option>
+                  <% }); %>
+                </select>
+                <button class="btn btn-primary" style="white-space:nowrap;" onclick="addExcluded()">➕ Exclure</button>
+              </div>
+
+              <div id="excludedList">
+                <% (config.excludedChannels || []).forEach(chId => { %>
+                  <% const ch = discordChannels.find(c => c.id === chId); %>
+                  <span class="tag-ch" id="excl-<%= chId %>">
+                    #<%= ch ? ch.name : chId %>
+                    <button onclick="removeExcluded('<%= chId %>')">✕</button>
+                  </span>
+                <% }); %>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Récompenses par niveau -->
+        <div class="card" style="margin-top:18px;">
+          <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+            <h2>🎁 Récompenses par niveau</h2>
+            <span style="font-size:12px;color:var(--text-muted);">Si non personnalisé : <strong>niveau × <%= config.rewardMultiplier %> 💎</strong></span>
+          </div>
+          <div class="card-body">
+            <!-- Formulaire ajout -->
+            <div style="display:grid;grid-template-columns:120px 1fr auto;gap:10px;align-items:end;margin-bottom:18px;">
+              <div class="field">
+                <label class="form-label">Niveau</label>
+                <input type="number" id="rwdLevel" class="form-control" min="1" placeholder="Ex: 5">
+              </div>
+              <div class="field">
+                <label class="form-label">💎 Diamants</label>
+                <input type="number" id="rwdDiamonds" class="form-control" min="0" step="100" placeholder="Ex: 5000">
+              </div>
+              <button class="btn btn-primary" onclick="addReward()">💾 Ajouter</button>
+            </div>
+
+            <div style="overflow-x:auto;">
+              <table class="reward-table" id="rewardTable">
+                <thead><tr><th>Niveau</th><th>💎 Diamants</th><th>Type</th><th></th></tr></thead>
+                <tbody id="rewardBody">
+                  <%
+                    const customEntries = Object.entries(config.customRewards || {}).sort((a,b) => parseInt(a[0]) - parseInt(b[0]));
+                  %>
+                  <% if (customEntries.length === 0) { %>
+                    <tr id="rwdEmpty">
+                      <td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">
+                        Aucune récompense personnalisée — formule automatique active (<em>niveau × <%= config.rewardMultiplier %> 💎</em>).
+                      </td>
+                    </tr>
+                  <% } else { %>
+                    <% customEntries.forEach(([lvl, diamonds]) => { %>
+                      <tr id="rwd-<%= lvl %>">
+                        <td><span class="lvl-badge">Niv. <%= lvl %></span></td>
+                        <td><span class="diamonds-val"><%= parseInt(diamonds).toLocaleString('fr-FR') %> 💎</span></td>
+                        <td><span style="font-size:11px;background:rgba(156,39,176,.15);color:#ce93d8;padding:2px 8px;border-radius:10px;">Personnalisé</span></td>
+                        <td><button class="btn-del-reward" onclick="deleteReward('<%= lvl %>')">🗑</button></td>
+                      </tr>
+                    <% }); %>
+                  <% } %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tableau des commandes -->
+        <div class="card" style="margin-top:18px;">
+          <div class="card-header"><h2>📋 Commandes disponibles</h2></div>
+          <div class="card-body">
+            <table class="reward-table">
+              <thead><tr><th>Commande</th><th>Description</th><th>Accès</th></tr></thead>
+              <tbody>
+                <tr><td><code>/niveau</code></td><td>Affiche ton niveau, XP et barre de progression</td><td>Tous les membres</td></tr>
+                <tr><td><code>/niveau @membre</code></td><td>Voir le niveau d'un autre joueur</td><td>Tous les membres</td></tr>
+                <tr><td><code>/classement-xp</code></td><td>Classement des joueurs par XP (paginé)</td><td>Tous les membres</td></tr>
+                <tr><td><code>/xp-donner @joueur montant</code></td><td>Donne de l'XP à un joueur (déclenche les récompenses)</td><td>Administrateurs</td></tr>
+                <tr><td><code>/xp-retirer @joueur montant</code></td><td>Retire de l'XP à un joueur</td><td>Administrateurs</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <script>
+    let excludedChannels = <%- JSON.stringify(config.excludedChannels || []) %>;
+
+    async function saveConfig() {
+      const roleId       = document.getElementById('cfgRole').value;
+      const channelId    = document.getElementById('cfgChannel').value;
+      const minXp        = parseInt(document.getElementById('cfgMinXp').value) || 3;
+      const maxXp        = parseInt(document.getElementById('cfgMaxXp').value) || 10;
+      const cooldownSec  = parseInt(document.getElementById('cfgCooldown').value) || 60;
+      const rewardMult   = parseInt(document.getElementById('cfgMult').value) || 1000;
+
+      const res = await fetch('/xp/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roleId, channelId, minXp, maxXp, cooldownMs: cooldownSec * 1000, rewardMultiplier: rewardMult, excludedChannels }),
+      });
+      const data = await res.json();
+      if (data.error) return alert('❌ ' + data.error);
+
+      // Mettre à jour les cartes résumé
+      document.getElementById('sc-xp').textContent   = `${minXp}–${maxXp}`;
+      document.getElementById('sc-cd').textContent    = `${cooldownSec}s`;
+      document.getElementById('sc-mult').textContent  = rewardMult;
+      const roleSelect = document.getElementById('cfgRole');
+      document.getElementById('sc-role').textContent  = roleSelect.options[roleSelect.selectedIndex]?.text || roleId || '—';
+
+      const msg = document.getElementById('cfgMsg');
+      msg.style.display = 'block';
+      setTimeout(() => { msg.style.display = 'none'; }, 2500);
+    }
+
+    function addExcluded() {
+      const sel  = document.getElementById('selExclude');
+      const chId = sel.value;
+      const chName = sel.options[sel.selectedIndex]?.dataset.name || chId;
+      if (!chId || excludedChannels.includes(chId)) return;
+      excludedChannels.push(chId);
+
+      const tag = document.createElement('span');
+      tag.className = 'tag-ch';
+      tag.id = `excl-${chId}`;
+      tag.innerHTML = `#${escHtml(chName)}<button onclick="removeExcluded('${chId}')">✕</button>`;
+      document.getElementById('excludedList').appendChild(tag);
+
+      sel.value = '';
+      saveConfig();
+    }
+
+    function removeExcluded(chId) {
+      excludedChannels = excludedChannels.filter(id => id !== chId);
+      document.getElementById(`excl-${chId}`)?.remove();
+      saveConfig();
+    }
+
+    async function addReward() {
+      const level    = document.getElementById('rwdLevel').value;
+      const diamonds = document.getElementById('rwdDiamonds').value;
+      if (!level || diamonds === '') return alert('⚠️ Remplis le niveau et le montant.');
+
+      const res = await fetch('/xp/rewards/set', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ level: parseInt(level), diamonds: parseInt(diamonds) }),
+      });
+      const data = await res.json();
+      if (data.error) return alert('❌ ' + data.error);
+
+      const tbody = document.getElementById('rewardBody');
+      document.getElementById('rwdEmpty')?.remove();
+
+      let row = document.getElementById(`rwd-${level}`);
+      if (!row) {
+        row = document.createElement('tr');
+        row.id = `rwd-${level}`;
+        // Insérer en ordre de niveau
+        const rows = [...tbody.querySelectorAll('tr[id^="rwd-"]')];
+        const after = rows.find(r => parseInt(r.id.replace('rwd-','')) > parseInt(level));
+        after ? tbody.insertBefore(row, after) : tbody.appendChild(row);
+      }
+      row.innerHTML = `
+        <td><span class="lvl-badge">Niv. ${level}</span></td>
+        <td><span class="diamonds-val">${parseInt(diamonds).toLocaleString('fr-FR')} 💎</span></td>
+        <td><span style="font-size:11px;background:rgba(156,39,176,.15);color:#ce93d8;padding:2px 8px;border-radius:10px;">Personnalisé</span></td>
+        <td><button class="btn-del-reward" onclick="deleteReward('${level}')">🗑</button></td>
+      `;
+
+      document.getElementById('rwdLevel').value    = '';
+      document.getElementById('rwdDiamonds').value = '';
+    }
+
+    async function deleteReward(level) {
+      if (!confirm(`Supprimer la récompense du niveau ${level} ?`)) return;
+      const res = await fetch('/xp/rewards/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ level }),
+      });
+      const data = await res.json();
+      if (data.error) return alert('❌ ' + data.error);
+      document.getElementById(`rwd-${level}`)?.remove();
+      if (!document.querySelector('#rewardBody tr')) {
+        const tr = document.createElement('tr');
+        tr.id = 'rwdEmpty';
+        tr.innerHTML = '<td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">Aucune récompense personnalisée.</td>';
+        document.getElementById('rewardBody').appendChild(tr);
+      }
+    }
+
+    function escHtml(str) {
+      return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]);
+    }
+  </script>
+</body>
+</html>

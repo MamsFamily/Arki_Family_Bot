@@ -23,6 +23,7 @@ const { initInventory, getItemTypes, getItemTypeById, getPlayerInventory, getAll
 const giveawayManager = require('./giveawayManager');
 const { initSpecialPacks, getSpecialPacks, getSpecialPack } = require('./specialPacksManager');
 const economyManager = require('./economyManager');
+const xpManager = require('./xpManager');
 const { handleShopCommand, handleShopInteraction } = require('./shopCommand');
 const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
 
@@ -2659,6 +2660,102 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
+  // ── /niveau ─────────────────────────────────────────────────────────────────
+  if (commandName === 'niveau') {
+    const targetUser   = interaction.options.getUser('membre') || interaction.user;
+    const targetMember = interaction.options.getMember('membre') || interaction.member;
+    const isSelf       = targetUser.id === interaction.user.id;
+    const userData     = await xpManager.getUserData(targetUser.id);
+    const { level, currentXp, xpForNext } = xpManager.calcLevelAndRemainder(userData.totalXp || 0);
+    const displayName  = targetMember?.displayName || targetUser.username;
+    const avatarURL    = targetUser.displayAvatarURL({ size: 128 });
+
+    // Barre de progression (20 blocs)
+    const pct    = xpForNext > 0 ? currentXp / xpForNext : 1;
+    const filled = Math.round(pct * 20);
+    const bar    = '█'.repeat(filled) + '░'.repeat(20 - filled);
+
+    const xpConfig = await xpManager.loadXpConfig();
+    const nextReward = xpConfig.customRewards[level + 1] !== undefined
+      ? xpConfig.customRewards[level + 1]
+      : xpManager.defaultRewardForLevel(level + 1, xpConfig.rewardMultiplier);
+
+    const embed = new EmbedBuilder()
+      .setColor(0x7c5cfc)
+      .setAuthor({ name: `⭐ Niveau de ${displayName}`, iconURL: avatarURL })
+      .setThumbnail(avatarURL)
+      .addFields(
+        { name: '🏅 Niveau', value: `**${level}**`, inline: true },
+        { name: '✨ XP Total', value: `**${(userData.totalXp || 0).toLocaleString('fr-FR')}**`, inline: true },
+        { name: '🎯 Prochain palier', value: `**${nextReward.toLocaleString('fr-FR')} 💎** au niveau ${level + 1}`, inline: true },
+        { name: `Progression vers le niveau ${level + 1}`, value: `\`${bar}\`\n${currentXp.toLocaleString('fr-FR')} / ${xpForNext.toLocaleString('fr-FR')} XP` },
+      )
+      .setFooter({ text: isSelf ? 'Continue à chatter pour gagner de l\'XP !' : `Profil consulté par ${interaction.member?.displayName || interaction.user.username}` })
+      .setTimestamp();
+
+    return interaction.reply({ embeds: [embed] });
+  }
+
+  // ── /xp-donner ──────────────────────────────────────────────────────────────
+  if (commandName === 'xp-donner') {
+    const target = interaction.options.getUser('joueur');
+    const amount = interaction.options.getInteger('montant');
+    const result = await xpManager.addXp(target.id, amount);
+    const { level, currentXp, xpForNext } = xpManager.calcLevelAndRemainder(result.totalXp);
+
+    const embed = new EmbedBuilder()
+      .setColor(0x4caf50)
+      .setTitle('✨ XP accordé')
+      .setDescription(`**${target.displayName || target.username}** a reçu **+${amount.toLocaleString('fr-FR')} XP**`)
+      .addFields(
+        { name: '🏅 Niveau actuel', value: `${level}`, inline: true },
+        { name: '✨ XP Total', value: result.totalXp.toLocaleString('fr-FR'), inline: true },
+      );
+
+    if (result.leveledUp) {
+      embed.addFields({ name: '🎉 Level-up !', value: result.levelsGained.map(l => `Niveau **${l.level}** → **+${l.reward.toLocaleString('fr-FR')} 💎**`).join('\n') });
+      for (const lg of result.levelsGained) {
+        if (lg.reward > 0) await addToInventory(target.id, 'diamants', lg.reward, 'Système XP', `Récompense niveau ${lg.level}`);
+      }
+    }
+
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  // ── /xp-retirer ─────────────────────────────────────────────────────────────
+  if (commandName === 'xp-retirer') {
+    const target  = interaction.options.getUser('joueur');
+    const amount  = interaction.options.getInteger('montant');
+    const result  = await xpManager.addXp(target.id, -amount);
+    const { level } = xpManager.calcLevelAndRemainder(result.totalXp);
+
+    const embed = new EmbedBuilder()
+      .setColor(0xf44336)
+      .setTitle('🔻 XP retiré')
+      .setDescription(`**${target.displayName || target.username}** a perdu **-${amount.toLocaleString('fr-FR')} XP**`)
+      .addFields(
+        { name: '🏅 Niveau actuel', value: `${level}`, inline: true },
+        { name: '✨ XP Total', value: result.totalXp.toLocaleString('fr-FR'), inline: true },
+      );
+
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  // ── /classement-xp ──────────────────────────────────────────────────────────
+  if (commandName === 'classement-xp') {
+    await interaction.deferReply();
+    const allXp  = await xpManager.getAllXpData();
+    const sorted = Object.entries(allXp)
+      .map(([id, d]) => ({ id, totalXp: d.totalXp || 0, level: xpManager.calcLevel(d.totalXp || 0) }))
+      .filter(p => p.totalXp > 0)
+      .sort((a, b) => b.totalXp - a.totalXp || b.level - a.level);
+
+    if (sorted.length === 0) return interaction.editReply({ content: '❌ Aucun joueur n\'a encore d\'XP !' });
+
+    const { embed, row } = await buildXpPage(sorted, 0, interaction.user.id, interaction.guild);
+    return interaction.editReply({ embeds: [embed], components: row ? [row] : [] });
+  }
+
   if (commandName === 'classement') {
     await interaction.deferReply();
     const allInv   = getAllInventories();
@@ -3259,6 +3356,121 @@ client.on('interactionCreate', async interaction => {
   lines.push(`\n> Une fois vérifiée, tu peux supprimer la commande \`/migrer-ub\` de \`commands.js\`.`);
 
   return interaction.editReply(lines.join('\n'));
+});
+
+// ─── XP : gain automatique sur message ───────────────────────────────────────
+client.on('messageCreate', async message => {
+  if (message.author.bot || !message.guild) return;
+
+  const xpConfig = await xpManager.loadXpConfig();
+
+  // Vérifier le rôle requis
+  const member = message.member || await message.guild.members.fetch(message.author.id).catch(() => null);
+  if (!member) return;
+  if (xpConfig.roleId && !member.roles.cache.has(xpConfig.roleId)) return;
+
+  // Vérifier les salons exclus
+  if (xpConfig.excludedChannels && xpConfig.excludedChannels.includes(message.channelId)) return;
+
+  // Cooldown anti-spam
+  const lastMsg = await xpManager.getCooldown(message.author.id);
+  if (Date.now() - lastMsg < xpConfig.cooldownMs) return;
+  await xpManager.setCooldown(message.author.id);
+
+  // Gain XP aléatoire
+  const gain   = Math.floor(Math.random() * (xpConfig.maxXp - xpConfig.minXp + 1)) + xpConfig.minXp;
+  const result = await xpManager.addXp(message.author.id, gain);
+
+  // Level-up
+  if (result.leveledUp && xpConfig.channelId) {
+    try {
+      const channel = message.guild.channels.cache.get(xpConfig.channelId);
+      if (channel) {
+        for (const lg of result.levelsGained) {
+          const reward = lg.reward;
+          if (reward > 0) await addToInventory(message.author.id, 'diamants', reward, 'Système XP', `Récompense niveau ${lg.level}`);
+
+          const embed = new EmbedBuilder()
+            .setColor(0xf9c740)
+            .setTitle('🎉 Niveau supérieur !')
+            .setDescription(
+              `${message.author}, tu viens de passer au **niveau ${lg.level}** ! <a:emoji_15:11571117439012786216>\n\n` +
+              (reward > 0 ? `🎁 Récompense : **+${reward.toLocaleString('fr-FR')} 💎**` : '')
+            )
+            .setThumbnail(message.author.displayAvatarURL({ size: 128 }))
+            .setTimestamp();
+
+          await channel.send({ embeds: [embed] });
+        }
+      }
+    } catch (e) {
+      console.error('[XP] Erreur envoi level-up:', e.message);
+    }
+  } else if (result.leveledUp) {
+    // Créditer quand même les diamants si pas de salon configuré
+    for (const lg of result.levelsGained) {
+      if (lg.reward > 0) await addToInventory(message.author.id, 'diamants', lg.reward, 'Système XP', `Récompense niveau ${lg.level}`);
+    }
+  }
+});
+
+// ─── CLASSEMENT XP : helper de page ──────────────────────────────────────────
+async function buildXpPage(sorted, page, callerId, guild) {
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const safePage   = Math.max(0, Math.min(page, totalPages - 1));
+  const slice      = sorted.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+  const callerRank = sorted.findIndex(p => p.id === callerId) + 1;
+
+  const lines = await Promise.all(slice.map(async (p, i) => {
+    const rank  = safePage * PAGE_SIZE + i;
+    let name;
+    try {
+      const m = await guild.members.fetch(p.id);
+      name = m.displayName;
+    } catch { name = 'Joueur inconnu'; }
+    const medal = MEDALS_CLS[rank] ?? `**${rank + 1}.**`;
+    const arrow = p.id === callerId ? ' ◄' : '';
+    return `${medal} **${name}** — Niv. **${p.level}** *(${p.totalXp.toLocaleString('fr-FR')} XP)*${arrow}`;
+  }));
+
+  let callerLine = '';
+  const callerPage = callerRank > 0 ? Math.floor((callerRank - 1) / PAGE_SIZE) : -1;
+  if (callerRank > 0 && callerPage !== safePage) {
+    const ce = sorted[callerRank - 1];
+    callerLine = `\n\n*Ta position : **#${callerRank}** — Niv. ${ce.level} (page ${callerPage + 1})*`;
+  }
+
+  const embed = new EmbedBuilder()
+    .setColor(0x9c27b0)
+    .setTitle('🏅 Classement XP')
+    .setDescription(lines.join('\n') + callerLine)
+    .setFooter({ text: `Page ${safePage + 1} / ${totalPages}  •  ${sorted.length} joueur${sorted.length > 1 ? 's' : ''} classé${sorted.length > 1 ? 's' : ''}` })
+    .setTimestamp();
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`xp_prev_${safePage}`).setLabel('◀ Précédent').setStyle(ButtonStyle.Secondary).setDisabled(safePage === 0),
+    new ButtonBuilder().setCustomId(`xp_next_${safePage}`).setLabel('Suivant ▶').setStyle(ButtonStyle.Secondary).setDisabled(safePage >= totalPages - 1),
+  );
+
+  return { embed, row };
+}
+
+// ─── CLASSEMENT XP : navigation boutons ──────────────────────────────────────
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isButton()) return;
+  if (!interaction.customId.startsWith('xp_prev_') && !interaction.customId.startsWith('xp_next_')) return;
+  await interaction.deferUpdate();
+  const isPrev  = interaction.customId.startsWith('xp_prev_');
+  const curPage = parseInt(interaction.customId.split('_')[2]) ?? 0;
+  const newPage = isPrev ? curPage - 1 : curPage + 1;
+  const allXp   = await xpManager.getAllXpData();
+  const sorted  = Object.entries(allXp)
+    .map(([id, d]) => ({ id, totalXp: d.totalXp || 0, level: xpManager.calcLevel(d.totalXp || 0) }))
+    .filter(p => p.totalXp > 0)
+    .sort((a, b) => b.totalXp - a.totalXp);
+  if (sorted.length === 0) return;
+  const { embed, row } = await buildXpPage(sorted, newPage, interaction.user.id, interaction.guild);
+  await interaction.editReply({ embeds: [embed], components: [row] });
 });
 
 // ─── CLASSEMENT : helper de page ─────────────────────────────────────────────
