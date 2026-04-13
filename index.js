@@ -2579,7 +2579,7 @@ client.on('interactionCreate', async interaction => {
       const itemLines = catData.items
         .filter(it => it.quantity > 0)
         .sort((a, b) => a.order - b.order)
-        .map(it => `${it.emoji} **${it.name}** : ${it.quantity}`);
+        .map(it => `${it.emoji} **${it.name}** : ${it.quantity.toLocaleString('fr-FR')}`);
 
       if (itemLines.length > 0) {
         hasItems = true;
@@ -2592,7 +2592,7 @@ client.on('interactionCreate', async interaction => {
     for (const [key, qty] of Object.entries(inventory)) {
       if (key.startsWith('[libre] ') && qty > 0) {
         const name = key.slice('[libre] '.length);
-        occasionnelLines.push(`📦 **${name}** : ${qty}`);
+        occasionnelLines.push(`📦 **${name}** : ${qty.toLocaleString('fr-FR')}`);
       }
     }
     if (occasionnelLines.length > 0) {
