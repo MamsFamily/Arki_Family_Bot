@@ -2661,62 +2661,16 @@ client.on('interactionCreate', async interaction => {
 
   if (commandName === 'classement') {
     await interaction.deferReply();
-
-    const allInv  = getAllInventories();
-    const guild   = interaction.guild;
-    const callerId = interaction.user.id;
-
-    // Trier les joueurs par diamants décroissant, ignorer ceux à 0
-    const sorted = Object.entries(allInv)
+    const allInv   = getAllInventories();
+    const sorted   = Object.entries(allInv)
       .map(([id, inv]) => ({ id, diamants: inv['diamants'] || 0 }))
       .filter(p => p.diamants > 0)
       .sort((a, b) => b.diamants - a.diamants);
-
     if (sorted.length === 0) {
       return interaction.editReply({ content: '❌ Aucun joueur n\'a encore de diamants !' });
     }
-
-    const MEDALS  = ['🥇', '🥈', '🥉'];
-    const top     = sorted.slice(0, 10);
-    const callerRank = sorted.findIndex(p => p.id === callerId) + 1;
-
-    // Résoudre les noms Discord pour le top 10
-    const lines = await Promise.all(top.map(async (p, i) => {
-      let name;
-      try {
-        const member = await guild.members.fetch(p.id);
-        name = member.displayName;
-      } catch {
-        name = `Joueur inconnu`;
-      }
-      const medal  = MEDALS[i] ?? `**${i + 1}.**`;
-      const isMe   = p.id === callerId;
-      const arrow  = isMe ? ' ◄' : '';
-      return `${medal} **${name}** — ${p.diamants.toLocaleString('fr-FR')} 💎${arrow}`;
-    }));
-
-    // Position du joueur s'il est en dehors du top 10
-    let callerLine = '';
-    if (callerRank > 10) {
-      const callerEntry = sorted[callerRank - 1];
-      let callerName;
-      try {
-        const member = await guild.members.fetch(callerId);
-        callerName = member.displayName;
-      } catch {
-        callerName = interaction.user.username;
-      }
-      callerLine = `\n\n*Ta position : **#${callerRank}** — ${callerEntry.diamants.toLocaleString('fr-FR')} 💎*`;
-    }
-
-    const embed = new EmbedBuilder()
-      .setColor(0xf9c740)
-      .setTitle('🏆 Classement des Diamants')
-      .setDescription(lines.join('\n') + callerLine)
-      .setFooter({ text: `${sorted.length} joueur${sorted.length > 1 ? 's' : ''} dans le classement` })
-      .setTimestamp();
-
-    return interaction.editReply({ embeds: [embed] });
+    const { embed, row } = await buildClassementPage(sorted, 0, interaction.user.id, interaction.guild);
+    return interaction.editReply({ embeds: [embed], components: row ? [row] : [] });
   }
 
   if (commandName === 'compte') {
@@ -3305,6 +3259,86 @@ client.on('interactionCreate', async interaction => {
   lines.push(`\n> Une fois vérifiée, tu peux supprimer la commande \`/migrer-ub\` de \`commands.js\`.`);
 
   return interaction.editReply(lines.join('\n'));
+});
+
+// ─── CLASSEMENT : helper de page ─────────────────────────────────────────────
+const PAGE_SIZE = 10;
+const MEDALS_CLS = ['🥇', '🥈', '🥉'];
+
+async function buildClassementPage(sorted, page, callerId, guild) {
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const safePage   = Math.max(0, Math.min(page, totalPages - 1));
+  const slice      = sorted.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+  const callerRank = sorted.findIndex(p => p.id === callerId) + 1;
+
+  const lines = await Promise.all(slice.map(async (p, i) => {
+    const rank = safePage * PAGE_SIZE + i;
+    let name;
+    try {
+      const member = await guild.members.fetch(p.id);
+      name = member.displayName;
+    } catch {
+      name = 'Joueur inconnu';
+    }
+    const medal = MEDALS_CLS[rank] ?? `**${rank + 1}.**`;
+    const arrow = p.id === callerId ? ' ◄' : '';
+    return `${medal} **${name}** — ${p.diamants.toLocaleString('fr-FR')} 💎${arrow}`;
+  }));
+
+  // Position du joueur hors de la page courante
+  let callerLine = '';
+  const callerPage = callerRank > 0 ? Math.floor((callerRank - 1) / PAGE_SIZE) : -1;
+  if (callerRank > 0 && callerPage !== safePage) {
+    const callerEntry = sorted[callerRank - 1];
+    callerLine = `\n\n*Ta position : **#${callerRank}** — ${callerEntry.diamants.toLocaleString('fr-FR')} 💎 (page ${callerPage + 1})*`;
+  }
+
+  const embed = new EmbedBuilder()
+    .setColor(0xf9c740)
+    .setTitle('🏆 Classement des Diamants')
+    .setDescription(lines.join('\n') + callerLine)
+    .setFooter({ text: `Page ${safePage + 1} / ${totalPages}  •  ${sorted.length} joueur${sorted.length > 1 ? 's' : ''} classé${sorted.length > 1 ? 's' : ''}` })
+    .setTimestamp();
+
+  // Boutons navigation
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`cls_prev_${safePage}`)
+      .setLabel('◀ Précédent')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(safePage === 0),
+    new ButtonBuilder()
+      .setCustomId(`cls_next_${safePage}`)
+      .setLabel('Suivant ▶')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(safePage >= totalPages - 1),
+  );
+
+  return { embed, row };
+}
+
+// ─── CLASSEMENT : navigation boutons ─────────────────────────────────────────
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isButton()) return;
+  if (!interaction.customId.startsWith('cls_prev_') && !interaction.customId.startsWith('cls_next_')) return;
+
+  await interaction.deferUpdate();
+
+  const isPrev   = interaction.customId.startsWith('cls_prev_');
+  const curPage  = parseInt(interaction.customId.split('_')[2]) ?? 0;
+  const newPage  = isPrev ? curPage - 1 : curPage + 1;
+  const callerId = interaction.user.id;
+
+  const allInv = getAllInventories();
+  const sorted = Object.entries(allInv)
+    .map(([id, inv]) => ({ id, diamants: inv['diamants'] || 0 }))
+    .filter(p => p.diamants > 0)
+    .sort((a, b) => b.diamants - a.diamants);
+
+  if (sorted.length === 0) return;
+
+  const { embed, row } = await buildClassementPage(sorted, newPage, callerId, interaction.guild);
+  await interaction.editReply({ embeds: [embed], components: [row] });
 });
 
 // ─── ÉCONOMIE : commandes préfixées !travail / !revenus / !envoyer ───────────
