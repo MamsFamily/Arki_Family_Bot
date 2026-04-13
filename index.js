@@ -2660,16 +2660,32 @@ client.on('interactionCreate', async interaction => {
   }
 
   if (commandName === 'compte') {
-    const inventory = getPlayerInventory(interaction.user.id);
-    const diamants = (inventory['diamants'] || 0).toLocaleString('fr-FR');
-    const fraises  = (inventory['fraises']  || 0).toLocaleString('fr-FR');
+    const inventory  = getPlayerInventory(interaction.user.id);
+    const diamants   = inventory['diamants'] || 0;
+    const fraises    = inventory['fraises']  || 0;
+    const displayName = interaction.member?.displayName || interaction.user.username;
+    const avatarURL   = interaction.user.displayAvatarURL({ size: 128 });
 
-    return interaction.reply({
-      content:
-        `>>> **Votre porte monnaie contient actuellement** :\n\n` +
-        `* ${diamants} Diamants <a:SparklyCrystal:1366174439003263087>\n` +
-        `* ${fraises} Fraises <:fraises:1328148609585123379>`,
-    });
+    const embed = new EmbedBuilder()
+      .setColor(0x7c5cfc)
+      .setAuthor({ name: `💼 Compte de ${displayName}`, iconURL: avatarURL })
+      .setThumbnail(avatarURL)
+      .addFields(
+        {
+          name: '<a:SparklyCrystal:1366174439003263087> Diamants',
+          value: `\`\`\`\n${diamants.toLocaleString('fr-FR')}\n\`\`\``,
+          inline: true,
+        },
+        {
+          name: '<:fraises:1328148609585123379> Fraises',
+          value: `\`\`\`\n${fraises.toLocaleString('fr-FR')}\n\`\`\``,
+          inline: true,
+        },
+      )
+      .setFooter({ text: 'Utilise /travail toutes les 4h pour gagner des diamants !' })
+      .setTimestamp();
+
+    return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
   if (commandName === 'inventaire-admin') {
