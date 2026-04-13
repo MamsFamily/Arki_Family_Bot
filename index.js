@@ -3275,175 +3275,150 @@ const TRAVAIL_PHRASES = (gain) => {
   return phrases[Math.floor(Math.random() * phrases.length)];
 };
 
-client.on('messageCreate', async message => {
-  if (message.author.bot) return;
-  const content = message.content.trim();
-  const prefix = '!';
+// ─── ÉCONOMIE : /travail ────────────────────────────────────────────────────
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isChatInputCommand() || interaction.commandName !== 'travail') return;
+  const userId = interaction.user.id;
+  const now = Date.now();
+  const lastBonus = await economyManager.getCooldown(userId, 'bonus');
+  const remaining = lastBonus + economyManager.BONUS_COOLDOWN_MS - now;
 
-  if (!content.startsWith(prefix)) return;
-
-  const args = content.slice(prefix.length).split(/\s+/);
-  const cmd = args[0]?.toLowerCase();
-
-  // ── !travail ────────────────────────────────────────────────────────────────
-  if (cmd === 'travail') {
-    const userId = message.author.id;
-    const now = Date.now();
-    const lastBonus = await economyManager.getCooldown(userId, 'bonus');
-    const remaining = lastBonus + economyManager.BONUS_COOLDOWN_MS - now;
-
-    if (remaining > 0) {
-      const h = Math.floor(remaining / 3600000);
-      const m = Math.floor((remaining % 3600000) / 60000);
-      const s = Math.floor((remaining % 60000) / 1000);
-      const timeStr = h > 0 ? `${h}h ${m}min` : m > 0 ? `${m}min ${s}s` : `${s}s`;
-      return message.reply({ content: `⏳ T'es déjà passé travailler aujourd'hui ! Reviens dans **${timeStr}**.`, allowedMentions: { repliedUser: false } });
-    }
-
-    const gain = economyManager.randBonus();
-    await addToInventory(userId, 'diamants', gain, '!travail', 'Travail quotidien');
-    await economyManager.setCooldown(userId, 'bonus', now);
-
-    const embed = new EmbedBuilder()
-      .setColor(0x7c5cfc)
-      .setTitle('💼 Journée de travail terminée !')
-      .setDescription(TRAVAIL_PHRASES(gain))
-      .setFooter({ text: 'Reviens dans 4h pour ton prochain !travail' })
-      .setTimestamp();
-
-    return message.channel.send({ embeds: [embed] });
+  if (remaining > 0) {
+    const h = Math.floor(remaining / 3600000);
+    const m = Math.floor((remaining % 3600000) / 60000);
+    const s = Math.floor((remaining % 60000) / 1000);
+    const timeStr = h > 0 ? `${h}h ${m}min` : m > 0 ? `${m}min ${s}s` : `${s}s`;
+    return interaction.reply({ content: `⏳ T'es déjà passé travailler aujourd'hui ! Reviens dans **${timeStr}**.`, ephemeral: true });
   }
 
-  // ── !revenus ────────────────────────────────────────────────────────────────
-  if (cmd === 'revenus') {
-    const userId = message.author.id;
-    const now = Date.now();
-    const lastRevenu = await economyManager.getCooldown(userId, 'revenu');
-    const remaining = lastRevenu + economyManager.REVENU_COOLDOWN_MS - now;
+  const gain = economyManager.randBonus();
+  await addToInventory(userId, 'diamants', gain, '/travail', 'Travail quotidien');
+  await economyManager.setCooldown(userId, 'bonus', now);
 
-    if (remaining > 0) {
-      const days  = Math.floor(remaining / 86400000);
-      const hours = Math.floor((remaining % 86400000) / 3600000);
-      const mins  = Math.floor((remaining % 3600000) / 60000);
-      const timeStr = days > 0 ? `${days}j ${hours}h` : hours > 0 ? `${hours}h ${mins}min` : `${mins}min`;
-      return message.reply({ content: `⏳ Tu as déjà collecté tes revenus cette semaine ! Reviens dans **${timeStr}**.`, allowedMentions: { repliedUser: false } });
-    }
+  const embed = new EmbedBuilder()
+    .setColor(0x7c5cfc)
+    .setTitle('💼 Journée de travail terminée !')
+    .setDescription(TRAVAIL_PHRASES(gain))
+    .setFooter({ text: 'Reviens dans 4h pour ton prochain /travail !' })
+    .setTimestamp();
 
-    let member = message.member;
-    if (!member) {
-      try { member = await message.guild.members.fetch(message.author.id); } catch {}
-    }
-    const memberRoleIds = member ? [...member.roles.cache.keys()] : [];
-    const { lines, total } = await economyManager.calcPlayerRevenue(memberRoleIds);
+  return interaction.reply({ embeds: [embed] });
+});
 
-    if (total <= 0) {
-      return message.reply({ content: `❌ Aucun de tes rôles ne génère de revenu hebdomadaire pour l'instant.`, allowedMentions: { repliedUser: false } });
-    }
+// ─── ÉCONOMIE : /revenus ────────────────────────────────────────────────────
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isChatInputCommand() || interaction.commandName !== 'revenus') return;
+  const userId = interaction.user.id;
+  const now = Date.now();
+  const lastRevenu = await economyManager.getCooldown(userId, 'revenu');
+  const remaining = lastRevenu + economyManager.REVENU_COOLDOWN_MS - now;
 
-    await addToInventory(userId, 'diamants', total, 'Revenu hebdo', '!revenus');
-    await economyManager.setCooldown(userId, 'revenu', now);
-
-    const rolesDesc = lines.map(l =>
-      `> 🏷️ **${l.name}** → **${l.income.toLocaleString('fr-FR')} 💎**` +
-      (l.shopDiscount > 0 ? ` *(${l.shopDiscount}% réduction shop)*` : '')
-    ).join('\n');
-
-    const embed = new EmbedBuilder()
-      .setColor(0xf9c740)
-      .setTitle('💰 Revenus hebdomadaires collectés !')
-      .setDescription(`**Total reçu : ${total.toLocaleString('fr-FR')} 💎 Diamants**\n\n${rolesDesc}`)
-      .setFooter({ text: 'Reviens dans 7 jours pour tes prochains !revenus' })
-      .setTimestamp();
-
-    return message.channel.send({ embeds: [embed] });
+  if (remaining > 0) {
+    const days  = Math.floor(remaining / 86400000);
+    const hours = Math.floor((remaining % 86400000) / 3600000);
+    const mins  = Math.floor((remaining % 3600000) / 60000);
+    const timeStr = days > 0 ? `${days}j ${hours}h` : hours > 0 ? `${hours}h ${mins}min` : `${mins}min`;
+    return interaction.reply({ content: `⏳ Tu as déjà collecté tes revenus cette semaine ! Reviens dans **${timeStr}**.`, ephemeral: true });
   }
 
-  // ── !envoyer @joueur montant raison ─────────────────────────────────────────
-  if (cmd === 'envoyer') {
-    const senderId   = message.author.id;
-    const senderName = message.member?.displayName || message.author.username;
+  const member = interaction.member;
+  const memberRoleIds = [...member.roles.cache.keys()];
+  const { lines, total } = await economyManager.calcPlayerRevenue(memberRoleIds);
 
-    // Parsing : !envoyer @mention montant raison...
-    const mentionMatch = args[1]?.match(/^<@!?(\d+)>$/);
-    if (!mentionMatch) {
-      return message.reply({ content: `❌ Utilisation : \`!envoyer @joueur montant raison\``, allowedMentions: { repliedUser: false } });
-    }
-    const targetId = mentionMatch[1];
-    const amount   = parseInt(args[2]);
-    const reason   = args.slice(3).join(' ').trim();
+  if (total <= 0) {
+    return interaction.reply({ content: `❌ Aucun de tes rôles ne génère de revenu hebdomadaire pour l'instant.`, ephemeral: true });
+  }
 
-    if (!amount || amount < 1) {
-      return message.reply({ content: `❌ Utilisation : \`!envoyer @joueur montant raison\`\nLe montant doit être un nombre positif.`, allowedMentions: { repliedUser: false } });
-    }
-    if (!reason) {
-      return message.reply({ content: `❌ Tu dois préciser une raison : \`!envoyer @joueur montant raison\`\n*(ex: vente dino, don, service…)*`, allowedMentions: { repliedUser: false } });
-    }
-    if (targetId === senderId) {
-      return message.reply({ content: `❌ Tu ne peux pas t'envoyer des diamants à toi-même !`, allowedMentions: { repliedUser: false } });
-    }
+  await addToInventory(userId, 'diamants', total, 'Revenu hebdo', '/revenus');
+  await economyManager.setCooldown(userId, 'revenu', now);
 
-    let targetUser;
-    try { targetUser = await message.client.users.fetch(targetId); } catch {
-      return message.reply({ content: `❌ Joueur introuvable.`, allowedMentions: { repliedUser: false } });
-    }
-    if (targetUser.bot) {
-      return message.reply({ content: `❌ Tu ne peux pas envoyer des diamants à un bot.`, allowedMentions: { repliedUser: false } });
-    }
+  const rolesDesc = lines.map(l =>
+    `> 🏷️ **${l.name}** → **${l.income.toLocaleString('fr-FR')} 💎**` +
+    (l.shopDiscount > 0 ? ` *(${l.shopDiscount}% réduction shop)*` : '')
+  ).join('\n');
 
-    // ── Vérification suspension transfert ───────────────────────────────────
-    const TRANSFER_BAN_DURATION = 12 * 60 * 60 * 1000;
-    const lastBan = await economyManager.getCooldown(senderId, 'transfer_ban');
-    if (lastBan && Date.now() - lastBan < TRANSFER_BAN_DURATION) {
-      const rem = lastBan + TRANSFER_BAN_DURATION - Date.now();
-      const h = Math.floor(rem / 3600000);
-      const m = Math.floor((rem % 3600000) / 60000);
-      const embed = new EmbedBuilder()
+  const embed = new EmbedBuilder()
+    .setColor(0xf9c740)
+    .setTitle('💰 Revenus hebdomadaires collectés !')
+    .setDescription(`**Total reçu : ${total.toLocaleString('fr-FR')} 💎 Diamants**\n\n${rolesDesc}`)
+    .setFooter({ text: 'Reviens dans 7 jours pour tes prochains /revenus !' })
+    .setTimestamp();
+
+  return interaction.reply({ embeds: [embed] });
+});
+
+// ─── ÉCONOMIE : /envoyer ────────────────────────────────────────────────────
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isChatInputCommand() || interaction.commandName !== 'envoyer') return;
+  const senderId   = interaction.user.id;
+  const senderName = interaction.member?.displayName || interaction.user.username;
+  const target     = interaction.options.getUser('joueur');
+  const amount     = interaction.options.getInteger('montant');
+  const reason     = interaction.options.getString('raison');
+
+  if (target.id === senderId) {
+    return interaction.reply({ content: `❌ Tu ne peux pas t'envoyer des diamants à toi-même !`, ephemeral: true });
+  }
+  if (target.bot) {
+    return interaction.reply({ content: `❌ Tu ne peux pas envoyer des diamants à un bot.`, ephemeral: true });
+  }
+
+  // ── Vérification suspension transfert ───────────────────────────────────────
+  const TRANSFER_BAN_DURATION = 12 * 60 * 60 * 1000;
+  const lastBan = await economyManager.getCooldown(senderId, 'transfer_ban');
+  if (lastBan && Date.now() - lastBan < TRANSFER_BAN_DURATION) {
+    const rem = lastBan + TRANSFER_BAN_DURATION - Date.now();
+    const h = Math.floor(rem / 3600000);
+    const m = Math.floor((rem % 3600000) / 60000);
+    return interaction.reply({
+      embeds: [new EmbedBuilder()
         .setColor(0xe53935)
         .setTitle('🔒 Transferts suspendus')
         .setDescription(
           `Suite à une tentative d'envoi intégral de ton porte-monnaie, tes transferts sont **suspendus pour ${h}h${m > 0 ? ` ${m}min` : ''}**.\n\n` +
           `Cette mesure protège l'économie du serveur.`
-        );
-      return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
-    }
+        )],
+      ephemeral: true,
+    });
+  }
 
-    const senderInv = getPlayerInventory(senderId);
-    const senderDiamants = senderInv['diamants'] || 0;
+  const senderInv = getPlayerInventory(senderId);
+  const senderDiamants = senderInv['diamants'] || 0;
 
-    // ── Blocage envoi intégral ───────────────────────────────────────────────
-    if (amount >= senderDiamants && senderDiamants > 0) {
-      await economyManager.setCooldown(senderId, 'transfer_ban', Date.now());
-      const embed = new EmbedBuilder()
+  // ── Blocage envoi intégral ───────────────────────────────────────────────────
+  if (amount >= senderDiamants && senderDiamants > 0) {
+    await economyManager.setCooldown(senderId, 'transfer_ban', Date.now());
+    return interaction.reply({
+      embeds: [new EmbedBuilder()
         .setColor(0xff9800)
         .setTitle('⚠️ Transfert intégral refusé')
         .setDescription(
           `**L'envoi de la totalité de son inventaire ou porte-monnaie à un autre joueur est strictement interdit** — que ce soit pour un départ du serveur, un arrêt du jeu ou toute autre raison.\n\n` +
           `Cette règle protège l'équilibre de l'économie du serveur pour tous les joueurs.\n\n` +
           `⏳ En raison de cette tentative, tes transferts sont **suspendus pour 12h**.`
-        );
-      return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
-    }
-
-    if (senderDiamants < amount) {
-      return message.reply({
-        content: `❌ Tu n'as pas assez de diamants ! Tu possèdes **${senderDiamants.toLocaleString('fr-FR')} 💎** et tu veux envoyer **${amount.toLocaleString('fr-FR')} 💎**.`,
-        allowedMentions: { repliedUser: false },
-      });
-    }
-
-    const targetName = targetUser.displayName || targetUser.username;
-    await removeFromInventory(senderId, 'diamants', amount, `→ ${targetUser.username}`, reason);
-    await addToInventory(targetId, 'diamants', amount, `← ${senderName}`, reason);
-
-    const embed = new EmbedBuilder()
-      .setColor(0x4caf50)
-      .setTitle('🤝 Transfert effectué !')
-      .setDescription(`**${senderName}** a envoyé **${amount.toLocaleString('fr-FR')} 💎** à **${targetName}**`)
-      .addFields({ name: '📋 Raison', value: reason })
-      .setTimestamp();
-
-    return message.channel.send({ embeds: [embed] });
+        )],
+      ephemeral: true,
+    });
   }
+
+  if (senderDiamants < amount) {
+    return interaction.reply({
+      content: `❌ Tu n'as pas assez de diamants ! Tu possèdes **${senderDiamants.toLocaleString('fr-FR')} 💎** et tu veux envoyer **${amount.toLocaleString('fr-FR')} 💎**.`,
+      ephemeral: true,
+    });
+  }
+
+  await removeFromInventory(senderId, 'diamants', amount, `→ ${target.username}`, reason);
+  await addToInventory(target.id, 'diamants', amount, `← ${senderName}`, reason);
+
+  const embed = new EmbedBuilder()
+    .setColor(0x4caf50)
+    .setTitle('🤝 Transfert effectué !')
+    .setDescription(`**${senderName}** a envoyé **${amount.toLocaleString('fr-FR')} 💎** à **${target.displayName || target.username}**`)
+    .addFields({ name: '📋 Raison', value: reason })
+    .setTimestamp();
+
+  return interaction.reply({ embeds: [embed] });
 });
 
 // ─── ÉCONOMIE : /amende ─────────────────────────────────────────────────────

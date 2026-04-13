@@ -168,6 +168,23 @@ const commands = [
     default_member_permissions: '8',
   },
   {
+    name: 'travail',
+    description: '💼 Travaille pour gagner entre 50 et 250 💎 (utilisable toutes les 4h)',
+  },
+  {
+    name: 'revenus',
+    description: '💰 Récupère tes revenus hebdomadaires selon tes rôles',
+  },
+  {
+    name: 'envoyer',
+    description: '🤝 Envoie des diamants à un autre joueur',
+    options: [
+      { name: 'joueur',  type: 6, description: 'Le joueur qui reçoit les diamants', required: true },
+      { name: 'montant', type: 4, description: 'Nombre de diamants à envoyer', required: true, min_value: 1 },
+      { name: 'raison',  type: 3, description: 'Raison du transfert (vente, don, service…)', required: true },
+    ],
+  },
+  {
     name: 'amende',
     description: '🔒 Admin — Inflige une amende en diamants à un joueur',
     default_member_permissions: '8',
