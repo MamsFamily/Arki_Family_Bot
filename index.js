@@ -2680,6 +2680,15 @@ client.on('interactionCreate', async interaction => {
       ? xpConfig.customRewards[level + 1]
       : xpManager.defaultRewardForLevel(level + 1, xpConfig.rewardMultiplier);
 
+    // Rang au classement XP
+    const allXp   = await xpManager.getAllXpData();
+    const xpRanks = Object.entries(allXp)
+      .map(([id, d]) => ({ id, totalXp: d.totalXp || 0 }))
+      .filter(p => p.totalXp > 0)
+      .sort((a, b) => b.totalXp - a.totalXp);
+    const xpRank   = xpRanks.findIndex(p => p.id === targetUser.id) + 1;
+    const xpRankTxt = xpRank > 0 ? `**#${xpRank}** sur ${xpRanks.length} joueur${xpRanks.length > 1 ? 's' : ''}` : '*Non classé*';
+
     const embed = new EmbedBuilder()
       .setColor(0x7c5cfc)
       .setAuthor({ name: `⭐ Niveau de ${displayName}`, iconURL: avatarURL })
@@ -2687,6 +2696,7 @@ client.on('interactionCreate', async interaction => {
       .addFields(
         { name: '🏅 Niveau', value: `**${level}**`, inline: true },
         { name: '✨ XP Total', value: `**${(userData.totalXp || 0).toLocaleString('fr-FR')}**`, inline: true },
+        { name: '🏆 Classement XP', value: xpRankTxt, inline: true },
         { name: '🎯 Prochain palier', value: `**${nextReward.toLocaleString('fr-FR')} 💎** au niveau ${level + 1}`, inline: true },
         { name: `Progression vers le niveau ${level + 1}`, value: `\`${bar}\`\n${currentXp.toLocaleString('fr-FR')} / ${xpForNext.toLocaleString('fr-FR')} XP` },
       )
@@ -2810,6 +2820,15 @@ client.on('interactionCreate', async interaction => {
     const displayName = targetMember?.displayName || targetUser.username;
     const avatarURL   = targetUser.displayAvatarURL({ size: 128 });
 
+    // Rang au classement diamants
+    const allInv    = getAllInventories();
+    const diaRanks  = Object.entries(allInv)
+      .map(([id, inv]) => ({ id, diamants: inv['diamants'] || 0 }))
+      .filter(p => p.diamants > 0)
+      .sort((a, b) => b.diamants - a.diamants);
+    const diaRank    = diaRanks.findIndex(p => p.id === targetUser.id) + 1;
+    const diaRankTxt = diaRank > 0 ? `**#${diaRank}** sur ${diaRanks.length} joueur${diaRanks.length > 1 ? 's' : ''}` : '*Non classé*';
+
     const embed = new EmbedBuilder()
       .setColor(0x7c5cfc)
       .setAuthor({ name: `💼 Compte de ${displayName}`, iconURL: avatarURL })
@@ -2823,6 +2842,11 @@ client.on('interactionCreate', async interaction => {
         {
           name: '<:fraises:1328148609585123379> Fraises',
           value: `\`\`\`\n${fraises.toLocaleString('fr-FR')}\n\`\`\``,
+          inline: true,
+        },
+        {
+          name: '🏆 Classement Diamants',
+          value: diaRankTxt,
           inline: true,
         },
       )
