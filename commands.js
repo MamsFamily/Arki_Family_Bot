@@ -63,7 +63,7 @@ const commands = [
     options: [],
   },
   {
-    name: 'monnaie',
+    name: 'compte',
     description: 'Affiche le contenu de ton porte-monnaie (diamants et fraises)',
   },
   {

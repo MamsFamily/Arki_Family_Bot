@@ -2659,7 +2659,7 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
-  if (commandName === 'monnaie') {
+  if (commandName === 'compte') {
     const inventory = getPlayerInventory(interaction.user.id);
     const diamants = (inventory['diamants'] || 0).toLocaleString('fr-FR');
     const fraises  = (inventory['fraises']  || 0).toLocaleString('fr-FR');
