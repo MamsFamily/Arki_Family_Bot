@@ -65,6 +65,9 @@ const commands = [
   {
     name: 'compte',
     description: 'Affiche le contenu de ton porte-monnaie (diamants et fraises)',
+    options: [
+      { name: 'membre', type: 6, description: 'Voir le compte d\'un autre joueur (optionnel)', required: false },
+    ],
   },
   {
     name: 'shop',

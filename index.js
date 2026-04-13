@@ -2660,11 +2660,15 @@ client.on('interactionCreate', async interaction => {
   }
 
   if (commandName === 'compte') {
-    const inventory  = getPlayerInventory(interaction.user.id);
-    const diamants   = inventory['diamants'] || 0;
-    const fraises    = inventory['fraises']  || 0;
-    const displayName = interaction.member?.displayName || interaction.user.username;
-    const avatarURL   = interaction.user.displayAvatarURL({ size: 128 });
+    const targetUser  = interaction.options.getUser('membre') || interaction.user;
+    const targetMember = interaction.options.getMember('membre') || interaction.member;
+    const isSelf      = targetUser.id === interaction.user.id;
+
+    const inventory   = getPlayerInventory(targetUser.id);
+    const diamants    = inventory['diamants'] || 0;
+    const fraises     = inventory['fraises']  || 0;
+    const displayName = targetMember?.displayName || targetUser.username;
+    const avatarURL   = targetUser.displayAvatarURL({ size: 128 });
 
     const embed = new EmbedBuilder()
       .setColor(0x7c5cfc)
@@ -2682,7 +2686,7 @@ client.on('interactionCreate', async interaction => {
           inline: true,
         },
       )
-      .setFooter({ text: 'Utilise /travail toutes les 4h pour gagner des diamants !' })
+      .setFooter({ text: isSelf ? 'Utilise /travail toutes les 4h pour gagner des diamants !' : `Compte consulté par ${interaction.member?.displayName || interaction.user.username}` })
       .setTimestamp();
 
     return interaction.reply({ embeds: [embed], ephemeral: true });
