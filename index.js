@@ -3315,7 +3315,7 @@ client.on('interactionCreate', async interaction => {
   const senderName = interaction.user.displayName || interaction.user.username;
   const target     = interaction.options.getUser('joueur');
   const amount     = interaction.options.getInteger('montant');
-  const reason     = interaction.options.getString('raison') || 'Transfert entre joueurs';
+  const reason     = interaction.options.getString('raison');
 
   if (target.id === senderId) {
     return interaction.reply({ content: '❌ Tu ne peux pas t\'envoyer des diamants à toi-même !', ephemeral: true });
@@ -3324,8 +3324,44 @@ client.on('interactionCreate', async interaction => {
     return interaction.reply({ content: '❌ Tu ne peux pas envoyer des diamants à un bot.', ephemeral: true });
   }
 
+  // ── Vérification suspension transfert (tentative d'envoi intégral) ──────────
+  const TRANSFER_BAN_DURATION = 12 * 60 * 60 * 1000; // 12h en ms
+  const lastBan = await economyManager.getCooldown(senderId, 'transfer_ban');
+  if (lastBan && Date.now() - lastBan < TRANSFER_BAN_DURATION) {
+    const remaining = lastBan + TRANSFER_BAN_DURATION - Date.now();
+    const h = Math.floor(remaining / 3600000);
+    const m = Math.floor((remaining % 3600000) / 60000);
+    return interaction.reply({
+      embeds: [new EmbedBuilder()
+        .setColor(0xe53935)
+        .setTitle('🔒 Transferts suspendus')
+        .setDescription(
+          `Suite à une tentative d'envoi intégral de ton porte-monnaie, tes transferts sont **suspendus pour ${h}h${m > 0 ? m + 'min' : ''}**.\n\n` +
+          `Cette mesure protège l'économie du serveur.`
+        )],
+      ephemeral: true,
+    });
+  }
+
   const senderInv = getPlayerInventory(senderId);
   const senderDiamants = senderInv['diamants'] || 0;
+
+  // ── Blocage si envoi de la totalité du porte-monnaie ────────────────────────
+  if (amount >= senderDiamants && senderDiamants > 0) {
+    await economyManager.setCooldown(senderId, 'transfer_ban', Date.now());
+    return interaction.reply({
+      embeds: [new EmbedBuilder()
+        .setColor(0xff9800)
+        .setTitle('⚠️ Transfert intégral refusé')
+        .setDescription(
+          `Pour **le bien de l'économie du serveur**, il n'est pas possible d'envoyer la totalité de ton porte-monnaie.\n\n` +
+          `Tu possèdes **${senderDiamants.toLocaleString('fr-FR')} 💎** — il doit en rester au moins **1 💎** chez toi après le transfert.\n\n` +
+          `⏳ En raison de cette tentative, tes transferts sont **suspendus pour 12h**.`
+        )],
+      ephemeral: true,
+    });
+  }
+
   if (senderDiamants < amount) {
     return interaction.reply({
       content: `❌ Tu n'as pas assez de diamants ! Tu possèdes **${senderDiamants.toLocaleString('fr-FR')} 💎** et tu veux envoyer **${amount.toLocaleString('fr-FR')} 💎**.`,
@@ -3340,7 +3376,7 @@ client.on('interactionCreate', async interaction => {
     .setColor(0x4caf50)
     .setTitle('🤝 Transfert effectué !')
     .setDescription(`**${senderName}** a envoyé **${amount.toLocaleString('fr-FR')} 💎** à **${target.displayName || target.username}**`)
-    .addFields({ name: 'Raison', value: reason })
+    .addFields({ name: '📋 Raison', value: reason })
     .setTimestamp();
 
   return interaction.reply({ embeds: [embed] });

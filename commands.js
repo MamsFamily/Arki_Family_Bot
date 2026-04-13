@@ -181,7 +181,7 @@ const commands = [
     options: [
       { name: 'joueur', type: 6, description: 'Le joueur qui reçoit les diamants', required: true },
       { name: 'montant', type: 4, description: 'Nombre de diamants à envoyer', required: true, min_value: 1 },
-      { name: 'raison', type: 3, description: 'Raison du transfert (optionnel)', required: false },
+      { name: 'raison', type: 3, description: 'Raison du transfert (vente, don, autre…)', required: true },
     ],
   },
   {
