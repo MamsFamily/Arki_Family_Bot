@@ -2689,7 +2689,7 @@ client.on('interactionCreate', async interaction => {
       .setFooter({ text: isSelf ? 'Utilise /travail toutes les 4h pour gagner des diamants !' : `Compte consulté par ${interaction.member?.displayName || interaction.user.username}` })
       .setTimestamp();
 
-    return interaction.reply({ embeds: [embed], ephemeral: true });
+    return interaction.reply({ embeds: [embed] });
   }
 
   if (commandName === 'inventaire-admin') {
