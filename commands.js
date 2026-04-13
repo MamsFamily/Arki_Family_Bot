@@ -162,6 +162,11 @@ const commands = [
       { name: 'raison', type: 3, description: 'Raison de la distribution', required: false },
     ],
   },
+  {
+    name: 'migrer-ub',
+    description: '🔒 Admin — Importe les soldes UnbelievaBoat (cash + banque) → Diamants Arki',
+    default_member_permissions: '8',
+  },
 ];
 
 module.exports = commands;

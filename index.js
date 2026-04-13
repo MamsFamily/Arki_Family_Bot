@@ -3143,6 +3143,89 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
+// ─── MIGRATION UNBELIEVABOAT → DIAMANTS ────────────────────────────────────
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isChatInputCommand()) return;
+  if (interaction.commandName !== 'migrer-ub') return;
+
+  if (!interaction.memberPermissions?.has('Administrator')) {
+    return interaction.reply({ content: '❌ Réservé aux administrateurs.', ephemeral: true });
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+
+  const { getClient: getUnbClient, GUILD_ID: UNB_GUILD_ID } = require('./unbelievaboatService');
+  const unbClient = getUnbClient();
+  if (!unbClient) {
+    return interaction.editReply('❌ Token UnbelievaBoat non configuré. Vérifie la variable `UNBELIEVABOAT_TOKEN`.');
+  }
+
+  const adminName = interaction.user.username || 'Admin';
+  let totalPages = null;
+  let currentPage = 1;
+  let allUsers = [];
+
+  await interaction.editReply('⏳ Récupération du leaderboard UnbelievaBoat… (peut prendre plusieurs secondes)');
+
+  try {
+    do {
+      const result = await unbClient.getGuildLeaderboard(UNB_GUILD_ID, { page: currentPage, limit: 1000, sort: 'total' });
+      if (result.totalPages !== undefined) {
+        totalPages = result.totalPages;
+        allUsers = allUsers.concat(result.users);
+      } else {
+        allUsers = allUsers.concat(Array.isArray(result) ? result : [result]);
+        totalPages = 1;
+      }
+      currentPage++;
+    } while (currentPage <= totalPages);
+  } catch (err) {
+    return interaction.editReply(`❌ Erreur lors de la récupération du leaderboard : ${err.message}`);
+  }
+
+  if (!allUsers.length) {
+    return interaction.editReply('ℹ️ Aucun utilisateur trouvé dans le leaderboard UnbelievaBoat.');
+  }
+
+  let success = 0, skipped = 0, errors = 0;
+  let totalDiamonds = 0;
+  const errorList = [];
+
+  for (const user of allUsers) {
+    const userId = user.user_id || user.id;
+    const cash = parseInt(user.cash) || 0;
+    const bank = parseInt(user.bank) || 0;
+    const total = cash + bank;
+    if (total <= 0) { skipped++; continue; }
+
+    try {
+      await addToInventory(userId, 'diamants', total, adminName, `Migration UB — cash:${cash} banque:${bank}`);
+      totalDiamonds += total;
+      success++;
+    } catch (err) {
+      errors++;
+      if (errorList.length < 5) errorList.push(`${userId}: ${err.message}`);
+    }
+
+    // Petite pause pour ne pas saturer la DB
+    await new Promise(r => setTimeout(r, 30));
+  }
+
+  const lines = [
+    `✅ **Migration UnbelievaBoat terminée !**`,
+    ``,
+    `📊 **Résultats :**`,
+    `• Joueurs migrés : **${success}**`,
+    `• Joueurs ignorés (solde 0) : **${skipped}**`,
+    `• Erreurs : **${errors}**`,
+    `• Total Diamants transférés : **${totalDiamonds.toLocaleString('fr-FR')}**`,
+  ];
+  if (errorList.length) lines.push(`\n⚠️ Premières erreurs :\n\`\`\`\n${errorList.join('\n')}\n\`\`\``);
+  lines.push(`\n> Une fois vérifiée, tu peux supprimer la commande \`/migrer-ub\` de \`commands.js\`.`);
+
+  return interaction.editReply(lines.join('\n'));
+});
+
 const token = process.env.DISCORD_TOKEN;
 
 // ─── WELCOME SYSTEM ────────────────────────────────────────────────────────
