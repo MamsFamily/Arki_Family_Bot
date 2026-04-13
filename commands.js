@@ -63,6 +63,10 @@ const commands = [
     options: [],
   },
   {
+    name: 'classement',
+    description: '🏆 Affiche le classement des diamants du serveur',
+  },
+  {
     name: 'compte',
     description: 'Affiche le contenu de ton porte-monnaie (diamants et fraises)',
     options: [

@@ -19,7 +19,7 @@ const { getConfig, saveConfig: saveRouletteConfig, initConfig } = require('./con
 const { initSettings, getSettings } = require('./settingsManager');
 const { initDinos } = require('./dinoManager');
 const { initShop } = require('./shopManager');
-const { initInventory, getItemTypes, getItemTypeById, getPlayerInventory, addToInventory, removeFromInventory, resetPlayerInventory, getPlayerTransactions, getCategories } = require('./inventoryManager');
+const { initInventory, getItemTypes, getItemTypeById, getPlayerInventory, getAllInventories, addToInventory, removeFromInventory, resetPlayerInventory, getPlayerTransactions, getCategories } = require('./inventoryManager');
 const giveawayManager = require('./giveawayManager');
 const { initSpecialPacks, getSpecialPacks, getSpecialPack } = require('./specialPacksManager');
 const economyManager = require('./economyManager');
@@ -2657,6 +2657,66 @@ client.on('interactionCreate', async interaction => {
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  if (commandName === 'classement') {
+    await interaction.deferReply();
+
+    const allInv  = getAllInventories();
+    const guild   = interaction.guild;
+    const callerId = interaction.user.id;
+
+    // Trier les joueurs par diamants décroissant, ignorer ceux à 0
+    const sorted = Object.entries(allInv)
+      .map(([id, inv]) => ({ id, diamants: inv['diamants'] || 0 }))
+      .filter(p => p.diamants > 0)
+      .sort((a, b) => b.diamants - a.diamants);
+
+    if (sorted.length === 0) {
+      return interaction.editReply({ content: '❌ Aucun joueur n\'a encore de diamants !' });
+    }
+
+    const MEDALS  = ['🥇', '🥈', '🥉'];
+    const top     = sorted.slice(0, 10);
+    const callerRank = sorted.findIndex(p => p.id === callerId) + 1;
+
+    // Résoudre les noms Discord pour le top 10
+    const lines = await Promise.all(top.map(async (p, i) => {
+      let name;
+      try {
+        const member = await guild.members.fetch(p.id);
+        name = member.displayName;
+      } catch {
+        name = `Joueur inconnu`;
+      }
+      const medal  = MEDALS[i] ?? `**${i + 1}.**`;
+      const isMe   = p.id === callerId;
+      const arrow  = isMe ? ' ◄' : '';
+      return `${medal} **${name}** — ${p.diamants.toLocaleString('fr-FR')} 💎${arrow}`;
+    }));
+
+    // Position du joueur s'il est en dehors du top 10
+    let callerLine = '';
+    if (callerRank > 10) {
+      const callerEntry = sorted[callerRank - 1];
+      let callerName;
+      try {
+        const member = await guild.members.fetch(callerId);
+        callerName = member.displayName;
+      } catch {
+        callerName = interaction.user.username;
+      }
+      callerLine = `\n\n*Ta position : **#${callerRank}** — ${callerEntry.diamants.toLocaleString('fr-FR')} 💎*`;
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(0xf9c740)
+      .setTitle('🏆 Classement des Diamants')
+      .setDescription(lines.join('\n') + callerLine)
+      .setFooter({ text: `${sorted.length} joueur${sorted.length > 1 ? 's' : ''} dans le classement` })
+      .setTimestamp();
+
+    return interaction.editReply({ embeds: [embed] });
   }
 
   if (commandName === 'compte') {
