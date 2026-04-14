@@ -240,6 +240,15 @@ const commands = [
       { name: 'photo', type: 11, description: 'Fichier justificatif (image, vidéo…)', required: false },
     ],
   },
+  {
+    name: 'aide',
+    description: '📖 Liste toutes les commandes disponibles, par catégorie',
+  },
+  {
+    name: 'aide-admin',
+    description: '🔒 Admin — Liste toutes les commandes d\'administration, par catégorie',
+    default_member_permissions: '8',
+  },
 ];
 
 module.exports = commands;

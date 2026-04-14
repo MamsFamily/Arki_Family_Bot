@@ -2823,6 +2823,126 @@ client.on('interactionCreate', async interaction => {
     return interaction.editReply({ embeds: [embed], components: row ? [row] : [] });
   }
 
+  // ── /aide ────────────────────────────────────────────────────────────────────
+  if (commandName === 'aide') {
+    const embed = new EmbedBuilder()
+      .setColor(0x7c5cfc)
+      .setTitle('📖 Commandes disponibles')
+      .setDescription('Voici toutes les commandes que tu peux utiliser sur le serveur.')
+      .addFields(
+        {
+          name: '💰 Économie',
+          value: [
+            '`/classement` — Classement des diamants du serveur (paginé, avec ta position)',
+            '`/compte [@membre]` — Ton solde diamants & fraises + ta place dans le classement',
+            '`/envoyer @joueur montant raison` — Transfert de diamants à un autre joueur',
+            '`/revenus` — Récupère tes revenus hebdomadaires liés à tes rôles',
+            '`/travail` — Gagne entre 50 et 250 💎 (disponible toutes les 4h)',
+          ].join('\n'),
+        },
+        {
+          name: '📦 Inventaire',
+          value: [
+            '`/inventaire [@joueur]` — Affiche ton inventaire complet (dinos, items, monnaie…)',
+            '`/inventaire-historique` — Tes 20 dernières transactions (visible que par toi)',
+            '`/shop` — Parcourir le shop Arki et passer une commande',
+          ].join('\n'),
+        },
+        {
+          name: '⭐ Niveaux & XP',
+          value: [
+            '`/classement-xp` — Classement des joueurs par XP (paginé, avec ta position)',
+            '`/niveau [@membre]` — Ton niveau, ta barre de progression XP et ta place au classement',
+          ].join('\n'),
+        },
+        {
+          name: '🎁 Giveaway',
+          value: [
+            '`/giveway-participants [id]` — Liste les participants du giveaway en cours',
+          ].join('\n'),
+        },
+        {
+          name: '🔤 Divers',
+          value: [
+            '`/aide` — Affiche ce menu',
+            '`/traduction message` — Traduit un message Discord en français',
+          ].join('\n'),
+        },
+      )
+      .setFooter({ text: 'Les options entre [ ] sont optionnelles • @membre / @joueur = mention Discord' })
+      .setTimestamp();
+
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  // ── /aide-admin ──────────────────────────────────────────────────────────────
+  if (commandName === 'aide-admin') {
+    const embed = new EmbedBuilder()
+      .setColor(0xf44336)
+      .setTitle('🔒 Commandes d\'administration')
+      .setDescription('Récapitulatif de toutes les commandes réservées aux admins et modérateurs.')
+      .addFields(
+        {
+          name: '💰 Économie',
+          value: [
+            '`/amende @joueur montant raison [photo]` — Inflige une amende en diamants + log dans le canal dédié',
+          ].join('\n'),
+        },
+        {
+          name: '🎁 Giveaway',
+          value: [
+            '`/creer-giveway` — Crée et publie un giveaway dans le salon courant',
+            '`/giveway-retirer @utilisateur [id]` — Retire un participant du giveaway en cours',
+            '`/relancer-giveway id` — Relance le tirage au sort d\'un giveaway terminé',
+          ].join('\n'),
+        },
+        {
+          name: '📦 Inventaire',
+          value: [
+            '`/attribuer-pack @joueur pack` — Attribue un pack spécial à un joueur',
+            '`/inventaire-admin ajouter @joueur item qté [raison]` — Ajoute des items à un joueur',
+            '`/inventaire-admin historique @joueur` — Historique complet des transactions d\'un joueur',
+            '`/inventaire-admin reset @joueur` — Réinitialise entièrement l\'inventaire d\'un joueur',
+            '`/inventaire-admin retirer @joueur item qté [raison]` — Retire des items à un joueur',
+            '`/inventaire-distribuer-item joueurs item qté [raison]` — Distribution en masse à plusieurs joueurs',
+            '`/migrer-ub` — Importe les soldes UnbelievaBoat (cash + banque) → Diamants Arki',
+          ].join('\n'),
+        },
+        {
+          name: '🎡 Roulette',
+          value: [
+            '`/dino-roulette` — Lance la roulette Dino Shiny avec le top 10 des votants',
+            '`/roulette` — Lance la roue de la chance Arki',
+            '`/set-choices title choices` — Modifie le titre et les choix de la roulette',
+            '`/show-choices` — Affiche les choix actuels de la roulette',
+          ].join('\n'),
+        },
+        {
+          name: '🗳️ Votes mensuels',
+          value: [
+            '`/distribution_recompenses` — Publie la liste complète des votes avec récompenses',
+            '`/pay-votes` — Distribue les diamants sans publier de message',
+            '`/publish-votes` — Publie les résultats officiels des votes du mois',
+            '`/test-votes` — Prévisualise les résultats sans rien publier ni distribuer',
+            '`/vote-rapport` — Rapport de distribution : qui a été payé, qui ne l\'a pas été',
+            '`/votes` — Affiche le classement des votes du mois dernier',
+          ].join('\n'),
+        },
+        {
+          name: '⭐ XP',
+          value: [
+            '`/xp-donner @joueur montant` — Donne de l\'XP à un joueur (déclenche les récompenses si level-up)',
+            '`/xp-forcer-niveau @joueur niveau` — Force un niveau SANS distribuer les récompenses (migration)',
+            '`/xp-retirer @joueur montant` — Retire de l\'XP à un joueur',
+          ].join('\n'),
+        },
+      )
+      .setFooter({ text: 'Les options entre [ ] sont optionnelles • Toutes ces commandes sont réservées aux admins' })
+      .setTimestamp();
+
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
   if (commandName === 'classement') {
     await interaction.deferReply();
     const allInv   = getAllInventories();
