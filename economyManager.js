@@ -47,6 +47,19 @@ async function setCooldown(userId, key, ts) {
   await saveCooldowns(all);
 }
 
+// Rôles déjà inclus dans le dernier paiement /revenus du joueur
+async function getClaimedRoles(userId) {
+  const all = await loadCooldowns();
+  return (all[userId] || {}).revenuRoles || null; // null = jamais stocké (legacy)
+}
+
+async function setClaimedRoles(userId, roleIds) {
+  const all = await loadCooldowns();
+  if (!all[userId]) all[userId] = {};
+  all[userId].revenuRoles = roleIds;
+  await saveCooldowns(all);
+}
+
 // ── Revenus de rôles ─────────────────────────────────────────────────────────
 // Structure : { roleId: { name, income, shopDiscount } }
 async function getRoleIncomes() {
@@ -93,6 +106,7 @@ function randBonus() {
 
 module.exports = {
   getCooldown, setCooldown,
+  getClaimedRoles, setClaimedRoles,
   getRoleIncomes, setRoleIncome, deleteRoleIncome, calcPlayerRevenue,
   BONUS_COOLDOWN_MS, REVENU_COOLDOWN_MS,
   WELCOME_DIAMONDS, BONUS_MIN, BONUS_MAX, randBonus,
