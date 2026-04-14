@@ -2605,20 +2605,20 @@ client.on('interactionCreate', async interaction => {
     }
 
     // Section Pass Discord — XP progression (si le joueur a le rôle)
-    const xpConfig = await xpManager.loadXpConfig();
+    const xpConfig   = await xpManager.loadXpConfig();
     const passRoleId = xpConfig.roleId || '1173596259328729189';
-    try {
-      const guild        = interaction.guild;
-      const targetMember = guild ? await guild.members.fetch(targetUser.id).catch(() => null) : null;
-      if (targetMember && targetMember.roles.cache.has(passRoleId)) {
-        const userData = await xpManager.getUserData(targetUser.id);
-        const { level, currentXp, xpForNext } = xpManager.calcLevelAndRemainder(userData.totalXp || 0);
-        const pct    = xpForNext > 0 ? currentXp / xpForNext : 1;
-        const filled = Math.round(pct * 20);
-        const bar    = '█'.repeat(filled) + '░'.repeat(20 - filled);
-        description += `\n### 🎖️ Pass Discord\nProgression vers le niveau **${level + 1}**\n\`${bar}\`\n${currentXp.toLocaleString('fr-FR')} / ${xpForNext.toLocaleString('fr-FR')} XP`;
-      }
-    } catch (e) { /* silencieux si impossible de fetch le membre */ }
+    // Priorité : option getMember → interaction.member (si c'est soi) → fetch API
+    let targetMemberForXp = interaction.options.getMember('joueur')
+      || (targetUser.id === interaction.user.id ? interaction.member : null)
+      || await interaction.guild?.members.fetch(targetUser.id).catch(() => null);
+    if (targetMemberForXp && targetMemberForXp.roles.cache.has(passRoleId)) {
+      const userData = await xpManager.getUserData(targetUser.id);
+      const { level, currentXp, xpForNext } = xpManager.calcLevelAndRemainder(userData.totalXp || 0);
+      const pct    = xpForNext > 0 ? currentXp / xpForNext : 1;
+      const filled = Math.round(pct * 20);
+      const bar    = '█'.repeat(filled) + '░'.repeat(20 - filled);
+      description += `\n### 🎖️ Pass Discord\nProgression vers le niveau **${level + 1}**\n\`${bar}\`\n${currentXp.toLocaleString('fr-FR')} / ${xpForNext.toLocaleString('fr-FR')} XP`;
+    }
 
     const embed = new EmbedBuilder()
       .setColor('#2ECC71')
