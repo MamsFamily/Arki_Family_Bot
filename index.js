@@ -1,4 +1,16 @@
 const { Client, GatewayIntentBits, Partials, AttachmentBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, REST, Routes } = require('discord.js');
+
+// Normalise les séparateurs de milliers de fr-FR : remplace les espaces insécables
+// (U+202F narrow no-break space, U+00A0 no-break space) par des espaces normaux
+// afin que Discord affiche correctement ex. "1 994 596" au lieu d'un bloc collé.
+(function patchLocaleString() {
+  const _orig = Number.prototype.toLocaleString;
+  Number.prototype.toLocaleString = function(locale, options) {
+    const result = _orig.call(this, locale, options);
+    return typeof result === 'string' ? result.replace(/[\u202F\u00A0]/g, ' ') : result;
+  };
+})();
+
 const commands = require('./commands');
 const fs = require('fs');
 const path = require('path');
