@@ -3803,7 +3803,7 @@ client.on('interactionCreate', async interaction => {
   const userId = interaction.user.id;
   const now    = Date.now();
 
-  const member       = interaction.member;
+  const member        = interaction.member;
   const memberRoleIds = [...member.roles.cache.keys()];
   const { lines, total } = await economyManager.calcPlayerRevenue(memberRoleIds);
 
@@ -3811,11 +3811,10 @@ client.on('interactionCreate', async interaction => {
     return interaction.reply({ content: `❌ Aucun de tes rôles ne génère de revenu hebdomadaire pour l'instant.`, ephemeral: true });
   }
 
-  const lastRevenu   = await economyManager.getCooldown(userId, 'revenu');
-  const remaining    = lastRevenu + economyManager.REVENU_COOLDOWN_MS - now;
-  const onCooldown   = remaining > 0;
+  const lastRevenu = await economyManager.getCooldown(userId, 'revenu');
+  const remaining  = lastRevenu + economyManager.REVENU_COOLDOWN_MS - now;
+  const onCooldown = remaining > 0;
 
-  // ── Helper : formater le temps restant ──
   function fmtRemaining(ms) {
     const d = Math.floor(ms / 86400000);
     const h = Math.floor((ms % 86400000) / 3600000);
@@ -3823,32 +3822,36 @@ client.on('interactionCreate', async interaction => {
     return d > 0 ? `${d}j ${h}h` : h > 0 ? `${h}h ${m}min` : `${m}min`;
   }
 
-  // ── Cooldown actif : chercher les nouveaux rôles ──
+  // ── Cooldown actif ────────────────────────────────────────────────────────
   if (onCooldown) {
     const claimedRoles = await economyManager.getClaimedRoles(userId);
 
-    // Legacy : joueur qui avait déjà un cooldown avant l'ajout de la feature
-    // → on stocke ses rôles actuels et on affiche le message d'attente normal
-    if (claimedRoles === null) {
-      await economyManager.setClaimedRoles(userId, lines.map(l => l.roleId));
-      const timeStr = fmtRemaining(remaining);
-      return interaction.reply({ content: `⏳ Tu as déjà collecté tes revenus cette semaine ! Reviens dans **${timeStr}**.`, ephemeral: true });
-    }
-
-    // Rôles avec revenu que le joueur n'avait pas lors du dernier paiement
-    const newLines = lines.filter(l => !claimedRoles.includes(l.roleId));
+    // Déterminer quels rôles sont "nouveaux" depuis le dernier paiement
+    // — Si claimedRoles est null (legacy ou premier usage) : on se base sur addedAt
+    //   Les rôles ajoutés au système APRÈS le dernier /revenus (addedAt > lastRevenu)
+    //   sont considérés nouveaux. Les anciens rôles ont addedAt = 0 → jamais nouveaux.
+    // — Si claimedRoles est défini : on vérifie aussi que le rôle n'a pas déjà été
+    //   payé en cours de semaine.
+    const newLines = lines.filter(l => {
+      const isNewByDate   = l.addedAt > lastRevenu;          // rôle ajouté après dernière collecte
+      const isNewByRecord = claimedRoles !== null && !claimedRoles.includes(l.roleId); // pas encore payé cette semaine
+      return isNewByDate || isNewByRecord;
+    });
 
     if (newLines.length === 0) {
-      const timeStr = fmtRemaining(remaining);
-      return interaction.reply({ content: `⏳ Tu as déjà collecté tes revenus cette semaine ! Reviens dans **${timeStr}**.`, ephemeral: true });
+      return interaction.reply({
+        content: `⏳ Tu as déjà collecté tes revenus cette semaine ! Reviens dans **${fmtRemaining(remaining)}**.`,
+        ephemeral: true,
+      });
     }
 
     // Payer uniquement les nouveaux rôles, sans toucher au cooldown principal
     const newTotal = newLines.reduce((s, r) => s + r.income, 0);
     await addToInventory(userId, 'diamants', newTotal, 'Revenu hebdo (nouveaux rôles)', '/revenus');
 
-    // Ajouter les nouveaux rôles à la liste des rôles déjà payés
-    const updated = [...new Set([...claimedRoles, ...newLines.map(l => l.roleId)])];
+    // Marquer ces rôles comme payés cette semaine
+    const base    = claimedRoles || lines.filter(l => !newLines.includes(l)).map(l => l.roleId);
+    const updated = [...new Set([...base, ...newLines.map(l => l.roleId)])];
     await economyManager.setClaimedRoles(userId, updated);
 
     const rolesDesc = newLines.map(l =>
@@ -3869,7 +3872,7 @@ client.on('interactionCreate', async interaction => {
     return interaction.reply({ embeds: [embed] });
   }
 
-  // ── Cooldown expiré : paiement normal de tous les rôles ──
+  // ── Cooldown expiré : paiement normal de tous les rôles ──────────────────
   await addToInventory(userId, 'diamants', total, 'Revenu hebdo', '/revenus');
   await economyManager.setCooldown(userId, 'revenu', now);
   await economyManager.setClaimedRoles(userId, lines.map(l => l.roleId));

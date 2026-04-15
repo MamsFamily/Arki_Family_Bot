@@ -68,8 +68,16 @@ async function getRoleIncomes() {
 
 async function setRoleIncome(roleId, name, income, shopDiscount) {
   const roles = await loadRoles();
-  roles[roleId] = { name, income: parseInt(income) || 0, shopDiscount: parseFloat(shopDiscount) || 0 };
+  // Conserver addedAt si le rôle existe déjà, sinon horodater maintenant
+  const existing = roles[roleId] || {};
+  roles[roleId] = {
+    name,
+    income: parseInt(income) || 0,
+    shopDiscount: parseFloat(shopDiscount) || 0,
+    addedAt: existing.addedAt || Date.now(),
+  };
   await saveRoles(roles);
+  roleCache = roles;
   return roles;
 }
 
@@ -86,7 +94,7 @@ async function calcPlayerRevenue(memberRoleIds) {
   const matched = [];
   for (const [roleId, cfg] of Object.entries(roles)) {
     if (memberRoleIds.includes(roleId) && cfg.income > 0) {
-      matched.push({ roleId, name: cfg.name, income: cfg.income, shopDiscount: cfg.shopDiscount || 0 });
+      matched.push({ roleId, name: cfg.name, income: cfg.income, shopDiscount: cfg.shopDiscount || 0, addedAt: cfg.addedAt || 0 });
     }
   }
   const total = matched.reduce((s, r) => s + r.income, 0);
