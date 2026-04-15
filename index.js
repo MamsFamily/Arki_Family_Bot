@@ -2866,6 +2866,7 @@ client.on('interactionCreate', async interaction => {
 
       '__💰 Économie__',
       '    /amende : Inflige une amende en diamants à un joueur (log automatique).',
+      '    /revenus-debloquer : Réinitialise le cooldown /revenus d\'un joueur (si nouveaux rôles non détectés).',
       '',
       '__🎁 Giveaway__',
       '    /creer-giveway : Crée et publie un giveaway dans le salon courant.',
@@ -3797,6 +3798,28 @@ client.on('interactionCreate', async interaction => {
   return interaction.reply({ embeds: [embed] });
 });
 
+// ─── ÉCONOMIE : /revenus-debloquer ──────────────────────────────────────────
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isChatInputCommand() || interaction.commandName !== 'revenus-debloquer') return;
+  const target = interaction.options.getUser('joueur');
+
+  // Effacer le cooldown ET la liste des rôles payés → le joueur repart de zéro
+  await economyManager.setCooldown(target.id, 'revenu', 0);
+  await economyManager.setClaimedRoles(target.id, []);
+
+  const embed = new EmbedBuilder()
+    .setColor(0xff9800)
+    .setTitle('🔓 Cooldown /revenus réinitialisé')
+    .setDescription(
+      `Le cooldown de <@${target.id}> a été réinitialisé.\n` +
+      `Il peut maintenant utiliser **/revenus** pour collecter ses revenus immédiatement.`
+    )
+    .setFooter({ text: `Action effectuée par ${interaction.member?.displayName || interaction.user.username}` })
+    .setTimestamp();
+
+  return interaction.reply({ embeds: [embed], ephemeral: true });
+});
+
 // ─── ÉCONOMIE : /revenus ────────────────────────────────────────────────────
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand() || interaction.commandName !== 'revenus') return;
@@ -3824,19 +3847,22 @@ client.on('interactionCreate', async interaction => {
 
   // ── Cooldown actif ────────────────────────────────────────────────────────
   if (onCooldown) {
-    const claimedRoles = await economyManager.getClaimedRoles(userId);
+    let claimedRoles = await economyManager.getClaimedRoles(userId);
 
-    // Déterminer quels rôles sont "nouveaux" depuis le dernier paiement
-    // — Si claimedRoles est null (legacy ou premier usage) : on se base sur addedAt
-    //   Les rôles ajoutés au système APRÈS le dernier /revenus (addedAt > lastRevenu)
-    //   sont considérés nouveaux. Les anciens rôles ont addedAt = 0 → jamais nouveaux.
-    // — Si claimedRoles est défini : on vérifie aussi que le rôle n'a pas déjà été
-    //   payé en cours de semaine.
-    const newLines = lines.filter(l => {
-      const isNewByDate   = l.addedAt > lastRevenu;          // rôle ajouté après dernière collecte
-      const isNewByRecord = claimedRoles !== null && !claimedRoles.includes(l.roleId); // pas encore payé cette semaine
-      return isNewByDate || isNewByRecord;
-    });
+    // Initialisation du baseline pour les joueurs sans historique (legacy)
+    // On stocke les rôles actuels comme référence, en EXCLUANT ceux ajoutés récemment
+    // (addedAt > lastRevenu) qui seront détectés comme nouveaux ci-dessous.
+    if (claimedRoles === null) {
+      const baseline = lines
+        .filter(l => l.addedAt <= lastRevenu)
+        .map(l => l.roleId);
+      await economyManager.setClaimedRoles(userId, baseline);
+      claimedRoles = baseline;
+    }
+
+    // Rôle "nouveau" = pas encore dans la liste payée cette semaine
+    // (couvre : rôle Discord obtenu après last claim ET rôle économie ajouté après)
+    const newLines = lines.filter(l => !claimedRoles.includes(l.roleId));
 
     if (newLines.length === 0) {
       return interaction.reply({
@@ -3850,8 +3876,7 @@ client.on('interactionCreate', async interaction => {
     await addToInventory(userId, 'diamants', newTotal, 'Revenu hebdo (nouveaux rôles)', '/revenus');
 
     // Marquer ces rôles comme payés cette semaine
-    const base    = claimedRoles || lines.filter(l => !newLines.includes(l)).map(l => l.roleId);
-    const updated = [...new Set([...base, ...newLines.map(l => l.roleId)])];
+    const updated = [...new Set([...claimedRoles, ...newLines.map(l => l.roleId)])];
     await economyManager.setClaimedRoles(userId, updated);
 
     const rolesDesc = newLines.map(l =>

@@ -241,6 +241,14 @@ const commands = [
     ],
   },
   {
+    name: 'revenus-debloquer',
+    description: '🔒 Admin — Réinitialise le cooldown /revenus d\'un joueur (rôles nouveaux non détectés)',
+    default_member_permissions: '8',
+    options: [
+      { name: 'joueur', type: 6, description: 'Le joueur à débloquer', required: true },
+    ],
+  },
+  {
     name: 'aide',
     description: '📖 Liste toutes les commandes disponibles, par catégorie',
   },
