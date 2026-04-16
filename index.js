@@ -37,6 +37,7 @@ const { initSpecialPacks, getSpecialPacks, getSpecialPack } = require('./special
 const economyManager = require('./economyManager');
 const xpManager = require('./xpManager');
 const { handleShopCommand, handleShopInteraction } = require('./shopCommand');
+const restartScheduler = require('./nitradoRestartScheduler');
 const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
 
 const openaiConfig = {};
@@ -543,6 +544,9 @@ client.once('clientReady', async () => {
   config = getConfig();
 
   createWebServer(client);
+
+  // Initialiser les plannings de redémarrage ARK SA
+  await restartScheduler.init().catch(e => console.error('[RestartSched] init error:', e.message));
 
   // Publier les giveaways sans messageId + programmer les timers
   await publishAndScheduleGiveaways(client);
@@ -2900,6 +2904,13 @@ client.on('interactionCreate', async interaction => {
       '    /xp-donner : Donne de l\'XP à un joueur (déclenche les récompenses).',
       '    /xp-forcer-niveau : Force un niveau SANS distribuer les récompenses (migration).',
       '    /xp-retirer : Retire de l\'XP à un joueur.',
+      '',
+      '__🔄 Serveurs ARK SA (Nitrado)__',
+      '    /restart-programmer voir : Liste tous les plannings de redémarrage automatique.',
+      '    /restart-programmer créer : Programme un redémarrage quotidien (avec alertes in-game).',
+      '    /restart-programmer toggle : Activer ou désactiver un planning.',
+      '    /restart-programmer supprimer : Supprimer un planning.',
+      '    /restart-programmer lancer : Déclencher immédiatement un redémarrage (SaveWorld + restart).',
     ];
 
     const embed = new EmbedBuilder()
@@ -2907,6 +2918,122 @@ client.on('interactionCreate', async interaction => {
       .setDescription(lines.join('\n'));
 
     return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  // ── /restart-programmer ───────────────────────────────────────────────────
+  if (commandName === 'restart-programmer') {
+    if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({ content: '❌ Commande réservée aux administrateurs.', ephemeral: true });
+    }
+
+    const sub = interaction.options.getSubcommand();
+    await interaction.deferReply({ ephemeral: true });
+
+    // ── voir ────────────────────────────────────────────────────────────────
+    if (sub === 'voir') {
+      const list = await restartScheduler.getAll();
+      if (!list.length) {
+        return interaction.editReply({ content: '📭 Aucun planning de redémarrage configuré.\nUtilise `/restart-programmer créer` pour en ajouter un.' });
+      }
+
+      const lines = list.map(s => {
+        const statut = s.active ? '🟢' : '🔴';
+        const warn   = s.avertissements !== false ? '🔔 30/15/5/1 min' : '🔕 Aucun';
+        const maps   = !s.serverIds || !s.serverIds.length ? 'Toutes les maps' : `${s.serverIds.length} map(s) spécifique(s)`;
+        const dernier = s.dernierRedemarrage
+          ? new Date(s.dernierRedemarrage).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+          : 'Jamais';
+        return [
+          `${statut} **${s.nom}** — \`ID: ${s.id}\``,
+          `  ⏰ Tous les jours à **${s.heure}** (Europe/Paris)`,
+          `  🗺️ ${maps}`,
+          `  ${warn}`,
+          `  ⏱️ Dernier redémarrage : ${dernier}`,
+        ].join('\n');
+      });
+
+      const embed = new EmbedBuilder()
+        .setColor(0x7c5cfc)
+        .setTitle('🔄 Plannings de redémarrage ARK SA')
+        .setDescription(lines.join('\n\n'))
+        .setFooter({ text: 'Utilise /restart-programmer toggle <id> pour activer/désactiver' });
+
+      return interaction.editReply({ embeds: [embed] });
+    }
+
+    // ── créer ────────────────────────────────────────────────────────────────
+    if (sub === 'créer') {
+      const heure          = interaction.options.getString('heure');
+      const nom            = interaction.options.getString('nom');
+      const avertissements = interaction.options.getBoolean('avertissements') ?? true;
+
+      try {
+        const sched = await restartScheduler.create({ nom, heure, avertissements });
+        const warn  = avertissements ? '🔔 Actifs (30/15/5/1 min avant)' : '🔕 Désactivés';
+
+        const embed = new EmbedBuilder()
+          .setColor(0x4caf50)
+          .setTitle('✅ Planning créé')
+          .addFields(
+            { name: '📌 Nom',            value: nom,          inline: true },
+            { name: '⏰ Heure',           value: `${heure} (Paris)`, inline: true },
+            { name: '🗺️ Maps',            value: 'Toutes les maps',  inline: true },
+            { name: '🔔 Avertissements',  value: warn,         inline: true },
+            { name: '🆔 ID',              value: `\`${sched.id}\``,  inline: true },
+          )
+          .setFooter({ text: 'Le scheduler tourne côté bot (Railway) — il démarrera chaque nuit à l\'heure indiquée' });
+
+        return interaction.editReply({ embeds: [embed] });
+      } catch (e) {
+        return interaction.editReply({ content: `❌ Erreur : ${e.message}` });
+      }
+    }
+
+    // ── supprimer ────────────────────────────────────────────────────────────
+    if (sub === 'supprimer') {
+      const id = interaction.options.getString('id');
+      try {
+        await restartScheduler.remove(id);
+        return interaction.editReply({ content: `✅ Planning \`${id}\` supprimé et jobs arrêtés.` });
+      } catch (e) {
+        return interaction.editReply({ content: `❌ ${e.message}` });
+      }
+    }
+
+    // ── toggle ───────────────────────────────────────────────────────────────
+    if (sub === 'toggle') {
+      const id = interaction.options.getString('id');
+      try {
+        const sched = await restartScheduler.toggle(id);
+        const msg = sched.active
+          ? `✅ Planning **${sched.nom}** activé — redémarrage chaque jour à **${sched.heure}**.`
+          : `⏸ Planning **${sched.nom}** désactivé.`;
+        return interaction.editReply({ content: msg });
+      } catch (e) {
+        return interaction.editReply({ content: `❌ ${e.message}` });
+      }
+    }
+
+    // ── lancer ───────────────────────────────────────────────────────────────
+    if (sub === 'lancer') {
+      const id = interaction.options.getString('id');
+      const list = await restartScheduler.getAll();
+      const sched = list.find(s => s.id === id);
+      if (!sched) return interaction.editReply({ content: '❌ Planning introuvable.' });
+
+      await interaction.editReply({ content: `⏳ Lancement du redémarrage **${sched.nom}**… (SaveWorld puis restart)` });
+
+      try {
+        const results = await restartScheduler.runNow(id);
+        const ok    = results.filter(r => r.ok).length;
+        const total = results.length;
+        return interaction.followUp({ content: `✅ Redémarrage lancé sur **${ok}/${total}** serveur(s).`, ephemeral: true });
+      } catch (e) {
+        return interaction.followUp({ content: `❌ Erreur lors du redémarrage : ${e.message}`, ephemeral: true });
+      }
+    }
+
+    return interaction.editReply({ content: '❌ Sous-commande inconnue.' });
   }
 
   if (commandName === 'classement') {

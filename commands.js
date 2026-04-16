@@ -257,6 +257,52 @@ const commands = [
     description: '🔒 Admin — Liste toutes les commandes d\'administration, par catégorie',
     default_member_permissions: '8',
   },
+  {
+    name: 'restart-programmer',
+    description: '🔄 Gérer les redémarrages automatiques des serveurs ARK SA (Admin)',
+    default_member_permissions: '8',
+    options: [
+      {
+        type: 1,
+        name: 'voir',
+        description: '📋 Lister tous les plannings de redémarrage',
+      },
+      {
+        type: 1,
+        name: 'créer',
+        description: '➕ Programmer un redémarrage automatique quotidien',
+        options: [
+          { name: 'heure',          type: 3, description: 'Heure du redémarrage (format HH:MM, ex: 04:00)',                    required: true  },
+          { name: 'nom',            type: 3, description: 'Nom du planning (ex: Redémarrage nocturne)',                        required: true  },
+          { name: 'avertissements', type: 5, description: 'Envoyer des alertes in-game 30/15/5/1 min avant (défaut: oui)',     required: false },
+        ],
+      },
+      {
+        type: 1,
+        name: 'supprimer',
+        description: '🗑️ Supprimer un planning de redémarrage',
+        options: [
+          { name: 'id', type: 3, description: 'ID du planning (visible avec /restart-programmer voir)', required: true },
+        ],
+      },
+      {
+        type: 1,
+        name: 'toggle',
+        description: '⏸ Activer ou désactiver un planning',
+        options: [
+          { name: 'id', type: 3, description: 'ID du planning (visible avec /restart-programmer voir)', required: true },
+        ],
+      },
+      {
+        type: 1,
+        name: 'lancer',
+        description: '▶️ Lancer immédiatement le redémarrage d\'un planning (SaveWorld puis restart)',
+        options: [
+          { name: 'id', type: 3, description: 'ID du planning (visible avec /restart-programmer voir)', required: true },
+        ],
+      },
+    ],
+  },
 ];
 
 module.exports = commands;
