@@ -2601,6 +2601,213 @@ function createWebServer(discordClient) {
     res.json({ success: true });
   });
 
+  // ─── NITRADO ──────────────────────────────────────────────────────────────────
+  const nitrado = require('./nitradoManager');
+
+  // Page principale
+  app.get('/nitrado', requireAdmin, async (req, res) => {
+    const hasToken = !!nitrado.getToken();
+    let servers = [];
+    let error = null;
+
+    if (hasToken) {
+      try {
+        const services = await nitrado.getServices();
+        const details = await nitrado.getMultipleDetails(services.map(s => s.id));
+        servers = services.map(s => {
+          const d = details.find(x => x.serviceId === s.id)?.detail || null;
+          return {
+            id: s.id,
+            name: s.details?.name || d?.query?.server_name || `Serveur ${s.id}`,
+            status: d?.status || 'unknown',
+            map: d?.query?.map || d?.settings?.config?.map || '–',
+            players: d?.query?.player_current ?? '–',
+            maxPlayers: d?.query?.player_max ?? '–',
+            ip: d?.ip || '–',
+            port: d?.port || '–',
+            game: s.details?.game || 'ark_sa',
+          };
+        });
+      } catch (e) {
+        error = e.message;
+      }
+    }
+
+    res.render('nitrado', {
+      path: req.path,
+      botUser: discordClient?.user || null,
+      discordUser: req.session.discordUser,
+      role: req.session.role,
+      hasToken,
+      servers,
+      error,
+    });
+  });
+
+  // API : statut serveurs (refresh)
+  app.get('/nitrado/api/servers', requireAdmin, async (req, res) => {
+    try {
+      const services = await nitrado.getServices();
+      const details = await nitrado.getMultipleDetails(services.map(s => s.id));
+      const servers = services.map(s => {
+        const d = details.find(x => x.serviceId === s.id)?.detail || null;
+        return {
+          id: s.id,
+          name: s.details?.name || d?.query?.server_name || `Serveur ${s.id}`,
+          status: d?.status || 'unknown',
+          map: d?.query?.map || '–',
+          players: d?.query?.player_current ?? '–',
+          maxPlayers: d?.query?.player_max ?? '–',
+        };
+      });
+      res.json({ ok: true, servers });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // API : redémarrer un serveur
+  app.post('/nitrado/api/restart/:id', requireAdmin, async (req, res) => {
+    try {
+      await nitrado.restartServer(req.params.id, req.body.message || '');
+      res.json({ ok: true });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // API : redémarrer tous les serveurs
+  app.post('/nitrado/api/restart-all', requireAdmin, async (req, res) => {
+    try {
+      const services = await nitrado.getServices();
+      const ids = services.map(s => s.id);
+      const results = await nitrado.restartAll(ids, req.body.message || '');
+      res.json({ ok: true, results });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // API : stopper un serveur
+  app.post('/nitrado/api/stop/:id', requireAdmin, async (req, res) => {
+    try {
+      await nitrado.stopServer(req.params.id);
+      res.json({ ok: true });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // API : démarrer un serveur
+  app.post('/nitrado/api/start/:id', requireAdmin, async (req, res) => {
+    try {
+      await nitrado.startServer(req.params.id);
+      res.json({ ok: true });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // API : liste des mods d'un serveur
+  app.get('/nitrado/api/mods/:id', requireAdmin, async (req, res) => {
+    try {
+      const mods = await nitrado.getMods(req.params.id);
+      res.json({ ok: true, mods });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // API : ajouter un mod à tous les serveurs
+  app.post('/nitrado/api/mods/add-all', requireAdmin, async (req, res) => {
+    try {
+      const { modId } = req.body;
+      if (!modId) return res.json({ ok: false, error: 'modId manquant' });
+      const services = await nitrado.getServices();
+      const results = await nitrado.addModToAll(services.map(s => s.id), modId.trim());
+      res.json({ ok: true, results });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // API : supprimer un mod de tous les serveurs
+  app.post('/nitrado/api/mods/remove-all', requireAdmin, async (req, res) => {
+    try {
+      const { modId } = req.body;
+      if (!modId) return res.json({ ok: false, error: 'modId manquant' });
+      const services = await nitrado.getServices();
+      const results = await nitrado.removeModFromAll(services.map(s => s.id), modId.trim());
+      res.json({ ok: true, results });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // API : ajouter un mod à un seul serveur
+  app.post('/nitrado/api/mods/add/:id', requireAdmin, async (req, res) => {
+    try {
+      const { modId } = req.body;
+      if (!modId) return res.json({ ok: false, error: 'modId manquant' });
+      await nitrado.addMod(req.params.id, modId.trim());
+      res.json({ ok: true });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // API : supprimer un mod d'un seul serveur
+  app.post('/nitrado/api/mods/remove/:id', requireAdmin, async (req, res) => {
+    try {
+      const { modId } = req.body;
+      if (!modId) return res.json({ ok: false, error: 'modId manquant' });
+      await nitrado.removeMod(req.params.id, modId.trim());
+      res.json({ ok: true });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // API : paramètres d'un serveur
+  app.get('/nitrado/api/settings/:id', requireAdmin, async (req, res) => {
+    try {
+      const settings = await nitrado.getSettings(req.params.id);
+      res.json({ ok: true, settings });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // API : modifier un paramètre sur tous les serveurs
+  app.post('/nitrado/api/settings/update-all', requireAdmin, async (req, res) => {
+    try {
+      const { category, key, value } = req.body;
+      if (!category || !key || value === undefined) return res.json({ ok: false, error: 'Paramètres manquants' });
+      const services = await nitrado.getServices();
+      const results = await nitrado.updateSettingOnAll(services.map(s => s.id), category, key, value);
+      res.json({ ok: true, results });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // API : modifier un paramètre sur un serveur
+  app.post('/nitrado/api/settings/update/:id', requireAdmin, async (req, res) => {
+    try {
+      const { category, key, value } = req.body;
+      if (!category || !key || value === undefined) return res.json({ ok: false, error: 'Paramètres manquants' });
+      const payload = {};
+      payload[category] = {};
+      payload[category][key] = value;
+      await nitrado.updateSettings(req.params.id, payload);
+      res.json({ ok: true });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+
   // Les timers et la publication Discord des giveaways sont gérés
   // exclusivement par le bot (index.js via publishAndScheduleGiveaways)
   // ────────────────────────────────────────────────────────────────────────────
