@@ -2676,11 +2676,14 @@ function createWebServer(discordClient) {
     }
   });
 
-  // API : redémarrer tous les serveurs
+  // API : redémarrer des serveurs (tous ou sélection)
   app.post('/nitrado/api/restart-all', requireAdmin, async (req, res) => {
     try {
-      const services = await nitrado.getServices();
-      const ids = services.map(s => s.id);
+      let ids = req.body.serviceIds;
+      if (!ids || !ids.length) {
+        const services = await nitrado.getServices();
+        ids = services.map(s => s.id);
+      }
       const results = await nitrado.restartAll(ids, req.body.message || '');
       res.json({ ok: true, results });
     } catch (e) {
@@ -2718,26 +2721,34 @@ function createWebServer(discordClient) {
     }
   });
 
-  // API : ajouter un mod à tous les serveurs
+  // API : ajouter un mod (tous ou sélection)
   app.post('/nitrado/api/mods/add-all', requireAdmin, async (req, res) => {
     try {
       const { modId } = req.body;
       if (!modId) return res.json({ ok: false, error: 'modId manquant' });
-      const services = await nitrado.getServices();
-      const results = await nitrado.addModToAll(services.map(s => s.id), modId.trim());
+      let ids = req.body.serviceIds;
+      if (!ids || !ids.length) {
+        const services = await nitrado.getServices();
+        ids = services.map(s => s.id);
+      }
+      const results = await nitrado.addModToAll(ids, modId.trim());
       res.json({ ok: true, results });
     } catch (e) {
       res.json({ ok: false, error: e.message });
     }
   });
 
-  // API : supprimer un mod de tous les serveurs
+  // API : supprimer un mod (tous ou sélection)
   app.post('/nitrado/api/mods/remove-all', requireAdmin, async (req, res) => {
     try {
       const { modId } = req.body;
       if (!modId) return res.json({ ok: false, error: 'modId manquant' });
-      const services = await nitrado.getServices();
-      const results = await nitrado.removeModFromAll(services.map(s => s.id), modId.trim());
+      let ids = req.body.serviceIds;
+      if (!ids || !ids.length) {
+        const services = await nitrado.getServices();
+        ids = services.map(s => s.id);
+      }
+      const results = await nitrado.removeModFromAll(ids, modId.trim());
       res.json({ ok: true, results });
     } catch (e) {
       res.json({ ok: false, error: e.message });
@@ -2778,13 +2789,17 @@ function createWebServer(discordClient) {
     }
   });
 
-  // API : modifier un paramètre sur tous les serveurs
+  // API : modifier un paramètre (tous ou sélection)
   app.post('/nitrado/api/settings/update-all', requireAdmin, async (req, res) => {
     try {
       const { category, key, value } = req.body;
       if (!category || !key || value === undefined) return res.json({ ok: false, error: 'Paramètres manquants' });
-      const services = await nitrado.getServices();
-      const results = await nitrado.updateSettingOnAll(services.map(s => s.id), category, key, value);
+      let ids = req.body.serviceIds;
+      if (!ids || !ids.length) {
+        const services = await nitrado.getServices();
+        ids = services.map(s => s.id);
+      }
+      const results = await nitrado.updateSettingOnAll(ids, category, key, value);
       res.json({ ok: true, results });
     } catch (e) {
       res.json({ ok: false, error: e.message });
