@@ -2821,6 +2821,153 @@ function createWebServer(discordClient) {
     }
   });
 
+  // ── RCON temps réel ──────────────────────────────────────────────────────────
+
+  // Envoyer une commande RCON à un seul serveur
+  app.post('/nitrado/api/rcon/:id', requireAdmin, async (req, res) => {
+    try {
+      const { command } = req.body;
+      if (!command) return res.json({ ok: false, error: 'Commande manquante' });
+      const data = await nitrado.sendRcon(req.params.id, command.trim());
+      res.json({ ok: true, response: data?.data?.message || '' });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // Envoyer une commande RCON à plusieurs serveurs (sélection ou tous)
+  app.post('/nitrado/api/rcon-many', requireAdmin, async (req, res) => {
+    try {
+      const { command } = req.body;
+      if (!command) return res.json({ ok: false, error: 'Commande manquante' });
+      let ids = req.body.serviceIds;
+      if (!ids || !ids.length) {
+        const services = await nitrado.getServices();
+        ids = services.map(s => s.id);
+      }
+      const results = await nitrado.sendRconToMany(ids, command.trim());
+      res.json({ ok: true, results });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // ── Commandes RCON programmées ────────────────────────────────────────────────
+
+  const cron = require('node-cron');
+  const scheduledJobs = {};   // id → cron.Task
+
+  async function getScheduledCmds() {
+    const raw = await pgStore.get('nitrado_scheduled_cmds');
+    return raw ? JSON.parse(raw) : [];
+  }
+  async function saveScheduledCmds(cmds) {
+    await pgStore.set('nitrado_scheduled_cmds', JSON.stringify(cmds));
+  }
+
+  function startJob(cmd) {
+    if (scheduledJobs[cmd.id]) { scheduledJobs[cmd.id].stop(); delete scheduledJobs[cmd.id]; }
+    if (!cmd.active) return;
+    if (!cron.validate(cmd.schedule)) return;
+    scheduledJobs[cmd.id] = cron.schedule(cmd.schedule, async () => {
+      try {
+        const services = await nitrado.getServices();
+        const ids = cmd.serverIds && cmd.serverIds.length
+          ? cmd.serverIds
+          : services.map(s => s.id);
+        await nitrado.sendRconToMany(ids, cmd.command);
+        // Enregistrer la dernière exécution
+        const cmds = await getScheduledCmds();
+        const idx = cmds.findIndex(c => c.id === cmd.id);
+        if (idx >= 0) { cmds[idx].lastRun = new Date().toISOString(); await saveScheduledCmds(cmds); }
+      } catch {}
+    }, { timezone: 'Europe/Paris' });
+  }
+
+  // Initialiser les jobs au démarrage
+  getScheduledCmds().then(cmds => cmds.forEach(startJob)).catch(() => {});
+
+  // Lister les commandes programmées
+  app.get('/nitrado/api/scheduled', requireAdmin, async (req, res) => {
+    try {
+      res.json({ ok: true, cmds: await getScheduledCmds() });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // Ajouter une commande programmée
+  app.post('/nitrado/api/scheduled', requireAdmin, async (req, res) => {
+    try {
+      const { name, command, schedule, serverIds } = req.body;
+      if (!name || !command || !schedule) return res.json({ ok: false, error: 'Champs manquants' });
+      if (!cron.validate(schedule)) return res.json({ ok: false, error: 'Expression cron invalide' });
+      const cmds = await getScheduledCmds();
+      const newCmd = {
+        id: Date.now().toString(),
+        name: name.trim(),
+        command: command.trim(),
+        schedule,
+        serverIds: serverIds || [],
+        active: true,
+        lastRun: null,
+        createdAt: new Date().toISOString(),
+      };
+      cmds.push(newCmd);
+      await saveScheduledCmds(cmds);
+      startJob(newCmd);
+      res.json({ ok: true, cmd: newCmd });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // Activer / désactiver une commande programmée
+  app.patch('/nitrado/api/scheduled/:id/toggle', requireAdmin, async (req, res) => {
+    try {
+      const cmds = await getScheduledCmds();
+      const cmd = cmds.find(c => c.id === req.params.id);
+      if (!cmd) return res.json({ ok: false, error: 'Commande introuvable' });
+      cmd.active = !cmd.active;
+      await saveScheduledCmds(cmds);
+      startJob(cmd);
+      res.json({ ok: true, active: cmd.active });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // Supprimer une commande programmée
+  app.delete('/nitrado/api/scheduled/:id', requireAdmin, async (req, res) => {
+    try {
+      let cmds = await getScheduledCmds();
+      const id = req.params.id;
+      if (scheduledJobs[id]) { scheduledJobs[id].stop(); delete scheduledJobs[id]; }
+      cmds = cmds.filter(c => c.id !== id);
+      await saveScheduledCmds(cmds);
+      res.json({ ok: true });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // Exécuter immédiatement une commande programmée
+  app.post('/nitrado/api/scheduled/:id/run-now', requireAdmin, async (req, res) => {
+    try {
+      const cmds = await getScheduledCmds();
+      const cmd = cmds.find(c => c.id === req.params.id);
+      if (!cmd) return res.json({ ok: false, error: 'Commande introuvable' });
+      const services = await nitrado.getServices();
+      const ids = cmd.serverIds && cmd.serverIds.length ? cmd.serverIds : services.map(s => s.id);
+      const results = await nitrado.sendRconToMany(ids, cmd.command);
+      cmd.lastRun = new Date().toISOString();
+      await saveScheduledCmds(cmds);
+      res.json({ ok: true, results });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
   // ─────────────────────────────────────────────────────────────────────────────
 
   // Les timers et la publication Discord des giveaways sont gérés

@@ -208,6 +208,82 @@
     .refresh-bar { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px; display: flex; gap: 10px; align-items: center; }
     .refresh-bar button { background: none; border: none; color: var(--accent); cursor: pointer; font-weight: 600; font-size: 0.8rem; }
 
+    /* ── RCON console ── */
+    .rcon-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+    .rcon-preset {
+      font-size: 0.76rem; padding: 4px 11px; border-radius: 8px;
+      border: 1px solid var(--border); background: var(--bg-input);
+      color: var(--text-secondary); cursor: pointer; font-weight: 500;
+      transition: all .13s; white-space: nowrap;
+    }
+    .rcon-preset:hover { border-color: var(--accent); color: var(--accent); background: rgba(124,92,252,.08); }
+    .rcon-input-row {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--bg-primary); border: 1.5px solid var(--border);
+      border-radius: 10px; padding: 4px 4px 4px 14px; margin-bottom: 12px;
+    }
+    .rcon-input-row:focus-within { border-color: var(--accent); }
+    .rcon-prompt { font-family: monospace; color: var(--accent); font-size: 1rem; font-weight: 700; flex-shrink: 0; }
+    .rcon-field {
+      flex: 1; background: transparent; border: none; outline: none;
+      color: var(--text-primary); font-family: monospace; font-size: 0.88rem;
+      padding: 7px 0;
+    }
+    .rcon-field::placeholder { color: var(--text-muted); }
+    .rcon-log {
+      background: var(--bg-primary); border: 1px solid var(--border);
+      border-radius: 10px; min-height: 100px; max-height: 260px; overflow-y: auto;
+      padding: 12px 14px; font-family: monospace; font-size: 0.8rem;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .rcon-log-empty { color: var(--text-muted); font-style: italic; text-align: center; padding: 20px 0; }
+    .rcon-entry { display: flex; flex-direction: column; gap: 2px; }
+    .rcon-entry .rcon-sent { color: var(--accent); }
+    .rcon-entry .rcon-sent::before { content: '▶ '; opacity: .6; }
+    .rcon-entry .rcon-resp { color: #a5d6a7; padding-left: 14px; }
+    .rcon-entry .rcon-resp.err { color: #ef9a9a; }
+    .rcon-entry .rcon-meta { font-size: 0.72rem; color: var(--text-muted); padding-left: 14px; }
+
+    /* ── Scheduled commands ── */
+    .sched-empty { color: var(--text-muted); font-size: .85rem; text-align: center; padding: 24px 0; }
+    .sched-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    .sched-table th {
+      font-size: .73rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+      color: var(--text-muted); padding: 8px 12px; text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .sched-table td { padding: 10px 12px; font-size: .83rem; border-bottom: 1px solid rgba(58,61,92,.4); vertical-align: middle; }
+    .sched-table tr:last-child td { border-bottom: none; }
+    .sched-table tr:hover td { background: rgba(124,92,252,.04); }
+    .sched-cmd-code { font-family: monospace; color: var(--accent); font-size: .8rem; }
+    .sched-cron-code { font-family: monospace; color: var(--text-secondary); font-size: .78rem; }
+    .sched-last { font-size: .75rem; color: var(--text-muted); }
+    .toggle-switch { position: relative; display: inline-block; width: 36px; height: 20px; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; inset: 0; background: var(--border);
+      border-radius: 20px; cursor: pointer; transition: .2s;
+    }
+    .toggle-slider::before {
+      content: ''; position: absolute; width: 14px; height: 14px;
+      left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: .2s;
+    }
+    .toggle-switch input:checked + .toggle-slider { background: var(--accent); }
+    .toggle-switch input:checked + .toggle-slider::before { transform: translateX(16px); }
+    .sched-srv-cb {
+      display: inline-flex; align-items: center; gap: 5px; font-size: .77rem;
+      padding: 3px 9px; border-radius: 20px; border: 1px solid var(--border);
+      cursor: pointer; background: var(--bg-input); color: var(--text-secondary);
+      transition: all .13s;
+    }
+    .sched-srv-cb:has(input:checked) { border-color: var(--accent); background: rgba(124,92,252,.1); color: var(--accent); }
+    .sbt-sched-act {
+      background: none; border: none; cursor: pointer; font-size: .75rem;
+      padding: 3px 8px; border-radius: 6px; font-weight: 600; transition: background .13s;
+    }
+    .sbt-run { color: #4caf50; }  .sbt-run:hover { background: rgba(76,175,80,.15); }
+    .sbt-del { color: #f44336; }  .sbt-del:hover { background: rgba(244,67,54,.15); }
+
     /* ── Spinner ── */
     .spin { display: inline-block; animation: sp .7s linear infinite; }
     @keyframes sp { to { transform: rotate(360deg); } }
@@ -415,6 +491,61 @@
         </div>
       </div>
 
+      <!-- ══ Console RCON temps réel ══ -->
+      <div class="card">
+        <div class="card-header">
+          <h2>💻 Console RCON</h2>
+          <div class="scope-row" style="margin:0">
+            Cible : <span class="scope-pill all" id="rcon-scope">toutes les maps</span>
+          </div>
+        </div>
+        <div class="card-body">
+
+          <!-- Presets discrets -->
+          <div style="margin-bottom:14px">
+            <p style="font-size:.77rem;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Raccourcis</p>
+            <div class="rcon-presets">
+              <button class="rcon-preset" onclick="fillRcon('SaveWorld')">💾 Save</button>
+              <button class="rcon-preset" onclick="fillRcon('DestroyWildDinos')">🦕 Clear dinos</button>
+              <button class="rcon-preset" onclick="fillRcon('ListPlayers')">👥 Joueurs</button>
+              <button class="rcon-preset" onclick="fillRcon('SetTimeOfDay 12:00:00')">🌞 Midi</button>
+              <button class="rcon-preset" onclick="fillRcon('SetTimeOfDay 06:00:00')">🌅 Matin</button>
+              <button class="rcon-preset" onclick="fillRcon('Broadcast ')">📢 Broadcast…</button>
+              <button class="rcon-preset" onclick="fillRcon('ServerChat ')">💬 Chat…</button>
+              <button class="rcon-preset" onclick="fillRcon('GiveItemToPlayer ')">🎁 Give item…</button>
+              <button class="rcon-preset" onclick="fillRcon('KickPlayer ')">🚫 Kick…</button>
+              <button class="rcon-preset" onclick="fillRcon('BanPlayer ')">⛔ Ban…</button>
+            </div>
+          </div>
+
+          <!-- Champ commande -->
+          <div class="rcon-input-row">
+            <span class="rcon-prompt">$</span>
+            <input type="text" id="rcon-cmd" class="rcon-field" placeholder="Entrez une commande RCON…" autocomplete="off" spellcheck="false"
+              onkeydown="if(event.key==='Enter') sendRconNow()">
+            <button class="btn btn-primary" onclick="sendRconNow()">Envoyer</button>
+          </div>
+
+          <!-- Log de réponses -->
+          <div class="rcon-log" id="rcon-log">
+            <div class="rcon-log-empty">Les réponses RCON s'afficheront ici</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ Commandes programmées ══ -->
+      <div class="card">
+        <div class="card-header" style="flex-wrap:wrap;gap:10px">
+          <h2>⏱️ Commandes programmées</h2>
+          <button class="btn btn-primary" onclick="openSchedModal()">+ Nouvelle</button>
+        </div>
+        <div class="card-body" style="padding-top:0">
+          <div id="sched-list">
+            <div class="sched-empty">Chargement…</div>
+          </div>
+        </div>
+      </div>
+
     <% } %>
     </main>
   </div>
@@ -430,6 +561,61 @@
       <div class="modal-add-row">
         <input type="text" id="modal-mod-input" placeholder="ID du mod à ajouter">
         <button class="btn btn-primary" onclick="addModServer()">➕</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal commande programmée -->
+  <div class="modal-bg" id="sched-modal">
+    <div class="modal-box" style="max-width:520px">
+      <button class="modal-close" onclick="closeSchedModal()">✕</button>
+      <h3>⏱️ Nouvelle commande programmée</h3>
+
+      <div class="form-group" style="margin-top:4px">
+        <label>Nom</label>
+        <input type="text" id="sched-name" class="rcon-field" placeholder="ex : SaveWorld toutes les heures">
+      </div>
+
+      <div class="form-group">
+        <label>Commande RCON</label>
+        <input type="text" id="sched-cmd-input" class="rcon-field" placeholder="ex : SaveWorld" style="font-family:monospace">
+        <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">
+          <button class="rcon-preset" onclick="document.getElementById('sched-cmd-input').value='SaveWorld'">💾 Save</button>
+          <button class="rcon-preset" onclick="document.getElementById('sched-cmd-input').value='DestroyWildDinos'">🦕 Clear dinos</button>
+          <button class="rcon-preset" onclick="document.getElementById('sched-cmd-input').value='Broadcast '">📢 Broadcast…</button>
+          <button class="rcon-preset" onclick="document.getElementById('sched-cmd-input').value='ServerChat '">💬 Chat…</button>
+          <button class="rcon-preset" onclick="document.getElementById('sched-cmd-input').value='SetTimeOfDay 12:00:00'">🌞 Midi</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Planification <span style="font-weight:400;opacity:.6">(expression cron)</span></label>
+        <input type="text" id="sched-cron" class="rcon-field" placeholder="ex : 0 * * * * (toutes les heures)" style="font-family:monospace">
+        <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">
+          <button class="rcon-preset" onclick="document.getElementById('sched-cron').value='0 * * * *'">⏰ Toutes les heures</button>
+          <button class="rcon-preset" onclick="document.getElementById('sched-cron').value='0 */2 * * *'">⏰ Toutes les 2h</button>
+          <button class="rcon-preset" onclick="document.getElementById('sched-cron').value='0 */6 * * *'">⏰ Toutes les 6h</button>
+          <button class="rcon-preset" onclick="document.getElementById('sched-cron').value='0 0 * * *'">🌙 Tous les jours à minuit</button>
+          <button class="rcon-preset" onclick="document.getElementById('sched-cron').value='0 8 * * *'">🌅 Tous les jours à 8h</button>
+          <button class="rcon-preset" onclick="document.getElementById('sched-cron').value='*/30 * * * *'">⏱️ Toutes les 30 min</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Maps cibles <span style="font-weight:400;opacity:.6">(aucune = toutes)</span></label>
+        <div id="sched-servers-list" style="display:flex;flex-wrap:wrap;gap:7px;margin-top:4px">
+          <% servers.forEach(function(s) { %>
+          <label class="sched-srv-cb">
+            <input type="checkbox" class="sched-srv-input" value="<%= s.id %>">
+            <span><%= s.name.replace(/\[FR\] ARKI'FAMILY ~/,'').replace(/~ - \(.*\)/,'').trim() %></span>
+          </label>
+          <% }); %>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:4px">
+        <button class="btn btn-secondary" onclick="closeSchedModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="saveScheduled()">✅ Créer</button>
       </div>
     </div>
   </div>
@@ -457,7 +643,7 @@ function updateSelUI() {
     : n + ' map' + (n > 1 ? 's' : '') + ' sélectionnée' + (n > 1 ? 's' : '');
   const label = n === 0 ? 'toutes les maps' : n + ' map' + (n > 1 ? 's' : '');
   const cls = n === 0 ? 'scope-pill all' : 'scope-pill sel';
-  ['mods-scope','cfg-scope'].forEach(id => {
+  ['mods-scope','cfg-scope','rcon-scope'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.textContent = label; el.className = cls; }
   });
@@ -618,6 +804,186 @@ document.getElementById('mods-modal').addEventListener('click', e => { if (e.tar
 function post(url, body) {
   return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json());
 }
+
+// ── RCON console ──────────────────────────────────────────────────────────
+function fillRcon(cmd) {
+  const el = document.getElementById('rcon-cmd');
+  el.value = cmd;
+  el.focus();
+  el.setSelectionRange(cmd.length, cmd.length);
+}
+
+function sendRconNow() {
+  const cmd = document.getElementById('rcon-cmd').value.trim();
+  if (!cmd) return;
+  const ids = getSelIds();
+  const time = new Date().toLocaleTimeString('fr-FR');
+
+  const log = document.getElementById('rcon-log');
+  const emptyEl = log.querySelector('.rcon-log-empty');
+  if (emptyEl) emptyEl.remove();
+
+  const entry = document.createElement('div');
+  entry.className = 'rcon-entry';
+  const mapsLabel = ids.length === 0 ? 'toutes les maps' : ids.length + ' map(s)';
+  entry.innerHTML =
+    '<span class="rcon-sent">' + escHtml(cmd) + '</span>' +
+    '<span class="rcon-meta">' + time + ' — ' + mapsLabel + ' — <span class="spin">⟳</span></span>';
+  log.appendChild(entry);
+  log.scrollTop = log.scrollHeight;
+
+  post('/nitrado/api/rcon-many', { command: cmd, serviceIds: ids })
+    .then(d => {
+      const meta = entry.querySelector('.rcon-meta');
+      if (d.ok) {
+        const ok = d.results.filter(r => r.ok).length;
+        const responses = d.results.filter(r => r.ok && r.response).map(r => {
+          const name = (SRV.find(s => s.id == r.id) || {}).name || r.id;
+          return '<span style="opacity:.7">' + escHtml(shortName(name)) + ':</span> ' + escHtml(r.response);
+        });
+        if (responses.length) {
+          responses.forEach(resp => {
+            const respEl = document.createElement('span');
+            respEl.className = 'rcon-resp';
+            respEl.innerHTML = resp;
+            entry.appendChild(respEl);
+          });
+        } else {
+          const respEl = document.createElement('span');
+          respEl.className = 'rcon-resp';
+          respEl.textContent = ok + '/' + d.results.length + ' serveur(s) OK';
+          entry.appendChild(respEl);
+        }
+        meta.innerHTML = time + ' — ' + mapsLabel;
+      } else {
+        const respEl = document.createElement('span');
+        respEl.className = 'rcon-resp err';
+        respEl.textContent = 'Erreur : ' + d.error;
+        entry.appendChild(respEl);
+        meta.innerHTML = time;
+      }
+    })
+    .catch(e => {
+      const respEl = document.createElement('span');
+      respEl.className = 'rcon-resp err';
+      respEl.textContent = 'Erreur réseau';
+      entry.appendChild(respEl);
+    });
+
+  document.getElementById('rcon-cmd').value = '';
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function shortName(n) {
+  return n.replace(/\[FR\] ARKI'FAMILY ~/,'').replace(/~ - \(.*\)/,'').trim();
+}
+
+// ── Scheduled commands ────────────────────────────────────────────────────
+function loadScheduled() {
+  fetch('/nitrado/api/scheduled').then(r => r.json()).then(d => {
+    if (!d.ok) { document.getElementById('sched-list').innerHTML = '<div class="sched-empty">Erreur : ' + d.error + '</div>'; return; }
+    renderScheduled(d.cmds);
+  }).catch(() => { document.getElementById('sched-list').innerHTML = '<div class="sched-empty">Erreur réseau</div>'; });
+}
+
+function renderScheduled(cmds) {
+  if (!cmds || !cmds.length) {
+    document.getElementById('sched-list').innerHTML = '<div class="sched-empty">Aucune commande programmée — cliquez sur "+ Nouvelle" pour en créer une.</div>';
+    return;
+  }
+  const nameMap = {};
+  SRV.forEach(s => nameMap[s.id] = shortName(s.name));
+
+  let html = '<table class="sched-table"><thead><tr>' +
+    '<th>Nom</th><th>Commande</th><th>Planification</th><th>Maps</th><th>Dernière exéc.</th><th style="text-align:center">Actif</th><th></th>' +
+    '</tr></thead><tbody>';
+
+  cmds.forEach(c => {
+    const mapsLabel = (!c.serverIds || !c.serverIds.length) ? '<em style="color:var(--text-muted)">Toutes</em>'
+      : c.serverIds.map(id => nameMap[id] || id).join(', ');
+    const lastRun = c.lastRun
+      ? new Date(c.lastRun).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+      : '<span style="color:var(--text-muted)">Jamais</span>';
+
+    html += '<tr>' +
+      '<td style="font-weight:600">' + escHtml(c.name) + '</td>' +
+      '<td><code class="sched-cmd-code">' + escHtml(c.command) + '</code></td>' +
+      '<td><code class="sched-cron-code">' + escHtml(c.schedule) + '</code></td>' +
+      '<td style="font-size:.76rem;color:var(--text-secondary)">' + mapsLabel + '</td>' +
+      '<td class="sched-last">' + lastRun + '</td>' +
+      '<td style="text-align:center">' +
+        '<label class="toggle-switch">' +
+          '<input type="checkbox" ' + (c.active ? 'checked' : '') + ' onchange="toggleSched(\'' + c.id + '\')">' +
+          '<span class="toggle-slider"></span>' +
+        '</label>' +
+      '</td>' +
+      '<td style="white-space:nowrap">' +
+        '<button class="sbt-sched-act sbt-run" onclick="runSchedNow(\'' + c.id + '\')" title="Exécuter maintenant">▶ Now</button> ' +
+        '<button class="sbt-sched-act sbt-del" onclick="deleteSched(\'' + c.id + '\')" title="Supprimer">✕</button>' +
+      '</td>' +
+    '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('sched-list').innerHTML = html;
+}
+
+function openSchedModal() {
+  document.getElementById('sched-name').value = '';
+  document.getElementById('sched-cmd-input').value = '';
+  document.getElementById('sched-cron').value = '';
+  document.querySelectorAll('.sched-srv-input').forEach(cb => cb.checked = false);
+  document.getElementById('sched-modal').classList.add('open');
+}
+function closeSchedModal() { document.getElementById('sched-modal').classList.remove('open'); }
+
+function saveScheduled() {
+  const name    = document.getElementById('sched-name').value.trim();
+  const command = document.getElementById('sched-cmd-input').value.trim();
+  const schedule= document.getElementById('sched-cron').value.trim();
+  const serverIds = [...document.querySelectorAll('.sched-srv-input:checked')].map(cb => cb.value);
+
+  if (!name || !command || !schedule) { toast('Remplis tous les champs obligatoires', true); return; }
+
+  post('/nitrado/api/scheduled', { name, command, schedule, serverIds })
+    .then(d => {
+      if (d.ok) { toast('✅ Commande programmée créée'); closeSchedModal(); loadScheduled(); }
+      else toast('Erreur : ' + d.error, true);
+    });
+}
+
+function toggleSched(id) {
+  fetch('/nitrado/api/scheduled/' + id + '/toggle', { method: 'PATCH' })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) toast(d.active ? '✅ Activée' : '⏸ Désactivée');
+      else toast('Erreur : ' + d.error, true);
+    });
+}
+
+function deleteSched(id) {
+  if (!confirm('Supprimer cette commande programmée ?')) return;
+  fetch('/nitrado/api/scheduled/' + id, { method: 'DELETE' })
+    .then(r => r.json())
+    .then(d => { if (d.ok) { toast('✅ Supprimée'); loadScheduled(); } else toast('Erreur : ' + d.error, true); });
+}
+
+function runSchedNow(id) {
+  post('/nitrado/api/scheduled/' + id + '/run-now', {})
+    .then(d => {
+      if (d.ok) {
+        const ok = d.results.filter(r => r.ok).length;
+        toast('✅ Exécutée sur ' + ok + '/' + d.results.length + ' serveurs');
+        loadScheduled();
+      } else toast('Erreur : ' + d.error, true);
+    });
+}
+
+document.getElementById('sched-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeSchedModal(); });
+
+// Charger les commandes programmées au démarrage
+loadScheduled();
 </script>
 </body>
 </html>

@@ -220,6 +220,26 @@ async function updateSettingOnAll(serviceIds, category, key, value) {
   return results;
 }
 
+// ── RCON ─────────────────────────────────────────────────────────────────────
+
+async function sendRcon(serviceId, command) {
+  const res = await client().post(`/services/${serviceId}/gameservers/app_server/command`, { command });
+  return res.data;
+}
+
+async function sendRconToMany(serviceIds, command) {
+  const results = [];
+  for (const id of serviceIds) {
+    try {
+      const data = await sendRcon(id, command);
+      results.push({ id, ok: true, response: data?.data?.message || '' });
+    } catch (e) {
+      results.push({ id, ok: false, error: e.message });
+    }
+  }
+  return results;
+}
+
 module.exports = {
   getToken,
   getServices,
@@ -240,4 +260,6 @@ module.exports = {
   addModToAll,
   removeModFromAll,
   updateSettingOnAll,
+  sendRcon,
+  sendRconToMany,
 };
