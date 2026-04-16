@@ -2860,7 +2860,7 @@ function createWebServer(discordClient) {
   async function getScheduledCmds() {
     const raw = await pgStore.getData('nitrado_scheduled_cmds', null);
     if (!raw) return [];
-    try { return JSON.parse(raw); } catch { return []; }
+    return Array.isArray(raw) ? raw : JSON.parse(raw);
   }
   async function saveScheduledCmds(cmds) {
     await pgStore.setData('nitrado_scheduled_cmds', cmds);
