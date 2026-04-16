@@ -2858,11 +2858,12 @@ function createWebServer(discordClient) {
   const scheduledJobs = {};   // id → cron.Task
 
   async function getScheduledCmds() {
-    const raw = await pgStore.get('nitrado_scheduled_cmds');
-    return raw ? JSON.parse(raw) : [];
+    const raw = await pgStore.getData('nitrado_scheduled_cmds', null);
+    if (!raw) return [];
+    try { return JSON.parse(raw); } catch { return []; }
   }
   async function saveScheduledCmds(cmds) {
-    await pgStore.set('nitrado_scheduled_cmds', JSON.stringify(cmds));
+    await pgStore.setData('nitrado_scheduled_cmds', cmds);
   }
 
   function startJob(cmd) {
