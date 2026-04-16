@@ -2968,6 +2968,84 @@ function createWebServer(discordClient) {
     }
   });
 
+  // ── Redémarrages automatiques (lecture/écriture pgStore, jobs gérés par le bot) ──
+
+  async function getRestartSchedules() {
+    const raw = await pgStore.getData('nitrado_restart_schedules', null);
+    if (!raw) return [];
+    return Array.isArray(raw) ? raw : JSON.parse(raw);
+  }
+  async function saveRestartSchedules(list) {
+    await pgStore.setData('nitrado_restart_schedules', list);
+  }
+
+  app.get('/nitrado/api/restart-schedules', requireAdmin, async (req, res) => {
+    try { res.json({ ok: true, schedules: await getRestartSchedules() }); }
+    catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  app.post('/nitrado/api/restart-schedules', requireAdmin, async (req, res) => {
+    try {
+      const { nom, heure, avertissements, serverIds } = req.body;
+      if (!nom || !heure) return res.json({ ok: false, error: 'Nom et heure requis' });
+      if (!/^\d{2}:\d{2}$/.test(heure)) return res.json({ ok: false, error: 'Format heure invalide (HH:MM)' });
+      const [h, m] = heure.split(':').map(Number);
+      if (h > 23 || m > 59) return res.json({ ok: false, error: 'Heure invalide' });
+      const s = {
+        id: Date.now().toString(),
+        nom: nom.trim(),
+        heure,
+        avertissements: avertissements !== false,
+        serverIds: serverIds || [],
+        active: true,
+        dernierRedemarrage: null,
+        createdAt: new Date().toISOString(),
+      };
+      const list = await getRestartSchedules();
+      list.push(s);
+      await saveRestartSchedules(list);
+      res.json({ ok: true, schedule: s });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  app.patch('/nitrado/api/restart-schedules/:id/toggle', requireAdmin, async (req, res) => {
+    try {
+      const list = await getRestartSchedules();
+      const s = list.find(x => x.id === req.params.id);
+      if (!s) return res.json({ ok: false, error: 'Planning introuvable' });
+      s.active = !s.active;
+      await saveRestartSchedules(list);
+      res.json({ ok: true, active: s.active });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  app.delete('/nitrado/api/restart-schedules/:id', requireAdmin, async (req, res) => {
+    try {
+      let list = await getRestartSchedules();
+      const before = list.length;
+      list = list.filter(s => s.id !== req.params.id);
+      if (list.length === before) return res.json({ ok: false, error: 'Planning introuvable' });
+      await saveRestartSchedules(list);
+      res.json({ ok: true });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  app.post('/nitrado/api/restart-schedules/:id/run-now', requireAdmin, async (req, res) => {
+    try {
+      const list = await getRestartSchedules();
+      const s = list.find(x => x.id === req.params.id);
+      if (!s) return res.json({ ok: false, error: 'Planning introuvable' });
+      const services = await nitrado.getServices();
+      const ids = s.serverIds && s.serverIds.length ? s.serverIds : services.map(sv => sv.id);
+      await nitrado.sendRconToMany(ids, 'SaveWorld');
+      await new Promise(r => setTimeout(r, 4000));
+      const results = await nitrado.restartAll(ids, 'Redémarrage manuel depuis le dashboard');
+      s.dernierRedemarrage = new Date().toISOString();
+      await saveRestartSchedules(list);
+      res.json({ ok: true, results });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
   // ─────────────────────────────────────────────────────────────────────────────
 
   // Les timers et la publication Discord des giveaways sont gérés

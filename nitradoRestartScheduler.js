@@ -154,4 +154,36 @@ async function runNow(id) {
   return results;
 }
 
-module.exports = { init, create, remove, toggle, runNow, getAll };
+// ── Polling (détecte les changements créés depuis le dashboard) ───────────
+let _knownIds = new Set();
+
+async function poll() {
+  try {
+    const list = await getAll();
+    const ids  = new Set(list.map(s => s.id));
+    let changed = false;
+
+    // Nouveaux ou modifiés
+    for (const s of list) {
+      const was = _knownIds.has(s.id);
+      const jobRunning = jobs.has(s.id);
+      if (!was || (!jobRunning && s.active)) { scheduleOne(s); changed = true; }
+      _knownIds.add(s.id);
+    }
+
+    // Supprimés
+    for (const id of _knownIds) {
+      if (!ids.has(id)) { stopJobs(id); _knownIds.delete(id); changed = true; }
+    }
+
+    if (changed) console.log(`[RestartSched] Sync — ${list.length} planning(s) actif(s)`);
+  } catch (e) {
+    console.error('[RestartSched] poll error:', e.message);
+  }
+}
+
+function startPolling(intervalMs = 60000) {
+  setInterval(poll, intervalMs);
+}
+
+module.exports = { init, create, remove, toggle, runNow, getAll, startPolling };

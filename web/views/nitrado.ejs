@@ -208,6 +208,22 @@
     .refresh-bar { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px; display: flex; gap: 10px; align-items: center; }
     .refresh-bar button { background: none; border: none; color: var(--accent); cursor: pointer; font-weight: 600; font-size: 0.8rem; }
 
+    /* ── Sélecteurs de fréquence ── */
+    .sched-freq-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 2px; }
+    .sched-freq-tab {
+      font-size: .78rem; padding: 6px 13px; border-radius: 8px; cursor: pointer; font-weight: 600;
+      border: 1.5px solid var(--border); background: var(--bg-input); color: var(--text-secondary);
+      transition: all .15s;
+    }
+    .sched-freq-tab.active { border-color: var(--accent); background: rgba(124,92,252,.12); color: var(--accent); }
+    .sched-freq-tab:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+    .sched-freq-panel { padding: 10px 12px; background: var(--bg-primary); border-radius: 8px; border: 1px solid var(--border); }
+    .sched-select {
+      background: var(--bg-input); border: 1px solid var(--border); border-radius: 7px;
+      color: var(--text-primary); padding: 6px 10px; font-size: .84rem; cursor: pointer; outline: none;
+    }
+    .sched-select:focus { border-color: var(--accent); }
+
     /* ── Notes et calculateur de stats ── */
     .cfg-note {
       font-size: .72rem; color: var(--text-muted); margin: 5px 0 9px;
@@ -532,6 +548,22 @@
         </div>
       </div>
 
+      <!-- ══ Redémarrages automatiques ══ -->
+      <div class="card">
+        <div class="card-header" style="flex-wrap:wrap;gap:10px">
+          <h2>🔄 Redémarrages automatiques</h2>
+          <button class="btn btn-primary" onclick="openRestartModal()">+ Programmer</button>
+        </div>
+        <div class="card-body" style="padding-top:0">
+          <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:12px">
+            🛈 Les redémarrages s'exécutent chaque jour à l'heure fixée. Des alertes in-game (30/15/5/1 min) sont envoyées automatiquement avant chaque redémarrage. Les jobs sont gérés par le bot Railway.
+          </p>
+          <div id="restart-sched-list">
+            <div class="sched-empty">Chargement…</div>
+          </div>
+        </div>
+      </div>
+
       <!-- ══ Console RCON temps réel ══ -->
       <div class="card">
         <div class="card-header">
@@ -542,18 +574,24 @@
         </div>
         <div class="card-body">
 
+          <!-- Note ARK SA -->
+          <div style="background:rgba(255,193,7,.06);border:1px solid rgba(255,193,7,.2);border-radius:9px;padding:9px 13px;margin-bottom:14px;font-size:.76rem;color:#ffd54f;line-height:1.6">
+            ⚠️ <strong>ARK SA RCON</strong> — les commandes ne renvoient souvent <strong>aucune réponse</strong> même si elles ont fonctionné (comportement normal du jeu).
+            Le terme <code style="background:rgba(0,0,0,.3);padding:1px 5px;border-radius:4px">wipe</code> n'existe pas dans ARK SA — utilise <code style="background:rgba(0,0,0,.3);padding:1px 5px;border-radius:4px">DestroyWildDinos</code> (bouton ci-dessous).
+          </div>
+
           <!-- Presets discrets -->
           <div style="margin-bottom:14px">
             <p style="font-size:.77rem;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Raccourcis</p>
             <div class="rcon-presets">
-              <button class="rcon-preset" onclick="fillRcon('SaveWorld')">💾 Save</button>
-              <button class="rcon-preset" onclick="fillRcon('DestroyWildDinos')">🦕 Clear dinos</button>
-              <button class="rcon-preset" onclick="fillRcon('ListPlayers')">👥 Joueurs</button>
-              <button class="rcon-preset" onclick="fillRcon('SetTimeOfDay 12:00:00')">🌞 Midi</button>
-              <button class="rcon-preset" onclick="fillRcon('SetTimeOfDay 06:00:00')">🌅 Matin</button>
+              <button class="rcon-preset" onclick="fillRcon('SaveWorld')">💾 Sauvegarder</button>
+              <button class="rcon-preset" onclick="fillRcon('DestroyWildDinos')">🧹 Wipe sauvages</button>
+              <button class="rcon-preset" onclick="fillRcon('ListPlayers')">👥 Joueurs connectés</button>
+              <button class="rcon-preset" onclick="fillRcon('SetTimeOfDay 12:00:00')">🌞 Passer à midi</button>
+              <button class="rcon-preset" onclick="fillRcon('SetTimeOfDay 06:00:00')">🌅 Passer au matin</button>
               <button class="rcon-preset" onclick="fillRcon('Broadcast ')">📢 Broadcast…</button>
-              <button class="rcon-preset" onclick="fillRcon('ServerChat ')">💬 Chat…</button>
-              <button class="rcon-preset" onclick="fillRcon('GiveItemToPlayer ')">🎁 Give item…</button>
+              <button class="rcon-preset" onclick="fillRcon('ServerChat ')">💬 Chat global…</button>
+              <button class="rcon-preset" onclick="fillRcon('GiveItemToPlayer ')">🎁 Donner item…</button>
               <button class="rcon-preset" onclick="fillRcon('KickPlayer ')">🚫 Kick…</button>
               <button class="rcon-preset" onclick="fillRcon('BanPlayer ')">⛔ Ban…</button>
             </div>
@@ -606,9 +644,71 @@
     </div>
   </div>
 
+  <!-- Modal redémarrage automatique -->
+  <div class="modal-bg" id="restart-modal">
+    <div class="modal-box" style="max-width:500px">
+      <button class="modal-close" onclick="closeRestartModal()">✕</button>
+      <h3>🔄 Programmer un redémarrage</h3>
+      <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:16px">
+        Le bot enverra des alertes in-game 30, 15, 5 et 1 minute avant de redémarrer les serveurs.
+      </p>
+
+      <div class="form-group">
+        <label>Nom du planning</label>
+        <input type="text" id="rs-nom" class="rcon-field" placeholder="ex : Redémarrage nocturne">
+      </div>
+
+      <div class="form-group">
+        <label>Heure du redémarrage <span style="font-weight:400;opacity:.6">(Europe/Paris)</span></label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <select id="rs-heure" class="sched-select" style="width:80px">
+            <% for(let h=0;h<24;h++){ %><option value="<%= String(h).padStart(2,'0') %>"><%= String(h).padStart(2,'0') %>h</option><% } %>
+          </select>
+          <select id="rs-minute" class="sched-select" style="width:80px">
+            <option value="00">00 min</option>
+            <option value="15">15 min</option>
+            <option value="30">30 min</option>
+            <option value="45">45 min</option>
+          </select>
+        </div>
+        <p style="font-size:.73rem;color:var(--text-muted);margin-top:6px">
+          💡 Conseil : choisissez une heure creuse (ex: 04h00, 05h00).
+        </p>
+      </div>
+
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <label class="toggle-switch">
+            <input type="checkbox" id="rs-warn" checked>
+            <span class="toggle-slider"></span>
+          </label>
+          <span>Alertes in-game (30 / 15 / 5 / 1 min avant)</span>
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label>Maps cibles <span style="font-weight:400;opacity:.6">(aucune cochée = toutes)</span></label>
+        <div id="rs-servers-list" style="display:flex;flex-wrap:wrap;gap:7px;margin-top:4px">
+          <% servers.forEach(function(s) { %>
+          <label class="sched-srv-cb">
+            <input type="checkbox" class="rs-srv-input" value="<%= s.id %>">
+            <span><%= s.name.replace(/\[FR\] ARKI'FAMILY ~/,'').replace(/~ - \(.*\)/,'').trim() %></span>
+          </label>
+          <% }); %>
+        </div>
+      </div>
+
+      <div id="rs-modal-err" style="display:none;color:#ef9a9a;font-size:.8rem;margin-bottom:8px"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:4px">
+        <button class="btn btn-secondary" onclick="closeRestartModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="saveRestartSchedule()">✅ Créer</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal commande programmée -->
   <div class="modal-bg" id="sched-modal">
-    <div class="modal-box" style="max-width:520px">
+    <div class="modal-box" style="max-width:540px">
       <button class="modal-close" onclick="closeSchedModal()">✕</button>
       <h3>⏱️ Nouvelle commande programmée</h3>
 
@@ -622,28 +722,65 @@
         <input type="text" id="sched-cmd-input" class="rcon-field" placeholder="ex : SaveWorld" style="font-family:monospace">
         <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">
           <button class="rcon-preset" onclick="document.getElementById('sched-cmd-input').value='SaveWorld'">💾 Save</button>
-          <button class="rcon-preset" onclick="document.getElementById('sched-cmd-input').value='DestroyWildDinos'">🦕 Clear dinos</button>
+          <button class="rcon-preset" onclick="document.getElementById('sched-cmd-input').value='DestroyWildDinos'">🧹 Wipe sauvages</button>
           <button class="rcon-preset" onclick="document.getElementById('sched-cmd-input').value='Broadcast '">📢 Broadcast…</button>
           <button class="rcon-preset" onclick="document.getElementById('sched-cmd-input').value='ServerChat '">💬 Chat…</button>
           <button class="rcon-preset" onclick="document.getElementById('sched-cmd-input').value='SetTimeOfDay 12:00:00'">🌞 Midi</button>
         </div>
       </div>
 
+      <!-- Planification simplifiée -->
       <div class="form-group">
-        <label>Planification <span style="font-weight:400;opacity:.6">(expression cron)</span></label>
-        <input type="text" id="sched-cron" class="rcon-field" placeholder="ex : 0 * * * * (toutes les heures)" style="font-family:monospace">
-        <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">
-          <button class="rcon-preset" onclick="document.getElementById('sched-cron').value='0 * * * *'">⏰ Toutes les heures</button>
-          <button class="rcon-preset" onclick="document.getElementById('sched-cron').value='0 */2 * * *'">⏰ Toutes les 2h</button>
-          <button class="rcon-preset" onclick="document.getElementById('sched-cron').value='0 */6 * * *'">⏰ Toutes les 6h</button>
-          <button class="rcon-preset" onclick="document.getElementById('sched-cron').value='0 0 * * *'">🌙 Tous les jours à minuit</button>
-          <button class="rcon-preset" onclick="document.getElementById('sched-cron').value='0 8 * * *'">🌅 Tous les jours à 8h</button>
-          <button class="rcon-preset" onclick="document.getElementById('sched-cron').value='*/30 * * * *'">⏱️ Toutes les 30 min</button>
+        <label>Fréquence</label>
+        <div class="sched-freq-tabs" id="sched-freq-tabs">
+          <button class="sched-freq-tab active" onclick="setSchedFreq('interval',this)">🔁 Toutes les X heures/min</button>
+          <button class="sched-freq-tab" onclick="setSchedFreq('daily',this)">📅 Chaque jour à une heure fixe</button>
+        </div>
+
+        <!-- Intervalle -->
+        <div id="sched-freq-interval" class="sched-freq-panel" style="margin-top:10px">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span style="color:var(--text-secondary);font-size:.85rem">Toutes les</span>
+            <select id="sched-interval-val" class="sched-select">
+              <option value="*/15 * * * *">15 minutes</option>
+              <option value="*/30 * * * *">30 minutes</option>
+              <option value="0 * * * *" selected>1 heure</option>
+              <option value="0 */2 * * *">2 heures</option>
+              <option value="0 */3 * * *">3 heures</option>
+              <option value="0 */4 * * *">4 heures</option>
+              <option value="0 */6 * * *">6 heures</option>
+              <option value="0 */8 * * *">8 heures</option>
+              <option value="0 */12 * * *">12 heures</option>
+            </select>
+          </div>
+          <p style="font-size:.73rem;color:var(--text-muted);margin-top:6px">
+            ℹ️ La commande sera exécutée à intervalle régulier, 24h/24.
+          </p>
+        </div>
+
+        <!-- Heure fixe -->
+        <div id="sched-freq-daily" class="sched-freq-panel" style="display:none;margin-top:10px">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span style="color:var(--text-secondary);font-size:.85rem">Chaque jour à</span>
+            <select id="sched-daily-h" class="sched-select" style="width:70px">
+              <% for(let h=0;h<24;h++){ %><option value="<%= h %>"><%= String(h).padStart(2,'0') %>h</option><% } %>
+            </select>
+            <select id="sched-daily-m" class="sched-select" style="width:70px">
+              <option value="0">00 min</option>
+              <option value="15">15 min</option>
+              <option value="30">30 min</option>
+              <option value="45">45 min</option>
+            </select>
+            <span style="color:var(--text-muted);font-size:.75rem">(Europe/Paris)</span>
+          </div>
+          <p style="font-size:.73rem;color:var(--text-muted);margin-top:6px">
+            ℹ️ La commande sera exécutée une fois par jour à l'heure choisie.
+          </p>
         </div>
       </div>
 
       <div class="form-group">
-        <label>Maps cibles <span style="font-weight:400;opacity:.6">(aucune = toutes)</span></label>
+        <label>Maps cibles <span style="font-weight:400;opacity:.6">(aucune cochée = toutes les maps)</span></label>
         <div id="sched-servers-list" style="display:flex;flex-wrap:wrap;gap:7px;margin-top:4px">
           <% servers.forEach(function(s) { %>
           <label class="sched-srv-cb">
@@ -654,6 +791,7 @@
         </div>
       </div>
 
+      <div id="sched-modal-err" style="display:none;color:#ef9a9a;font-size:.8rem;margin-bottom:8px"></div>
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:4px">
         <button class="btn btn-secondary" onclick="closeSchedModal()">Annuler</button>
         <button class="btn btn-primary" onclick="saveScheduled()">✅ Créer</button>
@@ -1058,29 +1196,163 @@ function renderScheduled(cmds) {
   document.getElementById('sched-list').innerHTML = html;
 }
 
+let _schedFreqMode = 'interval';
+
+function setSchedFreq(mode, btn) {
+  _schedFreqMode = mode;
+  document.querySelectorAll('.sched-freq-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('sched-freq-interval').style.display = mode === 'interval' ? '' : 'none';
+  document.getElementById('sched-freq-daily').style.display    = mode === 'daily'    ? '' : 'none';
+}
+
+function getSchedCron() {
+  if (_schedFreqMode === 'interval') {
+    return document.getElementById('sched-interval-val').value;
+  } else {
+    const h = document.getElementById('sched-daily-h').value;
+    const m = document.getElementById('sched-daily-m').value;
+    return `${m} ${h} * * *`;
+  }
+}
+
 function openSchedModal() {
   document.getElementById('sched-name').value = '';
   document.getElementById('sched-cmd-input').value = '';
-  document.getElementById('sched-cron').value = '';
+  document.getElementById('sched-modal-err').style.display = 'none';
   document.querySelectorAll('.sched-srv-input').forEach(cb => cb.checked = false);
+  setSchedFreq('interval', document.querySelector('.sched-freq-tab'));
   document.getElementById('sched-modal').classList.add('open');
 }
 function closeSchedModal() { document.getElementById('sched-modal').classList.remove('open'); }
 
 function saveScheduled() {
-  const name    = document.getElementById('sched-name').value.trim();
-  const command = document.getElementById('sched-cmd-input').value.trim();
-  const schedule= document.getElementById('sched-cron').value.trim();
+  const errEl  = document.getElementById('sched-modal-err');
+  const name   = document.getElementById('sched-name').value.trim();
+  const command= document.getElementById('sched-cmd-input').value.trim();
+  const schedule = getSchedCron();
   const serverIds = [...document.querySelectorAll('.sched-srv-input:checked')].map(cb => cb.value);
 
-  if (!name || !command || !schedule) { toast('Remplis tous les champs obligatoires', true); return; }
+  errEl.style.display = 'none';
+  if (!name)    { errEl.textContent = '❌ Le nom est obligatoire.';     errEl.style.display = ''; return; }
+  if (!command) { errEl.textContent = '❌ La commande RCON est vide.';  errEl.style.display = ''; return; }
 
   post('/nitrado/api/scheduled', { name, command, schedule, serverIds })
     .then(d => {
       if (d.ok) { toast('✅ Commande programmée créée'); closeSchedModal(); loadScheduled(); }
+      else { errEl.textContent = '❌ ' + d.error; errEl.style.display = ''; }
+    })
+    .catch(() => { errEl.textContent = '❌ Erreur réseau'; errEl.style.display = ''; });
+}
+
+// ── Redémarrages automatiques ─────────────────────────────────────────────
+
+function loadRestartSchedules() {
+  fetch('/nitrado/api/restart-schedules').then(r => r.json()).then(d => {
+    if (!d.ok) { document.getElementById('restart-sched-list').innerHTML = '<div class="sched-empty">Erreur : ' + d.error + '</div>'; return; }
+    renderRestartSchedules(d.schedules);
+  }).catch(() => { document.getElementById('restart-sched-list').innerHTML = '<div class="sched-empty">Erreur réseau</div>'; });
+}
+
+function renderRestartSchedules(list) {
+  const container = document.getElementById('restart-sched-list');
+  if (!list || !list.length) {
+    container.innerHTML = '<div class="sched-empty">Aucun redémarrage automatique — cliquez sur "+ Programmer" pour en créer un.</div>';
+    return;
+  }
+  const nameMap = {};
+  SRV.forEach(s => nameMap[s.id] = shortName(s.name));
+
+  let html = '<table class="sched-table"><thead><tr>' +
+    '<th>Nom</th><th>Heure</th><th>Alertes</th><th>Maps</th><th>Dernier</th><th style="text-align:center">Actif</th><th></th>' +
+    '</tr></thead><tbody>';
+
+  list.forEach(s => {
+    const maps = (!s.serverIds || !s.serverIds.length) ? '<em style="color:var(--text-muted)">Toutes</em>' : s.serverIds.map(id => nameMap[id] || id).join(', ');
+    const warn = s.avertissements !== false ? '✅ 30/15/5/1 min' : '—';
+    const last = s.dernierRedemarrage
+      ? new Date(s.dernierRedemarrage).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+      : '<span style="color:var(--text-muted)">Jamais</span>';
+
+    html += '<tr>' +
+      '<td style="font-weight:600">' + escHtml(s.nom) + '</td>' +
+      '<td><code class="sched-cmd-code" style="font-size:.88rem">' + escHtml(s.heure) + '</code></td>' +
+      '<td style="font-size:.78rem;color:var(--text-secondary)">' + warn + '</td>' +
+      '<td style="font-size:.76rem;color:var(--text-secondary)">' + maps + '</td>' +
+      '<td class="sched-last">' + last + '</td>' +
+      '<td style="text-align:center"><label class="toggle-switch"><input type="checkbox" ' + (s.active ? 'checked' : '') + ' onchange="toggleRestartSched(\'' + s.id + '\')"><span class="toggle-slider"></span></label></td>' +
+      '<td style="white-space:nowrap">' +
+        '<button class="sbt-sched-act sbt-run" onclick="runRestartNow(\'' + s.id + '\')" title="Lancer maintenant">▶ Now</button> ' +
+        '<button class="sbt-sched-act sbt-del" onclick="deleteRestartSched(\'' + s.id + '\')" title="Supprimer">✕</button>' +
+      '</td></tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function openRestartModal() {
+  document.getElementById('rs-nom').value = '';
+  document.getElementById('rs-heure').value = '04';
+  document.getElementById('rs-minute').value = '00';
+  document.getElementById('rs-warn').checked = true;
+  document.getElementById('rs-modal-err').style.display = 'none';
+  document.querySelectorAll('.rs-srv-input').forEach(cb => cb.checked = false);
+  document.getElementById('restart-modal').classList.add('open');
+}
+function closeRestartModal() { document.getElementById('restart-modal').classList.remove('open'); }
+document.getElementById('restart-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeRestartModal(); });
+
+function saveRestartSchedule() {
+  const errEl = document.getElementById('rs-modal-err');
+  errEl.style.display = 'none';
+  const nom   = document.getElementById('rs-nom').value.trim();
+  const heure = document.getElementById('rs-heure').value + ':' + document.getElementById('rs-minute').value;
+  const avertissements = document.getElementById('rs-warn').checked;
+  const serverIds = [...document.querySelectorAll('.rs-srv-input:checked')].map(cb => cb.value);
+
+  if (!nom) { errEl.textContent = '❌ Le nom est obligatoire.'; errEl.style.display = ''; return; }
+
+  post('/nitrado/api/restart-schedules', { nom, heure, avertissements, serverIds })
+    .then(d => {
+      if (d.ok) { toast('✅ Redémarrage programmé créé — le bot le prendra en charge au prochain démarrage'); closeRestartModal(); loadRestartSchedules(); }
+      else { errEl.textContent = '❌ ' + d.error; errEl.style.display = ''; }
+    })
+    .catch(() => { errEl.textContent = '❌ Erreur réseau'; errEl.style.display = ''; });
+}
+
+function toggleRestartSched(id) {
+  fetch('/nitrado/api/restart-schedules/' + id + '/toggle', { method: 'PATCH' })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) toast(d.active ? '✅ Planning activé' : '⏸ Planning désactivé');
       else toast('Erreur : ' + d.error, true);
+      loadRestartSchedules();
     });
 }
+
+function deleteRestartSched(id) {
+  if (!confirm('Supprimer ce planning de redémarrage ?')) return;
+  fetch('/nitrado/api/restart-schedules/' + id, { method: 'DELETE' })
+    .then(r => r.json())
+    .then(d => { if (d.ok) { toast('✅ Supprimé'); loadRestartSchedules(); } else toast('Erreur : ' + d.error, true); });
+}
+
+function runRestartNow(id) {
+  if (!confirm('Lancer le redémarrage MAINTENANT (SaveWorld puis restart) sur toutes les maps cibles ?')) return;
+  toast('⏳ Redémarrage en cours…');
+  post('/nitrado/api/restart-schedules/' + id + '/run-now', {})
+    .then(d => {
+      if (d.ok) {
+        const ok = d.results.filter(r => r.ok).length;
+        toast('✅ Redémarrage sur ' + ok + '/' + d.results.length + ' serveur(s)');
+        loadRestartSchedules();
+      } else toast('❌ ' + d.error, true);
+    })
+    .catch(() => toast('❌ Erreur réseau', true));
+}
+
+// Charger les redémarrages au démarrage
+loadRestartSchedules();
 
 function toggleSched(id) {
   fetch('/nitrado/api/scheduled/' + id + '/toggle', { method: 'PATCH' })

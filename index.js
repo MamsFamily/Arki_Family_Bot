@@ -545,8 +545,9 @@ client.once('clientReady', async () => {
 
   createWebServer(client);
 
-  // Initialiser les plannings de redémarrage ARK SA
+  // Initialiser les plannings de redémarrage ARK SA + polling 60s
   await restartScheduler.init().catch(e => console.error('[RestartSched] init error:', e.message));
+  restartScheduler.startPolling(60000);
 
   // Publier les giveaways sans messageId + programmer les timers
   await publishAndScheduleGiveaways(client);
