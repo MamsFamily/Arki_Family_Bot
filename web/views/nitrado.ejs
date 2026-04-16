@@ -208,6 +208,21 @@
     .refresh-bar { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px; display: flex; gap: 10px; align-items: center; }
     .refresh-bar button { background: none; border: none; color: var(--accent); cursor: pointer; font-weight: 600; font-size: 0.8rem; }
 
+    /* ── Notes et calculateur de stats ── */
+    .cfg-note {
+      font-size: .72rem; color: var(--text-muted); margin: 5px 0 9px;
+      line-height: 1.5; display: flex; align-items: flex-start; gap: 5px;
+    }
+    .cfg-note::before { content: 'ℹ'; font-size: .7rem; opacity: .55; flex-shrink: 0; margin-top: 1px; }
+    .cfg-preview {
+      font-size: .72rem; color: #a0d4ff; background: rgba(100,180,255,.08);
+      border: 1px solid rgba(100,180,255,.18); border-radius: 7px;
+      padding: 5px 9px; margin-top: 7px; min-height: 24px; font-weight: 500;
+      line-height: 1.5; display: none;
+    }
+    .cfg-preview.visible { display: block; }
+    .cfg-preview strong { color: #c8e6ff; }
+
     /* ── RCON console ── */
     .rcon-presets { display: flex; flex-wrap: wrap; gap: 6px; }
     .rcon-preset {
@@ -422,64 +437,90 @@
           </p>
           <div class="cfg-grid">
 
+            <!-- Temps de repro -->
             <div class="cfg-card">
               <label>🥚 Temps de repro<br><span style="font-weight:400;opacity:.7">MatingIntervalMultiplier</span></label>
+              <p class="cfg-note">Durée d'attente entre deux reproductions. <strong>Plus la valeur est basse, plus les dinos peuvent se reproduire souvent.</strong> Vanilla : 18 h min → 48 h max. Valeur 1 = vanilla, 0.1 = 10× plus fréquent.</p>
               <div class="cfg-row">
-                <input type="number" step="0.01" min="0.01" id="cfg-mating" placeholder="ex : 0.25">
+                <input type="number" step="0.01" min="0.01" id="cfg-mating" placeholder="ex : 0.25"
+                  oninput="updateCfgPreview('mating', this.value)">
                 <button class="cfg-apply" onclick="applyConfig('config','MatingIntervalMultiplier','cfg-mating')">✓</button>
               </div>
+              <div class="cfg-preview" id="cfg-mating-preview"></div>
             </div>
 
+            <!-- Apprivoisement -->
             <div class="cfg-card">
               <label>🦖 Apprivoisement<br><span style="font-weight:400;opacity:.7">TamingSpeedMultiplier</span></label>
+              <p class="cfg-note">Vitesse à laquelle la barre d'apprivoisement monte. <strong>×5 = l'apprivoisement se fait 5× plus vite</strong> qu'en vanilla. N'affecte pas l'efficacité. Vanilla = 1.</p>
               <div class="cfg-row">
-                <input type="number" step="0.1" min="0.1" id="cfg-taming" placeholder="ex : 5.0">
+                <input type="number" step="0.1" min="0.1" id="cfg-taming" placeholder="ex : 5.0"
+                  oninput="updateCfgPreview('taming', this.value)">
                 <button class="cfg-apply" onclick="applyConfig('config','TamingSpeedMultiplier','cfg-taming')">✓</button>
               </div>
+              <div class="cfg-preview" id="cfg-taming-preview"></div>
             </div>
 
+            <!-- Récolte -->
             <div class="cfg-card">
               <label>🌾 Récolte<br><span style="font-weight:400;opacity:.7">HarvestAmountMultiplier</span></label>
+              <p class="cfg-note">Quantité de ressources obtenues à chaque récolte (bois, pierre, métal…). <strong>×3 = 3× plus de matériaux par coup.</strong> Vanilla = 1. Attention aux stacks qui débordent à très haute valeur.</p>
               <div class="cfg-row">
                 <input type="number" step="0.1" min="0.1" id="cfg-harvest" placeholder="ex : 3.0">
                 <button class="cfg-apply" onclick="applyConfig('config','HarvestAmountMultiplier','cfg-harvest')">✓</button>
               </div>
             </div>
 
+            <!-- Expérience -->
             <div class="cfg-card">
               <label>⭐ Expérience<br><span style="font-weight:400;opacity:.7">XPMultiplier</span></label>
+              <p class="cfg-note">Quantité d'XP gagnée par toutes les actions (tuer, récolter, craft, tame…). <strong>×2 = monte de niveau 2× plus vite.</strong> Vanilla = 1. S'applique aussi aux dinos apprivoisés.</p>
               <div class="cfg-row">
                 <input type="number" step="0.1" min="0.1" id="cfg-xp" placeholder="ex : 2.0">
                 <button class="cfg-apply" onclick="applyConfig('config','XPMultiplier','cfg-xp')">✓</button>
               </div>
             </div>
 
+            <!-- Maturation -->
             <div class="cfg-card">
               <label>🐣 Maturation<br><span style="font-weight:400;opacity:.7">BabyMatureSpeedMultiplier</span></label>
+              <p class="cfg-note">Vitesse de croissance des bébés (bébé → juvénile → adolescent → adulte). <strong>×30 = le bébé grandit 30× plus vite</strong> qu'en vanilla. Vanilla : Rex ≈ 13,5 jours.</p>
               <div class="cfg-row">
-                <input type="number" step="1" min="1" id="cfg-mature" placeholder="ex : 30">
+                <input type="number" step="1" min="1" id="cfg-mature" placeholder="ex : 30"
+                  oninput="updateCfgPreview('mature', this.value)">
                 <button class="cfg-apply" onclick="applyConfig('config','BabyMatureSpeedMultiplier','cfg-mature')">✓</button>
               </div>
+              <div class="cfg-preview" id="cfg-mature-preview"></div>
             </div>
 
+            <!-- Nourriture bébé -->
             <div class="cfg-card">
               <label>🥗 Nourriture bébé<br><span style="font-weight:400;opacity:.7">BabyFoodConsumptionSpeedMultiplier</span></label>
+              <p class="cfg-note">Vitesse à laquelle un bébé consomme sa nourriture. <strong>Plus la valeur est basse, moins il faut le nourrir souvent</strong> (et moins de nourriture est nécessaire). Vanilla = 1. Valeur 0.1 = très autonome.</p>
               <div class="cfg-row">
-                <input type="number" step="0.01" min="0.01" id="cfg-babyfood" placeholder="ex : 0.1">
+                <input type="number" step="0.01" min="0.01" id="cfg-babyfood" placeholder="ex : 0.1"
+                  oninput="updateCfgPreview('babyfood', this.value)">
                 <button class="cfg-apply" onclick="applyConfig('config','BabyFoodConsumptionSpeedMultiplier','cfg-babyfood')">✓</button>
               </div>
+              <div class="cfg-preview" id="cfg-babyfood-preview"></div>
             </div>
 
+            <!-- Incubation -->
             <div class="cfg-card">
               <label>🥚 Incubation<br><span style="font-weight:400;opacity:.7">EggHatchSpeedMultiplier</span></label>
+              <p class="cfg-note">Vitesse d'éclosion des œufs. <strong>×20 = l'incubation dure 20× moins longtemps</strong> qu'en vanilla. Vanilla : Rex ≈ 5 h, Wyverne ≈ 6 h, Raptor ≈ 2 h.</p>
               <div class="cfg-row">
-                <input type="number" step="1" min="1" id="cfg-hatch" placeholder="ex : 20">
+                <input type="number" step="1" min="1" id="cfg-hatch" placeholder="ex : 20"
+                  oninput="updateCfgPreview('hatch', this.value)">
                 <button class="cfg-apply" onclick="applyConfig('config','EggHatchSpeedMultiplier','cfg-hatch')">✓</button>
               </div>
+              <div class="cfg-preview" id="cfg-hatch-preview"></div>
             </div>
 
+            <!-- Dégâts joueurs -->
             <div class="cfg-card">
               <label>💀 Dégâts joueurs<br><span style="font-weight:400;opacity:.7">PlayerDamageMultiplier</span></label>
+              <p class="cfg-note">Multiplicateur de dégâts infligés par les joueurs (corps à corps et armes). <strong>×2 = double les dégâts de tous les joueurs</strong> sur créatures et structures. Vanilla = 1. Ne touche pas les dinos.</p>
               <div class="cfg-row">
                 <input type="number" step="0.1" min="0.1" id="cfg-dmg" placeholder="ex : 1.0">
                 <button class="cfg-apply" onclick="applyConfig('config','PlayerDamageMultiplier','cfg-dmg')">✓</button>
@@ -803,6 +844,94 @@ document.getElementById('mods-modal').addEventListener('click', e => { if (e.tar
 // ── Fetch helper ──────────────────────────────────────────────────────────
 function post(url, body) {
   return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json());
+}
+
+// ── Calculateur de stats ──────────────────────────────────────────────────
+
+// Temps vanilla de référence (en minutes)
+const VANILLA = {
+  matingMin:    18 * 60,   // 18h minimum entre deux reproductions
+  matingMax:    48 * 60,   // 48h maximum
+  hatchRex:     5  * 60,   // 5h d'incubation pour un Rex
+  hatchWyvern:  6  * 60,   // 6h pour une Wyverne
+  hatchRaptor:  2  * 60,   // 2h pour un Raptor
+  hatchAnkylosaur: 2.5 * 60,
+  matureRex:    13.5 * 24 * 60, // 13,5 jours
+  matureWyvern: 9   * 24 * 60,  // 9 jours
+  matureRaptor: 28  * 60,       // 28h
+  tamingRex:    120,        // ~2h pour un Rex (viande crue, vanilla)
+  tamingCarno:  40,         // ~40 min pour un Carno
+  tamingRaptor: 12,         // ~12 min pour un Raptor
+  babyFeedBase: 22,         // ~22 min entre deux repas (phase bébé, vanilla)
+};
+
+function fmtDur(min) {
+  if (min <= 0) return '< 1s';
+  if (min < 1)  return Math.round(min * 60) + 's';
+  if (min < 60) {
+    const m = Math.floor(min), s = Math.round((min - m) * 60);
+    return m + 'min' + (s ? ' ' + s + 's' : '');
+  }
+  if (min < 1440) {
+    const h = Math.floor(min / 60), m = Math.round(min % 60);
+    return h + 'h' + (m ? m + 'min' : '');
+  }
+  const d = Math.floor(min / 1440), h = Math.floor((min % 1440) / 60), m = Math.round(min % 60);
+  return d + 'j ' + (h ? h + 'h' : '') + (m ? ' ' + m + 'min' : '');
+}
+
+function updateCfgPreview(type, raw) {
+  const el = document.getElementById('cfg-' + type + '-preview');
+  if (!el) return;
+  const v = parseFloat(raw);
+  if (isNaN(v) || v <= 0) { el.textContent = ''; el.classList.remove('visible'); return; }
+  el.classList.add('visible');
+
+  if (type === 'mating') {
+    const min = fmtDur(VANILLA.matingMin * v);
+    const max = fmtDur(VANILLA.matingMax * v);
+    el.innerHTML = `⏱️ Intervalle entre reproductions : <strong>${min}</strong> à <strong>${max}</strong>`;
+  }
+
+  if (type === 'hatch') {
+    const rex    = fmtDur(VANILLA.hatchRex    / v);
+    const wyvern = fmtDur(VANILLA.hatchWyvern / v);
+    const raptor = fmtDur(VANILLA.hatchRaptor / v);
+    const ankyl  = fmtDur(VANILLA.hatchAnkylosaur / v);
+    el.innerHTML =
+      `🦖 Rex : <strong>${rex}</strong> &nbsp;|&nbsp; ` +
+      `🐉 Wyverne : <strong>${wyvern}</strong> &nbsp;|&nbsp; ` +
+      `🦅 Raptor : <strong>${raptor}</strong> &nbsp;|&nbsp; ` +
+      `🦕 Ankylosaure : <strong>${ankyl}</strong>`;
+  }
+
+  if (type === 'mature') {
+    const rex    = fmtDur(VANILLA.matureRex    / v);
+    const wyvern = fmtDur(VANILLA.matureWyvern / v);
+    const raptor = fmtDur(VANILLA.matureRaptor / v);
+    el.innerHTML =
+      `🦖 Rex : <strong>${rex}</strong> &nbsp;|&nbsp; ` +
+      `🐉 Wyverne : <strong>${wyvern}</strong> &nbsp;|&nbsp; ` +
+      `🦅 Raptor : <strong>${raptor}</strong>`;
+  }
+
+  if (type === 'babyfood') {
+    const interval = fmtDur(VANILLA.babyFeedBase / v);
+    const consumed = v < 1
+      ? `${Math.round((1 - v) * 100)}% moins de nourriture qu'en vanilla`
+      : `${Math.round(v * 100)}% de la nourriture vanilla`;
+    el.innerHTML = `🍖 Repas toutes les ≈ <strong>${interval}</strong> en phase bébé &nbsp;·&nbsp; ${consumed}`;
+  }
+
+  if (type === 'taming') {
+    const rex    = fmtDur(VANILLA.tamingRex    / v);
+    const carno  = fmtDur(VANILLA.tamingCarno  / v);
+    const raptor = fmtDur(VANILLA.tamingRaptor / v);
+    el.innerHTML =
+      `🦖 Rex (viande) : <strong>${rex}</strong> &nbsp;|&nbsp; ` +
+      `🦕 Carno : <strong>${carno}</strong> &nbsp;|&nbsp; ` +
+      `🦅 Raptor : <strong>${raptor}</strong>`;
+  }
 }
 
 // ── RCON console ──────────────────────────────────────────────────────────
