@@ -2863,6 +2863,24 @@ function createWebServer(discordClient) {
       res.json({ ok: true });
     } catch (e) { res.json({ ok: false, error: e.message }); }
   });
+  // Auto-détection IP + port RCON depuis la config Nitrado
+  app.get('/nitrado/api/rcon-autodetect/:id', requireAdmin, async (req, res) => {
+    try {
+      const serviceId = req.params.id;
+      // IP depuis les détails du serveur
+      const detail = await nitrado.getServerDetails(serviceId);
+      const ip = detail?.ip || null;
+      // Port RCON depuis GameUserSettings.ini
+      let rconPort = null;
+      try {
+        const content = await nitrado.readFile(serviceId, 'GameUserSettings.ini');
+        const match = content.match(/RCONPort\s*=\s*(\d+)/i);
+        if (match) rconPort = parseInt(match[1]);
+      } catch {}
+      res.json({ ok: true, ip, rconPort });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
   app.post('/nitrado/api/rcon-direct-test', requireAdmin, async (req, res) => {
     try {
       const { ip, rconPort, rconPassword } = req.body;

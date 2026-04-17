@@ -1505,9 +1505,12 @@ function renderRconDirectList() {
   SRV.forEach(s => {
     const sname = shortName(s.name);
     const cfg = _rconDirectCfg[s.id] || {};
+    // IP : priorité config sauvegardée > IP Nitrado auto
+    const ip       = cfg.ip       || s.ip  || '';
+    const rconPort = cfg.rconPort || '';
+    const isConfigured = !!(cfg.ip);
     const row = document.createElement('div');
     row.style.cssText = 'background:var(--bg-primary);border:1px solid var(--border);border-radius:10px;padding:12px 14px;';
-    const isConfigured = !!(cfg.ip);
     row.innerHTML =
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">' +
         '<strong style="font-size:.88rem">' + escHtml(sname) + '</strong>' +
@@ -1515,17 +1518,19 @@ function renderRconDirectList() {
           (isConfigured ? 'rgba(76,175,80,.15);color:#81c784;border:1px solid rgba(76,175,80,.3)' : 'rgba(255,255,255,.05);color:var(--text-muted);border:1px solid var(--border)') +
         '">' + (isConfigured ? '✅ Configuré' : '⚙️ Non configuré') + '</span>' +
       '</div>' +
-      '<div style="display:grid;grid-template-columns:1fr 100px 1fr auto;gap:8px;align-items:end">' +
-        '<div><label style="font-size:.72rem;color:var(--text-muted);display:block;margin-bottom:3px">IP publique</label>' +
-          '<input class="rcon-field" style="font-size:.82rem" id="rd-ip-' + s.id + '" placeholder="ex: 185.107.96.42" value="' + escHtml(cfg.ip || '') + '"></div>' +
-        '<div><label style="font-size:.72rem;color:var(--text-muted);display:block;margin-bottom:3px">Port RCON</label>' +
-          '<input class="rcon-field" style="font-size:.82rem" id="rd-port-' + s.id + '" placeholder="11190" value="' + escHtml(String(cfg.rconPort || '')) + '"></div>' +
+      '<div style="display:grid;grid-template-columns:1fr 120px 1fr auto;gap:8px;align-items:end">' +
+        '<div><label style="font-size:.72rem;color:var(--text-muted);display:block;margin-bottom:3px">IP publique <span style="color:#81c784;opacity:.7">(Nitrado)</span></label>' +
+          '<input class="rcon-field" style="font-size:.82rem;opacity:.7" id="rd-ip-' + s.id + '" placeholder="auto" value="' + escHtml(ip) + '" readonly></div>' +
+        '<div><label style="font-size:.72rem;color:var(--text-muted);display:block;margin-bottom:3px">Port RCON ' +
+          '<button onclick="autodetectRcon(\'' + s.id + '\')" style="background:none;border:none;color:var(--accent);font-size:.7rem;cursor:pointer;padding:0;margin-left:4px">🔍 Détecter</button>' +
+          '</label>' +
+          '<input class="rcon-field" style="font-size:.82rem" id="rd-port-' + s.id + '" placeholder="11190" value="' + escHtml(String(rconPort)) + '"></div>' +
         '<div><label style="font-size:.72rem;color:var(--text-muted);display:block;margin-bottom:3px">ServerAdminPassword</label>' +
           '<input class="rcon-field" style="font-size:.82rem" type="password" id="rd-pass-' + s.id + '" placeholder="mot de passe admin" value="' + escHtml(cfg.rconPassword || '') + '"></div>' +
-        '<div style="display:flex;gap:6px">' +
-          '<button class="btn btn-primary" style="padding:7px 12px;font-size:.78rem" onclick="saveRconDirect(\'' + s.id + '\')">💾</button>' +
+        '<div style="display:flex;gap:6px;margin-top:18px">' +
+          '<button class="btn btn-primary" style="padding:7px 12px;font-size:.78rem" onclick="saveRconDirect(\'' + s.id + '\')" title="Sauvegarder">💾</button>' +
           '<button class="btn" style="padding:7px 10px;font-size:.78rem;background:var(--bg-input);color:var(--text-secondary)" onclick="testRconDirect(\'' + s.id + '\')" title="Tester la connexion">🔌</button>' +
-          (isConfigured ? '<button class="btn btn-danger" style="padding:7px 10px;font-size:.78rem" onclick="clearRconDirect(\'' + s.id + '\')" title="Supprimer">✕</button>' : '') +
+          (isConfigured ? '<button class="btn btn-danger" style="padding:7px 10px;font-size:.78rem" onclick="clearRconDirect(\'' + s.id + '\')" title="Supprimer la config">✕</button>' : '') +
         '</div>' +
       '</div>' +
       '<div id="rd-status-' + s.id + '" style="margin-top:8px;font-size:.75rem;display:none"></div>';
@@ -1533,30 +1538,50 @@ function renderRconDirectList() {
   });
 }
 
+async function autodetectRcon(serviceId) {
+  showRdStatus(serviceId, '⟳ Lecture de la config Nitrado…', false);
+  try {
+    const r = await fetch('/nitrado/api/rcon-autodetect/' + serviceId);
+    const d = await r.json();
+    if (!d.ok) { showRdStatus(serviceId, '❌ ' + d.error, true); return; }
+    const ipEl   = document.getElementById('rd-ip-'   + serviceId);
+    const portEl = document.getElementById('rd-port-' + serviceId);
+    if (d.ip   && ipEl)   ipEl.value   = d.ip;
+    if (d.rconPort && portEl) portEl.value = d.rconPort;
+    showRdStatus(serviceId,
+      '✅ Détecté — IP : ' + (d.ip || '?') + ' · Port RCON : ' + (d.rconPort || 'non trouvé dans la config'), false);
+  } catch (e) {
+    showRdStatus(serviceId, '❌ Erreur réseau', true);
+  }
+}
+
 async function saveRconDirect(serviceId) {
-  const ip       = document.getElementById('rd-ip-'   + serviceId)?.value.trim();
+  const srv = SRV.find(s => s.id == serviceId) || {};
+  // IP : champ (auto-rempli depuis Nitrado) ou fallback Nitrado
+  const ip       = (document.getElementById('rd-ip-'   + serviceId)?.value || srv.ip || '').trim();
   const rconPort = document.getElementById('rd-port-' + serviceId)?.value.trim();
   const rconPassword = document.getElementById('rd-pass-' + serviceId)?.value;
-  const statusEl = document.getElementById('rd-status-' + serviceId);
-  if (!ip) { showRdStatus(serviceId, '❌ L\'IP est obligatoire.', true); return; }
-  const d = await post('/nitrado/api/rcon-direct-cfg', { serviceId, ip, rconPort: parseInt(rconPort) || 11190, rconPassword });
+  if (!ip) { showRdStatus(serviceId, '❌ IP introuvable — clique sur 🔍 Détecter d\'abord.', true); return; }
+  if (!rconPort) { showRdStatus(serviceId, '❌ Port RCON manquant — clique sur 🔍 Détecter.', true); return; }
+  const d = await post('/nitrado/api/rcon-direct-cfg', { serviceId, ip, rconPort: parseInt(rconPort), rconPassword });
   if (d.ok) {
-    _rconDirectCfg[serviceId] = { ip, rconPort: parseInt(rconPort) || 11190, rconPassword };
+    _rconDirectCfg[serviceId] = { ip, rconPort: parseInt(rconPort), rconPassword };
     renderRconDirectList();
-    toast('✅ Config RCON directe sauvegardée pour ' + shortName((SRV.find(s => s.id == serviceId) || {}).name || serviceId));
+    toast('✅ Config RCON sauvegardée pour ' + shortName(srv.name || serviceId));
   } else {
     showRdStatus(serviceId, '❌ ' + d.error, true);
   }
 }
 
 async function testRconDirect(serviceId) {
-  const ip       = document.getElementById('rd-ip-'   + serviceId)?.value.trim();
+  const srv = SRV.find(s => s.id == serviceId) || {};
+  const ip       = (document.getElementById('rd-ip-'   + serviceId)?.value || srv.ip || '').trim();
   const rconPort = document.getElementById('rd-port-' + serviceId)?.value.trim();
   const rconPassword = document.getElementById('rd-pass-' + serviceId)?.value;
-  if (!ip) { showRdStatus(serviceId, '❌ Entre d\'abord une IP.', true); return; }
-  showRdStatus(serviceId, '⟳ Test en cours…', false);
-  const d = await post('/nitrado/api/rcon-direct-test', { ip, rconPort: parseInt(rconPort) || 11190, rconPassword });
-  if (d.ok) showRdStatus(serviceId, '✅ Connexion réussie — réponse : ' + (d.response || '(vide, normal pour ARK SA)'), false);
+  if (!ip || !rconPort) { showRdStatus(serviceId, '❌ Clique sur 🔍 Détecter d\'abord.', true); return; }
+  showRdStatus(serviceId, '⟳ Test de connexion RCON en cours…', false);
+  const d = await post('/nitrado/api/rcon-direct-test', { ip, rconPort: parseInt(rconPort), rconPassword });
+  if (d.ok) showRdStatus(serviceId, '✅ Connexion réussie — ' + (d.response || '(pas de réponse, normal pour ARK SA)'), false);
   else      showRdStatus(serviceId, '❌ Échec : ' + d.error, true);
 }
 
