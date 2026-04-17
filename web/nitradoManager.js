@@ -220,25 +220,55 @@ async function updateSettingOnAll(serviceIds, category, key, value) {
   return results;
 }
 
-// ── RCON ─────────────────────────────────────────────────────────────────────
+// ── RCON via API Nitrado ──────────────────────────────────────────────────────
 
 async function sendRcon(serviceId, command) {
   const res = await client().post(`/services/${serviceId}/gameservers/app_server/command`, { command });
   return res.data;
 }
 
-async function sendRconToMany(serviceIds, command) {
+// ── RCON direct (Source RCON protocol) ───────────────────────────────────────
+
+async function sendRconDirect(ip, port, password, command) {
+  const { Rcon } = require('rcon-client');
+  const rcon = new Rcon({ host: ip, port: parseInt(port), password: password || '', timeout: 10000 });
+  try {
+    await rcon.connect();
+    const response = await rcon.send(command);
+    await rcon.end();
+    return response || '';
+  } catch (e) {
+    try { await rcon.end(); } catch {}
+    throw e;
+  }
+}
+
+async function sendRconToMany(serviceIds, command, directCfg = {}) {
   const results = [];
   for (const id of serviceIds) {
-    try {
-      const data = await sendRcon(id, command);
-      results.push({ id, ok: true, response: data?.data?.message || '' });
-    } catch (e) {
-      const status = e.response?.status;
-      const nitradoMsg = e.response?.data?.message || e.response?.data?.error || '';
-      const detail = nitradoMsg ? `[${status}] ${nitradoMsg}` : (e.message || 'Erreur inconnue');
-      console.error(`❌ RCON ${id} (${command}):`, detail);
-      results.push({ id, ok: false, error: detail });
+    const cfg = directCfg[id];
+    if (cfg && cfg.ip && cfg.rconPort) {
+      // RCON direct — bypasse l'API Nitrado
+      try {
+        const response = await sendRconDirect(cfg.ip, cfg.rconPort, cfg.rconPassword || '', command);
+        console.log(`✅ RCON direct ${id} (${command}): réponse = "${response || '(vide)'}"`);
+        results.push({ id, ok: true, response });
+      } catch (e) {
+        console.error(`❌ RCON direct ${id} (${command}):`, e.message);
+        results.push({ id, ok: false, error: e.message });
+      }
+    } else {
+      // Fallback API Nitrado
+      try {
+        const data = await sendRcon(id, command);
+        results.push({ id, ok: true, response: data?.data?.message || '' });
+      } catch (e) {
+        const status = e.response?.status;
+        const nitradoMsg = e.response?.data?.message || e.response?.data?.error || '';
+        const detail = nitradoMsg ? `[${status}] ${nitradoMsg}` : (e.message || 'Erreur inconnue');
+        console.error(`❌ RCON API Nitrado ${id} (${command}):`, detail);
+        results.push({ id, ok: false, error: detail });
+      }
     }
   }
   return results;
@@ -265,5 +295,6 @@ module.exports = {
   removeModFromAll,
   updateSettingOnAll,
   sendRcon,
+  sendRconDirect,
   sendRconToMany,
 };

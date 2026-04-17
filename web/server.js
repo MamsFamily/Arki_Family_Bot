@@ -2835,6 +2835,43 @@ function createWebServer(discordClient) {
     }
   });
 
+  // Config RCON direct par serveur
+  async function getRconDirectCfg() {
+    const raw = await pgStore.getData('nitrado_rcon_direct', null);
+    if (!raw) return {};
+    return (typeof raw === 'object' && !Array.isArray(raw)) ? raw : JSON.parse(raw);
+  }
+  async function saveRconDirectCfg(cfg) {
+    await pgStore.setData('nitrado_rcon_direct', cfg);
+  }
+
+  app.get('/nitrado/api/rcon-direct-cfg', requireAdmin, async (req, res) => {
+    try { res.json({ ok: true, cfg: await getRconDirectCfg() }); }
+    catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+  app.post('/nitrado/api/rcon-direct-cfg', requireAdmin, async (req, res) => {
+    try {
+      const { serviceId, ip, rconPort, rconPassword } = req.body;
+      if (!serviceId) return res.json({ ok: false, error: 'serviceId manquant' });
+      const cfg = await getRconDirectCfg();
+      if (ip) {
+        cfg[serviceId] = { ip: ip.trim(), rconPort: parseInt(rconPort) || 11190, rconPassword: rconPassword || '' };
+      } else {
+        delete cfg[serviceId];
+      }
+      await saveRconDirectCfg(cfg);
+      res.json({ ok: true });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+  app.post('/nitrado/api/rcon-direct-test', requireAdmin, async (req, res) => {
+    try {
+      const { ip, rconPort, rconPassword } = req.body;
+      if (!ip || !rconPort) return res.json({ ok: false, error: 'IP et port obligatoires' });
+      const response = await nitrado.sendRconDirect(ip, parseInt(rconPort), rconPassword || '', 'listplayers');
+      res.json({ ok: true, response: response || '(pas de réponse — normal pour ARK SA)' });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
   // Envoyer une commande RCON à plusieurs serveurs (sélection ou tous)
   app.post('/nitrado/api/rcon-many', requireAdmin, async (req, res) => {
     try {
@@ -2845,7 +2882,8 @@ function createWebServer(discordClient) {
         const services = await nitrado.getServices();
         ids = services.map(s => s.id);
       }
-      const results = await nitrado.sendRconToMany(ids, command.trim());
+      const directCfg = await getRconDirectCfg();
+      const results = await nitrado.sendRconToMany(ids, command.trim(), directCfg);
       res.json({ ok: true, results });
     } catch (e) {
       res.json({ ok: false, error: e.message });
