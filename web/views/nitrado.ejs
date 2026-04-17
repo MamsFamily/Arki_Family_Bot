@@ -1177,6 +1177,10 @@ function sendRconNow() {
           const name = (SRV.find(s => s.id == r.id) || {}).name || r.id;
           return '<span style="opacity:.7">' + escHtml(shortName(name)) + ':</span> ' + escHtml(r.response);
         });
+        const errors = d.results.filter(r => !r.ok).map(r => {
+          const name = (SRV.find(s => s.id == r.id) || {}).name || r.id;
+          return '❌ ' + escHtml(shortName(name)) + ' : ' + escHtml(r.error || 'Erreur inconnue');
+        });
         if (responses.length) {
           responses.forEach(resp => {
             const respEl = document.createElement('span');
@@ -1184,6 +1188,22 @@ function sendRconNow() {
             respEl.innerHTML = resp;
             entry.appendChild(respEl);
           });
+        }
+        if (errors.length) {
+          errors.forEach(err => {
+            const respEl = document.createElement('span');
+            respEl.className = 'rcon-resp err';
+            respEl.innerHTML = err;
+            entry.appendChild(respEl);
+          });
+        }
+        if (!responses.length && !errors.length) {
+          const respEl = document.createElement('span');
+          respEl.className = 'rcon-resp';
+          respEl.textContent = ok + '/' + d.results.length + ' serveur(s) OK';
+          entry.appendChild(respEl);
+        } else if (responses.length && !errors.length) {
+          // tout ok, pas besoin d'un message supplémentaire
         } else {
           const respEl = document.createElement('span');
           respEl.className = 'rcon-resp';

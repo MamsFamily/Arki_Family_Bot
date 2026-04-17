@@ -234,7 +234,11 @@ async function sendRconToMany(serviceIds, command) {
       const data = await sendRcon(id, command);
       results.push({ id, ok: true, response: data?.data?.message || '' });
     } catch (e) {
-      results.push({ id, ok: false, error: e.message });
+      const status = e.response?.status;
+      const nitradoMsg = e.response?.data?.message || e.response?.data?.error || '';
+      const detail = nitradoMsg ? `[${status}] ${nitradoMsg}` : (e.message || 'Erreur inconnue');
+      console.error(`❌ RCON ${id} (${command}):`, detail);
+      results.push({ id, ok: false, error: detail });
     }
   }
   return results;
