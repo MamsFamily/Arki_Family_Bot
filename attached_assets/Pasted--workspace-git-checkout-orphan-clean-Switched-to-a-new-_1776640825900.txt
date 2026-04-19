@@ -1,0 +1,49 @@
+~/workspace$ git checkout --orphan clean
+Switched to a new branch 'clean'
+~/workspace$ git add -A -- ':!attached_assets'
+~/workspace$ git commit -m "Bot Arki"
+On branch clean
+nothing to commit, working tree clean
+~/workspace$ git branch -D main
+Deleted branch main (was 9b7c7cf).
+~/workspace$ git branch -m main
+~/workspace$ git push --force origin main
+Uploading LFS objects: 100% (1/1), 65 MB | 0 B/s, done.                                                                                                    
+Enumerating objects: 227, done.
+Counting objects: 100% (227/227), done.
+Delta compression using up to 8 threads
+Compressing objects: 100% (212/212), done.
+Writing objects: 100% (227/227), 97.41 MiB | 5.63 MiB/s, done.
+Total 227 (delta 2), reused 0 (delta 0), pack-reused 0 (from 0)
+remote: Resolving deltas: 100% (2/2), done.
+remote: error: GH013: Repository rule violations found for refs/heads/main.
+remote: 
+remote: - GITHUB PUSH PROTECTION
+remote:   —————————————————————————————————————————
+remote:     Resolve the following violations before pushing again
+remote: 
+remote:     - Push cannot contain secrets
+remote: 
+remote:     
+remote:      (?) Learn how to resolve a blocked push
+remote:      https://docs.github.com/code-security/secret-scanning/working-with-secret-scanning-and-push-protection/working-with-push-protection-from-the-command-line#resolving-a-blocked-push
+remote:     
+remote:      (?) This repository does not have Secret Scanning enabled, but is eligible. Enable Secret Scanning to view and manage detected secrets.
+remote:      Visit the repository settings page, https://github.com/MamsFamily/Arki_Family_Bot/settings/security_analysis
+remote:     
+remote:     
+remote:       —— Discord Bot Token —————————————————————————————————
+remote:        locations:
+remote:          - commit: 7d31130dd7fb7877a0efcb6a5ac4efdc01e58861
+remote:            path: attached_assets/config_1776634297833.js:2
+remote:     
+remote:        (?) To push, remove secret from commit(s) or follow this URL to allow the secret.
+remote:        https://github.com/MamsFamily/Arki_Family_Bot/security/secret-scanning/unblock-secret/3CatvZYtRJUgLvSJPXQH2y8v1V5
+remote:     
+remote: 
+remote: 
+To https://github.com/MamsFamily/Arki_Family_Bot
+ ! [remote rejected] main -> main (push declined due to repository rule violations)
+error: failed to push some refs to 'https://github.com/MamsFamily/Arki_Family_Bot'
+~/workspace$ ^C
+~/workspace$ 
