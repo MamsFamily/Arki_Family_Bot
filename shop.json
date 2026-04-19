@@ -1,0 +1,66 @@
+{
+  "categories": [
+    {
+      "id": "packs",
+      "name": "Packs",
+      "emoji": "📦",
+      "color": "#e74c3c"
+    },
+    {
+      "id": "dinos",
+      "name": "Dinos",
+      "emoji": "🦖",
+      "color": "#2ecc71"
+    },
+    {
+      "id": "imprint",
+      "name": "Imprint",
+      "emoji": "⬆️",
+      "color": "#3498db"
+    },
+    {
+      "id": "elements",
+      "name": "Éléments",
+      "emoji": "🧪",
+      "color": "#9b59b6"
+    },
+    {
+      "id": "chibis",
+      "name": "Chibis & Skins",
+      "emoji": "🎨",
+      "color": "#f39c12"
+    },
+    {
+      "id": "mutagene",
+      "name": "Mutagène",
+      "emoji": "☣️",
+      "color": "#1abc9c"
+    },
+    {
+      "id": "autres",
+      "name": "Autres",
+      "emoji": "🛒",
+      "color": "#95a5a6"
+    }
+  ],
+  "packs": [
+    {
+      "name": "Pack Apiculteur 🐝",
+      "category": "packs",
+      "priceDiamonds": 5000,
+      "priceStrawberries": 1800,
+      "content": "* **1** Ruche 🐝\r\n* **4** Extracteurs de sève\r\n* **200** Fleurs rare 🪻\r\n* **200** Miel 🍯",
+      "note": "",
+      "color": "#f5ec00",
+      "donationAvailable": true,
+      "notCompatible": false,
+      "available": true,
+      "noReduction": false,
+      "id": "mlsnrlc6xkjn",
+      "createdAt": "2026-02-18T23:23:30.630Z",
+      "messageId": "1473825260624150711",
+      "channelId": "1457048610939207769"
+    }
+  ],
+  "shopChannelId": "1457048610939207769"
+}

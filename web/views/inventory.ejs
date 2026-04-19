@@ -1,0 +1,1560 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inventaires - Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .inv-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 24px;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 0;
+    }
+    .inv-tab {
+      padding: 12px 20px;
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+    .inv-tab:hover { color: var(--text-primary); }
+    .inv-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    .inv-tab-content { display: none; }
+    .inv-tab-content.active { display: block; }
+    .item-type-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+    }
+    .item-type-card {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: transform 0.2s;
+    }
+    .item-type-card:hover { transform: translateY(-1px); }
+    .item-type-emoji {
+      font-size: 28px;
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(124, 92, 252, 0.1);
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+    .item-type-info { flex: 1; min-width: 0; }
+    .item-type-name { font-weight: 700; font-size: 14px; color: #fff; }
+    .item-type-cat { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+    .item-type-actions { display: flex; gap: 4px; flex-shrink: 0; }
+    .player-search-box {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .player-search-box input {
+      flex: 1;
+      padding: 12px 16px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: inherit;
+    }
+    .player-search-box input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    /* ── Grille pastilles style iOS ──────────────────────────── */
+    .player-inv-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      margin-top: 14px;
+    }
+    .player-inv-item {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 10px 4px 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 4px;
+      text-align: center;
+      cursor: default;
+      transition: border-color 0.15s, background 0.15s;
+      min-width: 0;
+    }
+    .player-inv-item:not(.zero-qty):hover {
+      border-color: rgba(124,92,252,0.5);
+      background: rgba(124,92,252,0.07);
+    }
+    .player-inv-item .inv-emoji {
+      font-size: 22px;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(124, 92, 252, 0.13);
+      border-radius: 11px;
+      flex-shrink: 0;
+    }
+    .player-inv-item .inv-name {
+      font-size: 10px;
+      color: var(--text-secondary);
+      text-align: center;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      line-height: 1.2;
+      word-break: break-word;
+      width: 100%;
+      padding: 0 2px;
+    }
+    .player-inv-item.zero-qty { opacity: 0.65; }
+    .player-inv-item.zero-qty .inv-qty { color: var(--text-muted); }
+    .player-inv-item .inv-qty {
+      font-size: 12px;
+      font-weight: 800;
+      color: #fff;
+      cursor: pointer;
+      padding: 2px 7px;
+      border-radius: 20px;
+      background: rgba(124,92,252,0.20);
+      border: 1px solid rgba(124,92,252,0.35);
+      min-width: 30px;
+      text-align: center;
+      transition: background 0.15s;
+      flex-shrink: 0;
+      line-height: 1.4;
+    }
+    .player-inv-item .inv-qty:hover { background: rgba(124,92,252,0.40); }
+    .player-inv-item .inv-qty.saving { opacity: 0.4; }
+    .inv-qty-input {
+      width: 58px;
+      font-size: 16px;
+      font-weight: 800;
+      background: var(--bg-card);
+      border: 2px solid var(--accent);
+      border-radius: 8px;
+      color: #fff;
+      text-align: center;
+      padding: 2px 4px;
+      outline: none;
+      font-family: inherit;
+      -webkit-text-size-adjust: 100%;
+    }
+    /* Emoji Discord image dans pastille */
+    .inv-emoji .discord-emoji {
+      width: 24px !important;
+      height: 24px !important;
+      vertical-align: middle;
+    }
+    .inv-emoji .emoji-fallback {
+      font-size: 9px;
+      color: var(--text-secondary);
+      font-weight: 600;
+      text-align: center;
+      word-break: break-all;
+      line-height: 1.1;
+    }
+    /* ── Mouvements récents joueur ──────────────────────────── */
+    .player-recent-tx {
+      margin-top: 20px;
+      border-top: 1px solid var(--border);
+      padding-top: 16px;
+    }
+    .player-recent-tx h4 {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+    .mini-tx-list { display: flex; flex-direction: column; gap: 6px; }
+    .mini-tx-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      background: var(--bg-card);
+      border-radius: 8px;
+      font-size: 12px;
+    }
+    .mini-tx-badge {
+      font-weight: 700;
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+    .mini-tx-badge.add  { background: rgba(76,175,80,0.18); color: #4caf50; }
+    .mini-tx-badge.remove { background: rgba(244,67,54,0.18); color: #f44336; }
+    .mini-tx-badge.reset  { background: rgba(255,152,0,0.18); color: #ff9800; }
+    .mini-tx-item { flex: 1; color: #fff; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mini-tx-qty  { font-weight: 800; flex-shrink: 0; font-size: 14px; min-width: 52px; text-align: right; letter-spacing: 0.2px; }
+    .mini-tx-qty.pos { color: #4caf50; }
+    .mini-tx-qty.neg { color: #f44336; }
+    .mini-tx-date { color: var(--text-muted); flex-shrink: 0; font-size: 11px; }
+    .mini-tx-reason { color: var(--text-muted); font-style: italic; font-size: 11px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mini-tx-player { color: var(--accent); font-weight: 600; font-size: 12px; }
+    .mini-tx-player-id { color: var(--text-muted); font-family: monospace; font-size: 10px; }
+    /* ── Responsive mobile ──────────────────────────────────── */
+    @media (max-width: 900px) {
+      .players-layout {
+        grid-template-columns: 1fr !important;
+      }
+    }
+    @media (max-width: 640px) {
+      .player-inv-grid {
+        grid-template-columns: repeat(4, 1fr) !important;
+        gap: 7px !important;
+      }
+      .item-type-grid {
+        grid-template-columns: 1fr;
+      }
+      .inv-tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        gap: 0;
+      }
+      .inv-tab {
+        padding: 10px 14px;
+        font-size: 12px;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+      .player-search-box {
+        flex-direction: column;
+      }
+      .player-inv-actions {
+        flex-direction: column;
+      }
+      .player-inv-actions .btn {
+        width: 100%;
+        text-align: center;
+      }
+    }
+    .tx-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .tx-table th {
+      text-align: left;
+      padding: 10px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .tx-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(58, 61, 92, 0.5);
+      font-size: 13px;
+    }
+    .tx-table tr:hover td { background: var(--accent-light); }
+    .tx-type-add { color: #4caf50; font-weight: 600; }
+    .tx-type-remove { color: #f44336; font-weight: 600; }
+    .tx-type-reset { color: #ff9800; font-weight: 600; }
+    .player-inv-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+    .tx-filters {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+    .tx-filters .form-group {
+      margin-bottom: 0;
+      min-width: 160px;
+    }
+    .tx-filters .form-group label {
+      margin-bottom: 4px;
+      font-size: 12px;
+    }
+    .tx-filters .form-group input,
+    .tx-filters .form-group select {
+      padding: 8px 12px;
+      font-size: 13px;
+    }
+    #playerResult { margin-top: 20px; }
+    .player-suggestions {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+      max-height: 280px;
+      overflow-y: auto;
+      z-index: 100;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    .player-suggestion {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .player-suggestion:hover, .player-suggestion.selected {
+      background: rgba(124, 92, 252, 0.15);
+    }
+    .player-suggestion img {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .player-suggestion .ps-name {
+      font-weight: 600;
+      color: #fff;
+      font-size: 13px;
+    }
+    .player-suggestion .ps-username {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .loading-spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>📦 Gestion des Inventaires</h1>
+        <p>G&eacute;rez les types d'items, les inventaires joueurs et consultez l'historique</p>
+      </div>
+
+      <% if (success) { %>
+        <div class="alert alert-success">&#x2705; <%= success %></div>
+      <% } %>
+      <% if (error) { %>
+        <div class="alert alert-error">&#x274C; <%= error %></div>
+      <% } %>
+
+      <div class="inv-tabs">
+        <% if (userRole === 'admin') { %>
+        <button class="inv-tab" onclick="switchTab('itemTypes')">🏷️ Types d'items</button>
+        <% } %>
+        <button class="inv-tab active" onclick="switchTab('players')">👤 Inventaire joueur</button>
+        <button class="inv-tab" onclick="switchTab('transactions')">📜 Historique</button>
+        <button class="inv-tab" onclick="switchTab('batch')">🎁 Distribution multi-joueurs</button>
+      </div>
+
+      <div id="tab-itemTypes" class="inv-tab-content">
+        <div class="card">
+          <div class="card-header">
+            <h2>&#x1F3F7;&#xFE0F; Types d'items</h2>
+            <button class="btn btn-primary" onclick="openItemTypeModal()">+ Nouveau type</button>
+          </div>
+          <div class="card-body">
+            <% if (itemTypes.length === 0) { %>
+              <div class="empty-state">
+                <div class="icon">&#x1F4E6;</div>
+                <p>Aucun type d'item. Cliquez sur "Nouveau type" pour commencer.</p>
+              </div>
+            <% } else { %>
+              <div class="item-type-grid">
+                <% itemTypes.forEach(item => {
+                  const cat = categories.find(c => c.id === item.category) || { name: 'Autre', emoji: '🔮' };
+                %>
+                  <div class="item-type-card">
+                    <div class="item-type-emoji"><%- renderEmoji(item.emoji) %></div>
+                    <div class="item-type-info">
+                      <div class="item-type-name"><%= item.name %></div>
+                      <div class="item-type-cat"><%- renderEmoji(cat.emoji) %> <%= cat.name %></div>
+                    </div>
+                    <div class="item-type-actions">
+                      <button class="btn btn-sm btn-secondary" onclick='editItemType(<%- JSON.stringify(item).replace(/'/g, "&#39;") %>)'>&#x270F;&#xFE0F;</button>
+                      <form method="POST" action="/inventory/item-types/delete/<%= item.id %>" style="display:inline" onsubmit="return confirm('Supprimer le type &quot;<%= item.name %>&quot; ?')">
+                        <button type="submit" class="btn btn-sm btn-danger">&#x1F5D1;&#xFE0F;</button>
+                      </form>
+                    </div>
+                  </div>
+                <% }); %>
+              </div>
+            <% } %>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:20px;">
+          <div class="card-header">
+            <h2>&#x1F4C1; Cat&eacute;gories</h2>
+            <button class="btn btn-primary" onclick="openCategoryModal()">+ Nouvelle cat&eacute;gorie</button>
+          </div>
+          <div class="card-body">
+            <div class="item-type-grid">
+              <% categories.forEach(cat => { %>
+                <div class="item-type-card">
+                  <div class="item-type-emoji"><%- renderEmoji(cat.emoji) %></div>
+                  <div class="item-type-info">
+                    <div class="item-type-name"><%= cat.name %></div>
+                    <div class="item-type-cat" style="color:var(--text-muted);">Ordre : <%= cat.order || '-' %></div>
+                  </div>
+                  <div class="item-type-actions">
+                    <button class="btn btn-sm btn-secondary" onclick='editCategory(<%- JSON.stringify(cat).replace(/\x27/g, "&#39;") %>)'>&#x270F;&#xFE0F;</button>
+                    <form method="POST" action="/inventory/categories/delete/<%= cat.id %>" style="display:inline" onsubmit="return confirm('Supprimer la cat\u00e9gorie &quot;<%= cat.name %>&quot; ?')">
+                      <button type="submit" class="btn btn-sm btn-danger">&#x1F5D1;&#xFE0F;</button>
+                    </form>
+                  </div>
+                </div>
+              <% }); %>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-players" class="inv-tab-content active">
+        <div style="display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start;" class="players-layout">
+
+          <!-- Colonne gauche : recherche + résultat joueur -->
+          <div>
+            <div class="card">
+              <div class="card-header">
+                <h2>👤 Rechercher un joueur</h2>
+              </div>
+              <div class="card-body">
+                <div class="player-search-box" style="position:relative;">
+                  <div style="flex:1;position:relative;">
+                    <input type="text" id="playerSearchInput" placeholder="Tapez un pseudo Discord ou un ID..." autocomplete="off" oninput="onPlayerSearchInput()" onkeydown="onPlayerSearchKeydown(event)">
+                    <input type="hidden" id="playerSearchId" value="">
+                    <div id="playerSuggestions" class="player-suggestions" style="display:none;"></div>
+                  </div>
+                  <button class="btn btn-primary" onclick="searchPlayer()">🔍 Rechercher</button>
+                </div>
+                <div id="playerResult"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Colonne droite : flux d'activité globale -->
+          <div class="card" id="globalActivityCard">
+            <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+              <h2 style="font-size:15px;">📋 Activité récente</h2>
+              <button class="btn btn-sm btn-secondary" onclick="loadGlobalActivity()" style="padding:4px 10px;font-size:12px;">↻ Rafraîchir</button>
+            </div>
+            <div class="card-body" style="padding:12px;">
+              <div id="globalActivityFeed">
+                <div style="text-align:center;padding:16px;"><div class="loading-spinner"></div></div>
+              </div>
+              <div style="text-align:center;margin-top:10px;">
+                <a href="#" style="font-size:12px;color:var(--accent);" onclick="switchTab('transactions');return false;">Voir l'historique complet →</a>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div id="tab-transactions" class="inv-tab-content">
+        <div class="card">
+          <div class="card-header">
+            <h2>&#x1F4DC; Historique des transactions</h2>
+          </div>
+          <div class="card-body">
+            <div class="tx-filters">
+              <div class="form-group">
+                <label>Joueur</label>
+                <div style="position:relative;">
+                  <input type="text" id="txSearchInput" placeholder="Tapez un pseudo..." autocomplete="off" oninput="onTxSearchInput()">
+                  <input type="hidden" id="txFilterPlayer" value="">
+                  <div id="txSuggestions" class="player-suggestions" style="display:none;"></div>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Type d'item</label>
+                <select id="txFilterItem">
+                  <option value="">Tous</option>
+                  <% itemTypes.forEach(it => { %>
+                    <option value="<%= it.id %>"><%= plainEmoji(it.emoji) %> <%= it.name %></option>
+                  <% }); %>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Op&eacute;ration</label>
+                <select id="txFilterType">
+                  <option value="">Toutes</option>
+                  <option value="add">Ajout</option>
+                  <option value="remove">Retrait</option>
+                  <option value="reset">Reset</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <button class="btn btn-primary btn-sm" onclick="loadTransactions()">&#x1F50D; Filtrer</button>
+              </div>
+            </div>
+            <div id="transactionsResult">
+              <div style="text-align:center;padding:20px;"><div class="loading-spinner"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-batch" class="inv-tab-content">
+        <div class="card">
+          <div class="card-header">
+            <h2>🎁 Distribution multi-joueurs</h2>
+          </div>
+          <div class="card-body">
+            <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">Attribue un item à plusieurs joueurs en une seule opération. Recherchez chaque joueur par son pseudo.</p>
+            <div class="form-row" style="gap:16px;align-items:flex-start;flex-wrap:wrap;">
+              <div class="form-group" style="flex:1;min-width:180px;">
+                <label>Item à distribuer <span style="color:#FF6B6B">*</span></label>
+                <select id="batchItemId">
+                  <option value="">— Choisir un item —</option>
+                  <% itemTypes.forEach(it => { %>
+                  <option value="<%=it.id%>"><%=it.emoji%> <%=it.name%></option>
+                  <% }); %>
+                </select>
+              </div>
+              <div class="form-group" style="flex:0 0 120px;">
+                <label>Quantité par joueur</label>
+                <input type="number" id="batchQty" value="1" min="1" max="9999">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Ajouter un joueur <span style="color:#FF6B6B">*</span></label>
+              <div style="position:relative;display:flex;gap:8px;">
+                <div style="flex:1;position:relative;">
+                  <input type="text" id="batchSearchInput" placeholder="Tapez un pseudo Discord..." autocomplete="off" oninput="onBatchSearchInput()" onkeydown="onBatchSearchKeydown(event)">
+                  <div id="batchSuggestions" class="player-suggestions" style="display:none;"></div>
+                </div>
+                <button type="button" class="btn btn-secondary" onclick="addBatchPlayerManual()">➕ Ajouter</button>
+              </div>
+            </div>
+            <div id="batchPlayerList" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;min-height:0;"></div>
+            <div class="form-group">
+              <label>Note / Raison <span style="font-weight:400;color:var(--text-muted)">(optionnel)</span></label>
+              <input type="text" id="batchNote" placeholder="Ex : Récompense vote Mars 2026">
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <button class="btn btn-primary" onclick="submitBatchDistribute()" id="batchSubmitBtn">🎁 Distribuer</button>
+              <span id="batchStatus" style="font-size:13px;color:var(--text-muted);"></span>
+            </div>
+            <div id="batchResults" style="margin-top:16px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="itemTypeModal">
+        <div class="modal-card" style="max-width:500px;">
+          <div class="modal-header">
+            <h2 id="itemTypeModalTitle">&#x1F4E6; Nouveau type d'item</h2>
+            <button class="modal-close" onclick="closeItemTypeModal()">&times;</button>
+          </div>
+          <form method="POST" action="/inventory/item-types" id="itemTypeForm">
+            <input type="hidden" name="itemId" id="itemTypeId" value="">
+            <div class="modal-body">
+              <div class="form-group">
+                <label for="itemTypeName">Nom</label>
+                <input type="text" id="itemTypeName" name="name" required placeholder="Ex: Diamants">
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="itemTypeEmoji">Emoji</label>
+                  <input type="text" id="itemTypeEmoji" name="emoji" placeholder="Ex: 💎 ou <:nom:id>" maxlength="60">
+                </div>
+                <div class="form-group">
+                  <label for="itemTypeCategory">Cat&eacute;gorie</label>
+                  <select id="itemTypeCategory" name="category">
+                    <% categories.forEach(cat => { %>
+                      <option value="<%= cat.id %>"><%= plainEmoji(cat.emoji) %> <%= cat.name %></option>
+                    <% }); %>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="itemTypeOrder">Ordre d'affichage</label>
+                <input type="number" id="itemTypeOrder" name="order" min="1" value="<%= itemTypes.length + 1 %>">
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" onclick="closeItemTypeModal()">Annuler</button>
+              <button type="submit" class="btn btn-primary" id="itemTypeSubmitBtn">&#x1F4BE; Cr&eacute;er</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="categoryModal">
+        <div class="modal-card" style="max-width:450px;">
+          <div class="modal-header">
+            <h2 id="categoryModalTitle">&#x1F4C1; Nouvelle cat&eacute;gorie</h2>
+            <button class="modal-close" onclick="closeCategoryModal()">&times;</button>
+          </div>
+          <form method="POST" action="/inventory/categories" id="categoryForm">
+            <input type="hidden" name="catId" id="categoryId" value="">
+            <div class="modal-body">
+              <div class="form-group">
+                <label for="categoryName">Nom</label>
+                <input type="text" id="categoryName" name="name" required placeholder="Ex: Monnaie">
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="categoryEmoji">Emoji</label>
+                  <input type="text" id="categoryEmoji" name="emoji" placeholder="Ex: &#x1F4B0; ou <:nom:id>" maxlength="60">
+                </div>
+                <div class="form-group">
+                  <label for="categoryOrder">Ordre</label>
+                  <input type="number" id="categoryOrder" name="order" min="1" value="<%= categories.length + 1 %>">
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" onclick="closeCategoryModal()">Annuler</button>
+              <button type="submit" class="btn btn-primary" id="categorySubmitBtn">&#x1F4BE; Cr&eacute;er</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="playerEditModal">
+        <div class="modal-card" style="max-width:460px;">
+          <div class="modal-header">
+            <h2 id="playerEditTitle">📦 Modifier l'inventaire</h2>
+            <button class="modal-close" onclick="closePlayerEditModal()">&times;</button>
+          </div>
+          <form id="playerEditForm" onsubmit="return submitPlayerEdit(event)">
+            <input type="hidden" id="editPlayerId" value="">
+            <input type="hidden" id="editAction" value="add">
+            <div class="modal-body">
+              <div class="form-group">
+                <label for="editItemType">Item</label>
+                <select id="editItemType" name="itemTypeId" required onchange="onEditItemTypeChange()">
+                  <!-- Options peuplées dynamiquement par openPlayerEdit() -->
+                </select>
+              </div>
+              <!-- Champ nom visible uniquement pour item temporaire (add) -->
+              <div class="form-group" id="editLibreGroup" style="display:none;">
+                <label for="editLibreName">Nom de l'item temporaire <span style="color:#FF6B6B">*</span></label>
+                <input type="text" id="editLibreName" placeholder="Ex: Skin Parasaur collector" maxlength="80">
+              </div>
+              <div class="form-group">
+                <label for="editQuantity">Quantité</label>
+                <input type="number" id="editQuantity" name="quantity" min="1" value="1" required>
+              </div>
+              <div class="form-group">
+                <label for="editReason">Raison (optionnel)</label>
+                <input type="text" id="editReason" name="reason" placeholder="Ex: Achat shop, récompense event…">
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" onclick="closePlayerEditModal()">Annuler</button>
+              <button type="submit" class="btn btn-primary" id="playerEditSubmitBtn">✅ Confirmer</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    var itemTypesData = <%- JSON.stringify(itemTypes).replace(/<\//g, '<\\/') %>;
+    var userRole = '<%= userRole %>';
+    var tabList = userRole === 'admin' ? ['itemTypes','players','transactions','batch'] : ['players','transactions','batch'];
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function renderEmoji(emoji) {
+      if (!emoji) return '';
+      var m = emoji.match(/^<(a?):(\w+):(\d+)>$/);
+      if (m) {
+        var ext = m[1] === 'a' ? 'gif' : 'png';
+        var url = 'https://cdn.discordapp.com/emojis/' + m[3] + '.' + ext + '?size=64';
+        var name = escapeHtml(m[2]);
+        // Fallback : si l'image échoue, afficher le nom en abrégé
+        var fb = name.length > 6 ? name.slice(0, 5) + '…' : name;
+        return '<img src="' + url + '" alt="' + name + '" class="discord-emoji" onerror="this.outerHTML=\'<span class=\\\'emoji-fallback\\\'>' + fb + '</span>\'">';
+      }
+      return escapeHtml(emoji);
+    }
+
+    var txTabLoaded = false;
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.inv-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.inv-tab-content').forEach(t => t.classList.remove('active'));
+      document.getElementById('tab-' + tabId).classList.add('active');
+      var idx = tabList.indexOf(tabId);
+      if (idx >= 0) document.querySelectorAll('.inv-tab')[idx].classList.add('active');
+      // Auto-chargement à la première ouverture de l'onglet historique
+      if (tabId === 'transactions' && !txTabLoaded) {
+        txTabLoaded = true;
+        loadTransactions();
+      }
+    }
+
+    function openItemTypeModal(item) {
+      document.getElementById('itemTypeModal').classList.add('show');
+      if (item) {
+        document.getElementById('itemTypeModalTitle').textContent = '\u270F\uFE0F Modifier : ' + item.name;
+        document.getElementById('itemTypeSubmitBtn').textContent = '\uD83D\uDCBE Sauvegarder';
+        document.getElementById('itemTypeId').value = item.id;
+        document.getElementById('itemTypeName').value = item.name;
+        document.getElementById('itemTypeEmoji').value = item.emoji || '';
+        document.getElementById('itemTypeCategory').value = item.category || 'other';
+        document.getElementById('itemTypeOrder').value = item.order || 1;
+      } else {
+        document.getElementById('itemTypeModalTitle').textContent = '\uD83D\uDCE6 Nouveau type d\'item';
+        document.getElementById('itemTypeSubmitBtn').textContent = '\uD83D\uDCBE Cr\u00e9er';
+        document.getElementById('itemTypeId').value = '';
+        document.getElementById('itemTypeName').value = '';
+        document.getElementById('itemTypeEmoji').value = '';
+        document.getElementById('itemTypeCategory').value = 'other';
+        document.getElementById('itemTypeOrder').value = itemTypesData.length + 1;
+      }
+    }
+
+    function closeItemTypeModal() {
+      document.getElementById('itemTypeModal').classList.remove('show');
+    }
+
+    function openCategoryModal(cat) {
+      document.getElementById('categoryModal').classList.add('show');
+      if (cat) {
+        document.getElementById('categoryModalTitle').textContent = '\u270F\uFE0F Modifier : ' + cat.name;
+        document.getElementById('categorySubmitBtn').textContent = '\uD83D\uDCBE Sauvegarder';
+        document.getElementById('categoryId').value = cat.id;
+        document.getElementById('categoryName').value = cat.name;
+        document.getElementById('categoryEmoji').value = cat.emoji || '';
+        document.getElementById('categoryOrder').value = cat.order || 1;
+      } else {
+        document.getElementById('categoryModalTitle').textContent = '\uD83D\uDCC1 Nouvelle cat\u00e9gorie';
+        document.getElementById('categorySubmitBtn').textContent = '\uD83D\uDCBE Cr\u00e9er';
+        document.getElementById('categoryId').value = '';
+        document.getElementById('categoryName').value = '';
+        document.getElementById('categoryEmoji').value = '';
+        document.getElementById('categoryOrder').value = '';
+      }
+    }
+
+    function closeCategoryModal() {
+      document.getElementById('categoryModal').classList.remove('show');
+    }
+
+    function editCategory(cat) {
+      openCategoryModal(cat);
+    }
+
+    function editItemType(item) {
+      openItemTypeModal(item);
+    }
+
+    document.getElementById('itemTypeModal').addEventListener('click', function(e) {
+      if (e.target === this) closeItemTypeModal();
+    });
+
+    var searchTimeout = null;
+    var selectedSuggestion = -1;
+
+    function onPlayerSearchInput() {
+      var input = document.getElementById('playerSearchInput');
+      var val = input.value.trim();
+      document.getElementById('playerSearchId').value = '';
+
+      if (searchTimeout) clearTimeout(searchTimeout);
+
+      if (/^\d{15,}$/.test(val)) {
+        hideSuggestions();
+        return;
+      }
+
+      if (val.length < 2) {
+        hideSuggestions();
+        return;
+      }
+
+      searchTimeout = setTimeout(function() {
+        fetch('/inventory/api/members/search?q=' + encodeURIComponent(val))
+          .then(function(r) { return r.json(); })
+          .then(function(members) {
+            showSuggestions(members);
+          })
+          .catch(function() { hideSuggestions(); });
+      }, 300);
+    }
+
+    function onPlayerSearchKeydown(e) {
+      var suggestions = document.getElementById('playerSuggestions');
+      var items = suggestions.querySelectorAll('.player-suggestion');
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedSuggestion = Math.min(selectedSuggestion + 1, items.length - 1);
+        updateSuggestionSelection(items);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedSuggestion = Math.max(selectedSuggestion - 1, 0);
+        updateSuggestionSelection(items);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (selectedSuggestion >= 0 && items[selectedSuggestion]) {
+          items[selectedSuggestion].click();
+        } else {
+          searchPlayer();
+        }
+      } else if (e.key === 'Escape') {
+        hideSuggestions();
+      }
+    }
+
+    function showSuggestions(members) {
+      var container = document.getElementById('playerSuggestions');
+      selectedSuggestion = -1;
+      if (!members || members.length === 0) {
+        hideSuggestions();
+        return;
+      }
+      var html = '';
+      members.forEach(function(m) {
+        html += '<div class="player-suggestion" onclick="selectMember(\'' + escapeHtml(m.id) + '\', \'' + escapeHtml(m.displayName || m.username) + '\')">';
+        html += '<img src="' + escapeHtml(m.avatar) + '" alt="">';
+        html += '<div><div class="ps-name">' + escapeHtml(m.displayName || m.username) + '</div>';
+        if (m.displayName && m.displayName !== m.username) {
+          html += '<div class="ps-username">@' + escapeHtml(m.username) + '</div>';
+        }
+        html += '</div></div>';
+      });
+      container.innerHTML = html;
+      container.style.display = 'block';
+    }
+
+    function hideSuggestions() {
+      document.getElementById('playerSuggestions').style.display = 'none';
+      selectedSuggestion = -1;
+    }
+
+    function updateSuggestionSelection(items) {
+      items.forEach(function(el, i) {
+        el.classList.toggle('selected', i === selectedSuggestion);
+      });
+    }
+
+    function selectMember(id, name) {
+      document.getElementById('playerSearchInput').value = name;
+      document.getElementById('playerSearchId').value = id;
+      hideSuggestions();
+      searchPlayer();
+    }
+
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.player-search-box')) hideSuggestions();
+      if (!e.target.closest('#batchSearchInput') && !e.target.closest('#batchSuggestions')) hideBatchSuggestions();
+      if (!e.target.closest('#txSearchInput') && !e.target.closest('#txSuggestions')) hideTxSuggestions();
+    });
+
+    /* ── Batch distribution – recherche joueur ── */
+    var batchSearchTimeout;
+    var batchPlayerData = [];
+
+    function onBatchSearchInput() {
+      var val = document.getElementById('batchSearchInput').value.trim();
+      if (batchSearchTimeout) clearTimeout(batchSearchTimeout);
+      if (val.length < 2) { hideBatchSuggestions(); return; }
+      batchSearchTimeout = setTimeout(function() {
+        fetch('/inventory/api/members/search?q=' + encodeURIComponent(val))
+          .then(function(r) { return r.json(); })
+          .then(function(members) { showBatchSuggestions(members); })
+          .catch(function() { hideBatchSuggestions(); });
+      }, 300);
+    }
+
+    function onBatchSearchKeydown(e) {
+      var sugg = document.getElementById('batchSuggestions');
+      var items = sugg.querySelectorAll('.player-suggestion');
+      if (e.key === 'ArrowDown') { e.preventDefault(); batchSelIdx = Math.min((batchSelIdx||0)+1, items.length-1); items.forEach((el,i) => el.classList.toggle('selected', i===batchSelIdx)); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); batchSelIdx = Math.max((batchSelIdx||0)-1, 0); items.forEach((el,i) => el.classList.toggle('selected', i===batchSelIdx)); }
+      else if (e.key === 'Enter') { e.preventDefault(); if (batchSelIdx >= 0 && items[batchSelIdx]) items[batchSelIdx].click(); else addBatchPlayerManual(); }
+      else if (e.key === 'Escape') hideBatchSuggestions();
+    }
+    var batchSelIdx = -1;
+
+    function showBatchSuggestions(members) {
+      var container = document.getElementById('batchSuggestions');
+      batchSelIdx = -1;
+      if (!members || members.length === 0) { hideBatchSuggestions(); return; }
+      var html = '';
+      members.forEach(function(m) {
+        var name = escapeHtml(m.displayName || m.username);
+        html += '<div class="player-suggestion" onclick="selectBatchPlayer(\'' + escapeHtml(m.id) + '\',\'' + name + '\')">';
+        html += '<img src="' + escapeHtml(m.avatar) + '" alt=""><div><div class="ps-name">' + name + '</div>';
+        if (m.displayName && m.displayName !== m.username) html += '<div class="ps-username">@' + escapeHtml(m.username) + '</div>';
+        html += '</div></div>';
+      });
+      container.innerHTML = html;
+      container.style.display = 'block';
+    }
+
+    function hideBatchSuggestions() {
+      var el = document.getElementById('batchSuggestions');
+      if (el) { el.style.display = 'none'; batchSelIdx = -1; }
+    }
+
+    function selectBatchPlayer(id, name) {
+      document.getElementById('batchSearchInput').value = '';
+      hideBatchSuggestions();
+      addBatchPlayerById(id, name);
+    }
+
+    function addBatchPlayerManual() {
+      var val = document.getElementById('batchSearchInput').value.trim();
+      if (!val) return;
+      if (/^\d{15,}$/.test(val)) { addBatchPlayerById(val, val); document.getElementById('batchSearchInput').value = ''; }
+    }
+
+    function addBatchPlayerById(id, name) {
+      if (batchPlayerData.find(p => p.id === id)) return;
+      batchPlayerData.push({ id: id, name: name });
+      renderBatchPlayerList();
+    }
+
+    function removeBatchPlayer(id) {
+      batchPlayerData = batchPlayerData.filter(p => p.id !== id);
+      renderBatchPlayerList();
+    }
+
+    function renderBatchPlayerList() {
+      var container = document.getElementById('batchPlayerList');
+      if (batchPlayerData.length === 0) { container.innerHTML = ''; return; }
+      var html = '';
+      batchPlayerData.forEach(function(p) {
+        html += '<span style="display:inline-flex;align-items:center;gap:5px;background:var(--bg-input);border:1px solid var(--border-color);border-radius:20px;padding:3px 10px;font-size:13px;">';
+        html += escapeHtml(p.name);
+        html += '<button type="button" onclick="removeBatchPlayer(\'' + escapeHtml(p.id) + '\')" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:13px;line-height:1;padding:0 0 0 3px;">✕</button>';
+        html += '</span>';
+      });
+      container.innerHTML = html;
+    }
+
+    /* ── Historique – recherche joueur ── */
+    var txSearchTimeout;
+
+    function onTxSearchInput() {
+      var val = document.getElementById('txSearchInput').value.trim();
+      document.getElementById('txFilterPlayer').value = '';
+      if (txSearchTimeout) clearTimeout(txSearchTimeout);
+      if (val.length < 2) { hideTxSuggestions(); return; }
+      txSearchTimeout = setTimeout(function() {
+        fetch('/inventory/api/members/search?q=' + encodeURIComponent(val))
+          .then(function(r) { return r.json(); })
+          .then(function(members) { showTxSuggestions(members); })
+          .catch(function() { hideTxSuggestions(); });
+      }, 300);
+    }
+
+    function showTxSuggestions(members) {
+      var container = document.getElementById('txSuggestions');
+      if (!members || members.length === 0) { hideTxSuggestions(); return; }
+      var html = '';
+      members.forEach(function(m) {
+        var name = escapeHtml(m.displayName || m.username);
+        html += '<div class="player-suggestion" onclick="selectTxPlayer(\'' + escapeHtml(m.id) + '\',\'' + name + '\')">';
+        html += '<img src="' + escapeHtml(m.avatar) + '" alt=""><div><div class="ps-name">' + name + '</div></div></div>';
+      });
+      container.innerHTML = html;
+      container.style.display = 'block';
+    }
+
+    function hideTxSuggestions() {
+      var el = document.getElementById('txSuggestions');
+      if (el) el.style.display = 'none';
+    }
+
+    function selectTxPlayer(id, name) {
+      document.getElementById('txSearchInput').value = name;
+      document.getElementById('txFilterPlayer').value = id;
+      hideTxSuggestions();
+    }
+
+    function searchPlayer() {
+      var playerId = document.getElementById('playerSearchId').value || document.getElementById('playerSearchInput').value.trim();
+      if (!playerId) return;
+      hideSuggestions();
+      var container = document.getElementById('playerResult');
+      container.innerHTML = '<div style="text-align:center;padding:20px;"><div class="loading-spinner"></div> Chargement...</div>';
+
+      fetch('/inventory/api/player/' + encodeURIComponent(playerId))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.error) {
+            container.innerHTML = '<div class="alert alert-error">\u274C ' + data.error + '</div>';
+            return;
+          }
+          renderPlayerInventory(container, data);
+        })
+        .catch(function(err) {
+          container.innerHTML = '<div class="alert alert-error">\u274C Erreur de connexion</div>';
+        });
+    }
+
+    var currentPlayerId = '';
+    var currentPlayerInventory = {};
+
+    function renderPlayerInventory(container, data) {
+      var inv = data.inventory || {};
+      var player = data.player || {};
+      var playerId = data.playerId;
+      currentPlayerId = playerId;
+      currentPlayerInventory = inv;
+      var displayName = player.displayName || player.username || playerId;
+
+      var html = '<div style="margin-bottom:16px;">';
+      html += '<h3 style="color:#fff;margin-bottom:4px;">\uD83D\uDC64 ' + escapeHtml(displayName) + '</h3>';
+      html += '<span style="color:var(--text-muted);font-size:13px;">ID: ' + escapeHtml(playerId) + '</span>';
+      html += '</div>';
+
+      var hasItems = false;
+      html += '<div class="player-inv-grid">';
+
+      // Items enregistrés
+      itemTypesData.forEach(function(it) {
+        var qty = inv[it.id] || 0;
+        if (qty > 0) hasItems = true;
+        var safeId = escapeHtml(it.id);
+        var zeroClass = qty === 0 ? ' zero-qty' : '';
+        html += '<div class="player-inv-item' + zeroClass + '">';
+        html += '<span class="inv-emoji">' + renderEmoji(it.emoji) + '</span>';
+        html += '<span class="inv-name" title="' + escapeHtml(it.name) + '">' + escapeHtml(it.name) + '</span>';
+        html += '<span class="inv-qty" title="Cliquer pour modifier" onclick="startInlineEdit(this, \'' + escapeHtml(playerId) + '\', \'' + safeId + '\', ' + qty + ')">' + qty.toLocaleString("fr-FR") + '</span>';
+        html += '</div>';
+      });
+
+      // Items occasionnels [libre]
+      Object.keys(inv).forEach(function(key) {
+        if (!key.startsWith('[libre] ')) return;
+        var qty = inv[key];
+        if (qty <= 0) return;
+        hasItems = true;
+        var name = key.slice('[libre] '.length);
+        var safeKey = escapeHtml(key);
+        html += '<div class="player-inv-item">';
+        html += '<span class="inv-emoji">\uD83D\uDCE6</span>';
+        html += '<span class="inv-name" style="color:var(--accent-light);">' + escapeHtml(name) + '</span>';
+        html += '<span class="inv-qty" title="Cliquer pour modifier" onclick="startInlineEdit(this, \'' + escapeHtml(playerId) + '\', \'' + safeKey + '\', ' + qty + ')">' + qty + '</span>';
+        html += '</div>';
+      });
+
+      html += '</div>';
+
+      if (!hasItems) {
+        html += '<div style="text-align:center;color:var(--text-muted);padding:12px;margin-top:8px;">Inventaire vide</div>';
+      }
+
+      html += '<div class="player-inv-actions">';
+      html += '<button class="btn btn-sm btn-primary" onclick="openPlayerEdit(\'' + escapeHtml(playerId) + '\', \'add\')">+ Ajouter des items</button>';
+      html += '<button class="btn btn-sm btn-secondary" onclick="openPlayerEdit(\'' + escapeHtml(playerId) + '\', \'remove\')">- Retirer des items</button>';
+      html += '</div>';
+
+      // Section mouvements récents (chargée après injection)
+      html += '<div class="player-recent-tx">';
+      html += '<h4>🕘 Mouvements récents</h4>';
+      html += '<div id="playerRecentTxList"><div style="color:var(--text-muted);font-size:12px;padding:6px 0;">Chargement...</div></div>';
+      html += '</div>';
+
+      container.innerHTML = html;
+      loadRecentPlayerTransactions(playerId);
+    }
+
+    function loadRecentPlayerTransactions(playerId) {
+      var listEl = document.getElementById('playerRecentTxList');
+      if (!listEl) return;
+
+      fetch('/inventory/api/transactions?playerId=' + encodeURIComponent(playerId) + '&limit=12')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var txs = data.transactions || [];
+          if (txs.length === 0) {
+            listEl.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:6px 0;">Aucun mouvement enregistré</div>';
+            return;
+          }
+
+          var itemMap = {};
+          itemTypesData.forEach(function(it) { itemMap[it.id] = it; });
+
+          var html2 = '<div class="mini-tx-list">';
+          txs.slice().reverse().forEach(function(tx) {
+            var item = itemMap[tx.itemTypeId];
+            var itemLabel = item ? (renderEmoji(item.emoji) + ' ' + escapeHtml(item.name)) : escapeHtml(tx.itemTypeId || '-');
+            var badgeClass = tx.type === 'add' ? 'add' : (tx.type === 'remove' ? 'remove' : 'reset');
+            var badgeLabel = tx.type === 'add' ? 'Ajout' : (tx.type === 'remove' ? 'Retrait' : 'Reset');
+            var qtySign = tx.type === 'add' ? '+' : (tx.type === 'remove' ? '' : '↺');
+            var qtyClass = tx.type === 'add' ? 'pos' : (tx.type === 'remove' ? 'neg' : '');
+            var d = new Date(tx.timestamp);
+            var dateStr = d.toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit'})
+              + ' ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+            var reasonStr = tx.reason ? escapeHtml(tx.reason) : (tx.source ? escapeHtml(tx.source) : '');
+
+            html2 += '<div class="mini-tx-row">';
+            html2 += '<span class="mini-tx-badge ' + badgeClass + '">' + badgeLabel + '</span>';
+            html2 += '<span class="mini-tx-item">' + itemLabel + '</span>';
+            html2 += '<span class="mini-tx-qty ' + qtyClass + '">' + qtySign + tx.quantity.toLocaleString("fr-FR") + '</span>';
+            if (reasonStr) html2 += '<span class="mini-tx-reason" title="' + reasonStr + '">' + reasonStr + '</span>';
+            html2 += '<span class="mini-tx-date">' + dateStr + '</span>';
+            html2 += '</div>';
+          });
+          html2 += '</div>';
+
+          if (txs.length >= 12) {
+            html2 += '<div style="text-align:right;margin-top:8px;">';
+            html2 += '<a href="#" style="font-size:12px;color:var(--accent);" onclick="goToPlayerHistory(\'' + escapeHtml(playerId) + '\');return false;">Voir tout l\'historique →</a>';
+            html2 += '</div>';
+          }
+          listEl.innerHTML = html2;
+        })
+        .catch(function() {
+          if (listEl) listEl.innerHTML = '<div style="color:var(--text-muted);font-size:12px;">Impossible de charger l\'historique</div>';
+        });
+    }
+
+    function goToPlayerHistory(playerId) {
+      document.getElementById('txSearchInput').value = '';
+      document.getElementById('txFilterPlayer').value = playerId;
+      txTabLoaded = true; // Évite le double chargement depuis switchTab
+      switchTab('transactions');
+      loadTransactions();
+    }
+
+    // ── Flux d'activité globale ──────────────────────────────────────────────
+    function loadGlobalActivity() {
+      var feed = document.getElementById('globalActivityFeed');
+      if (!feed) return;
+      feed.innerHTML = '<div style="text-align:center;padding:16px;"><div class="loading-spinner"></div></div>';
+
+      fetch('/inventory/api/transactions?limit=25')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var txs = data.transactions || [];
+          if (txs.length === 0) {
+            feed.innerHTML = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:16px;">Aucun mouvement enregistré</div>';
+            return;
+          }
+
+          var itemMap = {};
+          itemTypesData.forEach(function(it) { itemMap[it.id] = it; });
+
+          var html = '<div class="mini-tx-list">';
+          txs.slice().reverse().forEach(function(tx) {
+            var item = itemMap[tx.itemTypeId];
+            var emojiHtml = item ? renderEmoji(item.emoji) : '📦';
+            var itemName = item ? escapeHtml(item.name) : escapeHtml(tx.itemTypeId || '?');
+
+            var badgeClass = tx.type === 'add' ? 'add' : (tx.type === 'remove' ? 'remove' : 'reset');
+            var badgeLabel = tx.type === 'add' ? '+' : (tx.type === 'remove' ? '−' : '↺');
+            var qtyClass   = tx.type === 'add' ? 'pos' : (tx.type === 'remove' ? 'neg' : '');
+            var qtySign    = tx.type === 'add' ? '+' : (tx.type === 'remove' ? '−' : '↺');
+
+            var d = new Date(tx.timestamp);
+            var now = Date.now();
+            var diff = now - d.getTime();
+            var dateStr;
+            if (diff < 60000) dateStr = 'À l\'instant';
+            else if (diff < 3600000) dateStr = Math.floor(diff/60000) + 'min';
+            else if (diff < 86400000) dateStr = Math.floor(diff/3600000) + 'h';
+            else dateStr = d.toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'});
+
+            // adminId contient le nom d'affichage de l'admin (cf. route server.js)
+            var playerName  = tx.playerName || null;
+            var playerIdStr = escapeHtml((tx.playerId || '').slice(0, 18));
+            var adminLabel  = escapeHtml((tx.adminId  || 'système').slice(0, 26));
+            var reasonStr   = tx.reason ? escapeHtml(tx.reason.slice(0, 40)) : '';
+
+            html += '<div class="mini-tx-row" style="flex-wrap:wrap;gap:4px 6px;">';
+            html += '<span class="mini-tx-badge ' + badgeClass + '">' + badgeLabel + '</span>';
+            html += '<span style="font-size:13px;flex-shrink:0;">' + emojiHtml + '</span>';
+            html += '<span class="mini-tx-item" style="max-width:none;flex:1;min-width:80px;">';
+            html +=   '<span style="color:#fff;font-weight:700;font-size:13px;">' + itemName + '</span>';
+            html += '</span>';
+            // Quantité bien visible
+            html += '<span class="mini-tx-qty ' + qtyClass + '">' + qtySign + Math.abs(tx.quantity).toLocaleString("fr-FR") + '</span>';
+            html += '<span class="mini-tx-date">' + dateStr + '</span>';
+            // Ligne de détail : joueur (nom discord si dispo) · admin · raison
+            html += '<div style="width:100%;padding-left:4px;font-size:11px;color:var(--text-muted);margin-top:2px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;">';
+            html += '<span>👤</span>';
+            if (playerName) {
+              html += '<span class="mini-tx-player">' + escapeHtml(playerName) + '</span>';
+              html += '<span class="mini-tx-player-id">(' + playerIdStr + ')</span>';
+            } else {
+              html += '<span class="mini-tx-player-id">' + playerIdStr + '</span>';
+            }
+            html += '<span style="opacity:.4;">·</span>';
+            html += '<span>🛡 ' + adminLabel + '</span>';
+            if (reasonStr) {
+              html += '<span style="opacity:.4;">·</span>';
+              html += '<span style="font-style:italic;">' + reasonStr + '</span>';
+            }
+            html += '</div>';
+            html += '</div>';
+          });
+          html += '</div>';
+          feed.innerHTML = html;
+        })
+        .catch(function() {
+          if (feed) feed.innerHTML = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:16px;">Impossible de charger l\'activité</div>';
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      loadGlobalActivity();
+    });
+
+    function resetMobileZoom() {
+      var meta = document.querySelector('meta[name="viewport"]');
+      if (!meta) return;
+      var orig = meta.content;
+      // force le zoom à 1 puis rétablit
+      meta.content = orig + ', maximum-scale=1, minimum-scale=1';
+      setTimeout(function() { meta.content = orig; }, 250);
+    }
+
+    function startInlineEdit(span, playerId, itemId, currentQty) {
+      if (span.querySelector('input')) return;
+      var input = document.createElement('input');
+      // type="text" + inputmode="numeric" → clavier numérique sans zoom iOS
+      input.type = 'text';
+      input.inputMode = 'numeric';
+      input.pattern = '[0-9]*';
+      input.className = 'inv-qty-input';
+      input.style.fontSize = '16px'; // garantit pas de zoom iOS
+      input.value = currentQty;
+      span.innerHTML = '';
+      span.appendChild(input);
+      input.focus();
+      input.select();
+
+      var confirmed = false;
+      function confirm() {
+        if (confirmed) return;
+        confirmed = true;
+        var newQty = parseInt(input.value);
+        if (isNaN(newQty) || newQty < 0 || newQty === currentQty) {
+          span.innerHTML = currentQty;
+          return;
+        }
+        span.classList.add('saving');
+        span.innerHTML = '...';
+        fetch('/inventory/player/' + encodeURIComponent(playerId) + '/set', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemTypeId: itemId, quantity: newQty })
+        })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            span.classList.remove('saving');
+            if (data.error) {
+              span.innerHTML = currentQty;
+              alert('\u274C ' + data.error);
+            } else {
+              span.innerHTML = (data.newQuantity || 0).toLocaleString("fr-FR");
+              span.onclick = function() { startInlineEdit(span, playerId, itemId, data.newQuantity); };
+              loadGlobalActivity();
+              loadRecentPlayerTransactions(playerId);
+            }
+          })
+          .catch(function() {
+            span.classList.remove('saving');
+            span.innerHTML = currentQty;
+          });
+      }
+
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { input.blur(); }
+        if (e.key === 'Escape') { confirmed = true; span.innerHTML = currentQty; resetMobileZoom(); }
+      });
+      input.addEventListener('blur', function() { resetMobileZoom(); confirm(); });
+    }
+
+    function openPlayerEdit(playerId, action) {
+      document.getElementById('playerEditModal').classList.add('show');
+      document.getElementById('editPlayerId').value = playerId;
+      document.getElementById('editAction').value = action;
+      document.getElementById('editQuantity').value = 1;
+      document.getElementById('editReason').value = '';
+      document.getElementById('editLibreName').value = '';
+      document.getElementById('editLibreGroup').style.display = 'none';
+
+      var sel = document.getElementById('editItemType');
+      sel.innerHTML = '';
+
+      if (action === 'add') {
+        document.getElementById('playerEditTitle').textContent = '➕ Ajouter des items';
+        document.getElementById('playerEditSubmitBtn').textContent = '➕ Ajouter';
+        document.getElementById('playerEditSubmitBtn').className = 'btn btn-primary';
+
+        // Tous les types d'items enregistrés
+        itemTypesData.forEach(function(it) {
+          var opt = document.createElement('option');
+          opt.value = it.id;
+          opt.textContent = (it.emoji.match(/^<a?:\w+:\d+>$/) ? '' : it.emoji + ' ') + it.name;
+          sel.appendChild(opt);
+        });
+        // Option item temporaire en bas
+        var libreOpt = document.createElement('option');
+        libreOpt.value = '__libre__';
+        libreOpt.textContent = '✏️ Item temporaire (nom libre)';
+        libreOpt.style.fontStyle = 'italic';
+        sel.appendChild(libreOpt);
+
+      } else {
+        document.getElementById('playerEditTitle').textContent = '➖ Retirer des items';
+        document.getElementById('playerEditSubmitBtn').textContent = '➖ Retirer';
+        document.getElementById('playerEditSubmitBtn').className = 'btn btn-danger';
+
+        var inv = currentPlayerInventory;
+        var hasAny = false;
+
+        // Items enregistrés avec qty > 0
+        itemTypesData.forEach(function(it) {
+          var qty = inv[it.id] || 0;
+          if (qty <= 0) return;
+          hasAny = true;
+          var opt = document.createElement('option');
+          opt.value = it.id;
+          opt.textContent = (it.emoji.match(/^<a?:\w+:\d+>$/) ? '' : it.emoji + ' ') + it.name + ' (' + qty.toLocaleString('fr-FR') + ')';
+          sel.appendChild(opt);
+        });
+
+        // Items libres avec qty > 0
+        Object.keys(inv).forEach(function(key) {
+          if (!key.startsWith('[libre] ')) return;
+          var qty = inv[key];
+          if (qty <= 0) return;
+          hasAny = true;
+          var name = key.slice('[libre] '.length);
+          var opt = document.createElement('option');
+          opt.value = key;
+          opt.textContent = '📦 ' + name + ' (' + qty.toLocaleString('fr-FR') + ')';
+          opt.style.fontStyle = 'italic';
+          sel.appendChild(opt);
+        });
+
+        if (!hasAny) {
+          var opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = '⚠️ Inventaire vide';
+          opt.disabled = true;
+          opt.selected = true;
+          sel.appendChild(opt);
+        }
+      }
+    }
+
+    function onEditItemTypeChange() {
+      var isLibre = document.getElementById('editItemType').value === '__libre__';
+      var action  = document.getElementById('editAction').value;
+      document.getElementById('editLibreGroup').style.display = (isLibre && action === 'add') ? '' : 'none';
+    }
+
+    function closePlayerEditModal() {
+      document.getElementById('playerEditModal').classList.remove('show');
+    }
+
+    document.getElementById('playerEditModal').addEventListener('click', function(e) {
+      if (e.target === this) closePlayerEditModal();
+    });
+
+    function submitPlayerEdit(e) {
+      e.preventDefault();
+      var playerId    = document.getElementById('editPlayerId').value;
+      var action      = document.getElementById('editAction').value;
+      var itemTypeId  = document.getElementById('editItemType').value;
+      var quantity    = parseInt(document.getElementById('editQuantity').value) || 1;
+      var reason      = document.getElementById('editReason').value;
+      var libreItemName = document.getElementById('editLibreName').value.trim();
+
+      if (itemTypeId === '__libre__' && !libreItemName) {
+        alert('❌ Merci de saisir le nom de l\'item temporaire.');
+        document.getElementById('editLibreName').focus();
+        return false;
+      }
+      if (!itemTypeId) {
+        alert('❌ Sélectionnez un item.');
+        return false;
+      }
+
+      var url = '/inventory/player/' + encodeURIComponent(playerId) + '/' + action;
+
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemTypeId: itemTypeId, libreItemName: libreItemName, quantity: quantity, reason: reason })
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.error) {
+            alert('\u274C ' + data.error);
+            return;
+          }
+          closePlayerEditModal();
+          searchPlayer();
+          loadGlobalActivity();
+        })
+        .catch(function(err) {
+          alert('\u274C Erreur de connexion');
+        });
+
+      return false;
+    }
+
+    function loadTransactions() {
+      var playerId = document.getElementById('txFilterPlayer').value.trim();
+      var itemTypeId = document.getElementById('txFilterItem').value;
+      var type = document.getElementById('txFilterType').value;
+
+      var params = new URLSearchParams();
+      if (playerId) params.set('playerId', playerId);
+      if (itemTypeId) params.set('itemTypeId', itemTypeId);
+      if (type) params.set('type', type);
+
+      var container = document.getElementById('transactionsResult');
+      container.innerHTML = '<div style="text-align:center;padding:20px;"><div class="loading-spinner"></div> Chargement...</div>';
+
+      fetch('/inventory/api/transactions?' + params.toString())
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          renderTransactions(container, data);
+        })
+        .catch(function(err) {
+          container.innerHTML = '<div class="alert alert-error">\u274C Erreur de connexion</div>';
+        });
+    }
+
+    function renderTransactions(container, data) {
+      var txs = data.transactions || [];
+      var total = data.total || 0;
+
+      if (txs.length === 0) {
+        container.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:30px;">Aucune transaction trouv\u00e9e</div>';
+        return;
+      }
+
+      var itemMap = {};
+      itemTypesData.forEach(function(it) { itemMap[it.id] = it; });
+
+      var html = '<p style="color:var(--text-muted);font-size:13px;margin-bottom:12px;">' + total + ' transaction(s) trouv\u00e9e(s)</p>';
+      html += '<div style="overflow-x:auto;">';
+      html += '<table class="tx-table">';
+      html += '<thead><tr>';
+      html += '<th>Date</th><th>Joueur</th><th>Item</th><th>Op\u00e9ration</th><th>Quantit\u00e9</th><th>Admin</th><th>Raison</th>';
+      html += '</tr></thead><tbody>';
+
+      txs.forEach(function(tx) {
+        var item = itemMap[tx.itemTypeId];
+        var itemLabel = item ? (renderEmoji(item.emoji) + ' ' + escapeHtml(item.name)) : escapeHtml(tx.itemTypeId);
+        var typeClass = tx.type === 'add' ? 'tx-type-add' : (tx.type === 'remove' ? 'tx-type-remove' : 'tx-type-reset');
+        var typeLabel = tx.type === 'add' ? '+Ajout' : (tx.type === 'remove' ? '-Retrait' : '\u21BB Reset');
+        var date = new Date(tx.timestamp);
+        var dateStr = date.toLocaleDateString('fr-FR') + ' ' + date.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
+
+        var qtyColor = tx.quantity > 0 ? '#4caf50' : '#f44336';
+        var qtyStr = (tx.quantity > 0 ? '+' : '') + tx.quantity.toLocaleString('fr-FR');
+        var playerCell = '';
+        if (tx.playerName) {
+          playerCell = '<span style="font-weight:700;color:var(--accent);">' + escapeHtml(tx.playerName) + '</span><br>'
+                     + '<code style="font-size:10px;color:var(--text-muted);">' + escapeHtml(tx.playerId) + '</code>';
+        } else {
+          playerCell = '<code>' + escapeHtml(tx.playerId) + '</code>';
+        }
+        html += '<tr>';
+        html += '<td style="white-space:nowrap;">' + dateStr + '</td>';
+        html += '<td>' + playerCell + '</td>';
+        html += '<td>' + itemLabel + '</td>';
+        html += '<td><span class="' + typeClass + '">' + typeLabel + '</span></td>';
+        html += '<td style="font-weight:800;font-size:15px;color:' + qtyColor + ';">' + qtyStr + '</td>';
+        html += '<td style="font-size:12px;">' + escapeHtml(tx.adminId) + '</td>';
+        html += '<td>' + escapeHtml(tx.reason || '-') + '</td>';
+        html += '</tr>';
+      });
+
+      html += '</tbody></table></div>';
+      container.innerHTML = html;
+    }
+
+    async function submitBatchDistribute() {
+      var itemId = document.getElementById('batchItemId').value;
+      var qty = parseInt(document.getElementById('batchQty').value) || 1;
+      var note = document.getElementById('batchNote').value.trim();
+      var playerIds = batchPlayerData.map(function(p) { return p.id; });
+
+      if (!itemId) { alert('❌ Sélectionnez un item.'); return; }
+      if (playerIds.length === 0) { alert('❌ Ajoutez au moins un joueur.'); return; }
+
+      var btn = document.getElementById('batchSubmitBtn');
+      var status = document.getElementById('batchStatus');
+      btn.disabled = true;
+      status.textContent = '⏳ Distribution en cours...';
+
+      var r = await fetch('/inventory/batch-distribute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId: itemId, quantity: qty, playerIds: playerIds, note: note }),
+      });
+      var d = await r.json();
+      btn.disabled = false;
+
+      if (d.error) { status.textContent = '❌ ' + d.error; return; }
+
+      var ok = d.results.filter(function(r) { return r.success; }).length;
+      var fail = d.results.filter(function(r) { return !r.success; }).length;
+      status.textContent = '✅ ' + ok + ' crédité(s)' + (fail > 0 ? ', ❌ ' + fail + ' échoué(s)' : '');
+
+      var html = '<table class="data-table" style="margin-top:8px;font-size:13px;"><thead><tr><th>Joueur</th><th>ID</th><th>Résultat</th></tr></thead><tbody>';
+      d.results.forEach(function(row) {
+        var player = batchPlayerData.find(function(p) { return p.id === row.id; });
+        html += '<tr><td>' + escapeHtml(player ? player.name : '—') + '</td>';
+        html += '<td><code>' + escapeHtml(row.id) + '</code></td>';
+        html += '<td>' + (row.success ? '✅ Crédité' : '❌ ' + escapeHtml(row.error || 'Erreur')) + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      document.getElementById('batchResults').innerHTML = html;
+    }
+
+  </script>
+</body>
+</html>

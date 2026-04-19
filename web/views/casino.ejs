@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Casino - Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .casino-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1100px; }
+    @media (max-width: 900px) { .casino-grid { grid-template-columns: 1fr; } }
+    .summary-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .summary-card { background: var(--bg-input); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; }
+    .summary-card .sc-label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
+    .summary-card .sc-val { font-size: 22px; font-weight: 800; color: #fff; }
+    .summary-card .sc-val.green { color: #4caf50; }
+    .summary-card .sc-val.red { color: #f44336; }
+    .summary-card .sc-val.gold { color: #f9c740; }
+    .card-section { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 20px; }
+    .card-section h3 { font-size: 14px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 16px; letter-spacing: 0.5px; }
+    .game-limits { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+    .game-limit-row { background: var(--bg-input); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; }
+    .game-limit-row .game-name { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .game-limit-row .limit-inputs { display: flex; gap: 10px; align-items: center; }
+    .game-limit-row .limit-inputs label { font-size: 11px; color: var(--text-muted); font-weight: 600; flex-shrink: 0; }
+    .game-limit-row .limit-inputs input { width: 90px; }
+    .history-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .history-table th { padding: 8px 12px; text-align: left; color: var(--text-muted); font-size: 11px; font-weight: 600; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+    .history-table td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .history-table tr:last-child td { border-bottom: none; }
+    .history-table tr:hover td { background: rgba(124,92,252,0.06); }
+    .badge-win { color: #4caf50; font-weight: 700; }
+    .badge-lose { color: #f44336; font-weight: 700; }
+    .top-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .top-table th { padding: 8px 12px; text-align: left; color: var(--text-muted); font-size: 11px; font-weight: 600; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+    .top-table td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .top-table tr:last-child td { border-bottom: none; }
+    .rank-medal { font-size: 16px; }
+    .game-tag { display: inline-block; background: rgba(124,92,252,0.18); border: 1px solid rgba(124,92,252,0.3); border-radius: 20px; padding: 1px 8px; font-size: 11px; font-weight: 600; color: var(--accent-light); }
+    .toggle-wrap { display: flex; align-items: center; gap: 12px; }
+    .toggle { position: relative; display: inline-block; width: 44px; height: 24px; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #444; border-radius: 24px; transition: 0.3s; }
+    .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.3s; }
+    input:checked + .slider { background: var(--accent); }
+    input:checked + .slider:before { transform: translateX(20px); }
+    .section-full { max-width: 1100px; }
+    .empty-state { text-align: center; color: var(--text-muted); padding: 30px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>🎰 Casino</h1>
+        <p>Configuration, statistiques et historique des parties</p>
+      </div>
+
+      <% if (success) { %><div class="alert alert-success">✅ <%- success %></div><% } %>
+      <% if (error) { %><div class="alert alert-error">❌ <%- error %></div><% } %>
+
+      <!-- STATS GLOBALES -->
+      <div class="summary-cards">
+        <div class="summary-card">
+          <div class="sc-label">🎮 Parties jouées</div>
+          <div class="sc-val gold"><%= stats.totalSessions.toLocaleString('fr-FR') %></div>
+        </div>
+        <div class="summary-card">
+          <div class="sc-label">💎 Total misés</div>
+          <div class="sc-val"><%= stats.totalWagered.toLocaleString('fr-FR') %></div>
+        </div>
+        <div class="summary-card">
+          <div class="sc-label">💎 Total gagnés</div>
+          <div class="sc-val green"><%= stats.totalWon.toLocaleString('fr-FR') %></div>
+        </div>
+        <div class="summary-card">
+          <div class="sc-label">🏦 Profit Casino</div>
+          <div class="sc-val <%= stats.houseProfit >= 0 ? 'green' : 'red' %>"><%= stats.houseProfit.toLocaleString('fr-FR') %></div>
+        </div>
+        <div class="summary-card">
+          <div class="sc-label">🏆 Jeu populaire</div>
+          <div class="sc-val" style="font-size:15px"><%= stats.popularGame %></div>
+        </div>
+        <div class="summary-card">
+          <div class="sc-label">👥 Joueurs uniques</div>
+          <div class="sc-val gold"><%= stats.uniquePlayers %></div>
+        </div>
+      </div>
+
+      <div class="casino-grid">
+
+        <!-- CONFIG -->
+        <div>
+          <div class="card-section">
+            <h3>⚙️ Configuration</h3>
+            <form method="POST" action="/casino/config">
+              <div class="form-group">
+                <label class="form-label">Salon autorisé</label>
+                <select name="channelId" class="form-control">
+                  <option value="">— Aucun salon sélectionné —</option>
+                  <% channels.forEach(ch => { %>
+                  <option value="<%= ch.id %>" <%= config.channelId === ch.id ? 'selected' : '' %>>#<%= ch.name %></option>
+                  <% }) %>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">État du casino</label>
+                <div class="toggle-wrap">
+                  <label class="toggle">
+                    <input type="checkbox" name="enabled" value="1" <%= config.enabled !== false ? 'checked' : '' %>>
+                    <span class="slider"></span>
+                  </label>
+                  <span style="font-size:13px;color:var(--text-muted)">Casino activé</span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Cooldown entre parties (secondes)</label>
+                <input type="number" name="cooldown" class="form-control" min="0" max="3600" value="<%= config.cooldown || 0 %>">
+              </div>
+              <button type="submit" class="btn btn-primary" style="width:100%">💾 Enregistrer</button>
+            </form>
+          </div>
+
+          <!-- MISES MIN/MAX -->
+          <div class="card-section">
+            <h3>💰 Mises min / max par jeu</h3>
+            <form method="POST" action="/casino/config">
+              <input type="hidden" name="channelId" value="<%= config.channelId || '' %>">
+              <input type="hidden" name="enabled" value="<%= config.enabled !== false ? '1' : '0' %>">
+              <input type="hidden" name="cooldown" value="<%= config.cooldown || 0 %>">
+              <div class="game-limits">
+                <% const games = [
+                  { key: 'roulette', label: '🎯 Roulette' },
+                  { key: 'blackjack', label: '🃏 Blackjack' },
+                  { key: 'slots', label: '🎰 Machine à sous' },
+                  { key: 'russe', label: '🔫 Roulette Russe' },
+                  { key: 'poker', label: '🂡 Poker' }
+                ]; %>
+                <% games.forEach(g => { %>
+                <div class="game-limit-row">
+                  <div class="game-name"><%= g.label %></div>
+                  <div class="limit-inputs">
+                    <label>Min</label>
+                    <input type="number" name="min_<%= g.key %>" class="form-control" min="1" value="<%= (config.minBet && config.minBet[g.key]) || 10 %>">
+                    <label>Max</label>
+                    <input type="number" name="max_<%= g.key %>" class="form-control" min="1" value="<%= (config.maxBet && config.maxBet[g.key]) || 10000 %>">
+                  </div>
+                </div>
+                <% }) %>
+              </div>
+              <button type="submit" class="btn btn-primary" style="width:100%;margin-top:14px">💾 Enregistrer les limites</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- TOP JOUEURS -->
+        <div>
+          <div class="card-section">
+            <h3>🏆 Top 5 Gagnants</h3>
+            <% if (topWinners.length === 0) { %>
+            <div class="empty-state">Aucune donnée disponible</div>
+            <% } else { %>
+            <table class="top-table">
+              <thead><tr><th>#</th><th>Joueur</th><th>💎 Gagnés nets</th></tr></thead>
+              <tbody>
+                <% topWinners.forEach((p, i) => { %>
+                <tr>
+                  <td><span class="rank-medal"><%= i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1)+'.' %></span></td>
+                  <td><%= p.name %></td>
+                  <td class="badge-win">+<%= p.net.toLocaleString('fr-FR') %></td>
+                </tr>
+                <% }) %>
+              </tbody>
+            </table>
+            <% } %>
+          </div>
+
+          <div class="card-section">
+            <h3>💸 Top 5 Perdants</h3>
+            <% if (topLosers.length === 0) { %>
+            <div class="empty-state">Aucune donnée disponible</div>
+            <% } else { %>
+            <table class="top-table">
+              <thead><tr><th>#</th><th>Joueur</th><th>💎 Perdu net</th></tr></thead>
+              <tbody>
+                <% topLosers.forEach((p, i) => { %>
+                <tr>
+                  <td><span class="rank-medal"><%= i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1)+'.' %></span></td>
+                  <td><%= p.name %></td>
+                  <td class="badge-lose"><%= p.net.toLocaleString('fr-FR') %></td>
+                </tr>
+                <% }) %>
+              </tbody>
+            </table>
+            <% } %>
+          </div>
+
+          <div class="card-section">
+            <h3>📊 Parties par jeu</h3>
+            <% if (Object.keys(stats.byGame).length === 0) { %>
+            <div class="empty-state">Aucune donnée disponible</div>
+            <% } else { %>
+            <table class="top-table">
+              <thead><tr><th>Jeu</th><th>Parties</th><th>💎 Misés</th><th>💎 Gagnés</th></tr></thead>
+              <tbody>
+                <% Object.entries(stats.byGame).sort((a,b) => b[1].sessions - a[1].sessions).forEach(([game, d]) => { %>
+                <tr>
+                  <td><span class="game-tag"><%= game %></span></td>
+                  <td><%= d.sessions %></td>
+                  <td><%= d.wagered.toLocaleString('fr-FR') %></td>
+                  <td class="badge-win"><%= d.won.toLocaleString('fr-FR') %></td>
+                </tr>
+                <% }) %>
+              </tbody>
+            </table>
+            <% } %>
+          </div>
+        </div>
+      </div>
+
+      <!-- HISTORIQUE -->
+      <div class="card-section section-full">
+        <h3>🕓 Historique des 100 dernières parties</h3>
+        <% if (history.length === 0) { %>
+        <div class="empty-state">Aucune partie enregistrée pour l'instant.</div>
+        <% } else { %>
+        <div style="overflow-x:auto">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Joueur</th>
+                <th>Jeu</th>
+                <th>Détail</th>
+                <th>Montant</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% history.forEach(tx => { %>
+              <tr>
+                <td style="color:var(--text-muted);white-space:nowrap"><%= new Date(tx.timestamp).toLocaleString('fr-FR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) %></td>
+                <td><%= tx.playerName || tx.playerId %></td>
+                <td><span class="game-tag"><%= tx.game %></span></td>
+                <td style="color:var(--text-muted)"><%= tx.reason %></td>
+                <td class="<%= tx.quantity > 0 ? 'badge-win' : 'badge-lose' %>">
+                  <%= tx.quantity > 0 ? '+' : '' %><%= tx.quantity.toLocaleString('fr-FR') %> 💎
+                </td>
+              </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+        <% } %>
+      </div>
+
+    </main>
+  </div>
+</body>
+</html>

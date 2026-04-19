@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Message de bienvenue - Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .var-table { width:100%; border-collapse:collapse; font-size:13px; }
+    .var-table th { text-align:left; padding:8px 12px; background:var(--bg-input); color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border-color); }
+    .var-table td { padding:8px 12px; border-bottom:1px solid var(--border-color); }
+    .var-table tr:last-child td { border-bottom:none; }
+    .var-table code { background:var(--bg-input); border:1px solid var(--border-color); border-radius:4px; padding:2px 6px; font-size:12px; color:var(--accent); cursor:pointer; }
+    .var-table code:hover { background:var(--accent-light); }
+    .tag-new { background:#0d3d3d; color:#1de9b6; border-radius:4px; padding:1px 7px; font-size:11px; font-weight:600; }
+    .tag-return { background:#3d2e00; color:#ffc107; border-radius:4px; padding:1px 7px; font-size:11px; font-weight:600; }
+    .tag-both { background:var(--bg-input); color:var(--text-secondary); border-radius:4px; padding:1px 7px; font-size:11px; }
+    .tag-dispo { background:#0d3d1a; color:#4caf50; border-radius:4px; padding:1px 7px; font-size:11px; font-weight:600; }
+    .tag-todo { background:#2a1f00; color:#ff9800; border-radius:4px; padding:1px 7px; font-size:11px; font-weight:600; }
+    .example-val { font-family:monospace; font-size:12px; color:var(--text-secondary); }
+    .var-table th:last-child, .var-table td:last-child { text-align:center; }
+    .preview-embed { border-radius:6px; padding:16px; border-left:5px solid; max-width:520px; }
+    .preview-embed.new { background:#0a1628; border-color:#1de9b6; }
+    .preview-embed.return { background:#1a1200; border-color:#ffc107; }
+    .preview-title { font-weight:800; font-size:22px; margin-bottom:8px; line-height:1.2; color:var(--text); }
+    .preview-desc { font-size:14px; color:rgba(255,255,255,0.85); white-space:pre-wrap; line-height:1.5; }
+    .color-row { display:flex; align-items:center; gap:10px; }
+    .color-preview { width:36px; height:36px; border-radius:6px; border:1px solid var(--border-color); flex-shrink:0; }
+    .toggle-switch { position:relative; display:inline-block; width:48px; height:26px; }
+    .toggle-switch input { display:none; }
+    .toggle-slider { position:absolute; cursor:pointer; top:0;left:0;right:0;bottom:0; background:#444; border-radius:26px; transition:.3s; }
+    .toggle-slider:before { content:''; position:absolute; height:20px; width:20px; left:3px; bottom:3px; background:white; border-radius:50%; transition:.3s; }
+    .toggle-switch input:checked + .toggle-slider { background:var(--accent); }
+    .toggle-switch input:checked + .toggle-slider:before { transform:translateX(22px); }
+    .section-tabs { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
+    .section-tab { padding:7px 18px; border-radius:6px; border:1px solid var(--border-color); cursor:pointer; font-size:13px; font-weight:600; background:var(--bg-input); color:var(--text-secondary); transition:all .15s; }
+    .section-tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .tab-content { display:none; }
+    .tab-content.active { display:block; }
+    .role-tag { display:inline-flex; align-items:center; gap:6px; background:var(--bg-input); border:1px solid var(--border); border-radius:20px; padding:4px 10px 4px 12px; font-size:13px; font-weight:600; }
+    .role-tag button { background:none; border:none; cursor:pointer; color:var(--text-muted); font-size:12px; padding:0; line-height:1; }
+    .role-tag button:hover { color:#ef4444; }
+    .role-drop-item { padding:9px 14px; cursor:pointer; font-size:13px; display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--border); }
+    .role-drop-item:last-child { border-bottom:none; }
+    .role-drop-item:hover { background:var(--accent-light); }
+    .role-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>👋 Message de bienvenue</h1>
+        <p>Configurez les messages d'accueil pour les nouveaux membres et les revenants</p>
+      </div>
+
+      <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
+      <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+      <form method="POST" action="/welcome" id="welcomeForm">
+
+        <!-- Activation + Salon -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-header">
+            <h2>⚙️ Configuration générale</h2>
+            <label class="toggle-switch">
+              <input type="checkbox" name="enabled" id="enabledToggle" value="1" <%= welcome.enabled ? 'checked' : '' %> onchange="document.getElementById('enabledLabel').textContent=this.checked?'Activé':'Désactivé'">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="card-body">
+            <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;flex-wrap:wrap;">
+              <div class="form-group">
+                <label class="form-label">Statut</label>
+                <div style="padding:8px 0;font-weight:600;color:var(--accent)" id="enabledLabel"><%= welcome.enabled ? 'Activé' : 'Désactivé' %></div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Salon de bienvenue</label>
+                <% if (channels && channels.length > 0) { %>
+                  <select name="channelId" class="form-control">
+                    <option value="">— Choisir un salon —</option>
+                    <% channels.forEach(ch => { %>
+                      <option value="<%= ch.id %>" <%= welcome.channelId === ch.id ? 'selected' : '' %>>#<%= ch.name %></option>
+                    <% }) %>
+                  </select>
+                <% } else { %>
+                  <input type="text" name="channelId" class="form-control" value="<%= welcome.channelId %>" placeholder="ID du salon">
+                <% } %>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Délai ping (secondes)</label>
+                <input type="number" name="pingDelay" class="form-control" value="<%= welcome.pingDelay %>" min="0" max="300" placeholder="10">
+                <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Le membre sera mentionné après ce délai, puis le message est supprimé (0 = désactivé)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Onglets Nouveau / Revenant -->
+        <div class="section-tabs">
+          <button type="button" class="section-tab active" onclick="switchTab('new', this)">🔵 Nouveau membre</button>
+          <button type="button" class="section-tab" onclick="switchTab('return', this)">🟡 Membre revenant</button>
+          <button type="button" class="section-tab" onclick="switchTab('banner', this)">🖼️ Bannière</button>
+          <button type="button" class="section-tab" onclick="switchTab('dm', this)">✉️ Message privé</button>
+          <button type="button" class="section-tab" onclick="switchTab('annexe', this)">📖 Annexe variables</button>
+          <button type="button" class="section-tab" onclick="switchTab('roles', this)">🎭 Rôles auto</button>
+        </div>
+
+        <!-- Nouveau membre -->
+        <div id="tab-new" class="tab-content active">
+          <div class="card" style="margin-bottom:20px;">
+            <div class="card-header"><h2>🔵 Nouveau membre</h2><span style="font-size:12px;color:var(--text-muted)">Couleur de l'embed</span></div>
+            <div class="card-body">
+              <div class="form-group" style="margin-bottom:16px;">
+                <label class="form-label">Couleur (turquoise par défaut)</label>
+                <div class="color-row">
+                  <div class="color-preview" id="newColorPreview" style="background:<%= welcome.newColor %>"></div>
+                  <input type="color" name="newColor" class="form-control" value="<%= welcome.newColor %>" style="width:60px;height:38px;padding:2px;" oninput="document.getElementById('newColorPreview').style.background=this.value;updatePreview()">
+                </div>
+              </div>
+              <div class="form-group" style="margin-bottom:16px;">
+                <label class="form-label">Titre de l'embed <span style="color:var(--text-muted);font-weight:400">(variables disponibles ci-dessous)</span></label>
+                <input type="text" name="newTitle" class="form-control" value="<%= welcome.newTitle %>" oninput="updatePreview()" placeholder="🎉 Bienvenue sur {server} !">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Message (description)</label>
+                <textarea name="newMessage" class="form-control" rows="6" oninput="updatePreview()" placeholder="Bienvenue {userMention} !"><%= welcome.newMessage %></textarea>
+              </div>
+              <div style="margin-top:16px;">
+                <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-secondary)">Aperçu</div>
+                <div class="preview-embed new" id="preview-new">
+                  <div class="preview-title new" id="pn-title"></div>
+                  <div class="preview-desc" id="pn-desc"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Membre revenant -->
+        <div id="tab-return" class="tab-content">
+          <div class="card" style="margin-bottom:20px;">
+            <div class="card-header"><h2>🟡 Membre revenant</h2><span style="font-size:12px;color:var(--text-muted)">Couleur de l'embed</span></div>
+            <div class="card-body">
+              <div class="form-group" style="margin-bottom:16px;">
+                <label class="form-label">Couleur (jaune par défaut)</label>
+                <div class="color-row">
+                  <div class="color-preview" id="returnColorPreview" style="background:<%= welcome.returnColor %>"></div>
+                  <input type="color" name="returnColor" class="form-control" value="<%= welcome.returnColor %>" style="width:60px;height:38px;padding:2px;" oninput="document.getElementById('returnColorPreview').style.background=this.value;updatePreview()">
+                </div>
+              </div>
+              <div class="form-group" style="margin-bottom:16px;">
+                <label class="form-label">Titre de l'embed</label>
+                <input type="text" name="returnTitle" class="form-control" value="<%= welcome.returnTitle %>" oninput="updatePreview()" placeholder="👋 Bon retour parmi nous, {user} !">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Message (description)</label>
+                <textarea name="returnMessage" class="form-control" rows="6" oninput="updatePreview()" placeholder="Content de te revoir {userMention} !"><%= welcome.returnMessage %></textarea>
+              </div>
+              <div style="margin-top:16px;">
+                <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-secondary)">Aperçu (exemple revenant)</div>
+                <div class="preview-embed return" id="preview-return">
+                  <div class="preview-title return" id="pr-title"></div>
+                  <div class="preview-desc" id="pr-desc"></div>
+                  <div style="margin-top:12px;display:flex;gap:20px;flex-wrap:wrap;">
+                    <div style="font-size:12px;color:rgba(255,255,255,.6)"><span style="font-weight:600;color:rgba(255,255,255,.9)">🔁 Visite</span><br>3ème fois ici</div>
+                    <div style="font-size:12px;color:rgba(255,255,255,.6)"><span style="font-weight:600;color:rgba(255,255,255,.9)">📅 Absent depuis</span><br>il y a 2 mois</div>
+                    <div style="font-size:12px;color:rgba(255,255,255,.6)"><span style="font-weight:600;color:rgba(255,255,255,.9)">⏱️ Séjour précédent</span><br>18 jours</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bannière -->
+        <div id="tab-banner" class="tab-content">
+          <div class="card" style="margin-bottom:20px;">
+            <div class="card-header"><h2>🖼️ Bannière générée</h2></div>
+            <div class="card-body">
+              <div class="form-group" style="margin-bottom:16px;">
+                <label class="form-label">Texte affiché sur la bannière</label>
+                <input type="text" name="bannerOverlayText" class="form-control" value="<%= welcome.bannerOverlayText %>" placeholder="Bienvenue sur Arki' Family">
+              </div>
+              <div class="form-group">
+                <label class="form-label">URL de bannière personnalisée <span style="color:var(--text-muted);font-weight:400">(facultatif — sinon bannière Discord du serveur)</span></label>
+                <input type="text" name="bannerUrl" class="form-control" value="<%= welcome.bannerUrl %>" placeholder="https://...">
+              </div>
+              <div style="margin-top:12px;padding:12px;background:var(--bg-input);border-radius:6px;font-size:13px;color:var(--text-muted);">
+                ℹ️ Une bannière est générée automatiquement avec : la photo de profil du membre (cercle), la bannière du serveur en fond, le texte personnalisé et le nombre de membres. La bannière apparaît en bas de l'embed.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Message privé (DM) -->
+        <div id="tab-dm" class="tab-content">
+          <div class="card" style="margin-bottom:20px;">
+            <div class="card-header"><h2>✉️ Message privé</h2></div>
+            <div class="card-body">
+              <div class="form-group" style="margin-bottom:16px;">
+                <label class="form-label">Activer le DM automatique</label>
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <label class="toggle-switch">
+                    <input type="checkbox" name="dmEnabled" id="dmEnabledToggle" value="1" <%= welcome.dmEnabled ? 'checked' : '' %> onchange="document.getElementById('dmEnabledLabel').textContent=this.checked?'Activé':'Désactivé'">
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span id="dmEnabledLabel" style="font-weight:600;color:var(--accent)"><%= welcome.dmEnabled ? 'Activé' : 'Désactivé' %></span>
+                </div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">Un message privé sera envoyé automatiquement à chaque nouveau membre à son arrivée. Si le DM est désactivé (côté Discord par le membre), rien ne se passera.</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Contenu du DM <span style="color:var(--text-muted);font-weight:400">(variables disponibles ci-dessous)</span></label>
+                <textarea name="dmMessage" class="form-control" rows="8" placeholder="👋 Bienvenue sur {server}, {user} !&#10;&#10;N'hésite pas à lire le règlement..."><%= welcome.dmMessage || '' %></textarea>
+              </div>
+              <div style="margin-top:12px;padding:12px;background:var(--bg-input);border-radius:6px;font-size:13px;color:var(--text-muted);">
+                💡 Le DM est envoyé en texte brut — le markdown Discord fonctionne : <code>**gras**</code>, <code>*italique*</code>, sauts de ligne normaux.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Annexe variables -->
+        <div id="tab-annexe" class="tab-content">
+          <div class="card" style="margin-bottom:20px;">
+            <div class="card-header">
+              <h2>📖 Annexe complète des variables</h2>
+              <span style="font-size:12px;color:var(--text-muted)">Variables disponibles dans les messages d'embed et de DM</span>
+            </div>
+            <div class="card-body" style="padding:0;">
+
+              <!-- Légende -->
+              <div style="display:flex;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border-color);flex-wrap:wrap;align-items:center;">
+                <span style="font-size:12px;font-weight:600;color:var(--text-muted)">Légende :</span>
+                <span class="tag-dispo">✅ Disponible</span>
+                <span class="tag-todo">🔜 À ajouter sur demande</span>
+                <span class="tag-new">🔵 Nouveau</span>
+                <span class="tag-return">🟡 Revenant</span>
+                <span class="tag-both">Les deux</span>
+              </div>
+
+              <!-- Catégorie : Membre -->
+              <div style="padding:12px 16px 4px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--border-color);">👤 Membre</div>
+              <table class="var-table">
+                <thead><tr><th style="width:200px">Variable</th><th>Description</th><th>Exemple</th><th>Contexte</th><th style="width:110px">Statut</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><code onclick="copyVar('{user}')">&#123;user&#125;</code></td>
+                    <td>Pseudo affiché sur le serveur (surnom si défini, sinon username)</td>
+                    <td><span class="example-val">Zeus</span></td>
+                    <td><span class="tag-both">Les deux</span></td>
+                    <td><span class="tag-dispo">✅ Disponible</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{username}')">&#123;username&#125;</code></td>
+                    <td>Identifiant Discord unique du membre (sans surnom serveur)</td>
+                    <td><span class="example-val">zeus_official</span></td>
+                    <td><span class="tag-both">Les deux</span></td>
+                    <td><span class="tag-todo">🔜 À ajouter</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{userMention}')">&#123;userMention&#125;</code></td>
+                    <td>Mention cliquable du membre qui notifie</td>
+                    <td><span class="example-val">@Zeus</span></td>
+                    <td><span class="tag-both">Les deux</span></td>
+                    <td><span class="tag-dispo">✅ Disponible</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{userId}')">&#123;userId&#125;</code></td>
+                    <td>Identifiant numérique Discord du membre (utile pour les admins)</td>
+                    <td><span class="example-val">123456789012345678</span></td>
+                    <td><span class="tag-both">Les deux</span></td>
+                    <td><span class="tag-todo">🔜 À ajouter</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{accountAge}')">&#123;accountAge&#125;</code></td>
+                    <td>Ancienneté du compte Discord (depuis sa création)</td>
+                    <td><span class="example-val">2 ans</span></td>
+                    <td><span class="tag-both">Les deux</span></td>
+                    <td><span class="tag-todo">🔜 À ajouter</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{accountCreated}')">&#123;accountCreated&#125;</code></td>
+                    <td>Date de création du compte Discord (format lisible)</td>
+                    <td><span class="example-val">12 mars 2022</span></td>
+                    <td><span class="tag-both">Les deux</span></td>
+                    <td><span class="tag-todo">🔜 À ajouter</span></td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <!-- Catégorie : Serveur -->
+              <div style="padding:12px 16px 4px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--border-color);border-top:1px solid var(--border-color);">🏠 Serveur</div>
+              <table class="var-table">
+                <thead><tr><th style="width:200px">Variable</th><th>Description</th><th>Exemple</th><th>Contexte</th><th style="width:110px">Statut</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><code onclick="copyVar('{server}')">&#123;server&#125;</code></td>
+                    <td>Nom complet du serveur Discord</td>
+                    <td><span class="example-val">Arki' Family</span></td>
+                    <td><span class="tag-both">Les deux</span></td>
+                    <td><span class="tag-dispo">✅ Disponible</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{memberCount}')">&#123;memberCount&#125;</code></td>
+                    <td>Nombre total de membres au moment de l'arrivée (nouveau inclus)</td>
+                    <td><span class="example-val">510</span></td>
+                    <td><span class="tag-both">Les deux</span></td>
+                    <td><span class="tag-dispo">✅ Disponible</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{boostCount}')">&#123;boostCount&#125;</code></td>
+                    <td>Nombre de boosts Nitro actifs sur le serveur</td>
+                    <td><span class="example-val">7</span></td>
+                    <td><span class="tag-both">Les deux</span></td>
+                    <td><span class="tag-todo">🔜 À ajouter</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{boostLevel}')">&#123;boostLevel&#125;</code></td>
+                    <td>Niveau de boost du serveur (0, 1, 2 ou 3)</td>
+                    <td><span class="example-val">2</span></td>
+                    <td><span class="tag-both">Les deux</span></td>
+                    <td><span class="tag-todo">🔜 À ajouter</span></td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <!-- Catégorie : Dates & arrivée -->
+              <div style="padding:12px 16px 4px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--border-color);border-top:1px solid var(--border-color);">📅 Dates & arrivée</div>
+              <table class="var-table">
+                <thead><tr><th style="width:200px">Variable</th><th>Description</th><th>Exemple</th><th>Contexte</th><th style="width:110px">Statut</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><code onclick="copyVar('{joinDate}')">&#123;joinDate&#125;</code></td>
+                    <td>Date d'aujourd'hui (le jour où le membre rejoint)</td>
+                    <td><span class="example-val">30 mars 2026</span></td>
+                    <td><span class="tag-both">Les deux</span></td>
+                    <td><span class="tag-todo">🔜 À ajouter</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{firstJoinDate}')">&#123;firstJoinDate&#125;</code></td>
+                    <td>Date de la toute première arrivée sur le serveur</td>
+                    <td><span class="example-val">5 janvier 2024</span></td>
+                    <td><span class="tag-return">Revenant</span></td>
+                    <td><span class="tag-todo">🔜 À ajouter</span></td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <!-- Catégorie : Historique des visites -->
+              <div style="padding:12px 16px 4px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--border-color);border-top:1px solid var(--border-color);">🔁 Historique des visites <span style="font-weight:400;text-transform:none;font-size:11px;">(réservées aux revenants)</span></div>
+              <table class="var-table">
+                <thead><tr><th style="width:200px">Variable</th><th>Description</th><th>Exemple</th><th>Contexte</th><th style="width:110px">Statut</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><code onclick="copyVar('{visitCount}')">&#123;visitCount&#125;</code></td>
+                    <td>Numéro de la visite actuelle (chiffre)</td>
+                    <td><span class="example-val">3</span></td>
+                    <td><span class="tag-return">Revenant</span></td>
+                    <td><span class="tag-dispo">✅ Disponible</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{visitOrdinal}')">&#123;visitOrdinal&#125;</code></td>
+                    <td>Numéro de la visite en ordinal français</td>
+                    <td><span class="example-val">3ème</span></td>
+                    <td><span class="tag-return">Revenant</span></td>
+                    <td><span class="tag-dispo">✅ Disponible</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{lastLeft}')">&#123;lastLeft&#125;</code></td>
+                    <td>Durée écoulée depuis son dernier départ (texte naturel)</td>
+                    <td><span class="example-val">il y a 2 mois</span></td>
+                    <td><span class="tag-return">Revenant</span></td>
+                    <td><span class="tag-dispo">✅ Disponible</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{lastDuration}')">&#123;lastDuration&#125;</code></td>
+                    <td>Durée de son dernier séjour sur le serveur (texte naturel)</td>
+                    <td><span class="example-val">18 jours</span></td>
+                    <td><span class="tag-return">Revenant</span></td>
+                    <td><span class="tag-dispo">✅ Disponible</span></td>
+                  </tr>
+                  <tr>
+                    <td><code onclick="copyVar('{absenceDays}')">&#123;absenceDays&#125;</code></td>
+                    <td>Nombre brut de jours d'absence depuis le dernier départ</td>
+                    <td><span class="example-val">67</span></td>
+                    <td><span class="tag-return">Revenant</span></td>
+                    <td><span class="tag-todo">🔜 À ajouter</span></td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div style="padding:14px 16px;font-size:12px;color:var(--text-muted);border-top:1px solid var(--border-color);">
+                💡 Les variables marquées <strong>🔜 À ajouter</strong> sont disponibles via l'API Discord mais pas encore activées. Dis-le et elles seront intégrées en quelques minutes.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Variables disponibles -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-header"><h2>📋 Variables disponibles</h2><span style="font-size:12px;color:var(--text-muted)">Cliquez pour copier</span></div>
+          <div class="card-body" style="padding:0;">
+            <table class="var-table">
+              <thead>
+                <tr>
+                  <th>Variable</th>
+                  <th>Description</th>
+                  <th>Exemple</th>
+                  <th>Contexte</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td><code onclick="copyVar('{user}')">&#123;user&#125;</code></td><td>Pseudo Discord du membre</td><td>Zeus</td><td><span class="tag-both">Les deux</span></td></tr>
+                <tr><td><code onclick="copyVar('{userMention}')">&#123;userMention&#125;</code></td><td>Mention @membre</td><td>@Zeus</td><td><span class="tag-both">Les deux</span></td></tr>
+                <tr><td><code onclick="copyVar('{memberCount}')">&#123;memberCount&#125;</code></td><td>Nombre de membres avec le nouveau</td><td>509</td><td><span class="tag-both">Les deux</span></td></tr>
+                <tr><td><code onclick="copyVar('{server}')">&#123;server&#125;</code></td><td>Nom du serveur Discord</td><td>Arki' Family</td><td><span class="tag-both">Les deux</span></td></tr>
+                <tr><td><code onclick="copyVar('{visitCount}')">&#123;visitCount&#125;</code></td><td>Numéro de la visite (chiffre)</td><td>3</td><td><span class="tag-return">Revenant</span></td></tr>
+                <tr><td><code onclick="copyVar('{visitOrdinal}')">&#123;visitOrdinal&#125;</code></td><td>Numéro ordinal de la visite</td><td>3ème</td><td><span class="tag-return">Revenant</span></td></tr>
+                <tr><td><code onclick="copyVar('{lastLeft}')">&#123;lastLeft&#125;</code></td><td>Depuis quand il était parti</td><td>il y a 2 mois</td><td><span class="tag-return">Revenant</span></td></tr>
+                <tr><td><code onclick="copyVar('{lastDuration}')">&#123;lastDuration&#125;</code></td><td>Durée de son séjour précédent</td><td>18 jours</td><td><span class="tag-return">Revenant</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+          <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <label style="font-size:12px;opacity:0.7;">ID Discord pour le test (optionnel)</label>
+            <input type="text" id="testUserId" placeholder="ex: 1056004606867546132" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--card-bg);color:var(--text);font-size:13px;width:220px;">
+          </div>
+          <button type="button" class="btn btn-secondary" onclick="sendTest('new')">🔵 Tester nouveau membre</button>
+          <button type="button" class="btn btn-secondary" onclick="sendTest('return')">🟡 Tester revenant</button>
+        </div>
+        <p style="font-size:12px;opacity:0.6;margin-top:6px;">💡 Sans bot connecté (mode Replit), les données sont enregistrées en base mais le message Discord est envoyé uniquement depuis Railway.</p>
+
+      </form>
+
+      <!-- ═══ ONGLET RÔLES AUTO (hors form pour éviter conflits) ══════════ -->
+      <div id="tab-roles" class="tab-content">
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-header">
+            <h2>🎭 Rôles automatiques</h2>
+            <span style="font-size:12px;color:var(--text-muted)">Attribués dès qu'un membre rejoint le serveur</span>
+          </div>
+          <div class="card-body">
+            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:20px;">
+              Les rôles ci-dessous sont attribués automatiquement lors de l'arrivée d'un membre, selon son statut.
+              Le bot doit avoir la permission <strong>Gérer les rôles</strong> et ses rôles doivent être plus hauts dans la hiérarchie que ceux attribués.
+            </p>
+
+            <!-- Recherche de rôles -->
+            <div style="margin-bottom:24px;">
+              <label class="form-label">🔍 Rechercher un rôle</label>
+              <div style="position:relative;max-width:420px;">
+                <input type="text" id="roleSearch" class="form-control" placeholder="Tapez le nom d'un rôle..." autocomplete="off"
+                  oninput="filterRoles(this.value)" onfocus="showDropdown()" style="padding-right:36px;">
+                <div id="roleDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--card-bg);border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;z-index:100;max-height:240px;overflow-y:auto;"></div>
+              </div>
+              <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+                <button type="button" class="btn btn-secondary" style="font-size:12px;padding:6px 14px;" onclick="addSelectedRole('new')">+ Ajouter aux nouveaux membres</button>
+                <button type="button" class="btn btn-secondary" style="font-size:12px;padding:6px 14px;" onclick="addSelectedRole('return')">+ Ajouter aux revenants</button>
+              </div>
+              <div id="roleMsg" style="margin-top:8px;font-size:12px;min-height:18px;"></div>
+            </div>
+
+            <!-- Deux colonnes -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+
+              <!-- Nouveau membre -->
+              <div>
+                <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:#1de9b6;">🔵 Nouveau membre</div>
+                <div id="roles-new" style="display:flex;flex-wrap:wrap;gap:8px;min-height:48px;padding:10px;background:var(--bg-input);border-radius:8px;border:1px solid var(--border);">
+                  <% (welcome.autoRolesNew || []).forEach(function(r) { %>
+                    <span class="role-tag" data-id="<%= r.id %>" data-type="new">
+                      @<%= r.name %>
+                      <button type="button" onclick="deleteRole('<%= r.id %>', 'new', this)" title="Retirer">✕</button>
+                    </span>
+                  <% }) %>
+                  <% if (!(welcome.autoRolesNew || []).length) { %>
+                    <span id="roles-new-empty" style="font-size:12px;opacity:0.45;align-self:center;">Aucun rôle configuré</span>
+                  <% } %>
+                </div>
+              </div>
+
+              <!-- Revenant -->
+              <div>
+                <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:#ffc107;">🟡 Revenant</div>
+                <div id="roles-return" style="display:flex;flex-wrap:wrap;gap:8px;min-height:48px;padding:10px;background:var(--bg-input);border-radius:8px;border:1px solid var(--border);">
+                  <% (welcome.autoRolesReturn || []).forEach(function(r) { %>
+                    <span class="role-tag" data-id="<%= r.id %>" data-type="return">
+                      @<%= r.name %>
+                      <button type="button" onclick="deleteRole('<%= r.id %>', 'return', this)" title="Retirer">✕</button>
+                    </span>
+                  <% }) %>
+                  <% if (!(welcome.autoRolesReturn || []).length) { %>
+                    <span id="roles-return-empty" style="font-size:12px;opacity:0.45;align-self:center;">Aucun rôle configuré</span>
+                  <% } %>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function switchTab(tab, btn) {
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.section-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('tab-' + tab).classList.add('active');
+      btn.classList.add('active');
+    }
+
+    function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    var previewVarsNew = {
+      user: 'Zeus',
+      userMention: '<b style="color:#5865f2">@Zeus</b>',
+      memberCount: '510',
+      server: "Arki' Family",
+      visitCount: '1',
+      visitOrdinal: '1ère',
+      lastLeft: '—',
+      lastDuration: '—',
+    };
+    var previewVarsReturn = {
+      user: 'alpha8037',
+      userMention: '<b style="color:#5865f2">@alpha8037</b>',
+      memberCount: '510',
+      server: "Arki' Family",
+      visitCount: '3',
+      visitOrdinal: '3ème',
+      lastLeft: 'il y a 2 mois',
+      lastDuration: '18 jours',
+    };
+
+    function applyVars(text, vars) {
+      if (!text) return '';
+      var result = text;
+      for (var k in vars) {
+        result = result.replace(new RegExp('\\{' + k + '\\}', 'g'), vars[k]);
+      }
+      return result.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+    }
+
+    function updatePreview() {
+      var nTitle = document.querySelector('[name="newTitle"]')?.value || '';
+      var nDesc = document.querySelector('[name="newMessage"]')?.value || '';
+      var rTitle = document.querySelector('[name="returnTitle"]')?.value || '';
+      var rDesc = document.querySelector('[name="returnMessage"]')?.value || '';
+
+      document.getElementById('pn-title').innerHTML = applyVars(escHtml(nTitle).replace(/&lt;b&gt;/g,'<b>').replace(/&lt;\/b&gt;/g,'</b>'), previewVarsNew);
+      document.getElementById('pn-desc').innerHTML = applyVars(escHtml(nDesc), previewVarsNew);
+      document.getElementById('pr-title').innerHTML = applyVars(escHtml(rTitle), previewVarsReturn);
+      document.getElementById('pr-desc').innerHTML = applyVars(escHtml(rDesc), previewVarsReturn);
+
+      var newColor = document.querySelector('[name="newColor"]')?.value || '#1de9b6';
+      var retColor = document.querySelector('[name="returnColor"]')?.value || '#ffc107';
+      document.getElementById('preview-new').style.borderColor = newColor;
+      document.getElementById('preview-return').style.borderColor = retColor;
+    }
+
+    function copyVar(v) {
+      navigator.clipboard?.writeText(v).catch(() => {});
+      var tmp = document.createElement('textarea');
+      tmp.value = v;
+      document.body.appendChild(tmp);
+      tmp.select();
+      document.execCommand('copy');
+      document.body.removeChild(tmp);
+    }
+
+    async function sendTest(type) {
+      var userId = (document.getElementById('testUserId')?.value || '').trim();
+      var body = { type };
+      if (userId) body.userId = userId;
+      var res = await fetch('/welcome/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      var d = await res.json();
+      alert(d.message || (d.error ? '❌ ' + d.error : '✅ Test envoyé !'));
+    }
+
+    updatePreview();
+
+    // ─── Gestion des rôles automatiques ────────────────────────────────────
+    let allRoles = [];
+    let selectedRole = null;
+
+    async function loadRoles() {
+      try {
+        const r = await fetch('/api/guild-roles');
+        const data = await r.json();
+        allRoles = data.roles || [];
+      } catch {}
+    }
+    loadRoles();
+
+    function filterRoles(q) {
+      const dd = document.getElementById('roleDropdown');
+      if (!q.trim()) { dd.style.display = 'none'; selectedRole = null; return; }
+      const matches = allRoles.filter(r => r.name.toLowerCase().includes(q.toLowerCase())).slice(0, 20);
+      if (!matches.length) { dd.innerHTML = '<div class="role-drop-item" style="opacity:.5">Aucun rôle trouvé</div>'; dd.style.display = 'block'; return; }
+      dd.innerHTML = matches.map(r =>
+        `<div class="role-drop-item" onclick="selectRole('${r.id}','${r.name.replace(/'/g,"\\'")}','${r.color||''}')">
+          <span class="role-dot" style="background:${r.color && r.color!=='#000000' ? r.color : 'var(--text-muted)'}"></span>@${r.name}
+        </div>`
+      ).join('');
+      dd.style.display = 'block';
+    }
+
+    function showDropdown() {
+      if (allRoles.length === 0) loadRoles();
+    }
+
+    function selectRole(id, name, color) {
+      selectedRole = { id, name, color };
+      document.getElementById('roleSearch').value = name;
+      document.getElementById('roleDropdown').style.display = 'none';
+    }
+
+    document.addEventListener('click', e => {
+      if (!e.target.closest('#roleSearch') && !e.target.closest('#roleDropdown')) {
+        document.getElementById('roleDropdown').style.display = 'none';
+      }
+    });
+
+    async function addSelectedRole(type) {
+      if (!selectedRole) { showRoleMsg('⚠️ Sélectionnez d\'abord un rôle dans la liste', '#ff9800'); return; }
+      const container = document.getElementById('roles-' + type);
+      if (container.querySelector(`[data-id="${selectedRole.id}"]`)) {
+        showRoleMsg('Ce rôle est déjà dans cette liste', '#ff9800'); return;
+      }
+      try {
+        const r = await fetch('/welcome/roles/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roleId: selectedRole.id, roleName: selectedRole.name, type }),
+        });
+        const data = await r.json();
+        if (!data.ok) { showRoleMsg('Erreur : ' + (data.error || ''), '#ef4444'); return; }
+        const emptyEl = document.getElementById('roles-' + type + '-empty');
+        if (emptyEl) emptyEl.remove();
+        const tag = document.createElement('span');
+        tag.className = 'role-tag';
+        tag.dataset.id = selectedRole.id;
+        tag.dataset.type = type;
+        tag.innerHTML = `@${selectedRole.name} <button type="button" onclick="deleteRole('${selectedRole.id}','${type}',this)" title="Retirer">✕</button>`;
+        container.appendChild(tag);
+        document.getElementById('roleSearch').value = '';
+        selectedRole = null;
+        showRoleMsg('✅ Rôle ajouté', '#4caf50');
+      } catch (e) { showRoleMsg('Erreur réseau', '#ef4444'); }
+    }
+
+    async function deleteRole(roleId, type, btn) {
+      try {
+        const r = await fetch('/welcome/roles/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roleId, type }),
+        });
+        const data = await r.json();
+        if (!data.ok) { showRoleMsg('Erreur : ' + (data.error || ''), '#ef4444'); return; }
+        const tag = btn.closest('.role-tag');
+        const container = tag.parentElement;
+        tag.remove();
+        if (!container.querySelector('.role-tag')) {
+          const empty = document.createElement('span');
+          empty.id = 'roles-' + type + '-empty';
+          empty.style = 'font-size:12px;opacity:0.45;align-self:center;';
+          empty.textContent = 'Aucun rôle configuré';
+          container.appendChild(empty);
+        }
+        showRoleMsg('Rôle retiré', '#4caf50');
+      } catch (e) { showRoleMsg('Erreur réseau', '#ef4444'); }
+    }
+
+    function showRoleMsg(msg, color) {
+      const el = document.getElementById('roleMsg');
+      el.textContent = msg;
+      el.style.color = color;
+      setTimeout(() => { el.textContent = ''; }, 3000);
+    }
+  </script>
+</body>
+</html>

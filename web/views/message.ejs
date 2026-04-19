@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Message des résultats - Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>📝 Message des résultats</h1>
+        <p>Personnalisez le message publié lors de /publish-votes</p>
+      </div>
+
+      <% if (success) { %>
+        <div class="alert alert-success">✅ <%= success %></div>
+      <% } %>
+      <% if (error) { %>
+        <div class="alert alert-error">❌ <%= error %></div>
+      <% } %>
+
+      <form method="POST" action="/message">
+        <div class="card">
+          <div class="card-header">
+            <h2>📢 Texte d'introduction</h2>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label for="introText">Message d'introduction (après le titre)</label>
+              <textarea id="introText" name="introText" rows="3"><%= settings.message.introText %></textarea>
+              <p class="help-text">Affiché juste après le titre "Résultats des votes de [mois]"</p>
+            </div>
+            <div class="form-group">
+              <label for="creditText">Message de crédit des diamants</label>
+              <textarea id="creditText" name="creditText" rows="2"><%= settings.message.creditText %></textarea>
+              <p class="help-text">Indique aux joueurs que les diamants sont crédités. Supporte le Markdown Discord (**gras**, etc.)</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>🏆 Textes des packs (Top 3)</h2>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label for="pack1Text">Texte 1ère place</label>
+              <input type="text" id="pack1Text" name="pack1Text" value="<%= settings.message.pack1Text %>">
+              <p class="help-text">Le rôle Top Votant sera automatiquement ajouté après ce texte</p>
+            </div>
+            <div class="form-group">
+              <label for="pack2Text">Texte 2ème place</label>
+              <input type="text" id="pack2Text" name="pack2Text" value="<%= settings.message.pack2Text %>">
+            </div>
+            <div class="form-group">
+              <label for="pack3Text">Texte 3ème place</label>
+              <input type="text" id="pack3Text" name="pack3Text" value="<%= settings.message.pack3Text %>">
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>📎 Lien mémo et pied de page</h2>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label for="memoText">Texte du lien mémo</label>
+              <input type="text" id="memoText" name="memoText" value="<%= settings.message.memoText %>">
+              <p class="help-text">Texte affiché avant le lien vers les récompenses</p>
+            </div>
+            <div class="form-group">
+              <label for="dinoShinyText">Texte de transition Dino Shiny</label>
+              <input type="text" id="dinoShinyText" name="dinoShinyText" value="<%= settings.message.dinoShinyText %>">
+              <p class="help-text">Petit texte en bas du message annonçant le tirage Dino</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>🦖 Roulette Dino Shiny</h2>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label for="dinoTitle">Titre de la roue Dino</label>
+              <input type="text" id="dinoTitle" name="dinoTitle" value="<%= settings.message.dinoTitle %>" maxlength="20">
+              <p class="help-text">Texte au centre de la roue Dino Shiny (max 20 caractères)</p>
+            </div>
+            <div class="form-group">
+              <label for="dinoWinText">Message de victoire Dino</label>
+              <textarea id="dinoWinText" name="dinoWinText" rows="2"><%= settings.message.dinoWinText %></textarea>
+              <p class="help-text">Message de félicitations pour le gagnant. Supporte le Markdown Discord.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>👁️ Aperçu du message</h2>
+          </div>
+          <div class="card-body">
+            <div class="preview-box">
+              <p class="preview-line"><strong>🎆 Résultats des votes de [MOIS] 🎆</strong></p>
+              <p class="preview-line preview-dim" id="previewIntro"><%= settings.message.introText %></p>
+              <p class="preview-line preview-dim">💎 <span id="previewCredit"><%= settings.message.creditText %></span></p>
+              <br>
+              <p class="preview-line"><strong>1</strong> - <strong>Joueur1</strong></p>
+              <p class="preview-line preview-dim">Votes : 45 | Gains : 4 500 💎</p>
+              <p class="preview-line preview-dim">+ <span id="previewPack1"><%= settings.message.pack1Text %></span> + rôle @TopVotant</p>
+              <p class="preview-line"><strong>2</strong> - <strong>Joueur2</strong></p>
+              <p class="preview-line preview-dim">Votes : 32 | Gains : 3 200 💎</p>
+              <p class="preview-line preview-dim">+ <span id="previewPack2"><%= settings.message.pack2Text %></span></p>
+              <p class="preview-line">...</p>
+              <hr style="border-color: var(--border); margin: 12px 0;">
+              <p class="preview-line preview-dim"><span id="previewMemo"><%= settings.message.memoText %></span> ➡️ [lien]</p>
+              <p class="preview-line preview-small"><span id="previewDino"><%= settings.message.dinoShinyText %></span></p>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">💾 Sauvegarder le message</button>
+      </form>
+
+      <script>
+        document.getElementById('introText').addEventListener('input', e => {
+          document.getElementById('previewIntro').textContent = e.target.value;
+        });
+        document.getElementById('creditText').addEventListener('input', e => {
+          document.getElementById('previewCredit').textContent = e.target.value;
+        });
+        document.getElementById('pack1Text').addEventListener('input', e => {
+          document.getElementById('previewPack1').textContent = e.target.value;
+        });
+        document.getElementById('pack2Text').addEventListener('input', e => {
+          document.getElementById('previewPack2').textContent = e.target.value;
+        });
+        document.getElementById('memoText').addEventListener('input', e => {
+          document.getElementById('previewMemo').textContent = e.target.value;
+        });
+        document.getElementById('dinoShinyText').addEventListener('input', e => {
+          document.getElementById('previewDino').textContent = e.target.value;
+        });
+      </script>
+    </main>
+  </div>
+</body>
+</html>

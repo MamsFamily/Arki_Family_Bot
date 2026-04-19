@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Économie - Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .eco-section { max-width: 900px; }
+    .role-table { width: 100%; border-collapse: collapse; }
+    .role-table th, .role-table td {
+      padding: 10px 14px; text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .role-table th { color: var(--text-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; }
+    .role-table tr:last-child td { border-bottom: none; }
+    .role-table tr:hover td { background: rgba(124,92,252,0.06); }
+    .role-income { font-weight: 800; color: #f9c740; }
+    .role-discount { color: #4caf50; font-weight: 600; }
+    .role-none { color: var(--text-muted); }
+    .add-form { display: grid; grid-template-columns: 1fr auto auto auto; gap: 10px; align-items: end; }
+    @media (max-width: 700px) { .add-form { grid-template-columns: 1fr; } }
+    .add-form .field { display: flex; flex-direction: column; gap: 4px; }
+    .add-form label { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+    .summary-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .summary-card { background: var(--bg-input); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; }
+    .summary-card .sc-label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
+    .summary-card .sc-val { font-size: 22px; font-weight: 800; color: #fff; }
+    .btn-delete-role { background: none; border: none; color: #f44336; cursor: pointer; font-size: 16px; padding: 4px 8px; border-radius: 6px; transition: background 0.15s; }
+    .btn-delete-role:hover { background: rgba(244,67,54,0.15); }
+    .tag-role { display: inline-block; background: rgba(124,92,252,0.18); border: 1px solid rgba(124,92,252,0.3); border-radius: 20px; padding: 2px 10px; font-size: 12px; font-weight: 600; color: var(--accent-light); }
+    select.form-control { appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237c5cfc' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 10px center; background-size: 16px; padding-right: 34px; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>💰 Économie</h1>
+        <p>Revenus hebdomadaires par rôle &amp; réductions shop</p>
+      </div>
+
+      <% if (success) { %><div class="alert alert-success">✅ <%- success %></div><% } %>
+      <% if (error) { %><div class="alert alert-error">❌ <%- error %></div><% } %>
+
+      <div class="eco-section">
+
+        <!-- Récap général -->
+        <div class="summary-cards">
+          <div class="summary-card">
+            <div class="sc-label">💎 Cadeau d'arrivée</div>
+            <div class="sc-val">3 000</div>
+          </div>
+          <div class="summary-card">
+            <div class="sc-label">🎲 Bonus /bonus</div>
+            <div class="sc-val">50 – 250</div>
+          </div>
+          <div class="summary-card">
+            <div class="sc-label">⏱ Cooldown bonus</div>
+            <div class="sc-val">4h</div>
+          </div>
+          <div class="summary-card">
+            <div class="sc-label">📅 Cooldown revenu</div>
+            <div class="sc-val">7 jours</div>
+          </div>
+          <div class="summary-card">
+            <div class="sc-label">🏷 Rôles configurés</div>
+            <div class="sc-val" id="rolesCount"><%= Object.keys(roles).length %></div>
+          </div>
+        </div>
+
+        <!-- Tableau des rôles -->
+        <div class="card">
+          <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+            <h2>🏷️ Revenus par rôle</h2>
+          </div>
+          <div class="card-body">
+
+            <!-- Formulaire d'ajout -->
+            <div class="card" style="background:var(--bg-input);margin-bottom:20px;">
+              <div class="card-body">
+                <h3 style="margin-bottom:14px;font-size:14px;color:var(--text-secondary);">➕ Ajouter / modifier un rôle</h3>
+                <div class="add-form">
+                  <div class="field" style="grid-column:1/-1;">
+                    <label>Rôle Discord</label>
+                    <select id="selRole" class="form-control">
+                      <option value="">— Sélectionner un rôle —</option>
+                      <% discordRoles.forEach(function(r) { %>
+                        <option value="<%= r.id %>" data-name="<%= r.name %>"><%= r.name %></option>
+                      <% }); %>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Diamants / semaine 💎</label>
+                    <input type="number" id="inpIncome" class="form-control" min="0" value="0" placeholder="Ex: 500">
+                  </div>
+                  <div class="field">
+                    <label>Réduction shop %</label>
+                    <input type="number" id="inpDiscount" class="form-control" min="0" max="100" step="1" value="0" placeholder="Ex: 15">
+                  </div>
+                  <div class="field" style="align-self:end;">
+                    <button class="btn btn-primary" onclick="addRole()">💾 Enregistrer</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Table -->
+            <div style="overflow-x:auto;">
+              <table class="role-table" id="roleTable">
+                <thead>
+                  <tr>
+                    <th>Rôle</th>
+                    <th>💎 Revenu / semaine</th>
+                    <th>🏷 Réduction shop</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="roleBody">
+                  <% const roleEntries = Object.entries(roles); %>
+                  <% if (roleEntries.length === 0) { %>
+                    <tr id="emptyRow">
+                      <td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px;">
+                        Aucun rôle configuré — utilise le formulaire ci-dessus pour en ajouter.
+                      </td>
+                    </tr>
+                  <% } else { %>
+                    <% roleEntries.forEach(function([rid, cfg]) { %>
+                      <tr id="row-<%= rid %>">
+                        <td><span class="tag-role"><%= cfg.name || rid %></span></td>
+                        <td><span class="role-income"><%= (cfg.income || 0).toLocaleString('fr-FR') %> 💎</span></td>
+                        <td>
+                          <% if (cfg.shopDiscount > 0) { %>
+                            <span class="role-discount">-<%= cfg.shopDiscount %>%</span>
+                          <% } else { %>
+                            <span class="role-none">—</span>
+                          <% } %>
+                        </td>
+                        <td>
+                          <button class="btn-delete-role" onclick="deleteRole('<%= rid %>')" title="Supprimer">🗑</button>
+                        </td>
+                      </tr>
+                    <% }); %>
+                  <% } %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Infos commandes -->
+        <div class="card" style="margin-top:16px;">
+          <div class="card-header"><h2>📋 Commandes disponibles</h2></div>
+          <div class="card-body">
+            <table class="role-table">
+              <thead><tr><th>Commande</th><th>Description</th><th>Accès</th></tr></thead>
+              <tbody>
+                <tr><td><code>/travail</code></td><td>Récompense aléatoire de 50 à 250 💎 (cooldown 4h)</td><td>Tous les membres</td></tr>
+                <tr><td><code>/revenus</code></td><td>Revenu hebdomadaire selon les rôles (cooldown 7j)</td><td>Tous les membres</td></tr>
+                <tr><td><code>/envoyer</code></td><td>Transfert de diamants entre joueurs</td><td>Tous les membres</td></tr>
+                <tr><td><code>/compte</code></td><td>Affiche le solde de diamants et fraises</td><td>Tous les membres</td></tr>
+                <tr><td><code>/amende</code></td><td>Retrait de diamants avec rapport &amp; photo</td><td>Administrateurs</td></tr>
+                <tr><td><code>/migrer-ub</code></td><td>Import UnbelievaBoat → Diamants (migration ponctuelle)</td><td>Administrateurs</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <script>
+    async function addRole() {
+      const select = document.getElementById('selRole');
+      const roleId = select.value;
+      const roleName = select.options[select.selectedIndex]?.dataset.name || roleId;
+      const income = parseInt(document.getElementById('inpIncome').value) || 0;
+      const shopDiscount = parseFloat(document.getElementById('inpDiscount').value) || 0;
+
+      if (!roleId) return alert('⚠️ Sélectionne un rôle.');
+
+      const res = await fetch('/economy/roles/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roleId, roleName, income, shopDiscount }),
+      });
+      const data = await res.json();
+      if (data.error) return alert('❌ ' + data.error);
+
+      // Mise à jour de la table sans rechargement
+      const tbody = document.getElementById('roleBody');
+      const emptyRow = document.getElementById('emptyRow');
+      if (emptyRow) emptyRow.remove();
+
+      let row = document.getElementById('row-' + roleId);
+      if (!row) {
+        row = document.createElement('tr');
+        row.id = 'row-' + roleId;
+        tbody.appendChild(row);
+      }
+
+      const discountHtml = shopDiscount > 0
+        ? `<span class="role-discount">-${shopDiscount}%</span>`
+        : `<span class="role-none">—</span>`;
+
+      row.innerHTML = `
+        <td><span class="tag-role">${escapeHtml(roleName)}</span></td>
+        <td><span class="role-income">${income.toLocaleString('fr-FR')} 💎</span></td>
+        <td>${discountHtml}</td>
+        <td><button class="btn-delete-role" onclick="deleteRole('${roleId}')" title="Supprimer">🗑</button></td>
+      `;
+
+      // Reset form
+      document.getElementById('selRole').value = '';
+      document.getElementById('inpIncome').value = '0';
+      document.getElementById('inpDiscount').value = '0';
+
+      // Mettre à jour le compteur
+      document.getElementById('rolesCount').textContent = tbody.querySelectorAll('tr').length;
+    }
+
+    async function deleteRole(roleId) {
+      if (!confirm('Supprimer ce rôle ?')) return;
+      const res = await fetch('/economy/roles/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roleId }),
+      });
+      const data = await res.json();
+      if (data.error) return alert('❌ ' + data.error);
+
+      const row = document.getElementById('row-' + roleId);
+      if (row) row.remove();
+
+      const tbody = document.getElementById('roleBody');
+      if (tbody.querySelectorAll('tr').length === 0) {
+        const emptyRow = document.createElement('tr');
+        emptyRow.id = 'emptyRow';
+        emptyRow.innerHTML = '<td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px;">Aucun rôle configuré.</td>';
+        tbody.appendChild(emptyRow);
+      }
+      document.getElementById('rolesCount').textContent = tbody.querySelectorAll('tr:not(#emptyRow)').length;
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]);
+    }
+  </script>
+</body>
+</html>

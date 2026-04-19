@@ -1,0 +1,131 @@
+<button class="theme-toggle" id="themeToggle" title="Mode clair / sombre">🌙</button>
+
+<script>
+  (function() {
+    var saved = localStorage.getItem('theme');
+    if (saved === 'light') {
+      document.body.classList.add('light-mode');
+    }
+    function updateIcon() {
+      var btn = document.getElementById('themeToggle');
+      if (btn) btn.textContent = document.body.classList.contains('light-mode') ? '☀️' : '🌙';
+    }
+    updateIcon();
+    document.addEventListener('DOMContentLoaded', function() {
+      updateIcon();
+      var btn = document.getElementById('themeToggle');
+      if (btn) {
+        btn.addEventListener('click', function() {
+          document.body.classList.toggle('light-mode');
+          localStorage.setItem('theme', document.body.classList.contains('light-mode') ? 'light' : 'dark');
+          updateIcon();
+        });
+      }
+    });
+  })();
+</script>
+
+<button class="mobile-menu-btn" onclick="document.querySelector('.sidebar').classList.add('open');document.querySelector('.sidebar-overlay').classList.add('show')" aria-label="Menu">
+  <img src="/images/logo-brut.png" alt="Menu" class="mobile-menu-logo">
+</button>
+<div class="sidebar-overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('show')"></div>
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <div class="bot-avatar">
+      <img src="/images/logo-brut.png" alt="Arki Family">
+    </div>
+    <div class="bot-info">
+      <h2><%= botUser ? botUser.username : 'Arki Bot' %></h2>
+      <span>● En ligne</span>
+    </div>
+    <button class="sidebar-close" onclick="document.querySelector('.sidebar').classList.remove('open');document.querySelector('.sidebar-overlay').classList.remove('show')" aria-label="Fermer">✕</button>
+  </div>
+  <nav class="sidebar-nav">
+    <% if (role === 'admin') { %>
+    <a href="/" class="nav-link <%= path === '/' ? 'active' : '' %>">
+      <span class="icon">🏠</span> Tableau de bord
+    </a>
+    <a href="/roulette" class="nav-link <%= path === '/roulette' ? 'active' : '' %>">
+      <span class="icon">🎰</span> Roulette
+    </a>
+
+    <div class="nav-section">Votes</div>
+    <a href="/votes" class="nav-link <%= path === '/votes' ? 'active' : '' %>">
+      <span class="icon">📊</span> Classement
+    </a>
+    <a href="/rewards" class="nav-link <%= path === '/rewards' ? 'active' : '' %>">
+      <span class="icon">💎</span> Récompenses
+    </a>
+    <a href="/message" class="nav-link <%= path === '/message' ? 'active' : '' %>">
+      <span class="icon">📝</span> Message publié
+    </a>
+    <% } %>
+
+    <div class="nav-section">Shop</div>
+    <a href="/shop" class="nav-link <%= path === '/shop' ? 'active' : '' %>">
+      <span class="icon">🛒</span> Gestion Shop
+    </a>
+    <a href="/dinos" class="nav-link <%= path === '/dinos' ? 'active' : '' %>">
+      <span class="icon">🦖</span> Prix Dinos
+    </a>
+
+    <div class="nav-section">Inventaires</div>
+    <a href="/inventory" class="nav-link <%= path === '/inventory' ? 'active' : '' %>">
+      <span class="icon">📦</span> Inventaires
+    </a>
+    <% if (role === 'admin') { %>
+    <a href="/special-packs" class="nav-link <%= path === '/special-packs' ? 'active' : '' %>">
+      <span class="icon">🎁</span> Packs Spéciaux
+    </a>
+    <% } %>
+
+    <div class="nav-section">Économie</div>
+    <a href="/economy" class="nav-link <%= path === '/economy' ? 'active' : '' %>">
+      <span class="icon">💰</span> Revenus &amp; Rôles
+    </a>
+    <a href="/xp" class="nav-link <%= path === '/xp' ? 'active' : '' %>">
+      <span class="icon">⭐</span> Niveaux &amp; XP
+    </a>
+    <a href="/casino" class="nav-link <%= path === '/casino' ? 'active' : '' %>">
+      <span class="icon">🎰</span> Casino
+    </a>
+
+    <div class="nav-section">Événements</div>
+    <a href="/giveaways" class="nav-link <%= path === '/giveaways' ? 'active' : '' %>">
+      <span class="icon">🎉</span> Giveaways
+    </a>
+
+    <% if (role === 'admin') { %>
+    <div class="nav-section">Système</div>
+    <a href="/welcome" class="nav-link <%= path === '/welcome' ? 'active' : '' %>">
+      <span class="icon">👋</span> Bienvenue
+    </a>
+    <a href="/welcome/phrases" class="nav-link <%= path === '/welcome/phrases' ? 'active' : '' %>">
+      <span class="icon">💬</span> Phrases d'accueil
+    </a>
+    <a href="/nitrado" class="nav-link <%= path === '/nitrado' ? 'active' : '' %>">
+      <span class="icon">🖥️</span> Serveurs Nitrado
+    </a>
+    <a href="/discord-ref" class="nav-link <%= path === '/discord-ref' ? 'active' : '' %>">
+      <span class="icon">📚</span> Référence Discord
+    </a>
+    <a href="/settings" class="nav-link <%= path === '/settings' ? 'active' : '' %>">
+      <span class="icon">⚙️</span> Paramètres
+    </a>
+    <% } %>
+  </nav>
+  <div class="sidebar-footer">
+    <% if (discordUser) { %>
+    <div class="sidebar-user">
+      <img src="<%= discordUser.avatar %>" alt="Avatar" class="sidebar-user-avatar">
+      <div class="sidebar-user-info">
+        <span class="sidebar-user-name"><%= discordUser.displayName %></span>
+        <span class="sidebar-user-role"><%= role === 'admin' ? 'Administrateur' : 'Staff' %></span>
+      </div>
+    </div>
+    <% } %>
+    <a href="/logout" class="nav-link">
+      <span class="icon">🚪</span> Déconnexion
+    </a>
+  </div>
+</aside>

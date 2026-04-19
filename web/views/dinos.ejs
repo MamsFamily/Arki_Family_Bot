@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dinos - Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .dino-letter-section {
+      margin-bottom: 24px;
+      border: none;
+      border-radius: 16px;
+      overflow: hidden;
+      background: var(--bg-card);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+    .dino-letter-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 20px;
+      border-bottom: none;
+      position: relative;
+    }
+    .letter-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      font-size: 1.6em;
+      font-weight: 900;
+      color: #fff;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    .letter-header-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .letter-count {
+      color: var(--text-secondary);
+      font-size: 0.9em;
+    }
+    .letter-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .color-picker-mini {
+      width: 32px;
+      height: 32px;
+      border: 2px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      cursor: pointer;
+      padding: 0;
+      background: none;
+    }
+    .dino-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      gap: 12px;
+      transition: background 0.15s;
+    }
+    .dino-item:last-child { border-bottom: none; }
+    .dino-item:hover { background: rgba(255,255,255,0.03); }
+    .dino-name-row {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .dino-name-main {
+      font-size: 1.05em;
+      font-weight: 700;
+      color: #fff;
+    }
+    .dino-price-inline {
+      font-size: 0.9em;
+      color: var(--text-secondary);
+      background: rgba(255,255,255,0.05);
+      padding: 2px 10px;
+      border-radius: 20px;
+    }
+    .dino-variants {
+      margin-top: 4px;
+      padding-left: 20px;
+    }
+    .dino-variant {
+      color: var(--text-secondary);
+      font-size: 0.85em;
+      padding: 2px 0;
+    }
+    .dino-badges {
+      margin-top: 6px;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .dino-actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .variant-row {
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .variant-row:last-child { border-bottom: none; }
+    .stats-bar {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .stat-chip {
+      background: var(--bg-card);
+      padding: 10px 18px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.95em;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .stat-chip .stat-num {
+      font-weight: 700;
+      font-size: 1.2em;
+      color: #fff;
+    }
+    .stat-chip .stat-label {
+      color: var(--text-secondary);
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>&#x1F996; Prix des Dinos</h1>
+        <p>G&eacute;rez les prix et options des dinosaures, publiez par lettre dans Discord</p>
+      </div>
+
+      <% if (success) { %>
+        <div class="alert alert-success">&#x2705; <%= success %></div>
+      <% } %>
+      <% if (error) { %>
+        <div class="alert alert-error">&#x274C; <%= error %></div>
+      <% } %>
+
+      <% const letters = Object.keys(grouped).sort(); %>
+      <% const totalDinos = Object.values(grouped).reduce((s, arr) => s + arr.length, 0); %>
+
+      <div class="stats-bar">
+        <div class="stat-chip">
+          <span class="stat-num"><%= totalDinos %></span>
+          <span class="stat-label">dinos</span>
+        </div>
+        <div class="stat-chip">
+          <span class="stat-num"><%= letters.length %></span>
+          <span class="stat-label">lettres</span>
+        </div>
+      </div>
+
+      <% if (role === 'admin') { %>
+      <div class="card">
+        <div class="card-header">
+          <h2>&#x2699;&#xFE0F; Salons de publication</h2>
+        </div>
+        <div class="card-body">
+          <form method="POST" action="/dinos/settings" class="form-row">
+            <div class="form-group" style="flex:1;">
+              <label for="dinoChannelId">Salon des embeds dinos (par lettre)</label>
+              <select id="dinoChannelId" name="dinoChannelId" class="form-control">
+                <option value="">-- S&eacute;lectionner un salon --</option>
+                <% channels.forEach(ch => { %>
+                  <option value="<%= ch.id %>" <%= dinoData.dinoChannelId === ch.id ? 'selected' : '' %>># <%= ch.name %></option>
+                <% }); %>
+              </select>
+            </div>
+            <div class="form-group" style="display:flex;align-items:flex-end;">
+              <button type="submit" class="btn btn-primary">&#x1F4BE; Sauvegarder</button>
+            </div>
+          </form>
+          <hr style="border:none;border-top:1px solid rgba(255,255,255,0.07);margin:12px 0;">
+          <div style="display:flex;gap:8px;align-items:flex-end;">
+            <form method="POST" action="/dinos/index-channel" class="form-row" style="margin-bottom:0;flex:1;">
+              <div class="form-group" style="flex:1;margin-bottom:0;">
+                <label for="dinoIndexChannelId">Salon de l&apos;index dinos (liste r&eacute;capitulative)</label>
+                <select id="dinoIndexChannelId" name="dinoIndexChannelId" class="form-control">
+                  <option value="">-- S&eacute;lectionner un salon --</option>
+                  <% channels.forEach(ch => { %>
+                    <option value="<%= ch.id %>" <%= dinoIndexInfo.channelId === ch.id ? 'selected' : '' %>># <%= ch.name %></option>
+                  <% }); %>
+                </select>
+              </div>
+              <div class="form-group" style="display:flex;align-items:flex-end;margin-bottom:0;">
+                <button type="submit" class="btn btn-primary">&#x1F4BE; Sauvegarder</button>
+              </div>
+            </form>
+            <% if (dinoIndexInfo.channelId) { %>
+              <form method="POST" action="/dinos/publish-index" style="margin:0;display:flex;align-items:flex-end;" onsubmit="return confirm('Publier ou mettre à jour l\'index des dinos sur Discord ?')">
+                <button type="submit" class="btn btn-success">&#x1F4E4; Publier l&apos;index</button>
+              </form>
+              <form method="POST" action="/dinos/publish-all-and-index" style="margin:0;display:flex;align-items:flex-end;" onsubmit="return confirm('Republier TOUS les embeds + l\'index ? Cela va supprimer et recréer tous les messages dinos sur Discord.')">
+                <button type="submit" class="btn btn-warning" style="white-space:nowrap;">&#x1F504; Tout republier + index</button>
+              </form>
+            <% } %>
+          </div>
+          <% if (dinoIndexInfo.messageId) { %>
+            <p style="margin:8px 0 0;font-size:12px;color:var(--text-secondary);">&#x2705; Index d&eacute;j&agrave; publi&eacute; &mdash; &quot;Tout republier + index&quot; met &agrave; jour embeds ET index d&apos;un coup.</p>
+          <% } %>
+        </div>
+      </div>
+      <% } %>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>&#x1F525; Dino Flash Sale</h2>
+        </div>
+        <div class="card-body">
+          <form method="POST" action="/dinos/publish-sale" id="saleForm" onsubmit="return confirm('Publier cette promo dino sur Discord ?')">
+            <div class="form-row">
+              <div class="form-group" style="flex:2;">
+                <label for="saleDinoId">Choisir un dino</label>
+                <select id="saleDinoId" name="saleDinoId" class="form-control" onchange="updateSalePreview()">
+                  <option value="">-- S&eacute;lectionner un dino --</option>
+                  <% dinoData.dinos.slice().sort((a,b) => a.name.localeCompare(b.name, 'fr')).forEach(d => { %>
+                    <option value="<%= d.id %>" data-diamonds="<%= d.priceDiamonds || 0 %>" data-strawberries="<%= d.priceStrawberries || 0 %>" data-name="<%= d.name %>"><%= d.name %> (&#x1F48E; <%= (d.priceDiamonds || 0).toLocaleString('fr-FR') %> + &#x1F353; <%= (d.priceStrawberries || 0).toLocaleString('fr-FR') %>)</option>
+                  <% }); %>
+                </select>
+              </div>
+              <div class="form-group" style="flex:1;">
+                <label for="salePercent">R&eacute;duction (%)</label>
+                <input type="number" id="salePercent" name="salePercent" min="1" max="99" placeholder="Ex: 25" onchange="updateSalePreview()" oninput="updateSalePreview()">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="saleChannelId">Salon Discord</label>
+                <select id="saleChannelId" name="saleChannelId" class="form-control">
+                  <option value="">-- Salon par d&eacute;faut (dinos) --</option>
+                  <% channels.forEach(ch => { %>
+                    <option value="<%= ch.id %>"># <%= ch.name %></option>
+                  <% }); %>
+                </select>
+              </div>
+            </div>
+
+            <div id="salePreview" style="display:none;margin:12px 0;padding:16px;background:#2b2d31;border-radius:8px;border-left:4px solid #e74c3c;">
+              <p style="margin:0 0 8px;color:#e74c3c;font-weight:700;font-size:1.1em;">&#x1F525; Aper&ccedil;u de la promo</p>
+              <p style="margin:0;color:#e0e0e0;" id="salePreviewDino"></p>
+              <p style="margin:4px 0 0;color:#888;font-size:13px;" id="salePreviewCalc"></p>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="saleSubmitBtn" disabled>&#x1F525; Publier la promo</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header" style="flex-direction:column;align-items:stretch;gap:12px;">
+          <h2>&#x1F995; Liste des dinos shop</h2>
+          <div style="display:flex;gap:8px;justify-content:center;">
+            <button class="btn btn-primary" onclick="openDinoModal()" style="flex:1;text-align:center;">+ Nouveau dino</button>
+            <% if (letters.length > 0) { %>
+              <form method="POST" action="/dinos/publish-nav" style="flex:1;">
+                <button type="submit" class="btn btn-primary" style="width:100%;" onclick="return confirm('Publier ou mettre à jour le menu dinos sur Discord ?')">&#x1F4E4; Publier / Mettre &agrave; jour Discord</button>
+              </form>
+            <% } %>
+            <% if (hasAnyVariant) { %>
+              <div style="position:relative;flex:1;" id="variantDropdownWrap">
+                <button type="button" class="btn btn-secondary" onclick="toggleVariantDropdown()" style="width:100%;">&#x1F4E2; Publication variants</button>
+                <div id="variantDropdown" style="display:none;position:absolute;top:100%;right:0;z-index:100;background:#1e1e2e;border:1px solid #3a3a5c;border-radius:8px;padding:12px;min-width:200px;margin-top:4px;box-shadow:0 4px 12px rgba(0,0,0,0.4);">
+                  <form method="POST" action="/dinos/toggle-variants">
+                    <p style="margin:0 0 8px;color:#ccc;font-size:13px;font-weight:600;">Afficher sur Discord :</p>
+                    <% Object.keys(variantLabels).sort().forEach(label => { %>
+                      <label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;color:#e0e0e0;font-size:14px;">
+                        <input type="checkbox" name="variant_visible_<%= label.toLowerCase() %>" value="1" <%= !variantLabels[label].hidden ? 'checked' : '' %>>
+                        <span>Variant <strong><%= label %></strong></span>
+                        <span style="color:#888;font-size:12px;">(<%= variantLabels[label].count %>)</span>
+                      </label>
+                    <% }); %>
+                    <div style="margin-top:10px;display:flex;gap:6px;">
+                      <button type="submit" class="btn btn-primary btn-sm">Appliquer</button>
+                      <button type="button" class="btn btn-sm btn-secondary" onclick="toggleVariantDropdown()">Fermer</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            <% } %>
+          </div>
+        </div>
+        <div class="card-body">
+          <% if (letters.length === 0) { %>
+            <div class="empty-state">
+              <div class="icon">&#x1F996;</div>
+              <p>Aucun dinosaure pour le moment.<br>Cliquez sur "Nouveau dino" pour commencer.</p>
+            </div>
+          <% } else { %>
+            <% letters.forEach(letter => {
+              const lColor = letterColors[letter] || defaultColors[letter] || '#2ecc71';
+            %>
+              <div class="dino-letter-section">
+                <div class="dino-letter-header" style="background: linear-gradient(135deg, <%= lColor %>22, <%= lColor %>08);">
+                  <div class="letter-header-left">
+                    <div class="letter-badge" style="background: linear-gradient(135deg, <%= lColor %>, <%= lColor %>cc);"><%= letter %></div>
+                    <div>
+                      <strong style="font-size:1.1em;color:#fff;"><%= grouped[letter].length %> dino<%= grouped[letter].length > 1 ? 's' : '' %></strong>
+                      <div class="letter-count">Lettre <%= letter %></div>
+                    </div>
+                  </div>
+                  <div class="letter-actions">
+                    <form method="POST" action="/dinos/letter-color" style="display:flex;align-items:center;gap:4px;">
+                      <input type="hidden" name="letter" value="<%= letter %>">
+                      <input type="color" name="color" value="<%= lColor %>" class="color-picker-mini" onchange="this.form.submit()" title="Couleur de la lettre">
+                    </form>
+                    <form method="POST" action="/dinos/publish-letter/<%= letter %>" style="display:inline">
+                      <button type="submit" class="btn btn-sm btn-primary">
+                        <%= letterMessages[letter] ? '&#x1F504; MAJ' : '&#x1F4E4; Publier' %>
+                      </button>
+                    </form>
+                  </div>
+                </div>
+                <div class="dino-list">
+                  <% grouped[letter].forEach(dino => { %>
+                    <div class="dino-item">
+                      <div class="dino-info">
+                        <div class="dino-name-row">
+                          <span class="dino-name-main" style="border-left: 3px solid <%= lColor %>; padding-left: 8px;"><%= dino.name %></span>
+                          <span class="dino-price-inline">&#x1F48E; <%= (dino.priceDiamonds || 0).toLocaleString('fr-FR') %> + &#x1F353; <%= (dino.priceStrawberries || 0).toLocaleString('fr-FR') %></span>
+                        </div>
+                        <% if (dino.variants && dino.variants.length > 0) { %>
+                          <div class="dino-variants">
+                            <% dino.variants.forEach(v => { %>
+                              <div class="dino-variant">&#x25E6; <strong><%= v.label %></strong> : &#x1F48E; <%= (v.priceDiamonds || 0).toLocaleString('fr-FR') %> + &#x1F353; <%= (v.priceStrawberries || 0).toLocaleString('fr-FR') %></div>
+                            <% }); %>
+                          </div>
+                        <% } %>
+                        <div class="dino-badges">
+                          <% if (dino.uniquePerTribe) { %>
+                            <span class="pack-badge badge-unavailable">&#x26A0;&#xFE0F; 1 par tribu</span>
+                          <% } %>
+                          <% if (dino.noReduction) { %>
+                            <span class="pack-badge badge-nored">&#x26D4; Pas de r&eacute;duc</span>
+                          <% } %>
+                          <% if (dino.doubleInventaire) { %>
+                            <span class="pack-badge badge-donation">&#x1F996; x2 inventaire</span>
+                          <% } %>
+                          <% if (dino.coupleInventaire) { %>
+                            <span class="pack-badge badge-donation">&#x1F996; x2 via inventaire</span>
+                          <% } %>
+                          <% if (dino.notAvailableDona) { %>
+                            <span class="pack-badge badge-notcompat">&#x274C; Pas en dona/inv</span>
+                          <% } %>
+                          <% if (dino.notAvailableShop) { %>
+                            <span class="pack-badge badge-unavailable">&#x1F6AB; Pas dispo shop</span>
+                          <% } %>
+                          <% if (dino.isModded) { %>
+                            <span class="pack-badge badge-donation">&#x1F527; Mod&eacute;</span>
+                          <% } %>
+                          <% if (dino.isShoulder) { %>
+                            <span class="pack-badge badge-donation">&#x1F99C; &Eacute;paule</span>
+                          <% } %>
+                          <% if (dino.isPaidDLC) { %>
+                            <span class="pack-badge badge-unavailable">&#x1F4B2; DLC payant</span>
+                          <% } %>
+                          <% if (dino.note) { %>
+                            <span class="pack-badge" style="background:rgba(255,255,255,0.08);color:#ccc;">&#x1F4DD; <%= dino.note %></span>
+                          <% } %>
+                        </div>
+                      </div>
+                      <div class="dino-actions">
+                        <button class="btn btn-sm btn-secondary" data-dino="<%= encodeURIComponent(JSON.stringify(dino)) %>" onclick="editDino(JSON.parse(decodeURIComponent(this.dataset.dino)))">&#x270F;&#xFE0F;</button>
+                        <form method="POST" action="/dinos/delete/<%= dino.id %>" style="display:inline" onsubmit="return confirm('Supprimer <%= dino.name %> ?')">
+                          <button type="submit" class="btn btn-sm btn-danger">&#x1F5D1;&#xFE0F;</button>
+                        </form>
+                      </div>
+                    </div>
+                  <% }); %>
+                </div>
+              </div>
+            <% }); %>
+
+            <% if (moddedDinos.length > 0) { %>
+              <div class="dino-letter-section">
+                <div class="dino-letter-header" style="background: linear-gradient(135deg, #9b59b622, #9b59b608);">
+                  <div class="letter-header-left">
+                    <div class="letter-badge" style="background: linear-gradient(135deg, #9b59b6, #9b59b6cc);">&#x1F527;</div>
+                    <div>
+                      <strong style="font-size:1.1em;color:#fff;"><%= moddedDinos.length %> dino<%= moddedDinos.length > 1 ? 's' : '' %> modd&eacute;<%= moddedDinos.length > 1 ? 's' : '' %></strong>
+                      <div class="letter-count">Cat&eacute;gorie Modd&eacute;s<% if (letterMessages['MODDED']) { %> &bull; <span style="color:#4ade80;">&#x2713; publi&eacute;</span><% } %></div>
+                    </div>
+                  </div>
+                  <div class="letter-actions">
+                    <form method="POST" action="/dinos/publish-letter/MODDED" style="display:inline">
+                      <button type="submit" class="btn btn-sm btn-primary">
+                        <%= letterMessages['MODDED'] ? '&#x1F504; MAJ' : '&#x1F4E4; Publier' %>
+                      </button>
+                    </form>
+                  </div>
+                </div>
+                <div class="dino-list">
+                  <% moddedDinos.forEach(dino => { %>
+                    <div class="dino-item">
+                      <div class="dino-info">
+                        <div class="dino-name-row">
+                          <span class="dino-name-main" style="border-left: 3px solid #9b59b6; padding-left: 8px;"><%= dino.name %></span>
+                          <span class="dino-price-inline">&#x1F48E; <%= (dino.priceDiamonds || 0).toLocaleString('fr-FR') %> + &#x1F353; <%= (dino.priceStrawberries || 0).toLocaleString('fr-FR') %></span>
+                        </div>
+                        <% if (dino.variants && dino.variants.length > 0) { %>
+                          <div class="dino-variants">
+                            <% dino.variants.forEach(v => { %>
+                              <div class="dino-variant">&#x25E6; <strong><%= v.label %></strong> : &#x1F48E; <%= (v.priceDiamonds || 0).toLocaleString('fr-FR') %> + &#x1F353; <%= (v.priceStrawberries || 0).toLocaleString('fr-FR') %></div>
+                            <% }); %>
+                          </div>
+                        <% } %>
+                        <div class="dino-badges">
+                          <span class="pack-badge badge-donation">&#x1F527; Mod&eacute;</span>
+                          <% if (dino.uniquePerTribe) { %>
+                            <span class="pack-badge badge-unavailable">&#x26A0;&#xFE0F; 1 par tribu</span>
+                          <% } %>
+                          <% if (dino.noReduction) { %>
+                            <span class="pack-badge badge-nored">&#x26D4; Pas de r&eacute;duc</span>
+                          <% } %>
+                          <% if (dino.notAvailableShop) { %>
+                            <span class="pack-badge badge-unavailable">&#x1F6AB; Pas dispo shop</span>
+                          <% } %>
+                        </div>
+                      </div>
+                      <div class="dino-actions">
+                        <button class="btn btn-sm btn-secondary" data-dino="<%= encodeURIComponent(JSON.stringify(dino)) %>" onclick="editDino(JSON.parse(decodeURIComponent(this.dataset.dino)))">&#x270F;&#xFE0F;</button>
+                        <form method="POST" action="/dinos/delete/<%= dino.id %>" style="display:inline" onsubmit="return confirm('Supprimer <%= dino.name %> ?')">
+                          <button type="submit" class="btn btn-sm btn-danger">&#x1F5D1;&#xFE0F;</button>
+                        </form>
+                      </div>
+                    </div>
+                  <% }); %>
+                </div>
+              </div>
+            <% } %>
+
+            <% if (shoulderDinos && shoulderDinos.length > 0) { %>
+              <div class="dino-letter-section">
+                <div class="dino-letter-header" style="background: linear-gradient(135deg, #00bcd422, #00bcd408);">
+                  <div class="letter-header-left">
+                    <div class="letter-badge" style="background: linear-gradient(135deg, #00bcd4, #00bcd4cc);">&#x1F99C;</div>
+                    <div>
+                      <strong style="font-size:1.1em;color:#fff;"><%= shoulderDinos.length %> dino<%= shoulderDinos.length > 1 ? 's' : '' %> d'&eacute;paule</strong>
+                      <div class="letter-count">Cat&eacute;gorie &Eacute;paule<% if (letterMessages['SHOULDER']) { %> &bull; <span style="color:#4ade80;">&#x2713; publi&eacute;</span><% } %></div>
+                    </div>
+                  </div>
+                  <div class="letter-actions">
+                    <form method="POST" action="/dinos/publish-letter/SHOULDER" style="display:inline">
+                      <button type="submit" class="btn btn-sm btn-primary">
+                        <%= letterMessages['SHOULDER'] ? '&#x1F504; MAJ' : '&#x1F4E4; Publier' %>
+                      </button>
+                    </form>
+                  </div>
+                </div>
+                <div class="dino-list">
+                  <% shoulderDinos.forEach(dino => { %>
+                    <div class="dino-item">
+                      <div class="dino-info">
+                        <div class="dino-name-row">
+                          <span class="dino-name-main" style="border-left: 3px solid #00bcd4; padding-left: 8px;"><%= dino.name %></span>
+                          <span class="dino-price-inline">&#x1F48E; <%= (dino.priceDiamonds || 0).toLocaleString('fr-FR') %> + &#x1F353; <%= (dino.priceStrawberries || 0).toLocaleString('fr-FR') %></span>
+                        </div>
+                        <% if (dino.variants && dino.variants.length > 0) { %>
+                          <div class="dino-variants">
+                            <% dino.variants.forEach(v => { %>
+                              <div class="dino-variant">&#x25E6; <strong><%= v.label %></strong> : &#x1F48E; <%= (v.priceDiamonds || 0).toLocaleString('fr-FR') %> + &#x1F353; <%= (v.priceStrawberries || 0).toLocaleString('fr-FR') %></div>
+                            <% }); %>
+                          </div>
+                        <% } %>
+                        <div class="dino-badges">
+                          <span class="pack-badge" style="background:rgba(0,188,212,0.15);color:#00bcd4;border:1px solid rgba(0,188,212,0.3);">&#x1F99C; &Eacute;paule</span>
+                          <% if (dino.uniquePerTribe) { %><span class="pack-badge badge-unavailable">&#x26A0;&#xFE0F; 1 par tribu</span><% } %>
+                          <% if (dino.noReduction) { %><span class="pack-badge badge-nored">&#x26D4; Pas de r&eacute;duc</span><% } %>
+                        </div>
+                      </div>
+                      <div class="dino-actions">
+                        <button class="btn btn-sm btn-secondary" data-dino="<%= encodeURIComponent(JSON.stringify(dino)) %>" onclick="editDino(JSON.parse(decodeURIComponent(this.dataset.dino)))">&#x270F;&#xFE0F;</button>
+                        <form method="POST" action="/dinos/delete/<%= dino.id %>" style="display:inline" onsubmit="return confirm('Supprimer <%= dino.name %> ?')">
+                          <button type="submit" class="btn btn-sm btn-danger">&#x1F5D1;&#xFE0F;</button>
+                        </form>
+                      </div>
+                    </div>
+                  <% }); %>
+                </div>
+              </div>
+            <% } %>
+
+            <% if (paidDLCDinos && paidDLCDinos.length > 0) { %>
+              <div class="dino-letter-section">
+                <div class="dino-letter-header" style="background: linear-gradient(135deg, #f39c1222, #f39c1208);">
+                  <div class="letter-header-left">
+                    <div class="letter-badge" style="background: linear-gradient(135deg, #f39c12, #f39c12cc);">&#x1F4B2;</div>
+                    <div>
+                      <strong style="font-size:1.1em;color:#fff;"><%= paidDLCDinos.length %> dino<%= paidDLCDinos.length > 1 ? 's' : '' %> DLC payant<%= paidDLCDinos.length > 1 ? 's' : '' %></strong>
+                      <div class="letter-count">Cat&eacute;gorie DLC Payant<% if (letterMessages['PAIDDLC']) { %> &bull; <span style="color:#4ade80;">&#x2713; publi&eacute;</span><% } %></div>
+                    </div>
+                  </div>
+                  <div class="letter-actions">
+                    <form method="POST" action="/dinos/publish-letter/PAIDDLC" style="display:inline">
+                      <button type="submit" class="btn btn-sm btn-primary">
+                        <%= letterMessages['PAIDDLC'] ? '&#x1F504; MAJ' : '&#x1F4E4; Publier' %>
+                      </button>
+                    </form>
+                  </div>
+                </div>
+                <div class="dino-list">
+                  <% paidDLCDinos.forEach(dino => { %>
+                    <div class="dino-item">
+                      <div class="dino-info">
+                        <div class="dino-name-row">
+                          <span class="dino-name-main" style="border-left: 3px solid #f39c12; padding-left: 8px;"><%= dino.name %></span>
+                          <span class="dino-price-inline">&#x1F48E; <%= (dino.priceDiamonds || 0).toLocaleString('fr-FR') %> + &#x1F353; <%= (dino.priceStrawberries || 0).toLocaleString('fr-FR') %></span>
+                        </div>
+                        <% if (dino.variants && dino.variants.length > 0) { %>
+                          <div class="dino-variants">
+                            <% dino.variants.forEach(v => { %>
+                              <div class="dino-variant">&#x25E6; <strong><%= v.label %></strong> : &#x1F48E; <%= (v.priceDiamonds || 0).toLocaleString('fr-FR') %> + &#x1F353; <%= (v.priceStrawberries || 0).toLocaleString('fr-FR') %></div>
+                            <% }); %>
+                          </div>
+                        <% } %>
+                        <div class="dino-badges">
+                          <span class="pack-badge" style="background:rgba(243,156,18,0.15);color:#f39c12;border:1px solid rgba(243,156,18,0.3);">&#x1F4B2; DLC</span>
+                          <% if (dino.uniquePerTribe) { %><span class="pack-badge badge-unavailable">&#x26A0;&#xFE0F; 1 par tribu</span><% } %>
+                          <% if (dino.noReduction) { %><span class="pack-badge badge-nored">&#x26D4; Pas de r&eacute;duc</span><% } %>
+                        </div>
+                      </div>
+                      <div class="dino-actions">
+                        <button class="btn btn-sm btn-secondary" data-dino="<%= encodeURIComponent(JSON.stringify(dino)) %>" onclick="editDino(JSON.parse(decodeURIComponent(this.dataset.dino)))">&#x270F;&#xFE0F;</button>
+                        <form method="POST" action="/dinos/delete/<%= dino.id %>" style="display:inline" onsubmit="return confirm('Supprimer <%= dino.name %> ?')">
+                          <button type="submit" class="btn btn-sm btn-danger">&#x1F5D1;&#xFE0F;</button>
+                        </form>
+                      </div>
+                    </div>
+                  <% }); %>
+                </div>
+              </div>
+            <% } %>
+
+            <% if (variantADinos && variantADinos.length > 0) { %>
+              <div class="dino-letter-group">
+                <div class="dino-letter-header" style="background: linear-gradient(135deg, #e74c3c22, #e74c3c08);">
+                  <div class="letter-header-left">
+                    <div class="letter-badge" style="background: linear-gradient(135deg, #e74c3c, #e74c3ccc);">A</div>
+                    <div>
+                      <strong style="font-size:1.1em;color:#fff;"><%= variantADinos.length %> dino<%= variantADinos.length > 1 ? 's' : '' %> Variant Alpha</strong>
+                      <div class="letter-count">Embed d&eacute;di&eacute; Variant A<% if (letterMessages['VARIANT_A']) { %> &bull; <span style="color:#4ade80;">&#x2713; publi&eacute;</span><% } %></div>
+                    </div>
+                  </div>
+                  <div class="letter-actions">
+                    <form method="POST" action="/dinos/publish-letter/VARIANT_A" style="display:inline">
+                      <button type="submit" class="btn btn-sm btn-primary">
+                        <%= letterMessages['VARIANT_A'] ? '&#x1F504; MAJ' : '&#x1F4E4; Publier' %>
+                      </button>
+                    </form>
+                  </div>
+                </div>
+                <div class="dino-list">
+                  <% variantADinos.forEach(({ dino, variant }) => { %>
+                    <div class="dino-item">
+                      <div class="dino-info">
+                        <div class="dino-name-row">
+                          <span class="dino-name-main" style="border-left: 3px solid #e74c3c; padding-left: 8px;"><%= dino.name %></span>
+                          <span class="dino-price-inline">&#x1F48E; <%= (variant.priceDiamonds || 0).toLocaleString('fr-FR') %> + &#x1F353; <%= (variant.priceStrawberries || 0).toLocaleString('fr-FR') %></span>
+                        </div>
+                        <div class="dino-badges"><span class="pack-badge" style="background:rgba(231,76,60,0.15);color:#e74c3c;border:1px solid rgba(231,76,60,0.3);">&#x1F170;&#xFE0F; Alpha</span></div>
+                      </div>
+                    </div>
+                  <% }); %>
+                </div>
+              </div>
+            <% } %>
+
+            <% if (variantTekDinos && variantTekDinos.length > 0) { %>
+              <div class="dino-letter-group">
+                <div class="dino-letter-header" style="background: linear-gradient(135deg, #9b59b622, #9b59b608);">
+                  <div class="letter-header-left">
+                    <div class="letter-badge" style="background: linear-gradient(135deg, #9b59b6, #9b59b6cc);">Tek</div>
+                    <div>
+                      <strong style="font-size:1.1em;color:#fff;"><%= variantTekDinos.length %> dino<%= variantTekDinos.length > 1 ? 's' : '' %> Variant Tek</strong>
+                      <div class="letter-count">Embed d&eacute;di&eacute; Variant Tek<% if (letterMessages['VARIANT_TEK']) { %> &bull; <span style="color:#4ade80;">&#x2713; publi&eacute;</span><% } %></div>
+                    </div>
+                  </div>
+                  <div class="letter-actions">
+                    <form method="POST" action="/dinos/publish-letter/VARIANT_TEK" style="display:inline">
+                      <button type="submit" class="btn btn-sm btn-primary">
+                        <%= letterMessages['VARIANT_TEK'] ? '&#x1F504; MAJ' : '&#x1F4E4; Publier' %>
+                      </button>
+                    </form>
+                  </div>
+                </div>
+                <div class="dino-list">
+                  <% variantTekDinos.forEach(({ dino, variant }) => { %>
+                    <div class="dino-item">
+                      <div class="dino-info">
+                        <div class="dino-name-row">
+                          <span class="dino-name-main" style="border-left: 3px solid #9b59b6; padding-left: 8px;"><%= dino.name %></span>
+                          <span class="dino-price-inline">&#x1F48E; <%= (variant.priceDiamonds || 0).toLocaleString('fr-FR') %> + &#x1F353; <%= (variant.priceStrawberries || 0).toLocaleString('fr-FR') %></span>
+                        </div>
+                        <div class="dino-badges"><span class="pack-badge" style="background:rgba(155,89,182,0.15);color:#9b59b6;border:1px solid rgba(155,89,182,0.3);">&#x2699;&#xFE0F; Tek</span></div>
+                      </div>
+                    </div>
+                  <% }); %>
+                </div>
+              </div>
+            <% } %>
+
+          <% } %>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="dinoModal">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h2 id="dinoModalTitle">&#x1F996; Nouveau dino</h2>
+            <button class="modal-close" onclick="closeDinoModal()">&times;</button>
+          </div>
+          <form method="POST" action="/dinos/save" id="dinoForm">
+            <input type="hidden" name="dinoId" id="dinoId" value="">
+            <div class="modal-body">
+              <div class="form-group">
+                <label for="dinoName">Nom du dinosaure</label>
+                <input type="text" id="dinoName" name="name" required placeholder="Ex: Tyrannosaure">
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="dinoPriceDiamonds">Prix diamants &#x1F48E;</label>
+                  <input type="number" id="dinoPriceDiamonds" name="priceDiamonds" min="0" placeholder="0" oninput="dinoAutoCalcStrawberries()">
+                </div>
+                <div class="form-group">
+                  <label for="dinoPriceStrawberries">Prix fraises &#x1F353; <span id="dinoAutoCalcBadge" style="font-size:11px;color:#888;font-weight:normal;cursor:pointer;" onclick="dinoResetAutoCalc()" title="Cliquer pour revenir en mode auto">(auto)</span></label>
+                  <input type="number" id="dinoPriceStrawberries" name="priceStrawberries" min="0" placeholder="0" oninput="dinoMarkManualStrawberries()">
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-top:8px;">
+                <label for="dinoNote">&#x1F4DD; Note (optionnel)</label>
+                <input type="text" id="dinoNote" name="note" placeholder="Ex: Disponible uniquement le week-end" maxlength="150">
+              </div>
+
+              <div class="card" style="margin-top:12px;margin-bottom:12px;">
+                <div class="card-header">
+                  <h2>&#x1F3A8; Variants</h2>
+                  <div style="display:flex;gap:6px;">
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="addVariant()">+ Variant</button>
+                    <button type="button" class="btn btn-sm btn-secondary" id="toggleHiddenBtn" onclick="toggleAllVariantsHidden()">&#x1F441;&#xFE0F; Tout masquer</button>
+                  </div>
+                </div>
+                <div class="card-body" id="variantsContainer">
+                  <p class="help-text" id="noVariantsText">Aucun variant. Cliquez sur "+ Variant" pour ajouter (ex: R, A, X).</p>
+                </div>
+              </div>
+
+              <div style="margin-top:12px;margin-bottom:12px;padding:14px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
+                <p style="margin:0 0 10px;color:#aaa;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">&#x1F3F7;&#xFE0F; Type de dino</p>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="toggle-label">
+                      <input type="checkbox" name="isShoulder" id="isShoulder" value="true">
+                      <span class="toggle-text">&#x1F99C; Dino d'&eacute;paule</span>
+                    </label>
+                  </div>
+                  <div class="form-group">
+                    <label class="toggle-label">
+                      <input type="checkbox" name="isModded" id="isModded" value="true">
+                      <span class="toggle-text">&#x1F527; Dino mod&eacute;</span>
+                    </label>
+                  </div>
+                  <div class="form-group">
+                    <label class="toggle-label">
+                      <input type="checkbox" name="isPaidDLC" id="isPaidDLC" value="true">
+                      <span class="toggle-text">&#x1F4B2; DLC payant</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div style="margin-bottom:12px;padding:14px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
+                <p style="margin:0 0 10px;color:#aaa;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">&#x2699;&#xFE0F; Options d'achat</p>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="toggle-label">
+                      <input type="checkbox" name="uniquePerTribe" id="uniquePerTribe" value="true">
+                      <span class="toggle-text">&#x26A0;&#xFE0F; Un seul par tribu</span>
+                    </label>
+                  </div>
+                  <div class="form-group">
+                    <label class="toggle-label">
+                      <input type="checkbox" name="coupleInventaire" id="coupleInventaire" value="true">
+                      <span class="toggle-text">Achat via inventaire &#x1F996; X2</span>
+                    </label>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="toggle-label">
+                      <input type="checkbox" name="noReduction" id="dinoNoReduction" value="true">
+                      <span class="toggle-text">&#x26D4; R&eacute;ductions non applicables</span>
+                    </label>
+                  </div>
+                  <div class="form-group">
+                    <label class="toggle-label">
+                      <input type="checkbox" name="notAvailableDona" id="notAvailableDona" value="true">
+                      <span class="toggle-text">&#x274C; Non dispo dona / inventaires</span>
+                    </label>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="toggle-label">
+                      <input type="checkbox" name="notAvailableShop" id="notAvailableShop" value="true">
+                      <span class="toggle-text">&#x1F6AB; Pas encore dispo au shop</span>
+                    </label>
+                  </div>
+                  <div class="form-group"></div>
+                </div>
+              </div>
+
+              <div class="card" style="margin-top:12px;">
+                <div class="card-header"><h2>&#x1F441;&#xFE0F; Aper&ccedil;u Discord</h2></div>
+                <div class="card-body">
+                  <div class="embed-preview" id="dinoEmbedPreview">
+                    <div class="embed-bar" id="dinoEmbedBar" style="background:#2ecc71"></div>
+                    <div class="embed-content">
+                      <div class="embed-title" id="dinoPreviewTitle">&#x1F996; &#x2501;&#x2501;&#x2501; ? &#x2501;&#x2501;&#x2501; &#x1F996;</div>
+                      <div class="embed-desc" id="dinoPreviewDesc">Ajoutez un dino pour voir l'aper&ccedil;u</div>
+                      <div class="embed-footer">Arki' Family ─ Prix Dinos</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" onclick="closeDinoModal()">Annuler</button>
+              <button type="submit" class="btn btn-primary" id="dinoSubmitBtn">&#x1F4BE; Ajouter le dino</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    const LETTER_COLORS = <%- JSON.stringify(defaultColors) %>;
+    const CUSTOM_COLORS = <%- JSON.stringify(letterColors) %>;
+    let variantCount = 0;
+
+    function updateSalePreview() {
+      const select = document.getElementById('saleDinoId');
+      const pct = parseInt(document.getElementById('salePercent').value) || 0;
+      const preview = document.getElementById('salePreview');
+      const btn = document.getElementById('saleSubmitBtn');
+
+      if (!select.value || pct <= 0 || pct >= 100) {
+        preview.style.display = 'none';
+        btn.disabled = true;
+        return;
+      }
+
+      const opt = select.options[select.selectedIndex];
+      const name = opt.dataset.name;
+      const diamonds = parseInt(opt.dataset.diamonds) || 0;
+      const strawberries = parseInt(opt.dataset.strawberries) || 0;
+
+      const newDiamonds = Math.round(diamonds * (1 - pct / 100));
+      const newStrawberries = Math.round(strawberries * (1 - pct / 100));
+
+      const fmt = n => n.toLocaleString('fr-FR');
+
+      document.getElementById('salePreviewDino').innerHTML =
+        `<strong>${name}</strong> &mdash; <strong style="color:#e74c3c">-${pct}%</strong>`;
+      document.getElementById('salePreviewCalc').innerHTML =
+        `\u{1F48E} <s>${fmt(diamonds)}</s> \u2192 <strong style="color:#2ecc71">${fmt(newDiamonds)}</strong> + \u{1F353} <s>${fmt(strawberries)}</s> \u2192 <strong style="color:#2ecc71">${fmt(newStrawberries)}</strong>`;
+
+      preview.style.display = 'block';
+      btn.disabled = false;
+    }
+
+    function toggleVariantDropdown() {
+      const dd = document.getElementById('variantDropdown');
+      dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+    }
+    document.addEventListener('click', function(e) {
+      const wrap = document.getElementById('variantDropdownWrap');
+      if (wrap && !wrap.contains(e.target)) {
+        document.getElementById('variantDropdown').style.display = 'none';
+      }
+    });
+
+    function openDinoModal(dino) {
+      document.getElementById('dinoModal').classList.add('show');
+      if (!dino) {
+        document.getElementById('dinoModalTitle').textContent = '\u{1F996} Nouveau dino';
+        document.getElementById('dinoSubmitBtn').textContent = '\u{1F4BE} Ajouter le dino';
+        document.getElementById('dinoId').value = '';
+        document.getElementById('dinoName').value = '';
+        document.getElementById('dinoPriceDiamonds').value = '';
+        document.getElementById('dinoPriceStrawberries').value = '';
+        dinoStrawberriesManual = false;
+        setDinoAutoBadge(true);
+        document.getElementById('uniquePerTribe').checked = false;
+        document.getElementById('dinoNoReduction').checked = false;
+        document.getElementById('coupleInventaire').checked = false;
+        document.getElementById('notAvailableDona').checked = false;
+        document.getElementById('notAvailableShop').checked = false;
+        document.getElementById('isModded').checked = false;
+        document.getElementById('isShoulder').checked = false;
+        document.getElementById('isPaidDLC').checked = false;
+        document.getElementById('dinoNote').value = '';
+        document.getElementById('variantsContainer').innerHTML = '<p class="help-text" id="noVariantsText">Aucun variant. Cliquez sur "+ Variant" pour ajouter (ex: R, A, X).</p>';
+        variantCount = 0;
+      }
+      updateDinoPreview();
+    }
+
+    function editDino(dino) {
+      document.getElementById('dinoModalTitle').textContent = '\u{270F}\u{FE0F} Modifier : ' + dino.name;
+      document.getElementById('dinoSubmitBtn').textContent = '\u{1F4BE} Sauvegarder';
+      document.getElementById('dinoId').value = dino.id;
+      document.getElementById('dinoName').value = dino.name || '';
+      document.getElementById('dinoPriceDiamonds').value = dino.priceDiamonds || '';
+      document.getElementById('dinoPriceStrawberries').value = dino.priceStrawberries || '';
+      const currentDinoStrawberries = parseInt(dino.priceStrawberries) || 0;
+      const currentDinoDiamonds = parseInt(dino.priceDiamonds) || 0;
+      const expectedDinoStrawberries = dinoCalcStrawberries(currentDinoDiamonds);
+      if (currentDinoStrawberries === 0 || currentDinoStrawberries === expectedDinoStrawberries) {
+        dinoStrawberriesManual = false;
+        setDinoAutoBadge(true);
+        if (currentDinoStrawberries === 0 && currentDinoDiamonds > 0) {
+          document.getElementById('dinoPriceStrawberries').value = expectedDinoStrawberries;
+        }
+      } else {
+        dinoStrawberriesManual = true;
+        setDinoAutoBadge(false);
+      }
+      document.getElementById('uniquePerTribe').checked = !!dino.uniquePerTribe;
+      document.getElementById('dinoNoReduction').checked = !!dino.noReduction;
+      document.getElementById('coupleInventaire').checked = !!dino.coupleInventaire;
+      document.getElementById('notAvailableDona').checked = !!dino.notAvailableDona;
+      document.getElementById('notAvailableShop').checked = !!dino.notAvailableShop;
+      document.getElementById('isModded').checked = !!dino.isModded;
+      document.getElementById('isShoulder').checked = !!dino.isShoulder;
+      document.getElementById('isPaidDLC').checked = !!dino.isPaidDLC;
+      document.getElementById('dinoNote').value = dino.note || '';
+
+      document.getElementById('variantsContainer').innerHTML = '';
+      variantCount = 0;
+      Object.keys(variantManualFlags).forEach(k => delete variantManualFlags[k]);
+      if (dino.variants && dino.variants.length > 0) {
+        dino.variants.forEach(v => {
+          addVariant(v.label, v.priceDiamonds, v.priceStrawberries, v.notAvailableShop, v.hidden);
+          const vd = parseInt(v.priceDiamonds) || 0;
+          const vs = parseInt(v.priceStrawberries) || 0;
+          const expectedVs = dinoCalcStrawberries(vd);
+          if (vs !== 0 && vs !== expectedVs) {
+            variantManualFlags[variantCount] = true;
+          }
+        });
+      } else {
+        document.getElementById('variantsContainer').innerHTML = '<p class="help-text" id="noVariantsText">Aucun variant.</p>';
+      }
+
+      document.getElementById('dinoModal').classList.add('show');
+      updateDinoPreview();
+    }
+
+    function closeDinoModal() {
+      document.getElementById('dinoModal').classList.remove('show');
+    }
+
+    function addVariant(label, diamonds, strawberries, notAvailableShop, hidden) {
+      const noText = document.getElementById('noVariantsText');
+      if (noText) noText.remove();
+
+      variantCount++;
+      const idx = variantCount;
+      const div = document.createElement('div');
+      div.className = 'variant-row';
+      div.id = 'variant-' + idx;
+      div.innerHTML = `
+        <div class="form-row" style="margin-bottom:8px;align-items:flex-end;">
+          <div class="form-group" style="flex:0.5;">
+            <label>Label</label>
+            <input type="text" name="variant_label_${idx}" value="${label || ''}" placeholder="R, A, X..." class="variant-input">
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label>\u{1F48E}</label>
+            <input type="number" name="variant_diamonds_${idx}" value="${diamonds !== undefined && diamonds !== null ? diamonds : ''}" min="0" class="variant-input" placeholder="0" oninput="variantAutoCalc(${idx})">
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label>\u{1F353}</label>
+            <input type="number" name="variant_strawberries_${idx}" value="${strawberries !== undefined && strawberries !== null ? strawberries : ''}" min="0" class="variant-input" placeholder="0" oninput="variantManualMark(${idx})">
+          </div>
+          <button type="button" class="btn btn-sm btn-danger" onclick="removeVariant(${idx})" style="margin-bottom:4px;">\u{1F5D1}\u{FE0F}</button>
+        </div>
+        <div class="form-row" style="margin-bottom:8px;">
+          <div class="form-group">
+            <label class="toggle-label">
+              <input type="checkbox" name="variant_notshop_${idx}" value="true" ${notAvailableShop ? 'checked' : ''}>
+              <span class="toggle-text">\u{1F6AB} Non dispo shop</span>
+            </label>
+          </div>
+          <div class="form-group">
+            <label class="toggle-label">
+              <input type="checkbox" name="variant_hidden_${idx}" value="true" ${hidden ? 'checked' : ''}>
+              <span class="toggle-text">\u{1F648} Masqu\u{00E9}</span>
+            </label>
+          </div>
+        </div>
+      `;
+      document.getElementById('variantsContainer').appendChild(div);
+
+      div.querySelectorAll('.variant-input').forEach(input => {
+        input.addEventListener('input', () => { updateDinoPreview(); updateToggleHiddenBtn(); });
+      });
+
+      updateDinoPreview();
+      updateToggleHiddenBtn();
+    }
+
+    function removeVariant(idx) {
+      const el = document.getElementById('variant-' + idx);
+      if (el) el.remove();
+      if (document.getElementById('variantsContainer').children.length === 0) {
+        document.getElementById('variantsContainer').innerHTML = '<p class="help-text" id="noVariantsText">Aucun variant.</p>';
+      }
+      updateDinoPreview();
+      updateToggleHiddenBtn();
+    }
+
+    function toggleAllVariantsHidden() {
+      const checkboxes = document.querySelectorAll('input[name^="variant_hidden_"]');
+      if (checkboxes.length === 0) return;
+      const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+      checkboxes.forEach(cb => { cb.checked = !allChecked; });
+      updateToggleHiddenBtn();
+      updateDinoPreview();
+    }
+
+    function updateToggleHiddenBtn() {
+      const btn = document.getElementById('toggleHiddenBtn');
+      if (!btn) return;
+      const checkboxes = document.querySelectorAll('input[name^="variant_hidden_"]');
+      if (checkboxes.length === 0) {
+        btn.textContent = '\u{1F441}\u{FE0F} Tout masquer';
+        return;
+      }
+      const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+      btn.textContent = allChecked ? '\u{1F441}\u{FE0F} Tout afficher' : '\u{1F441}\u{FE0F} Tout masquer';
+    }
+
+    function formatNum(n) {
+      return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    }
+
+    function updateDinoPreview() {
+      const name = document.getElementById('dinoName').value || 'Dino';
+      const diamonds = parseInt(document.getElementById('dinoPriceDiamonds').value) || 0;
+      const strawberries = parseInt(document.getElementById('dinoPriceStrawberries').value) || 0;
+      const unique = document.getElementById('uniquePerTribe').checked;
+      const noRed = document.getElementById('dinoNoReduction').checked;
+      const couple = document.getElementById('coupleInventaire').checked;
+      const notDona = document.getElementById('notAvailableDona').checked;
+      const notShop = document.getElementById('notAvailableShop').checked;
+      const letter = name[0] ? name[0].toUpperCase() : '?';
+
+      var dash = String.fromCodePoint(0x2501);
+      var dino_emoji = String.fromCodePoint(0x1F996);
+      var gem = String.fromCodePoint(0x1F48E);
+      var berry = String.fromCodePoint(0x1F353);
+      var warn = String.fromCodePoint(0x26A0) + String.fromCodePoint(0xFE0F);
+      var stop = String.fromCodePoint(0x26D4);
+      var bang = String.fromCodePoint(0x203C) + String.fromCodePoint(0xFE0F);
+      var no = String.fromCodePoint(0x1F6AB);
+
+      document.getElementById('dinoPreviewTitle').innerHTML = '<span style="font-size:1.4em;font-weight:bold">' + dash+dash+dash + ' \u3010' + letter + '\u3011 ' + dash+dash+dash + '</span>';
+      var barColor = CUSTOM_COLORS[letter] || LETTER_COLORS[letter] || '#2ecc71';
+      document.getElementById('dinoEmbedBar').style.background = barColor;
+
+      var desc = '';
+      desc += '<strong style="font-size:1.1em">' + name + '</strong><br>';
+      desc += '> ' + formatNum(diamonds) + gem + ' + ' + formatNum(strawberries) + berry;
+
+      if (unique) desc += '\n> ' + warn + ' <em><u>Un seul par tribu</u></em>';
+      if (couple) desc += '\n> ' + dino_emoji + ' <em>( Un achat via inventaire co\u00fbte ' + dino_emoji + ' x2 )</em>';
+      desc += '\n';
+
+      var variantRows = document.querySelectorAll('.variant-row');
+      variantRows.forEach(function(row) {
+        var inputs = row.querySelectorAll('input');
+        var vLabel = (inputs[0] && inputs[0].value) || '?';
+        var vD = parseInt(inputs[1] && inputs[1].value) || 0;
+        var vS = parseInt(inputs[2] && inputs[2].value) || 0;
+        var vNotShop = inputs[3] && inputs[3].checked;
+        desc += '>   \u25E6 <strong>' + vLabel + '</strong> : ' + formatNum(vD) + gem + ' + ' + formatNum(vS) + berry + '\n';
+        if (vNotShop) desc += '>     ' + no + ' <em>Pas encore disponible au shop</em>\n';
+      });
+
+      if (noRed) desc += '> ' + stop + ' <em>R\u00e9ductions non applicables</em>\n';
+      if (notDona) desc += '> ' + bang + ' <em>NON DISPONIBLE AVEC LES PACKS DONA OU LES DINOS INVENTAIRES</em>\n';
+      if (notShop) desc += '> ' + no + ' <em>Pas encore disponible au shop</em>\n';
+
+      document.getElementById('dinoPreviewDesc').innerHTML = desc
+        .replace(/\n/g, '<br>') || 'Ajoutez un dino pour voir l\'aper\u00e7u';
+    }
+
+    ['dinoName', 'dinoPriceDiamonds', 'dinoPriceStrawberries'].forEach(id => {
+      document.getElementById(id).addEventListener('input', updateDinoPreview);
+    });
+    ['uniquePerTribe', 'dinoNoReduction', 'coupleInventaire', 'notAvailableDona', 'notAvailableShop'].forEach(id => {
+      document.getElementById(id).addEventListener('change', updateDinoPreview);
+    });
+
+    document.getElementById('dinoModal').addEventListener('click', function(e) {
+      if (e.target === this) closeDinoModal();
+    });
+
+    let dinoStrawberriesManual = false;
+    const DINO_DIAMOND_TO_STRAWBERRY = 0.3;
+    const variantManualFlags = {};
+
+    function setDinoAutoBadge(isAuto) {
+      const badge = document.getElementById('dinoAutoCalcBadge');
+      if (isAuto) {
+        badge.textContent = '(auto)';
+        badge.style.color = '#888';
+      } else {
+        badge.textContent = '(manuel \u21BB)';
+        badge.style.color = '#e67e22';
+      }
+    }
+
+    function dinoCalcStrawberries(diamonds) {
+      return Math.round(diamonds * DINO_DIAMOND_TO_STRAWBERRY);
+    }
+
+    function dinoAutoCalcStrawberries() {
+      if (dinoStrawberriesManual) return;
+      const diamonds = parseInt(document.getElementById('dinoPriceDiamonds').value) || 0;
+      document.getElementById('dinoPriceStrawberries').value = dinoCalcStrawberries(diamonds);
+      setDinoAutoBadge(true);
+      updateDinoPreview();
+    }
+
+    function dinoMarkManualStrawberries() {
+      dinoStrawberriesManual = true;
+      setDinoAutoBadge(false);
+      updateDinoPreview();
+    }
+
+    function dinoResetAutoCalc() {
+      dinoStrawberriesManual = false;
+      setDinoAutoBadge(true);
+      const diamonds = parseInt(document.getElementById('dinoPriceDiamonds').value) || 0;
+      document.getElementById('dinoPriceStrawberries').value = dinoCalcStrawberries(diamonds);
+      updateDinoPreview();
+    }
+
+    function variantAutoCalc(idx) {
+      if (variantManualFlags[idx]) return;
+      const dEl = document.querySelector(`[name="variant_diamonds_${idx}"]`);
+      const sEl = document.querySelector(`[name="variant_strawberries_${idx}"]`);
+      if (dEl && sEl) {
+        const d = parseInt(dEl.value) || 0;
+        sEl.value = dinoCalcStrawberries(d);
+      }
+      updateDinoPreview();
+    }
+
+    function variantManualMark(idx) {
+      variantManualFlags[idx] = true;
+      updateDinoPreview();
+    }
+
+  </script>
+</body>
+</html>

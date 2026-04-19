@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Récompenses - Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>💎 Récompenses des votes</h1>
+        <p>Configurez les gains distribués aux votants</p>
+      </div>
+
+      <% if (success) { %>
+        <div class="alert alert-success">✅ <%= success %></div>
+      <% } %>
+      <% if (error) { %>
+        <div class="alert alert-error">❌ <%= error %></div>
+      <% } %>
+
+      <form method="POST" action="/rewards">
+        <div class="card">
+          <div class="card-header">
+            <h2>💰 Gains de base</h2>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label for="diamondsPerVote">Diamants par vote</label>
+              <input type="number" id="diamondsPerVote" name="diamondsPerVote" value="<%= settings.rewards.diamondsPerVote %>" min="1" max="100000" required>
+              <p class="help-text">Chaque vote rapporte ce nombre de diamants au joueur</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>📦 Packs vote (inventaire Top 5)</h2>
+          </div>
+          <div class="card-body">
+            <p class="help-text" style="margin-bottom:16px;">Sélectionnez quel pack spécial est attribué dans l'inventaire pour chaque place. Si aucun pack n'est sélectionné, le bot tentera une recherche par nom (<code>pack 1ere place vote</code>, etc.).</p>
+            <% const votePackIds = settings.rewards.votePackIds || {}; %>
+            <% const rankLabels = ['🥇 1ère place', '🥈 2ème place', '🥉 3ème place', '4️⃣ 4ème place', '5️⃣ 5ème place']; %>
+            <div class="form-row" style="flex-wrap:wrap; gap:16px;">
+              <% for (let place = 1; place <= 5; place++) { %>
+                <div class="form-group" style="flex:1; min-width:200px;">
+                  <label><%= rankLabels[place - 1] %></label>
+                  <select name="votePackId<%= place %>" class="form-select">
+                    <option value="">— Aucun pack —</option>
+                    <% if (typeof specialPacks !== 'undefined') { %>
+                      <% specialPacks.forEach(pack => { %>
+                        <option value="<%= pack.id %>" <%= votePackIds[place] === pack.id ? 'selected' : '' %>><%= pack.name %></option>
+                      <% }); %>
+                    <% } %>
+                  </select>
+                </div>
+              <% } %>
+            </div>
+            <% if (!specialPacks || specialPacks.length === 0) { %>
+              <p class="help-text" style="color:var(--warning);">⚠️ Aucun pack spécial trouvé. Créez d'abord vos packs dans la section <a href="/shop">Packs spéciaux</a>.</p>
+            <% } %>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">💾 Sauvegarder les récompenses</button>
+      </form>
+    </main>
+  </div>
+</body>
+</html>

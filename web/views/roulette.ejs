@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Roulette - Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>🎰 Gestion de la roulette</h1>
+        <p>Modifiez le titre et les choix de la roulette</p>
+      </div>
+
+      <% if (success) { %>
+        <div class="alert alert-success">✅ <%= success %></div>
+      <% } %>
+      <% if (error) { %>
+        <div class="alert alert-error">❌ <%= error %></div>
+      <% } %>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Configuration actuelle</h2>
+        </div>
+        <div class="card-body">
+          <p style="margin-bottom: 12px; color: var(--text-secondary);">Titre : <strong style="color: var(--text-primary);"><%= config.rouletteTitle || 'ARKI' %></strong></p>
+          <div class="choice-list">
+            <% config.rouletteChoices.forEach((c, i) => { %>
+              <span class="choice-tag"><%= i + 1 %>. <%= c %></span>
+            <% }) %>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Modifier</h2>
+        </div>
+        <div class="card-body">
+          <form method="POST" action="/roulette">
+            <div class="form-group">
+              <label for="title">Titre (max 20 caractères)</label>
+              <input type="text" id="title" name="title" value="<%= config.rouletteTitle || '' %>" maxlength="20" required>
+              <div class="char-counter" id="titleCounter"><%= (config.rouletteTitle || '').length %>/20</div>
+            </div>
+            <div class="form-group">
+              <label for="choices">Choix (un par ligne, 2-12 choix)</label>
+              <textarea id="choices" name="choices" required placeholder="Choix 1&#10;Choix 2&#10;Choix 3"><%= config.rouletteChoices.join('\n') %></textarea>
+              <p class="help-text">Entrez chaque choix sur une nouvelle ligne. Minimum 2, maximum 12.</p>
+            </div>
+            <button type="submit" class="btn btn-primary">💾 Sauvegarder</button>
+          </form>
+        </div>
+      </div>
+
+      <script>
+        const titleInput = document.getElementById('title');
+        const counter = document.getElementById('titleCounter');
+        titleInput.addEventListener('input', () => {
+          const len = titleInput.value.length;
+          counter.textContent = len + '/20';
+          counter.className = 'char-counter' + (len > 18 ? ' warning' : '') + (len >= 20 ? ' error' : '');
+        });
+      </script>
+    </main>
+  </div>
+</body>
+</html>

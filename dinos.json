@@ -1,0 +1,338 @@
+{
+  "dinos": [
+    {
+      "name": "Abeille (Reine) ",
+      "priceDiamonds": 7000,
+      "priceStrawberries": 2100,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "id": "mlt8x3u06f7v",
+      "createdAt": "2026-02-19T09:15:39.816Z"
+    },
+    {
+      "name": "Barionyx",
+      "priceDiamonds": 6000,
+      "priceStrawberries": 1800,
+      "variants": [
+        {
+          "label": "A",
+          "priceDiamonds": 7000,
+          "priceStrawberries": 2100,
+          "hidden": true
+        }
+      ],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "id": "mlt8yjnofodv",
+      "createdAt": "2026-02-19T09:16:46.980Z"
+    },
+    {
+      "name": "Dreadnougthus",
+      "priceDiamonds": 60000,
+      "priceStrawberries": 18000,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": true,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "id": "mlt91c66k7nw",
+      "createdAt": "2026-02-19T09:18:57.246Z"
+    },
+    {
+      "name": "Stryder tek",
+      "priceDiamonds": 100000,
+      "priceStrawberries": 30000,
+      "variants": [],
+      "uniquePerTribe": true,
+      "noReduction": true,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": true,
+      "notAvailableShop": true,
+      "id": "mlt92z9no4gm",
+      "createdAt": "2026-02-19T09:20:13.835Z"
+    },
+    {
+      "name": "Achatina",
+      "priceDiamonds": 4000,
+      "priceStrawberries": 1200,
+      "variants": [
+        {
+          "label": "A",
+          "priceDiamonds": 5000,
+          "priceStrawberries": 1500,
+          "notAvailableShop": true,
+          "hidden": true
+        }
+      ],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "id": "mltbi5brlj7a",
+      "createdAt": "2026-02-19T10:28:00.759Z"
+    },
+    {
+      "name": "Allosaure",
+      "priceDiamonds": 5000,
+      "priceStrawberries": 1500,
+      "variants": [
+        {
+          "label": "X",
+          "priceDiamonds": 6000,
+          "priceStrawberries": 1800,
+          "notAvailableShop": true,
+          "hidden": true
+        },
+        {
+          "label": "R",
+          "priceDiamonds": 7000,
+          "priceStrawberries": 2100,
+          "notAvailableShop": true,
+          "hidden": true
+        }
+      ],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "id": "mlth277psc30",
+      "createdAt": "2026-02-19T13:03:34.405Z"
+    },
+    {
+      "name": "Armagasaurus",
+      "priceDiamonds": 14000,
+      "priceStrawberries": 4200,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "id": "mlth2ysyxmmm",
+      "createdAt": "2026-02-19T13:04:10.162Z",
+      "isModded": false
+    },
+    {
+      "name": "Ammonite",
+      "priceDiamonds": 4000,
+      "priceStrawberries": 1200,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "id": "mlth3l6to70z",
+      "createdAt": "2026-02-19T13:04:39.173Z"
+    },
+    {
+      "name": "Armadoggo",
+      "priceDiamonds": 12000,
+      "priceStrawberries": 3600,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "isModded": false,
+      "id": "mltxvq2lgmg0",
+      "createdAt": "2026-02-19T20:54:25.725Z"
+    },
+    {
+      "name": "Bison",
+      "priceDiamonds": 12000,
+      "priceStrawberries": 3200,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "isModded": false,
+      "id": "mltxwowr7wv8",
+      "createdAt": "2026-02-19T20:55:10.875Z"
+    },
+    {
+      "name": "Wyvern Runic",
+      "priceDiamonds": 20000,
+      "priceStrawberries": 6000,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "isModded": true,
+      "id": "mltxypl0firz",
+      "createdAt": "2026-02-19T20:56:45.060Z"
+    },
+    {
+      "name": "Wyvern Runic Crystal",
+      "priceDiamonds": 25000,
+      "priceStrawberries": 7500,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "isModded": true,
+      "id": "mltxzpk2uobc",
+      "createdAt": "2026-02-19T20:57:31.682Z"
+    },
+    {
+      "name": "Cosmo",
+      "priceDiamonds": 4000,
+      "priceStrawberries": 1200,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "isModded": false,
+      "isShoulder": true,
+      "id": "mltyitsn7evo",
+      "createdAt": "2026-02-19T21:12:23.639Z"
+    },
+    {
+      "name": "Chat",
+      "priceDiamonds": 4000,
+      "priceStrawberries": 1200,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "isModded": false,
+      "isShoulder": true,
+      "id": "mltyj9hts4k9",
+      "createdAt": "2026-02-19T21:12:43.985Z"
+    },
+    {
+      "name": "Loutre ",
+      "priceDiamonds": 3000,
+      "priceStrawberries": 900,
+      "variants": [
+        {
+          "label": "A",
+          "priceDiamonds": 4000,
+          "priceStrawberries": 1200,
+          "notAvailableShop": false,
+          "hidden": false
+        },
+        {
+          "label": "X",
+          "priceDiamonds": 5000,
+          "priceStrawberries": 1500,
+          "notAvailableShop": true,
+          "hidden": true
+        }
+      ],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "isModded": false,
+      "isShoulder": true,
+      "id": "mltyl7ww4xxk",
+      "createdAt": "2026-02-19T21:14:15.248Z"
+    },
+    {
+      "name": "Cornusaurus",
+      "priceDiamonds": 35000,
+      "priceStrawberries": 10500,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "isModded": false,
+      "isShoulder": false,
+      "id": "mltyql46dcz8",
+      "createdAt": "2026-02-19T21:18:25.638Z"
+    },
+    {
+      "name": "Carcha",
+      "priceDiamonds": 28000,
+      "priceStrawberries": 7500,
+      "variants": [],
+      "uniquePerTribe": false,
+      "noReduction": false,
+      "doubleInventaire": false,
+      "coupleInventaire": false,
+      "notAvailableDona": false,
+      "notAvailableShop": false,
+      "isModded": false,
+      "isShoulder": false,
+      "id": "mltyrygor5zg",
+      "createdAt": "2026-02-19T21:19:29.592Z"
+    }
+  ],
+  "dinoChannelId": "1164230832773406880",
+  "letterMessages": {
+    "A": {
+      "messageId": "1473971613186785415",
+      "channelId": "1457048610939207769"
+    },
+    "B": {
+      "messageId": "1473971614734618798",
+      "channelId": "1457048610939207769"
+    },
+    "D": {
+      "messageId": "1473972488370131050",
+      "channelId": "1457048610939207769"
+    },
+    "S": {
+      "messageId": "1473972490341711984",
+      "channelId": "1457048610939207769"
+    },
+    "MODDED": {
+      "messageId": "1474152187482607779",
+      "channelId": "1457048610939207769"
+    },
+    "C": {
+      "messageId": "1474152163709026344",
+      "channelId": "1457048610939207769"
+    },
+    "L": {
+      "messageId": "1474152165953110149",
+      "channelId": "1457048610939207769"
+    }
+  },
+  "letterColors": {},
+  "dinoNavMessage": {
+    "messageId": "1474164908634542160",
+    "channelId": "1164230832773406880"
+  }
+}

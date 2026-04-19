@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shop - Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>🛒 Gestion du Shop</h1>
+        <p>Cr&eacute;ez et g&eacute;rez vos packs, publiez-les dans Discord avec de beaux embeds</p>
+      </div>
+
+      <% if (success) { %>
+        <div class="alert alert-success">&#x2705; <%= success %></div>
+      <% } %>
+      <% if (error) { %>
+        <div class="alert alert-error">&#x274C; <%= error %></div>
+      <% } %>
+
+      <% if (role === 'admin') { %>
+      <div class="card">
+        <div class="card-header">
+          <h2>&#x2699;&#xFE0F; Param&egrave;tres de publication</h2>
+        </div>
+        <div class="card-body">
+          <form method="POST" action="/shop/settings">
+            <div class="form-row" style="gap:16px;flex-wrap:wrap">
+              <div class="form-group" style="flex:1;min-width:200px">
+                <label for="shopChannelId">📦 Salon Packs</label>
+                <select id="shopChannelId" name="shopChannelId" class="form-control">
+                  <option value="">-- Sélectionner --</option>
+                  <% channels.forEach(ch => { %>
+                    <option value="<%= ch.id %>" <%= shop.shopChannelId === ch.id ? 'selected' : '' %>><% if(ch.category) { %>[<%= ch.category %>] <% } %># <%= ch.name %></option>
+                  <% }); %>
+                </select>
+                <p class="help-text">Salon pour les embeds packs</p>
+              </div>
+              <div class="form-group" style="flex:1;min-width:200px">
+                <label for="shopUnitaireChannelId">💎 Salon Produits unitaires</label>
+                <select id="shopUnitaireChannelId" name="shopUnitaireChannelId" class="form-control">
+                  <option value="">-- Sélectionner --</option>
+                  <% channels.forEach(ch => { %>
+                    <option value="<%= ch.id %>" <%= shop.shopUnitaireChannelId === ch.id ? 'selected' : '' %>><% if(ch.category) { %>[<%= ch.category %>] <% } %># <%= ch.name %></option>
+                  <% }); %>
+                </select>
+                <p class="help-text">Salon pour les embeds unitaires</p>
+              </div>
+              <div class="form-group" style="flex:1;min-width:200px">
+                <label for="shopIndexChannelId">🏠 Salon Accueil shop (index)</label>
+                <select id="shopIndexChannelId" name="shopIndexChannelId" class="form-control">
+                  <option value="">-- Sélectionner --</option>
+                  <% channels.forEach(ch => { %>
+                    <option value="<%= ch.id %>" <%= shop.shopIndexChannelId === ch.id ? 'selected' : '' %>><% if(ch.category) { %>[<%= ch.category %>] <% } %># <%= ch.name %></option>
+                  <% }); %>
+                </select>
+                <p class="help-text">Salon où publier le message index</p>
+              </div>
+              <div class="form-group" style="flex:1;min-width:200px">
+                <label for="shopTicketChannelId">🎫 Salon Tickets commandes</label>
+                <select id="shopTicketChannelId" name="shopTicketChannelId" class="form-control">
+                  <option value="">-- Sélectionner --</option>
+                  <% channels.forEach(ch => { %>
+                    <option value="<%= ch.id %>" <%= shop.shopTicketChannelId === ch.id ? 'selected' : '' %>><% if(ch.category) { %>[<%= ch.category %>] <% } %># <%= ch.name %></option>
+                  <% }); %>
+                </select>
+                <p class="help-text">Salon où les tickets /shop seront créés</p>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:center;margin-top:8px">
+              <button type="submit" class="btn btn-primary">💾 Sauvegarder</button>
+            </div>
+          </form>
+          <form method="POST" action="/shop/publish-index" style="margin-top:10px">
+            <button type="submit" class="btn btn-secondary" onclick="return confirm('Publier / mettre à jour le message index dans le salon accueil shop ?')">🏠 Publier le message index</button>
+          </form>
+        </div>
+      </div>
+      <% } %>
+
+      <% if (role === 'admin') { %>
+      <div class="card">
+        <div class="card-header">
+          <h2>🏷️ Catégories</h2>
+          <button class="btn btn-primary" onclick="openCatModal()">+ Nouvelle catégorie</button>
+        </div>
+        <div class="card-body">
+          <% if (categories.length === 0) { %>
+            <div class="empty-state"><p>Aucune catégorie. Créez-en une !</p></div>
+          <% } else { %>
+            <table class="data-table" style="margin-bottom:0">
+              <thead><tr><th>Emoji</th><th>Nom</th><th>Couleur</th><th>Packs</th><th>Actions</th></tr></thead>
+              <tbody>
+                <% categories.forEach(cat => {
+                  const packCount = shop.packs.filter(p => p.category === cat.id).length;
+                %>
+                <tr>
+                  <td style="font-size:1.4em;text-align:center"><%= cat.emoji %></td>
+                  <td><strong><%= cat.name %></strong></td>
+                  <td><span style="display:inline-block;width:24px;height:24px;border-radius:4px;background:<%= cat.color %>;vertical-align:middle;margin-right:6px;border:1px solid var(--border)"></span><code style="font-size:12px"><%= cat.color %></code></td>
+                  <td><span class="pack-badge badge-draft"><%= packCount %> pack<%= packCount !== 1 ? 's' : '' %></span></td>
+                  <td>
+                    <button class="btn btn-sm btn-secondary" onclick="editCat(<%- JSON.stringify(cat).replace(/<\//g,'<\\/') %>)">✏️</button>
+                    <form method="POST" action="/shop/categories/delete/<%= cat.id %>" style="display:inline" onsubmit="return confirm('Supprimer la catégorie « <%= cat.name %> » ? Les packs associés conserveront leur catégorie par ID.')">
+                      <button type="submit" class="btn btn-sm btn-danger">🗑️</button>
+                    </form>
+                  </td>
+                </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          <% } %>
+        </div>
+      </div>
+      <% } %>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>&#x1F6D2; Produits du shop</h2>
+          <button class="btn btn-primary" onclick="openModal()">+ Nouveau produit</button>
+        </div>
+        <div class="card-body">
+          <% if (shop.packs.length === 0) { %>
+            <div class="empty-state">
+              <div class="icon">&#x1F6D2;</div>
+              <p>Aucun pack pour le moment.<br>Cliquez sur "Nouveau pack" pour commencer.</p>
+            </div>
+          <% } else { %>
+            <div class="shop-grid">
+              <% shop.packs.forEach(pack => {
+                const cat = categories.find(c => c.id === pack.category) || categories[0];
+              %>
+                <div class="shop-pack-card" data-id="<%= pack.id %>" style="border-left: 4px solid <%= pack.color || cat.color %>">
+                  <div class="pack-drag-handle" title="Glisser pour réordonner">
+                    <button class="move-btn" onclick="moveCard(this,-1)" title="Monter">▲</button>
+                    <span class="drag-dots">⠿</span>
+                    <button class="move-btn" onclick="moveCard(this,1)" title="Descendre">▼</button>
+                  </div>
+                  <div class="pack-header-row">
+                    <div style="flex:1;min-width:0">
+                      <h3 style="margin:0 0 4px"><%= cat.emoji %> <%= pack.name %> <span style="font-size:11px;font-weight:normal;color:var(--text-muted);background:var(--bg-input);padding:2px 6px;border-radius:4px;border:1px solid var(--border)"><%= pack.type === 'unitaire' ? '💎 Unitaire' : '📦 Pack' %></span></h3>
+                      <div class="pack-badges" style="flex-wrap:wrap">
+                      <% if (pack.donationAvailable) { %>
+                        <span class="pack-badge badge-donation">&#x2705; Pack Inventaire</span>
+                      <% } %>
+                      <% if (pack.notCompatible) { %>
+                        <span class="pack-badge badge-notcompat">&#x274C; Non compatible</span>
+                      <% } %>
+                      <% if (pack.available === false) { %>
+                        <span class="pack-badge badge-unavailable">&#x26A0;&#xFE0F; Indispo</span>
+                      <% } %>
+                      <% if (pack.noReduction) { %>
+                        <span class="pack-badge badge-nored">&#x26D4; Pas de r&eacute;duc</span>
+                      <% } %>
+                      <% if (pack.messageId) { %>
+                        <span class="pack-badge badge-published">&#x2705; Publi&eacute;</span>
+                      <% } else { %>
+                        <span class="pack-badge badge-draft">&#x1F4DD; Brouillon</span>
+                      <% } %>
+                      </div>
+                    </div>
+                    <% if (pack.imageUrl) { %>
+                      <img src="<%= pack.imageUrl %>" alt=""
+                        style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0;margin-left:10px"
+                        onerror="this.style.display='none'">
+                    <% } %>
+                  </div>
+                  <div class="pack-price">
+                    <% if (pack.priceDiamonds > 0) { %>
+                      <span class="price-tag price-diamonds">&#x1F48E; <%= pack.priceDiamonds.toLocaleString('fr-FR') %></span>
+                    <% } %>
+                    <% if (pack.priceStrawberries > 0) { %>
+                      <span class="price-tag price-strawberries">&#x1F353; <%= pack.priceStrawberries.toLocaleString('fr-FR') %></span>
+                    <% } %>
+                  </div>
+                  <div class="pack-content-preview">
+                    <% if (pack.options && pack.options.length > 0) { %>
+                      <% const nums = ['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣']; %>
+                      <% pack.options.slice(0, 4).forEach((opt, oi) => { %>
+                        <div class="pack-item"><%= nums[oi] || (oi+1+'.') %> <strong><%= opt.name %></strong>
+                          <span style="color:var(--text-muted);font-size:11px">
+                            <% if (opt.priceDiamonds > 0) { %>💎 <%= opt.priceDiamonds.toLocaleString('fr-FR') %><% } %>
+                            <% if (opt.priceStrawberries > 0) { %> 🍓 <%= opt.priceStrawberries.toLocaleString('fr-FR') %><% } %>
+                          </span>
+                        </div>
+                      <% }); %>
+                      <% if (pack.options.length > 4) { %>
+                        <div class="pack-item pack-more">+ <%= pack.options.length - 4 %> formule(s)...</div>
+                      <% } %>
+                    <% } else { %>
+                      <% const lines = (pack.content || '').split('\n').filter(l => l.trim()).slice(0, 4); %>
+                      <% lines.forEach(line => { %>
+                        <div class="pack-item">&bull; <%= line.trim().replace(/^[-*•]\s*/, '') %></div>
+                      <% }); %>
+                      <% if ((pack.content || '').split('\n').filter(l => l.trim()).length > 4) { %>
+                        <div class="pack-item pack-more">+ <%= (pack.content || '').split('\n').filter(l => l.trim()).length - 4 %> autres...</div>
+                      <% } %>
+                    <% } %>
+                  </div>
+                  <div class="pack-actions">
+                    <button class="btn btn-sm btn-secondary" onclick="editPack(packsData['<%= pack.id %>'])">✏️ Modifier</button>
+                    <form method="POST" action="/shop/publish/<%= pack.id %>" style="display:inline">
+                      <% if (pack.messageId) { %>
+                        <button type="submit" class="btn btn-sm btn-primary">🔄 Mettre à jour</button>
+                      <% } else { %>
+                        <button type="submit" class="btn btn-sm btn-primary">📤 Publier</button>
+                      <% } %>
+                    </form>
+                    <form method="POST" action="/shop/delete/<%= pack.id %>" style="display:inline" onsubmit="return confirm('Supprimer ce pack ?')">
+                      <button type="submit" class="btn btn-sm btn-danger">🗑️</button>
+                    </form>
+                  </div>
+                </div>
+              <% }); %>
+            </div>
+
+            <div style="margin-top: 20px;">
+              <form method="POST" action="/shop/publish-all">
+                <button type="submit" class="btn btn-primary" onclick="return confirm('Publier ou mettre à jour tous les packs ?')">📢 Publier / Mettre à jour tous les packs</button>
+              </form>
+            </div>
+          <% } %>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="catModal">
+        <div class="modal-card" style="max-width:420px">
+          <div class="modal-header">
+            <h2 id="catModalTitle">🏷️ Nouvelle catégorie</h2>
+            <button class="modal-close" onclick="closeCatModal()">&times;</button>
+          </div>
+          <form method="POST" action="/shop/categories" id="catForm">
+            <input type="hidden" name="catId" id="catId" value="">
+            <div class="modal-body">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="catEmoji">Emoji</label>
+                  <input type="text" id="catEmoji" name="emoji" maxlength="60" placeholder="📦" style="width:80px">
+                </div>
+                <div class="form-group" style="flex:1">
+                  <label for="catName">Nom de la catégorie</label>
+                  <input type="text" id="catName" name="name" required placeholder="Ex: Packs Dinos">
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="catColor">Couleur (embed Discord)</label>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <input type="color" id="catColor" name="color" value="#7c5cfc" style="width:60px;height:40px;padding:2px;cursor:pointer;">
+                  <span id="catColorHex" style="font-size:13px;color:var(--text-secondary)">#7c5cfc</span>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" onclick="closeCatModal()">Annuler</button>
+              <button type="submit" class="btn btn-primary" id="catSubmitBtn">💾 Créer</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="packModal">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h2 id="modalTitle">&#x1F4E6; Nouveau pack</h2>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+          </div>
+          <form method="POST" action="/shop/pack" id="packForm">
+            <input type="hidden" name="packId" id="packId" value="">
+            <div class="modal-body">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="packName">Nom du produit</label>
+                  <input type="text" id="packName" name="name" required placeholder="Ex: Farm Pack">
+                </div>
+                <div class="form-group" style="max-width:160px">
+                  <label for="packType">Type</label>
+                  <select id="packType" name="type" class="form-control" onchange="updatePreview()">
+                    <option value="pack">📦 Pack</option>
+                    <option value="unitaire">💎 Unitaire</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="packCategory">Cat&eacute;gorie</label>
+                  <select id="packCategory" name="category">
+                    <% categories.forEach(cat => { %>
+                      <option value="<%= cat.id %>"><%= cat.emoji %> <%= cat.name %></option>
+                    <% }); %>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-bottom:8px">
+                <label>🖼️ Image / Thumbnail</label>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                  <input type="text" id="packImageUrl" name="imageUrl" placeholder="URL ou importer depuis ta galerie →" class="form-control" style="flex:1;min-width:160px" oninput="updateImagePreview()">
+                  <label for="packImageFile" id="uploadImageBtn" class="btn btn-secondary" style="margin:0;cursor:pointer;white-space:nowrap" title="Importer une image">
+                    📁 Galerie
+                  </label>
+                  <input type="file" id="packImageFile" accept="image/*" style="display:none" onchange="uploadImageFile(this)">
+                  <img id="imagePreviewThumb" src="" alt="" style="width:48px;height:48px;border-radius:6px;object-fit:cover;display:none;border:1px solid var(--border)">
+                </div>
+                <p class="help-text" id="uploadImageStatus">Apparaît en miniature en haut à droite de l'embed Discord</p>
+              </div>
+
+              <div class="form-group" style="margin-bottom:8px">
+                <label class="toggle-label" style="background:var(--accent-light);border:1px solid var(--accent);border-radius:8px;padding:10px 14px;">
+                  <input type="checkbox" id="multiOption" onchange="toggleMultiOption()">
+                  <span class="toggle-text">🔀 <strong>Mode multi-options</strong> — plusieurs formules avec prix différents</span>
+                </label>
+              </div>
+
+              <div id="singlePriceSection">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="priceDiamonds">Prix diamants &#x1F48E;</label>
+                    <input type="number" id="priceDiamonds" name="priceDiamonds" value="0" min="0" oninput="autoCalcStrawberries()">
+                  </div>
+                  <div class="form-group">
+                    <label for="priceStrawberries">Prix fraises &#x1F353; <span id="autoCalcBadge" style="font-size:11px;color:#888;font-weight:normal;cursor:pointer;" onclick="resetAutoCalc()" title="Cliquer pour revenir en mode auto">(auto)</span></label>
+                    <input type="number" id="priceStrawberries" name="priceStrawberries" value="0" min="0" oninput="markManualStrawberries()">
+                  </div>
+                </div>
+              </div>
+
+              <div id="multiOptionsSection" style="display:none">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                  <label style="font-weight:600;font-size:14px">Formules disponibles</label>
+                  <button type="button" class="btn btn-sm btn-primary" onclick="addOption()">+ Ajouter une formule</button>
+                </div>
+                <div id="optionsList" style="display:flex;flex-direction:column;gap:8px"></div>
+                <p class="help-text" style="margin-top:6px">Chaque formule apparaîtra numérotée dans l'embed Discord avec son prix.</p>
+              </div>
+              <input type="hidden" name="optionsJson" id="optionsJson" value="[]">
+
+              <div id="singleContentSection">
+                <div class="form-group">
+                  <label for="packContent">Contenu du pack (un item par ligne)</label>
+                  <textarea id="packContent" name="content" rows="6" placeholder="1 Pioche mythique&#10;1 Hache mythique&#10;1 Faucille mythique"></textarea>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="packNote">Note optionnelle</label>
+                <input type="text" id="packNote" name="note" placeholder="Ex: Pas encore dispo">
+              </div>
+
+              <div class="form-group">
+                <label for="packColor">Couleur de l'embed</label>
+                <input type="color" id="packColor" name="color" value="#e74c3c" style="width:60px;height:40px;padding:2px;cursor:pointer;">
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="toggle-label">
+                    <input type="checkbox" name="donationAvailable" id="donationAvailable" value="true">
+                    <span class="toggle-text">&#x2705; Compatible Pack Inventaire &#x1F4E6;</span>
+                  </label>
+                </div>
+                <div class="form-group">
+                  <label class="toggle-label">
+                    <input type="checkbox" name="unavailable" id="packUnavailable" value="true">
+                    <span class="toggle-text">&#x26A0;&#xFE0F; Marquer indisponible</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="toggle-label">
+                    <input type="checkbox" name="notCompatible" id="notCompatible" value="true">
+                    <span class="toggle-text">&#x274C; Non compatible pack inventaires</span>
+                  </label>
+                </div>
+                <div class="form-group">
+                  <label class="toggle-label">
+                    <input type="checkbox" name="noReduction" id="noReduction" value="true">
+                    <span class="toggle-text">&#x26D4; R&eacute;ductions non applicables</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="card" style="margin-top:12px;">
+                <div class="card-header"><h2>&#x1F441;&#xFE0F; Aper&ccedil;u Discord</h2></div>
+                <div class="card-body">
+                  <div class="embed-preview" id="embedPreview">
+                    <div class="embed-bar" id="embedBar"></div>
+                    <div class="embed-content">
+                      <div class="embed-title" id="previewTitle">&#x1F4E6; Nouveau pack</div>
+                      <div class="embed-desc" id="previewDesc">Ajoutez du contenu pour voir l'aper&ccedil;u</div>
+                      <div class="embed-footer">Arki' Family Shop</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" onclick="closeModal()">Annuler</button>
+              <button type="submit" class="btn btn-primary" id="submitBtn">&#x1F4BE; Cr&eacute;er le pack</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    function openCatModal() {
+      document.getElementById('catModal').classList.add('show');
+      document.getElementById('catModalTitle').textContent = '🏷️ Nouvelle catégorie';
+      document.getElementById('catSubmitBtn').textContent = '💾 Créer';
+      document.getElementById('catId').value = '';
+      document.getElementById('catEmoji').value = '';
+      document.getElementById('catName').value = '';
+      document.getElementById('catColor').value = '#7c5cfc';
+      document.getElementById('catColorHex').textContent = '#7c5cfc';
+    }
+
+    function editCat(cat) {
+      document.getElementById('catModal').classList.add('show');
+      document.getElementById('catModalTitle').textContent = '✏️ Modifier : ' + cat.name;
+      document.getElementById('catSubmitBtn').textContent = '💾 Sauvegarder';
+      document.getElementById('catId').value = cat.id;
+      document.getElementById('catEmoji').value = cat.emoji || '';
+      document.getElementById('catName').value = cat.name || '';
+      document.getElementById('catColor').value = cat.color || '#7c5cfc';
+      document.getElementById('catColorHex').textContent = cat.color || '#7c5cfc';
+    }
+
+    function closeCatModal() {
+      document.getElementById('catModal').classList.remove('show');
+    }
+
+    document.getElementById('catModal').addEventListener('click', function(e) {
+      if (e.target === this) closeCatModal();
+    });
+
+    document.getElementById('catColor').addEventListener('input', function() {
+      document.getElementById('catColorHex').textContent = this.value;
+    });
+
+    var packsData = {};
+    try {
+      packsData = <%- JSON.stringify(shop.packs.reduce((acc, p) => { acc[p.id] = p; return acc; }, {})).replace(/<\//g, '<\\/').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
+    } catch(e) {
+      console.error('Erreur chargement packsData:', e);
+    }
+
+    /* ── Multi-options state ── */
+    let currentOptions = [];
+    const OPTION_NUMS = ['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟'];
+
+    function toggleMultiOption() {
+      const on = document.getElementById('multiOption').checked;
+      document.getElementById('singlePriceSection').style.display = on ? 'none' : '';
+      document.getElementById('singleContentSection').style.display = on ? 'none' : '';
+      document.getElementById('multiOptionsSection').style.display = on ? '' : 'none';
+      if (on && currentOptions.length === 0) addOption();
+      updatePreview();
+    }
+
+    function renderOptions() {
+      const list = document.getElementById('optionsList');
+      list.innerHTML = '';
+      currentOptions.forEach((opt, i) => {
+        const row = document.createElement('div');
+        row.className = 'option-row';
+        row.innerHTML = `
+          <span class="option-num">${OPTION_NUMS[i] || (i+1+'.')}</span>
+          <input type="text" class="form-control option-name" placeholder="Nom de la formule" value="${escHtml(opt.name)}" oninput="currentOptions[${i}].name=this.value;updatePreview()">
+          <div class="option-prices">
+            <div class="option-price-field">
+              <span class="option-price-icon">💎</span>
+              <input type="number" min="0" class="form-control" value="${opt.priceDiamonds||0}" placeholder="Diamants" oninput="currentOptions[${i}].priceDiamonds=parseInt(this.value)||0;updatePreview()">
+            </div>
+            <div class="option-price-field">
+              <span class="option-price-icon">🍓</span>
+              <input type="number" min="0" class="form-control" value="${opt.priceStrawberries||0}" placeholder="Fraises" oninput="currentOptions[${i}].priceStrawberries=parseInt(this.value)||0;updatePreview()">
+            </div>
+          </div>
+          <button type="button" class="btn btn-sm btn-danger" onclick="removeOption(${i})" title="Supprimer">✕</button>
+        `;
+        list.appendChild(row);
+      });
+      document.getElementById('optionsJson').value = JSON.stringify(currentOptions);
+      updatePreview();
+    }
+
+    function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    function addOption() {
+      currentOptions.push({ name: '', priceDiamonds: 0, priceStrawberries: 0 });
+      renderOptions();
+    }
+
+    function removeOption(i) {
+      currentOptions.splice(i, 1);
+      renderOptions();
+    }
+
+    function updateImagePreview() {
+      const url = document.getElementById('packImageUrl').value.trim();
+      const img = document.getElementById('imagePreviewThumb');
+      if (url) { img.src = url; img.style.display = ''; }
+      else img.style.display = 'none';
+    }
+
+    async function uploadImageFile(input) {
+      const file = input.files[0];
+      if (!file) return;
+      const status = document.getElementById('uploadImageStatus');
+      const btn = document.getElementById('uploadImageBtn');
+      status.textContent = '⏳ Upload en cours...';
+      btn.style.opacity = '0.6';
+      btn.style.pointerEvents = 'none';
+      try {
+        const formData = new FormData();
+        formData.append('image', file);
+        const res = await fetch('/shop/upload-image', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.url) {
+          document.getElementById('packImageUrl').value = data.url;
+          updateImagePreview();
+          status.textContent = '✅ Image importée avec succès !';
+        } else {
+          status.textContent = '❌ Erreur : ' + (data.error || 'Upload échoué');
+        }
+      } catch (e) {
+        status.textContent = '❌ Erreur réseau lors de l\'upload';
+      }
+      btn.style.opacity = '';
+      btn.style.pointerEvents = '';
+      input.value = '';
+    }
+
+    function openModal(pack) {
+      currentOptions = [];
+      document.getElementById('multiOption').checked = false;
+      document.getElementById('singlePriceSection').style.display = '';
+      document.getElementById('singleContentSection').style.display = '';
+      document.getElementById('multiOptionsSection').style.display = 'none';
+      document.getElementById('optionsList').innerHTML = '';
+      document.getElementById('optionsJson').value = '[]';
+
+      document.getElementById('packModal').classList.add('show');
+      if (!pack) {
+        document.getElementById('modalTitle').textContent = '\u{1F4E6} Nouveau produit';
+        document.getElementById('submitBtn').textContent = '\u{1F4BE} Cr\u00e9er le produit';
+        document.getElementById('packForm').action = '/shop/pack';
+        document.getElementById('packId').value = '';
+        document.getElementById('packName').value = '';
+        document.getElementById('packType').value = 'pack';
+        document.getElementById('packCategory').value = 'packs';
+        document.getElementById('packImageUrl').value = '';
+        document.getElementById('imagePreviewThumb').style.display = 'none';
+        document.getElementById('priceDiamonds').value = '0';
+        document.getElementById('priceStrawberries').value = '0';
+        document.getElementById('packContent').value = '';
+        document.getElementById('packNote').value = '';
+        document.getElementById('packColor').value = '#e74c3c';
+        document.getElementById('donationAvailable').checked = false;
+        document.getElementById('notCompatible').checked = false;
+        document.getElementById('packUnavailable').checked = false;
+        document.getElementById('noReduction').checked = false;
+        strawberriesManual = false;
+        setAutoBadge(true);
+      }
+      updatePreview();
+    }
+
+    function editPack(pack) {
+      try {
+        if (!pack) { alert('Erreur : pack introuvable. Rechargez la page.'); return; }
+
+        const hasOptions = Array.isArray(pack.options) && pack.options.length > 0;
+        currentOptions = hasOptions ? JSON.parse(JSON.stringify(pack.options)) : [];
+
+        document.getElementById('multiOption').checked = hasOptions;
+        document.getElementById('singlePriceSection').style.display = hasOptions ? 'none' : '';
+        document.getElementById('singleContentSection').style.display = hasOptions ? 'none' : '';
+        document.getElementById('multiOptionsSection').style.display = hasOptions ? '' : 'none';
+        if (hasOptions) renderOptions();
+        else { document.getElementById('optionsList').innerHTML = ''; document.getElementById('optionsJson').value = '[]'; }
+
+        document.getElementById('modalTitle').textContent = '✏️ Modifier : ' + pack.name;
+        document.getElementById('submitBtn').textContent = '\u{1F4BE} Sauvegarder';
+        document.getElementById('packForm').action = '/shop/pack';
+        document.getElementById('packId').value = pack.id;
+        document.getElementById('packName').value = pack.name || '';
+        document.getElementById('packType').value = pack.type || 'pack';
+        document.getElementById('packCategory').value = pack.category || 'packs';
+        document.getElementById('packImageUrl').value = pack.imageUrl || '';
+        const thumb = document.getElementById('imagePreviewThumb');
+        if (pack.imageUrl) { thumb.src = pack.imageUrl; thumb.style.display = ''; } else thumb.style.display = 'none';
+        document.getElementById('priceDiamonds').value = pack.priceDiamonds || 0;
+        document.getElementById('priceStrawberries').value = pack.priceStrawberries || 0;
+        document.getElementById('packContent').value = pack.content || '';
+        document.getElementById('packNote').value = pack.note || '';
+        document.getElementById('packColor').value = pack.color || '#e74c3c';
+        document.getElementById('donationAvailable').checked = !!pack.donationAvailable;
+        document.getElementById('notCompatible').checked = !!pack.notCompatible;
+        document.getElementById('packUnavailable').checked = pack.available === false;
+        document.getElementById('noReduction').checked = !!pack.noReduction;
+
+        if (!hasOptions) {
+          const cd = parseInt(pack.priceDiamonds) || 0;
+          const cs = parseInt(pack.priceStrawberries) || 0;
+          const es = calcStrawberries(cd);
+          strawberriesManual = cs !== 0 && cs !== es;
+          setAutoBadge(!strawberriesManual);
+          if (!strawberriesManual && cs === 0 && cd > 0) document.getElementById('priceStrawberries').value = es;
+        }
+
+        document.getElementById('packModal').classList.add('show');
+        updatePreview();
+      } catch(e) {
+        console.error('Erreur editPack:', e);
+        alert('Erreur lors de l\'ouverture du pack : ' + e.message);
+      }
+    }
+
+    document.getElementById('packForm').addEventListener('submit', function() {
+      document.getElementById('optionsJson').value = JSON.stringify(currentOptions);
+    });
+
+    function closeModal() {
+      document.getElementById('packModal').classList.remove('show');
+    }
+
+    function updatePreview() {
+      const name = document.getElementById('packName').value || 'Nouveau pack';
+      const catSelect = document.getElementById('packCategory');
+      const catEmoji = catSelect.options[catSelect.selectedIndex]?.textContent.split(' ')[0] || '\u{1F4E6}';
+      const color = document.getElementById('packColor').value;
+      const donation = document.getElementById('donationAvailable').checked;
+      const notCompat = document.getElementById('notCompatible').checked;
+      const unavailable = document.getElementById('packUnavailable').checked;
+      const noRed = document.getElementById('noReduction').checked;
+      const note = document.getElementById('packNote').value;
+      const isMulti = document.getElementById('multiOption').checked;
+
+      document.getElementById('previewTitle').textContent = catEmoji + ' ' + name;
+      document.getElementById('embedBar').style.background = color;
+
+      let desc = '';
+
+      if (isMulti && currentOptions.length > 0) {
+        desc += '<strong>📋 Choisissez votre formule :</strong><br><br>';
+        currentOptions.forEach((opt, i) => {
+          const num = OPTION_NUMS[i] || (i+1+'.');
+          desc += num + '  <strong>' + escHtml(opt.name || '…') + '</strong><br>';
+          const parts = [];
+          if (opt.priceDiamonds > 0) parts.push('<strong>' + opt.priceDiamonds.toLocaleString('fr-FR') + '</strong> 💎');
+          if (opt.priceStrawberries > 0) parts.push('<strong>' + opt.priceStrawberries.toLocaleString('fr-FR') + '</strong> 🍓');
+          if (parts.length) desc += '<span class="embed-quote">' + parts.join(' + ') + '</span><br>';
+          desc += '<br>';
+        });
+      } else {
+        const diamonds = parseInt(document.getElementById('priceDiamonds').value) || 0;
+        const strawberries = parseInt(document.getElementById('priceStrawberries').value) || 0;
+        if (diamonds > 0 || strawberries > 0) {
+          let parts = [];
+          if (diamonds > 0) parts.push('<strong>' + diamonds.toLocaleString('fr-FR') + '</strong> 💎');
+          if (strawberries > 0) parts.push('<strong>' + strawberries.toLocaleString('fr-FR') + '</strong> 🍓');
+          desc += '<span class="embed-quote">🏷️ ' + parts.join(' + ') + '</span><br>';
+        }
+        const content = document.getElementById('packContent').value;
+        if (donation) desc += '<span class="embed-quote">✅ <strong>Compatible Pack Inventaire 📦</strong></span><br>';
+        if (notCompat) desc += '<span class="embed-quote">❌ <strong>Non compatible avec les pack inventaires</strong></span><br>';
+        if (unavailable) desc += '<span class="embed-quote">⚠️ <em>Pas encore disponible</em></span><br>';
+        if (noRed) desc += '<span class="embed-quote">⛔ <em>Réductions non applicables</em></span><br>';
+        if (desc) desc += '<br>';
+        if (content.trim()) {
+          content.split('\n').filter(l => l.trim()).forEach(line => {
+            desc += '• ' + line.trim().replace(/^[-*•]\s*/,'') + '<br>';
+          });
+        }
+      }
+
+      if (isMulti) {
+        if (donation) desc += '<span class="embed-quote">✅ <strong>Compatible Pack Inventaire 📦</strong></span><br>';
+        if (notCompat) desc += '<span class="embed-quote">❌ <strong>Non compatible avec les pack inventaires</strong></span><br>';
+        if (unavailable) desc += '<span class="embed-quote">⚠️ <em>Pas encore disponible</em></span><br>';
+        if (noRed) desc += '<span class="embed-quote">⛔ <em>Réductions non applicables</em></span><br>';
+      }
+
+      if (note) desc += '<br><span class="embed-quote">📝 <em>' + escHtml(note) + '</em></span>';
+
+      document.getElementById('previewDesc').innerHTML = desc || 'Ajoutez du contenu pour voir l\'aper\u00e7u';
+    }
+
+    ['packName', 'priceDiamonds', 'priceStrawberries', 'packContent', 'packNote'].forEach(id => {
+      document.getElementById(id).addEventListener('input', updatePreview);
+    });
+    ['packCategory', 'packColor'].forEach(id => {
+      document.getElementById(id).addEventListener('change', updatePreview);
+    });
+    ['donationAvailable', 'notCompatible', 'packUnavailable', 'noReduction'].forEach(id => {
+      document.getElementById(id).addEventListener('change', updatePreview);
+    });
+
+    document.getElementById('packModal').addEventListener('click', function(e) {
+      if (e.target === this) closeModal();
+    });
+
+    let strawberriesManual = false;
+    const DIAMOND_TO_STRAWBERRY = 0.3;
+
+    function setAutoBadge(isAuto) {
+      const badge = document.getElementById('autoCalcBadge');
+      if (isAuto) {
+        badge.textContent = '(auto)';
+        badge.style.color = '#888';
+      } else {
+        badge.textContent = '(manuel \u21BB)';
+        badge.style.color = '#e67e22';
+      }
+    }
+
+    function calcStrawberries(diamonds) {
+      return Math.round(diamonds * DIAMOND_TO_STRAWBERRY);
+    }
+
+    function autoCalcStrawberries() {
+      if (strawberriesManual) return;
+      const diamonds = parseInt(document.getElementById('priceDiamonds').value) || 0;
+      document.getElementById('priceStrawberries').value = calcStrawberries(diamonds);
+      setAutoBadge(true);
+      updatePreview();
+    }
+
+    function markManualStrawberries() {
+      strawberriesManual = true;
+      setAutoBadge(false);
+      updatePreview();
+    }
+
+    function resetAutoCalc() {
+      strawberriesManual = false;
+      setAutoBadge(true);
+      const diamonds = parseInt(document.getElementById('priceDiamonds').value) || 0;
+      document.getElementById('priceStrawberries').value = calcStrawberries(diamonds);
+      updatePreview();
+    }
+
+    // ── Boutons ▲/▼ réordonnancement ────────────────────────────────────────
+    async function moveCard(btn, direction) {
+      const grid = document.querySelector('.shop-grid');
+      const card = btn.closest('.shop-pack-card');
+      if (!card || !grid) return;
+      const cards = [...grid.querySelectorAll('.shop-pack-card')];
+      const idx = cards.indexOf(card);
+      const target = cards[idx + direction];
+      if (!target) return;
+      if (direction === -1) target.before(card); else target.after(card);
+      const order = [...grid.querySelectorAll('.shop-pack-card')].map(c => c.dataset.id);
+      try {
+        await fetch('/shop/reorder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order }),
+        });
+      } catch (e) {}
+    }
+
+    // ── Drag & Drop réordonnancement ────────────────────────────────────────
+    (function() {
+      const grid = document.querySelector('.shop-grid');
+      if (!grid) return;
+
+      let dragging = null;
+
+      // Active le drag uniquement depuis les points ⠿
+      grid.querySelectorAll('.drag-dots').forEach(dots => {
+        dots.addEventListener('pointerdown', () => {
+          const card = dots.closest('.shop-pack-card');
+          if (card) card.draggable = true;
+        });
+      });
+
+      grid.addEventListener('dragstart', e => {
+        const card = e.target.closest('.shop-pack-card');
+        if (!card) return;
+        dragging = card;
+        setTimeout(() => card.classList.add('dragging'), 0);
+        e.dataTransfer.effectAllowed = 'move';
+      });
+
+      grid.addEventListener('dragend', e => {
+        if (dragging) {
+          dragging.classList.remove('dragging');
+          dragging.draggable = false;
+        }
+        grid.querySelectorAll('.shop-pack-card').forEach(c => c.classList.remove('drag-over'));
+        dragging = null;
+      });
+
+      grid.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const card = e.target.closest('.shop-pack-card');
+        if (!card || card === dragging) return;
+        grid.querySelectorAll('.shop-pack-card').forEach(c => c.classList.remove('drag-over'));
+        const rect = card.getBoundingClientRect();
+        const after = e.clientY > rect.top + rect.height / 2;
+        card.classList.add('drag-over');
+        card.dataset.dropAfter = after ? '1' : '0';
+      });
+
+      grid.addEventListener('dragleave', e => {
+        const card = e.target.closest('.shop-pack-card');
+        if (card) card.classList.remove('drag-over');
+      });
+
+      grid.addEventListener('drop', async e => {
+        e.preventDefault();
+        const target = e.target.closest('.shop-pack-card');
+        if (!target || !dragging || target === dragging) return;
+        const after = target.dataset.dropAfter === '1';
+        if (after) {
+          target.after(dragging);
+        } else {
+          target.before(dragging);
+        }
+        grid.querySelectorAll('.shop-pack-card').forEach(c => c.classList.remove('drag-over'));
+
+        const order = [...grid.querySelectorAll('.shop-pack-card')].map(c => c.dataset.id);
+        try {
+          const r = await fetch('/shop/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order }),
+          });
+          if (!r.ok) console.error('Erreur sauvegarde ordre');
+        } catch (err) {
+          console.error('Erreur sauvegarde ordre:', err);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
