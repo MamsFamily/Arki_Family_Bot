@@ -12,6 +12,21 @@ const { jouerBlackjack, tirer, rester, chargerParties } = require('./Utils/black
 const { chargerParis, sauvegarderParis } = require('./Utils/roulette');
 const { jouerSlotsProgressif } = require('./Utils/slots');
 const { initPartie, ajouterParticipant, lancerPartie, chargerPartie, resetPartie } = require('./Utils/rouletterusse');
+const {
+  executerPoker,
+  executerCreerTable,
+  executerRejoindreTable,
+  executerQuitterTable,
+  executerRejoindreListeAttente,
+  executerStartPartie,
+  executerVoirMesCartes,
+  executerRelaunch,
+} = require('./Utils/poker');
+const { executerCheck, executerCall, executerRaise, executerFold, executerAllIn } = require('./Utils/pokerLogic');
+const { chargerInventaire, sauvegarderInventaire, setBalance } = require('./Utils/inventaire');
+const fs = require('fs');
+const path = require('path');
+const TABLES_PATH = path.join(__dirname, 'data', 'tables.json');
 
 const ROULETTE_MS = 30000;
 const ROULETTE_RUSSE_MIN = 2;
@@ -27,18 +42,48 @@ function menuCasinoEmbed() {
       '🎰 **Slots** — Tente ta chance sur les rouleaux\n' +
       '🃏 **Blackjack** — Bats le croupier\n' +
       '🎡 **Roulette** — Rouge, noir ou numéro (résolution 30s)\n' +
-      '🔫 **Roulette Russe** — Multi-joueurs, un seul survivant... ou plusieurs !'
+      '🔫 **Roulette Russe** — Multi-joueurs, un seul survivant... ou plusieurs !\n' +
+      '♠️ **Poker** — Texas Hold\'em avec tables privées'
     )
     .setColor(COLOR);
 }
 
 function menuCasinoRow() {
-  return new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('casino_slots').setLabel('🎰 Slots').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('casino_blackjack').setLabel('🃏 Blackjack').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('casino_roulette').setLabel('🎡 Roulette').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('casino_rouletterusse').setLabel('🔫 Roulette Russe').setStyle(ButtonStyle.Danger),
-  );
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('casino_slots').setLabel('🎰 Slots').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('casino_blackjack').setLabel('🃏 Blackjack').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('casino_roulette').setLabel('🎡 Roulette').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('casino_rouletterusse').setLabel('🔫 Roulette Russe').setStyle(ButtonStyle.Danger),
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('casino_poker').setLabel('♠️ Poker').setStyle(ButtonStyle.Success),
+    ),
+  ];
+}
+
+// ─── Sync DB → local JSON avant une opération poker ──────────────────────────
+function syncPlayersToLocalJson(playerIds, getPlayerInventory) {
+  const inv = chargerInventaire();
+  for (const id of playerIds) {
+    const playerInv = getPlayerInventory(id);
+    const diamonds = playerInv['diamants'] || 0;
+    setBalance(inv, id, diamonds);
+  }
+  sauvegarderInventaire(inv);
+}
+
+// Sync local JSON → DB après la fin d'une partie poker
+const { getBalance: getPokerBalance } = require('./Utils/inventaire');
+async function syncPokerWinnersToDb(playerIds, getPlayerInventory, addToInventory, removeFromInventory) {
+  const inv = chargerInventaire();
+  for (const id of playerIds) {
+    const localBalance = getPokerBalance(inv, id);
+    const dbBalance = (getPlayerInventory(id)['diamants']) || 0;
+    const diff = localBalance - dbBalance;
+    if (diff > 0) await addToInventory(id, 'diamants', diff, 'Casino', 'Gain poker');
+    else if (diff < 0) await removeFromInventory(id, 'diamants', Math.abs(diff), 'Casino', 'Perte poker');
+  }
 }
 
 async function getCasinoConfig(pgStore) {
@@ -67,7 +112,7 @@ async function handleCasinoCommand(interaction, pgStore) {
       ephemeral: true,
     });
   }
-  await interaction.reply({ embeds: [menuCasinoEmbed()], components: [menuCasinoRow()] });
+  await interaction.reply({ embeds: [menuCasinoEmbed()], components: menuCasinoRow() });
 }
 
 // ─── /saloncasino ────────────────────────────────────────────────────────────
@@ -618,6 +663,63 @@ function registerCasinoHandlers(client, deps) {
           const target = id.replace('casino_bj_rester_', '');
           return await handleBJRester(interaction, target, ctx);
         }
+
+        // ── Poker ──────────────────────────────────────────────────────────────
+        if (id === 'casino_poker')              return await executerPoker(interaction);
+        if (id === 'poker_creer_table')         return await executerCreerTable(interaction);
+        if (id === 'poker_quitter_table')       return await executerQuitterTable(interaction);
+        if (id === 'poker_rejoindreListeAttente') {
+          // Sync balance DB → local JSON avant l'inscription
+          syncPlayersToLocalJson([interaction.user.id], ctx.getPlayerInventory);
+          return await executerRejoindreListeAttente(interaction);
+        }
+        if (id === 'poker_start_partie') {
+          // Sync balances de tous les joueurs en attente avant le démarrage
+          try {
+            const raw = fs.readFileSync(TABLES_PATH, 'utf8');
+            const tables = JSON.parse(raw);
+            const table = tables.find(t => t.threadId === interaction.channelId);
+            if (table) {
+              const allIds = [...new Set([
+                ...(table.enAttenteDeLaProchainePartie || []),
+                ...(table.participants || []),
+              ])];
+              syncPlayersToLocalJson(allIds, ctx.getPlayerInventory);
+            }
+          } catch {}
+          return await executerStartPartie(interaction);
+        }
+        if (id === 'poker_voir_cartes')   return await executerVoirMesCartes(interaction);
+        if (id === 'poker_check')         return await executerCheck(interaction);
+        if (id === 'poker_call')          return await executerCall(interaction);
+        if (id === 'poker_fold')          return await executerFold(interaction);
+        if (id === 'poker_allin')         return await executerAllIn(interaction);
+        if (id === 'poker_relaunch') {
+          // Sync résultats → DB avant de relancer
+          try {
+            const raw = fs.readFileSync(TABLES_PATH, 'utf8');
+            const tables = JSON.parse(raw);
+            const table = tables.find(t => t.threadId === interaction.channelId);
+            if (table) {
+              const allIds = [...new Set([
+                ...(table.dansLaPartie || []),
+                ...(table.participants || []),
+              ])];
+              await syncPokerWinnersToDb(allIds, ctx.getPlayerInventory, ctx.addToInventory, ctx.removeFromInventory);
+            }
+          } catch (err) {
+            console.error('[Casino Poker sync relaunch]', err);
+          }
+          return await executerRelaunch(interaction);
+        }
+        if (id.startsWith('poker_rejoindre_')) return await executerRejoindreTable(interaction);
+        if (id === 'poker_raise') {
+          const { ModalBuilder: MB, TextInputBuilder: TIB, TextInputStyle: TIS, ActionRowBuilder: ARB } = require('discord.js');
+          const modal = new MB().setCustomId('poker_raise_modal').setTitle('♠️ Raise');
+          modal.addComponents(new ARB().addComponents(new TIB().setCustomId('amount').setLabel('Montant du raise').setStyle(TIS.Short).setRequired(true).setPlaceholder('ex: 100')));
+          return await interaction.showModal(modal);
+        }
+
         return;
       }
 
@@ -628,6 +730,10 @@ function registerCasinoHandlers(client, deps) {
         if (id === 'casino_blackjack_modal') return await handleBlackjackModal(interaction, ctx);
         if (id === 'casino_roulette_modal')  return await handleRouletteModal(interaction, ctx);
         if (id === 'casino_rr_creer_modal')  return await handleRRCreerModal(interaction, ctx);
+        if (id === 'poker_raise_modal') {
+          const amt = parseInt(interaction.fields.getTextInputValue('amount'), 10);
+          return await executerRaise(interaction, isNaN(amt) ? 0 : amt);
+        }
         return;
       }
     } catch (err) {
