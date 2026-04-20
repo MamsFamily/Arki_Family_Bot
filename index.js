@@ -39,6 +39,7 @@ const xpManager = require('./xpManager');
 const { handleShopCommand, handleShopInteraction } = require('./shopCommand');
 const restartScheduler = require('./nitradoRestartScheduler');
 const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
+const { registerCasinoHandlers } = require('./casino/casinoHandler');
 
 
 const openaiConfig = {};
@@ -554,6 +555,9 @@ client.once('clientReady', async () => {
   await publishAndScheduleGiveaways(client);
   // Polling toutes les 60s pour détecter les nouveaux giveaways créés depuis le dashboard
   setInterval(() => publishAndScheduleGiveaways(client), 60 * 1000);
+
+  // Enregistrer les handlers du casino
+  registerCasinoHandlers(client, { pgStore, getPlayerInventory, addToInventory, removeFromInventory });
 
   console.log('✅ Bot Discord Arki Roulette est en ligne !');
   console.log(`📝 Connecté en tant que ${client.user.tag}`);

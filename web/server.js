@@ -3103,6 +3103,117 @@ function createWebServer(discordClient) {
     } catch (e) { res.json({ ok: false, error: e.message }); }
   });
 
+  // ═══════════════════════════ CASINO ════════════════════════════════════════
+
+  app.get('/casino', requireAdmin, async (req, res) => {
+    const config = (await pgStore.getData('casino_config')) || {};
+    let channels = [];
+    if (discordClient) {
+      try {
+        const guild = discordClient.guilds.cache.first();
+        if (guild) {
+          channels = guild.channels.cache
+            .filter(ch => ch.type === 0)
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map(ch => ({ id: ch.id, name: ch.name }));
+        }
+      } catch {}
+    }
+
+    const casinoSources = ['Casino', 'Gain slots', 'Mise slots', 'Gain blackjack', 'Mise blackjack',
+      'Gain roulette casino', 'Mise roulette casino', 'Gain roulette russe', 'Mise roulette russe'];
+    const gameMap = {
+      'Gain slots': 'Slots', 'Mise slots': 'Slots',
+      'Gain blackjack': 'Blackjack', 'Mise blackjack': 'Blackjack',
+      'Gain roulette casino': 'Roulette', 'Mise roulette casino': 'Roulette',
+      'Gain roulette russe': 'Roulette Russe', 'Mise roulette russe': 'Roulette Russe',
+    };
+
+    const { transactions } = inventoryManager.getTransactions({ limit: 100000 });
+    const casinoTxs = transactions
+      .filter(tx => casinoSources.includes(tx.adminId) || casinoSources.includes(tx.reason))
+      .map(tx => ({
+        ...tx,
+        game: gameMap[tx.reason] || gameMap[tx.adminId] || tx.reason || 'Casino',
+        playerName: tx.playerId,
+      }));
+
+    const byGame = {};
+    const byPlayer = {};
+    let totalWagered = 0, totalWon = 0;
+
+    casinoTxs.forEach(tx => {
+      const g = tx.game;
+      if (!byGame[g]) byGame[g] = { sessions: 0, wagered: 0, won: 0 };
+      byGame[g].sessions++;
+      if (tx.quantity < 0) { byGame[g].wagered += Math.abs(tx.quantity); totalWagered += Math.abs(tx.quantity); }
+      else { byGame[g].won += tx.quantity; totalWon += tx.quantity; }
+      if (!byPlayer[tx.playerId]) byPlayer[tx.playerId] = 0;
+      byPlayer[tx.playerId] += tx.quantity;
+    });
+
+    const popularGame = Object.entries(byGame).sort((a, b) => b[1].sessions - a[1].sessions)[0]?.[0] || '—';
+    const uniquePlayers = Object.keys(byPlayer).length;
+    const houseProfit = totalWagered - totalWon;
+
+    const playerEntries = Object.entries(byPlayer);
+    const topWinners = playerEntries.filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id, net]) => ({ name: id, net }));
+    const topLosers = playerEntries.filter(([, n]) => n < 0).sort((a, b) => a[1] - b[1]).slice(0, 5).map(([id, net]) => ({ name: id, net }));
+
+    if (discordClient) {
+      try {
+        const guild = discordClient.guilds.cache.first();
+        if (guild) {
+          for (const p of [...topWinners, ...topLosers]) {
+            const m = await guild.members.fetch(p.name).catch(() => null);
+            if (m) p.name = m.displayName || m.user.username;
+          }
+        }
+      } catch {}
+    }
+
+    const history = casinoTxs.slice(0, 100);
+    if (discordClient) {
+      try {
+        const guild = discordClient.guilds.cache.first();
+        if (guild) {
+          const ids = [...new Set(history.map(tx => tx.playerId))];
+          const memberMap = {};
+          for (const id of ids) {
+            const m = await guild.members.fetch(id).catch(() => null);
+            if (m) memberMap[id] = m.displayName || m.user.username;
+          }
+          history.forEach(tx => { if (memberMap[tx.playerId]) tx.playerName = memberMap[tx.playerId]; });
+        }
+      } catch {}
+    }
+
+    res.render('casino', {
+      config,
+      channels,
+      stats: { totalSessions: casinoTxs.length, totalWagered, totalWon, houseProfit, popularGame, uniquePlayers, byGame },
+      topWinners,
+      topLosers,
+      history,
+      success: req.query.success || null,
+      error: req.query.error || null,
+      botUser: discordClient?.user || null,
+      discordUser: req.session?.discordUser || null,
+      role: req.session?.role || 'admin',
+      path: '/casino',
+    });
+  });
+
+  app.post('/casino/config', requireAdmin, async (req, res) => {
+    try {
+      const existing = (await pgStore.getData('casino_config')) || {};
+      await pgStore.setData('casino_config', { ...existing, channelId: req.body.channelId || '' });
+      res.redirect('/casino?success=Salon+casino+enregistré+!');
+    } catch (e) {
+      res.redirect('/casino?error=' + encodeURIComponent(e.message));
+    }
+  });
+
   // ─────────────────────────────────────────────────────────────────────────────
 
   // Les timers et la publication Discord des giveaways sont gérés
