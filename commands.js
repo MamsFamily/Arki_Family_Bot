@@ -303,17 +303,6 @@ const commands = [
       },
     ],
   },
-  {
-    name: 'casino',
-    description: '🎰 Ouvre le menu du casino (Roulette, Blackjack, Machine à sous)',
-  },
-  {
-    name: 'saloncasino',
-    description: '🎰 Définit le salon autorisé pour le casino (Admin)',
-    options: [
-      { name: 'salon', type: 7, description: 'Salon où le casino sera autorisé', required: true },
-    ],
-  },
 ];
 
 module.exports = commands;
