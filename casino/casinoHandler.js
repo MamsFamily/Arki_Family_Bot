@@ -724,6 +724,18 @@ async function handlePokerCreerTable(interaction, ctx) {
     return;
   }
 
+  // ── Inscription automatique du créateur dans la file d'attente ───────────
+  table.enAttenteDeLaProchainePartie ||= [];
+  if (!table.enAttenteDeLaProchainePartie.includes(userId)) {
+    table.enAttenteDeLaProchainePartie.push(userId);
+    try {
+      await fs.promises.writeFile(TABLES_PATH, JSON.stringify(tables, null, 2), 'utf8');
+      console.log(`[Poker créer table] ${displayName} (${userId}) inscrit automatiquement en file d'attente.`);
+    } catch (e) {
+      console.error('[Poker créer table] Sauvegarde file attente créateur échouée :', e);
+    }
+  }
+
   // ── Poser la question spectateurs dans le fil ────────────────────────────
   let thread;
   try {
@@ -731,6 +743,33 @@ async function handlePokerCreerTable(interaction, ctx) {
   } catch (e) {
     console.error(`[Poker créer table] Impossible de fetch le thread ${table.threadId} :`, e);
     return;
+  }
+
+  // ── Mettre à jour l'embed règles pour afficher le créateur dans la file ──
+  try {
+    const fetched = await thread.messages.fetch({ limit: 20 });
+    const rulesMsg = fetched.find(m => m.embeds.length && m.embeds[0].title === "Règles du Texas Hold'em");
+    if (rulesMsg) {
+      const oldEmbed = rulesMsg.embeds[0];
+      const waiting = table.enAttenteDeLaProchainePartie;
+      const baseFields = (oldEmbed.fields || []).filter(f => !f.name.startsWith('⏱️ En attente de joueurs'));
+      const newEmbed = new EmbedBuilder()
+        .setTitle(oldEmbed.title)
+        .setDescription(oldEmbed.description)
+        .setColor(COLOR)
+        .setThumbnail('attachment://poker_logo.png')
+        .addFields([
+          ...baseFields,
+          { name: `⏱️ En attente de joueurs (${waiting.length}/10)`, value: `**1.** ${displayName}` }
+        ]);
+      await rulesMsg.edit({
+        embeds: [newEmbed],
+        components: rulesMsg.components,
+        files: [{ attachment: POKER_LOGO_PATH_HANDLER, name: 'poker_logo.png' }]
+      });
+    }
+  } catch (e) {
+    console.warn('[Poker créer table] Mise à jour embed règles échouée :', e.message);
   }
 
 
