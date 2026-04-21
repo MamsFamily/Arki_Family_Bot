@@ -305,7 +305,7 @@ const commands = [
   },
   {
     name: 'casino',
-    description: '🎰 Ouvre le menu du casino (Slots, Blackjack, Roulette, Roulette Russe)',
+    description: '🎰 Ouvre le menu du casino (Slots, Blackjack, Roulette, Roulette Russe, Poker)',
   },
   {
     name: 'saloncasino',
