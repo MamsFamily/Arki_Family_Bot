@@ -221,6 +221,14 @@ async function handleCasinoRRButton(interaction) {
 
 // ─── MODALS ───────────────────────────────────────────────────────────────────
 
+const SLOT_SYMBOLS = ['🍒', '🍋', '💎', '🔔', '7️⃣'];
+const slotRand = () => SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function slotsSpinLine(r1, r2, r3) {
+  return `> ${r1 ?? slotRand()} ┃ ${r2 ?? slotRand()} ┃ ${r3 ?? slotRand()}`;
+}
+
 async function handleSlotModal(interaction, { getPlayerInventory, addToInventory, removeFromInventory }) {
   await interaction.deferReply();
   const userId = interaction.user.id;
@@ -238,13 +246,37 @@ async function handleSlotModal(interaction, { getPlayerInventory, addToInventory
   await removeFromInventory(userId, 'diamants', mise, 'Casino', 'Mise slots');
 
   const { rouleaux, gain, multiplicateur } = jouerSlotsProgressif(userId, mise);
+  const [r1, r2, r3] = rouleaux;
 
   if (gain > 0) {
     await addToInventory(userId, 'diamants', gain, 'Casino', 'Gain slots');
   }
 
+  // ── Animation : rouleaux qui tournent ──────────────────────────────────────
+  const spinHeader = '🎰 **Les rouleaux tournent...**';
+
+  // 3 frames : tout tourne
+  for (let i = 0; i < 3; i++) {
+    await interaction.editReply({ content: `${spinHeader}\n${slotsSpinLine()}` });
+    await sleep(380);
+  }
+
+  // Rouleau 1 s'immobilise
+  await interaction.editReply({ content: `${spinHeader}\n${slotsSpinLine(r1)}` });
+  await sleep(380);
+  await interaction.editReply({ content: `${spinHeader}\n${slotsSpinLine(r1)}` });
+  await sleep(380);
+
+  // Rouleau 2 s'immobilise
+  await interaction.editReply({ content: `${spinHeader}\n${slotsSpinLine(r1, r2)}` });
+  await sleep(380);
+  await interaction.editReply({ content: `${spinHeader}\n${slotsSpinLine(r1, r2)}` });
+  await sleep(380);
+
+  // Rouleau 3 s'immobilise → résultat final
   const newBalance = getPlayerDiamonds(getPlayerInventory, userId);
-  const affichage = rouleaux.join(' | ');
+  const affichage = `${r1} ┃ ${r2} ┃ ${r3}`;
+
   const embed = new EmbedBuilder()
     .setTitle('🎰 Machines à Sous')
     .setColor(gain > 0 ? '#57F287' : '#ED4245')
@@ -255,7 +287,7 @@ async function handleSlotModal(interaction, { getPlayerInventory, addToInventory
       { name: 'Solde', value: `${newBalance} 💎`, inline: true }
     );
 
-  await interaction.editReply({ embeds: [embed] });
+  await interaction.editReply({ content: '', embeds: [embed] });
 }
 
 async function handleBlackjackModal(interaction, { getPlayerInventory, addToInventory, removeFromInventory }) {
