@@ -34,6 +34,14 @@ const COLOR = '#2b2d31';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+function buildCountdownBar(remaining, total) {
+  const BAR_LEN = 20;
+  const filled = Math.round(((total - remaining) / total) * BAR_LEN);
+  const empty = BAR_LEN - filled;
+  const bar = '█'.repeat(filled) + '░'.repeat(empty);
+  return `⏳ \`[${bar}]\``;
+}
+
 function menuCasinoEmbed() {
   return new EmbedBuilder()
     .setTitle('🎰 Casino Arki')
@@ -341,58 +349,81 @@ async function handleRouletteModal(interaction, { getPlayerInventory, addToInven
   sauvegarderParis(paris);
 
   const channelId = interaction.channelId;
+  const totalSeconds = ROULETTE_MS / 1000;
+
   await interaction.reply({
-    content: `✅ Pari enregistré : **${mise} 💎** sur **${choix}**.\n🕐 Résolution dans **${ROULETTE_MS / 1000} secondes**...`,
+    content: `✅ Pari enregistré : **${mise} 💎** sur **${choix}**.\n⏳ Résolution dans **${totalSeconds}** secondes...`,
   });
 
-  setTimeout(async () => {
+  // Récupère le message envoyé pour l'éditer chaque seconde
+  const replyMsg = await interaction.fetchReply();
+  let remaining = totalSeconds - 1;
+
+  const ticker = setInterval(async () => {
     try {
-      const allParis = chargerParis();
-      const pari = allParis[userId];
-      if (!pari) return;
-
-      const tirage = Math.floor(Math.random() * 37);
-      const couleur = tirage === 0 ? 'vert' : (tirage % 2 === 0 ? 'noir' : 'rouge');
-      let gain = 0;
-      let resultLine = '';
-
-      if (pari.choix === 'rouge' || pari.choix === 'noir') {
-        if (pari.choix === couleur) {
-          gain = pari.mise * 2;
-          resultLine = `✅ **Gagné !** Tu misais sur **${pari.choix}**, le tirage est **${couleur}**. +**${gain} 💎**`;
-        } else {
-          resultLine = `❌ **Perdu.** Tu misais sur **${pari.choix}**, le tirage est **${couleur}**.`;
-        }
+      if (remaining > 0) {
+        const bar = buildCountdownBar(remaining, totalSeconds);
+        await replyMsg.edit({
+          content: `✅ Pari enregistré : **${mise} 💎** sur **${choix}**.\n${bar} **${remaining}s**`,
+        });
+        remaining--;
       } else {
-        const numero = parseInt(pari.choix);
-        if (numero === tirage) {
-          gain = pari.mise * 36;
-          resultLine = `🎉 **Numéro exact ! ${tirage}** — Tu remportes **${gain} 💎** (×36) !`;
+        clearInterval(ticker);
+
+        // ── Résolution ──────────────────────────────────────────────────────
+        const allParis = chargerParis();
+        const pari = allParis[userId];
+        if (!pari) return;
+
+        const tirage = Math.floor(Math.random() * 37);
+        const couleur = tirage === 0 ? 'vert' : (tirage % 2 === 0 ? 'noir' : 'rouge');
+        let gain = 0;
+        let resultLine = '';
+
+        if (pari.choix === 'rouge' || pari.choix === 'noir') {
+          if (pari.choix === couleur) {
+            gain = pari.mise * 2;
+            resultLine = `✅ **Gagné !** Tu misais sur **${pari.choix}**, le tirage est **${couleur}**. +**${gain} 💎**`;
+          } else {
+            resultLine = `❌ **Perdu.** Tu misais sur **${pari.choix}**, le tirage est **${couleur}**.`;
+          }
         } else {
-          resultLine = `❌ **Perdu.** Tu misais sur **${pari.choix}**, le tirage est **${tirage} (${couleur})**.`;
+          const numero = parseInt(pari.choix);
+          if (numero === tirage) {
+            gain = pari.mise * 36;
+            resultLine = `🎉 **Numéro exact ! ${tirage}** — Tu remportes **${gain} 💎** (×36) !`;
+          } else {
+            resultLine = `❌ **Perdu.** Tu misais sur **${pari.choix}**, le tirage est **${tirage} (${couleur})**.`;
+          }
         }
+
+        if (gain > 0) {
+          await addToInventory(userId, 'diamants', gain, 'Casino', 'Gain roulette casino');
+        }
+
+        delete allParis[userId];
+        sauvegarderParis(allParis);
+
+        // Édite le message de pari pour signaler la résolution
+        try {
+          await replyMsg.edit({ content: `🎡 Résolution en cours...` });
+        } catch {}
+
+        const embed = new EmbedBuilder()
+          .setTitle('🎡 Roulette — Résultat')
+          .setColor(gain > 0 ? '#57F287' : '#ED4245')
+          .setDescription(`<@${userId}>\n\n**Tirage : ${tirage} (${couleur})**\n\n${resultLine}`);
+
+        try {
+          const channel = await client.channels.fetch(channelId);
+          await channel.send({ embeds: [embed] });
+        } catch {}
       }
-
-      if (gain > 0) {
-        await addToInventory(userId, 'diamants', gain, 'Casino', 'Gain roulette casino');
-      }
-
-      delete allParis[userId];
-      sauvegarderParis(allParis);
-
-      const embed = new EmbedBuilder()
-        .setTitle('🎡 Roulette — Résultat')
-        .setColor(gain > 0 ? '#57F287' : '#ED4245')
-        .setDescription(`<@${userId}>\n\n**Tirage : ${tirage} (${couleur})**\n\n${resultLine}`);
-
-      try {
-        const channel = await client.channels.fetch(channelId);
-        await channel.send({ embeds: [embed] });
-      } catch {}
     } catch (err) {
-      console.error('[Casino Roulette résolution]', err);
+      clearInterval(ticker);
+      console.error('[Casino Roulette ticker]', err);
     }
-  }, ROULETTE_MS);
+  }, 1000);
 }
 
 // ─── BLACKJACK : boutons tirer / rester ──────────────────────────────────────
