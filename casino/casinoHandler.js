@@ -807,7 +807,9 @@ async function handlePokerAnnonceRejoindre(interaction, client) {
   // ── Vérifications file d'attente ────────────────────────────────────────────
   table.enAttenteDeLaProchainePartie ||= [];
 
-  if (table.enAttenteDeLaProchainePartie.includes(userId) || (table.participants || []).includes(userId)) {
+  // Seule la file d'attente réelle compte — être dans `participants` (créateur du thread)
+  // ne signifie pas être inscrit pour jouer.
+  if (table.enAttenteDeLaProchainePartie.includes(userId)) {
     return interaction.reply({
       content: `✅ Tu es déjà inscrit(e) dans la file d'attente ! <#${threadId}>`,
       ephemeral: true,
