@@ -39,6 +39,7 @@ const COLOR = '#2b2d31';
 const CASINO_LOGO_PATH = path.join(__dirname, '..', 'assets', 'img', 'casino_logo.png');
 const SLOTS_LOGO_PATH  = path.join(__dirname, '..', 'assets', 'img', 'slots_logo.png');
 const RR_LOGO_PATH     = path.join(__dirname, '..', 'assets', 'img', 'rouletterusse_logo.png');
+const ROULETTE_LOGO_PATH = path.join(__dirname, '..', 'assets', 'img', 'roulette_logo.png');
 
 function menuCasinoEmbed() {
   return new EmbedBuilder()
@@ -435,14 +436,16 @@ async function handleRouletteModal(interaction, { getPlayerInventory, addToInven
           await replyMsg.edit({ content: `🎡 Résolution en cours...` });
         } catch {}
 
+        const rouletteLogo = new AttachmentBuilder(ROULETTE_LOGO_PATH, { name: 'roulette_logo.png' });
         const embed = new EmbedBuilder()
           .setTitle('🎡 Roulette — Résultat')
           .setColor(gain > 0 ? '#57F287' : '#ED4245')
+          .setThumbnail('attachment://roulette_logo.png')
           .setDescription(`<@${userId}>\n\n**Tirage : ${tirage} (${couleur})**\n\n${resultLine}`);
 
         try {
           const channel = await client.channels.fetch(channelId);
-          await channel.send({ embeds: [embed] });
+          await channel.send({ embeds: [embed], files: [rouletteLogo] });
         } catch {}
       }
     } catch (err) {
