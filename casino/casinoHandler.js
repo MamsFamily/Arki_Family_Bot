@@ -123,18 +123,6 @@ async function handleCasinoCommand(interaction, pgStore) {
   await interaction.reply({ embeds: [menuCasinoEmbed()], components: menuCasinoRow() });
 }
 
-// ─── /saloncasino ────────────────────────────────────────────────────────────
-
-async function handleSalonCasinoCommand(interaction, pgStore) {
-  if (!interaction.memberPermissions?.has('Administrator')) {
-    return interaction.reply({ content: '❌ Réservé aux administrateurs.', ephemeral: true });
-  }
-  const salon = interaction.options.getChannel('salon');
-  const existing = await getCasinoConfig(pgStore);
-  await pgStore.setData('casino_config', { ...existing, channelId: salon.id });
-  return interaction.reply({ content: `✅ Salon casino défini sur ${salon}.`, ephemeral: true });
-}
-
 // ─── BOUTONS MENU ─────────────────────────────────────────────────────────────
 
 async function handleCasinoSlotsButton(interaction) {
@@ -667,9 +655,6 @@ function registerCasinoHandlers(client, deps) {
       if (interaction.isChatInputCommand()) {
         if (interaction.commandName === 'casino') {
           return await handleCasinoCommand(interaction, pgStore);
-        }
-        if (interaction.commandName === 'saloncasino') {
-          return await handleSalonCasinoCommand(interaction, pgStore);
         }
         return;
       }
