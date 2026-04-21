@@ -38,6 +38,7 @@ const COLOR = '#2b2d31';
 
 const CASINO_LOGO_PATH = path.join(__dirname, '..', 'assets', 'img', 'casino_logo.png');
 const SLOTS_LOGO_PATH  = path.join(__dirname, '..', 'assets', 'img', 'slots_logo.png');
+const RR_LOGO_PATH     = path.join(__dirname, '..', 'assets', 'img', 'rouletterusse_logo.png');
 
 function menuCasinoEmbed() {
   return new EmbedBuilder()
@@ -185,9 +186,11 @@ async function handleCasinoRouletteButton(interaction) {
 
 async function handleCasinoRRButton(interaction) {
   const partie = chargerPartie();
+  const rrLogo = new AttachmentBuilder(RR_LOGO_PATH, { name: 'rouletterusse_logo.png' });
   const embed = new EmbedBuilder()
     .setTitle('🔫 Roulette Russe')
-    .setColor(COLOR);
+    .setColor(COLOR)
+    .setThumbnail('attachment://rouletterusse_logo.png');
 
   const rows = [];
 
@@ -215,7 +218,7 @@ async function handleCasinoRRButton(interaction) {
     rows.push(row);
   }
 
-  await interaction.reply({ embeds: [embed], components: rows, ephemeral: true });
+  await interaction.reply({ embeds: [embed], components: rows, files: [rrLogo], ephemeral: true });
 }
 
 // ─── MODALS ───────────────────────────────────────────────────────────────────
@@ -560,9 +563,11 @@ async function handleRRCreerModal(interaction, { getPlayerInventory, removeFromI
   await removeFromInventory(userId, 'diamants', mise, 'Casino', 'Mise roulette russe');
   initPartie(userId, username, mise);
 
+  const rrLogo2 = new AttachmentBuilder(RR_LOGO_PATH, { name: 'rouletterusse_logo.png' });
   const embed = new EmbedBuilder()
     .setTitle('🔫 Roulette Russe — Partie créée !')
     .setColor(COLOR)
+    .setThumbnail('attachment://rouletterusse_logo.png')
     .setDescription(
       `**Mise :** ${mise} 💎\n**Participants :** ${username}\n\n` +
       `Minimum **${ROULETTE_RUSSE_MIN}** joueurs pour lancer. Attends que d'autres rejoignent !`
@@ -573,7 +578,7 @@ async function handleRRCreerModal(interaction, { getPlayerInventory, removeFromI
     new ButtonBuilder().setCustomId('casino_rouletterusse').setLabel('Rafraîchir').setStyle(ButtonStyle.Primary),
   );
 
-  await interaction.reply({ embeds: [embed], components: [row] });
+  await interaction.reply({ embeds: [embed], components: [row], files: [rrLogo2] });
 }
 
 async function handleRRRejoindre(interaction, { getPlayerInventory, removeFromInventory }) {
@@ -607,9 +612,11 @@ async function handleRRRejoindre(interaction, { getPlayerInventory, removeFromIn
 
   const partieApres = chargerPartie();
   const liste = partieApres.participants.map(p => `• ${p.nom}`).join('\n');
+  const rrLogo3 = new AttachmentBuilder(RR_LOGO_PATH, { name: 'rouletterusse_logo.png' });
   const embed = new EmbedBuilder()
     .setTitle('🔫 Roulette Russe')
     .setColor(COLOR)
+    .setThumbnail('attachment://rouletterusse_logo.png')
     .setDescription(
       `**Mise :** ${partieApres.mise} 💎\n` +
       `**Participants (${partieApres.participants.length}/6) :**\n${liste}`
@@ -621,7 +628,7 @@ async function handleRRRejoindre(interaction, { getPlayerInventory, removeFromIn
     row.addComponents(new ButtonBuilder().setCustomId('casino_rr_lancer').setLabel('🔫 Lancer !').setStyle(ButtonStyle.Danger));
   }
 
-  await interaction.reply({ embeds: [embed], components: [row] });
+  await interaction.reply({ embeds: [embed], components: [row], files: [rrLogo3] });
 }
 
 async function handleRRLancer(interaction, { addToInventory }) {
@@ -664,15 +671,17 @@ async function handleRRLancer(interaction, { addToInventory }) {
   setTimeout(async () => {
     try {
       const texteSurvivants = survivants.map(p => `• ${p.nom} (+${gainParSurvivant} 💎)`).join('\n');
+      const rrLogo4 = new AttachmentBuilder(RR_LOGO_PATH, { name: 'rouletterusse_logo.png' });
       const embed = new EmbedBuilder()
         .setTitle('🔫 Roulette Russe — Résultat')
         .setColor('#ED4245')
+        .setThumbnail('attachment://rouletterusse_logo.png')
         .setDescription(
           `💥 **BANG !** <@${victime.id}> (${victime.nom}) a été éliminé !\n\n` +
           `😅 **Survivants :**\n${texteSurvivants}\n\n` +
           `**Pot total :** ${potTotal} 💎 réparti entre ${survivants.length} survivant(s).`
         );
-      await interaction.editReply({ embeds: [embed], components: [] });
+      await interaction.editReply({ embeds: [embed], components: [], files: [rrLogo4] });
     } catch {}
   }, 4000);
 }
