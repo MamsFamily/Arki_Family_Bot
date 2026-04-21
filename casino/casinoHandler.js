@@ -34,13 +34,6 @@ const COLOR = '#2b2d31';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function buildCountdownBar(remaining, total) {
-  const BAR_LEN = 20;
-  const filled = Math.round(((total - remaining) / total) * BAR_LEN);
-  const empty = BAR_LEN - filled;
-  const bar = '█'.repeat(filled) + '░'.repeat(empty);
-  return `⏳ \`[${bar}]\``;
-}
 
 function menuCasinoEmbed() {
   return new EmbedBuilder()
@@ -382,9 +375,8 @@ async function handleRouletteModal(interaction, { getPlayerInventory, addToInven
   const ticker = setInterval(async () => {
     try {
       if (remaining > 0) {
-        const bar = buildCountdownBar(remaining, totalSeconds);
         await replyMsg.edit({
-          content: `✅ Pari enregistré : **${mise} 💎** sur **${choix}**.\n${bar} **${remaining}s**`,
+          content: `✅ Pari enregistré : **${mise} 💎** sur **${choix}**.\n⏳ Résolution dans **${remaining}s**...`,
         });
         remaining--;
       } else {
@@ -675,6 +667,171 @@ async function handleRRLancer(interaction, { addToInventory }) {
   }, 4000);
 }
 
+// ─── POKER : annonce salon + spectateurs ──────────────────────────────────────
+
+async function handlePokerCreerTable(interaction, ctx) {
+  const { client, pgStore } = ctx;
+  const userId = interaction.user.id;
+  const displayName = interaction.member.displayName;
+
+  // Appel de la fonction originale (crée le thread + reply éphémère)
+  await executerCreerTable(interaction);
+
+  // Lire tables.json pour trouver la table fraîchement créée
+  let tables = [];
+  try {
+    const raw = await fs.promises.readFile(TABLES_PATH, 'utf8');
+    tables = JSON.parse(raw);
+  } catch { return; }
+
+  const table = tables.find(t => t.participants.includes(userId) && !t.announcementMessageId);
+  if (!table) return;
+
+  // Poser la question spectateurs dans le fil
+  let thread;
+  try { thread = await client.channels.fetch(table.threadId); } catch { return; }
+
+  const specRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`poker_spectateurs_oui_${table.threadId}`)
+      .setLabel('✅ Oui, autoriser')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`poker_spectateurs_non_${table.threadId}`)
+      .setLabel('❌ Non')
+      .setStyle(ButtonStyle.Danger),
+  );
+  await thread.send({
+    content: `<@${userId}> Souhaites-tu autoriser des **spectateurs** à observer la partie ?`,
+    components: [specRow],
+  });
+
+  // Poster l'annonce dans le salon casino principal
+  const casinoConfig = await getCasinoConfig(pgStore);
+  if (!casinoConfig.channelId) return;
+  let casinoChannel;
+  try { casinoChannel = await client.channels.fetch(casinoConfig.channelId); } catch { return; }
+
+  const announceEmbed = new EmbedBuilder()
+    .setTitle('♠️ Nouvelle table de Poker !')
+    .setDescription(`**${displayName}** a ouvert une table de Texas Hold'em !\nRejoins la file d'attente pour participer à la prochaine partie.`)
+    .setColor('#2ecc71')
+    .setFooter({ text: `Fil : ♠️poker-${displayName}` });
+
+  const announceRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`poker_annonce_rejoindre_${table.threadId}`)
+      .setLabel('🃏 Rejoindre la partie')
+      .setStyle(ButtonStyle.Primary),
+  );
+
+  const announceMsg = await casinoChannel.send({ embeds: [announceEmbed], components: [announceRow] });
+
+  // Sauvegarder les métadonnées dans la table
+  table.announcementChannelId = casinoChannel.id;
+  table.announcementMessageId = announceMsg.id;
+  table.spectatorsAllowed = false;
+  await fs.promises.writeFile(TABLES_PATH, JSON.stringify(tables, null, 2), 'utf8');
+}
+
+async function handlePokerAnnonceRejoindre(interaction, client) {
+  const threadId = interaction.customId.replace('poker_annonce_rejoindre_', '');
+  const userId = interaction.user.id;
+
+  try {
+    const thread = await client.channels.fetch(threadId);
+    await thread.members.add(userId);
+    await thread.send(`🃏 <@${userId}> a rejoint la table et est en attente de la prochaine partie !`);
+  } catch (err) {
+    console.error('[Poker annonce rejoindre]', err);
+    return interaction.reply({ content: '❌ Impossible de rejoindre le fil (table peut-être fermée).', ephemeral: true });
+  }
+
+  await interaction.reply({ content: `✅ Tu as rejoint la table ! <#${threadId}>`, ephemeral: true });
+}
+
+async function handlePokerAnnonceSpectateur(interaction, client) {
+  const threadId = interaction.customId.replace('poker_annonce_spectateur_', '');
+  const userId = interaction.user.id;
+
+  try {
+    const thread = await client.channels.fetch(threadId);
+    await thread.members.add(userId);
+    await thread.send(`👁️ <@${userId}> observe la partie en tant que spectateur.`);
+  } catch (err) {
+    console.error('[Poker spectateur rejoindre]', err);
+    return interaction.reply({ content: '❌ Impossible d\'accéder au fil.', ephemeral: true });
+  }
+
+  await interaction.reply({ content: `✅ Tu observes la partie ! <#${threadId}>`, ephemeral: true });
+}
+
+async function handlePokerSpectatorsOui(interaction, client) {
+  const threadId = interaction.customId.replace('poker_spectateurs_oui_', '');
+
+  let tables = [];
+  try {
+    const raw = await fs.promises.readFile(TABLES_PATH, 'utf8');
+    tables = JSON.parse(raw);
+  } catch {
+    return interaction.reply({ content: '❌ Erreur lecture tables.', ephemeral: true });
+  }
+
+  const table = tables.find(t => t.threadId === threadId);
+  if (!table) return interaction.reply({ content: '❌ Table introuvable.', ephemeral: true });
+  if (table.participants[0] !== interaction.user.id) {
+    return interaction.reply({ content: '❌ Seul le créateur de la table peut modifier ce paramètre.', ephemeral: true });
+  }
+
+  table.spectatorsAllowed = true;
+  await fs.promises.writeFile(TABLES_PATH, JSON.stringify(tables, null, 2), 'utf8');
+
+  // Mettre à jour l'embed d'annonce pour ajouter le bouton spectateur
+  if (table.announcementChannelId && table.announcementMessageId) {
+    try {
+      const casinoChannel = await client.channels.fetch(table.announcementChannelId);
+      const announceMsg = await casinoChannel.messages.fetch(table.announcementMessageId);
+      const updatedRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`poker_annonce_rejoindre_${threadId}`)
+          .setLabel('🃏 Rejoindre la partie')
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId(`poker_annonce_spectateur_${threadId}`)
+          .setLabel('👁️ Spectateur')
+          .setStyle(ButtonStyle.Secondary),
+      );
+      await announceMsg.edit({ embeds: announceMsg.embeds, components: [updatedRow] });
+    } catch (err) {
+      console.error('[Poker spectateurs update annonce]', err);
+    }
+  }
+
+  await interaction.update({ content: '✅ Les spectateurs sont autorisés. L\'annonce a été mise à jour.', components: [] });
+}
+
+async function handlePokerSpectatorsNon(interaction) {
+  const threadId = interaction.customId.replace('poker_spectateurs_non_', '');
+
+  let tables = [];
+  try {
+    const raw = await fs.promises.readFile(TABLES_PATH, 'utf8');
+    tables = JSON.parse(raw);
+  } catch {
+    return interaction.reply({ content: '❌ Erreur lecture tables.', ephemeral: true });
+  }
+
+  const table = tables.find(t => t.threadId === threadId);
+  if (!table) return interaction.reply({ content: '❌ Table introuvable.', ephemeral: true });
+  if (table.participants[0] !== interaction.user.id) {
+    return interaction.reply({ content: '❌ Seul le créateur de la table peut modifier ce paramètre.', ephemeral: true });
+  }
+
+  table.spectatorsAllowed = false;
+  await fs.promises.writeFile(TABLES_PATH, JSON.stringify(tables, null, 2), 'utf8');
+  await interaction.update({ content: '❌ Les spectateurs ne sont pas autorisés.', components: [] });
+}
+
 // ─── Enregistrement ───────────────────────────────────────────────────────────
 
 function registerCasinoHandlers(client, deps) {
@@ -714,8 +871,13 @@ function registerCasinoHandlers(client, deps) {
 
         // ── Poker ──────────────────────────────────────────────────────────────
         if (id === 'casino_poker')              return await executerPoker(interaction);
-        if (id === 'poker_creer_table')         return await executerCreerTable(interaction);
+        if (id === 'poker_creer_table')         return await handlePokerCreerTable(interaction, ctx);
         if (id === 'poker_quitter_table')       return await executerQuitterTable(interaction);
+
+        if (id.startsWith('poker_annonce_rejoindre_'))  return await handlePokerAnnonceRejoindre(interaction, ctx.client);
+        if (id.startsWith('poker_annonce_spectateur_')) return await handlePokerAnnonceSpectateur(interaction, ctx.client);
+        if (id.startsWith('poker_spectateurs_oui_'))    return await handlePokerSpectatorsOui(interaction, ctx.client);
+        if (id.startsWith('poker_spectateurs_non_'))    return await handlePokerSpectatorsNon(interaction);
         if (id === 'poker_rejoindreListeAttente') {
           // Sync balance DB → local JSON avant l'inscription
           syncPlayersToLocalJson([interaction.user.id], ctx.getPlayerInventory);
