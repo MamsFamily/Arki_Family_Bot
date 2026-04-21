@@ -234,13 +234,18 @@ function slotsSpinLine(r1, r2, r3) {
   return `> ${r1 ?? slotRand()} ┃ ${r2 ?? slotRand()} ┃ ${r3 ?? slotRand()}`;
 }
 
-async function handleSlotModal(interaction, { getPlayerInventory, addToInventory, removeFromInventory }) {
+async function handleSlotModal(interaction, { getPlayerInventory, addToInventory, removeFromInventory, pgStore }) {
   await interaction.deferReply();
   const userId = interaction.user.id;
   const mise = parseInt(interaction.fields.getTextInputValue('mise'), 10);
 
   if (isNaN(mise) || mise <= 0) {
     return interaction.editReply({ content: '❌ Mise invalide.' });
+  }
+
+  const casinoConf = await getCasinoConfig(pgStore);
+  if (casinoConf.maxBetSlots && mise > casinoConf.maxBetSlots) {
+    return interaction.editReply({ content: `❌ Mise trop élevée. Le maximum autorisé pour les Slots est **${casinoConf.maxBetSlots} 💎**.` });
   }
 
   const balance = getPlayerDiamonds(getPlayerInventory, userId);
@@ -300,12 +305,17 @@ async function handleSlotModal(interaction, { getPlayerInventory, addToInventory
   await interaction.editReply({ content: '', embeds: [embed], files: [slotsLogo] });
 }
 
-async function handleBlackjackModal(interaction, { getPlayerInventory, addToInventory, removeFromInventory }) {
+async function handleBlackjackModal(interaction, { getPlayerInventory, addToInventory, removeFromInventory, pgStore }) {
   const userId = interaction.user.id;
   const mise = parseInt(interaction.fields.getTextInputValue('mise'), 10);
 
   if (isNaN(mise) || mise <= 0) {
     return interaction.reply({ content: '❌ Mise invalide.', ephemeral: true });
+  }
+
+  const casinoConf = await getCasinoConfig(pgStore);
+  if (casinoConf.maxBetBlackjack && mise > casinoConf.maxBetBlackjack) {
+    return interaction.reply({ content: `❌ Mise trop élevée. Le maximum autorisé pour le Blackjack est **${casinoConf.maxBetBlackjack} 💎**.`, ephemeral: true });
   }
 
   const balance = getPlayerDiamonds(getPlayerInventory, userId);
@@ -358,6 +368,11 @@ async function handleRouletteModal(interaction, { getPlayerInventory, addToInven
 
   if (isNaN(mise) || mise <= 0) {
     return interaction.reply({ content: '❌ Mise invalide.', ephemeral: true });
+  }
+
+  const casinoConfRoul = await getCasinoConfig(pgStore);
+  if (casinoConfRoul.maxBetRoulette && mise > casinoConfRoul.maxBetRoulette) {
+    return interaction.reply({ content: `❌ Mise trop élevée. Le maximum autorisé pour la Roulette est **${casinoConfRoul.maxBetRoulette} 💎**.`, ephemeral: true });
   }
 
   const choixOk = choix === 'rouge' || choix === 'noir' || (!isNaN(parseInt(choix)) && parseInt(choix) >= 0 && parseInt(choix) <= 36);
@@ -552,13 +567,18 @@ async function handleRRCreerButton(interaction) {
   await interaction.showModal(modal);
 }
 
-async function handleRRCreerModal(interaction, { getPlayerInventory, removeFromInventory }) {
+async function handleRRCreerModal(interaction, { getPlayerInventory, removeFromInventory, pgStore }) {
   const userId = interaction.user.id;
   const username = interaction.member?.displayName || interaction.user.username;
   const mise = parseInt(interaction.fields.getTextInputValue('mise'), 10);
 
   if (isNaN(mise) || mise <= 0) {
     return interaction.reply({ content: '❌ Mise invalide.', ephemeral: true });
+  }
+
+  const casinoConfRR = await getCasinoConfig(pgStore);
+  if (casinoConfRR.maxBetRR && mise > casinoConfRR.maxBetRR) {
+    return interaction.reply({ content: `❌ Mise trop élevée. Le maximum autorisé pour la Roulette Russe est **${casinoConfRR.maxBetRR} 💎**.`, ephemeral: true });
   }
 
   const partie = chargerPartie();

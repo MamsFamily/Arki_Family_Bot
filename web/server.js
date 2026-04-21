@@ -3219,6 +3219,22 @@ function createWebServer(discordClient) {
     }
   });
 
+  app.post('/casino/maxbets', requireAdmin, async (req, res) => {
+    try {
+      const existing = (await pgStore.getData('casino_config')) || {};
+      const keys = ['maxBetSlots', 'maxBetBlackjack', 'maxBetRoulette', 'maxBetRR'];
+      const updates = {};
+      for (const k of keys) {
+        const v = parseInt(req.body[k], 10);
+        updates[k] = (!isNaN(v) && v > 0) ? v : null;
+      }
+      await pgStore.setData('casino_config', { ...existing, ...updates });
+      res.redirect('/casino?success=Mises+maximales+enregistrées+!');
+    } catch (e) {
+      res.redirect('/casino?error=' + encodeURIComponent(e.message));
+    }
+  });
+
   // ─────────────────────────────────────────────────────────────────────────────
 
   // Les timers et la publication Discord des giveaways sont gérés

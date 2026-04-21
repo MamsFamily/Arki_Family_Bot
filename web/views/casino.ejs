@@ -72,6 +72,32 @@
           </div>
         </div>
 
+        <!-- Mises maximales -->
+        <div class="card">
+          <div class="card-header"><h2>🎚️ Mises maximales</h2></div>
+          <div class="card-body">
+            <form method="POST" action="/casino/maxbets">
+              <% const games = [
+                { key: 'maxBetSlots',    label: '🎰 Slots' },
+                { key: 'maxBetBlackjack',label: '🃏 Blackjack' },
+                { key: 'maxBetRoulette', label: '🎡 Roulette' },
+                { key: 'maxBetRR',       label: '🔫 Roulette Russe' },
+              ]; %>
+              <% games.forEach(g => { %>
+                <div class="form-group" style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem;">
+                  <label style="width:160px;margin:0"><%= g.label %></label>
+                  <input type="number" name="<%= g.key %>" min="1"
+                    value="<%= config[g.key] || '' %>"
+                    placeholder="Illimité"
+                    class="form-control" style="width:120px;">
+                  <span class="text-muted" style="font-size:.85rem;">💎 (vide = illimité)</span>
+                </div>
+              <% }) %>
+              <button type="submit" class="btn btn-primary" style="margin-top:.5rem;">Enregistrer</button>
+            </form>
+          </div>
+        </div>
+
         <!-- Stats par jeu -->
         <div class="card">
           <div class="card-header"><h2>🎮 Stats par jeu</h2></div>
