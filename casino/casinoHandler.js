@@ -781,16 +781,70 @@ async function handlePokerAnnonceRejoindre(interaction, client) {
   const threadId = interaction.customId.replace('poker_annonce_rejoindre_', '');
   const userId = interaction.user.id;
 
+  // ── Lire tables.json ────────────────────────────────────────────────────────
+  let tables = [];
   try {
-    const thread = await client.channels.fetch(threadId);
-    await thread.members.add(userId);
-    await thread.send(`🃏 <@${userId}> a rejoint la table et est en attente de la prochaine partie !`);
-  } catch (err) {
-    console.error('[Poker annonce rejoindre]', err);
-    return interaction.reply({ content: '❌ Impossible de rejoindre le fil (table peut-être fermée).', ephemeral: true });
+    const raw = await fs.promises.readFile(TABLES_PATH, 'utf8');
+    tables = JSON.parse(raw);
+  } catch (e) {
+    console.error('[Poker annonce rejoindre] Lecture tables.json :', e);
+    return interaction.reply({ content: '❌ Erreur interne, réessaie.', ephemeral: true });
   }
 
-  await interaction.reply({ content: `✅ Tu as rejoint la table ! <#${threadId}>`, ephemeral: true });
+  const table = tables.find(t => t.threadId === threadId);
+  if (!table) {
+    return interaction.reply({ content: '❌ Cette table n\'existe plus.', ephemeral: true });
+  }
+
+  // ── Vérifications file d'attente ────────────────────────────────────────────
+  table.enAttenteDeLaProchainePartie ||= [];
+
+  if (table.enAttenteDeLaProchainePartie.includes(userId) || (table.participants || []).includes(userId)) {
+    return interaction.reply({
+      content: `✅ Tu es déjà inscrit(e) dans la file d'attente ! <#${threadId}>`,
+      ephemeral: true,
+    });
+  }
+
+  if (table.enAttenteDeLaProchainePartie.length >= 10) {
+    return interaction.reply({
+      content: '❌ La file d\'attente est pleine (10/10).',
+      ephemeral: true,
+    });
+  }
+
+  // ── Ajouter à la file d'attente ──────────────────────────────────────────────
+  table.enAttenteDeLaProchainePartie.push(userId);
+
+  try {
+    await fs.promises.writeFile(TABLES_PATH, JSON.stringify(tables, null, 2), 'utf8');
+  } catch (e) {
+    console.error('[Poker annonce rejoindre] Sauvegarde tables.json :', e);
+    return interaction.reply({ content: '❌ Erreur lors de l\'enregistrement.', ephemeral: true });
+  }
+
+  // ── Ajouter au thread + notifier ─────────────────────────────────────────────
+  let thread;
+  try {
+    thread = await client.channels.fetch(threadId);
+    await thread.members.add(userId);
+    const pos = table.enAttenteDeLaProchainePartie.length;
+    await thread.send(
+      `🃏 <@${userId}> a rejoint la file d'attente (**position #${pos}**) et participera à la prochaine partie !`
+    );
+  } catch (err) {
+    console.error('[Poker annonce rejoindre] Accès thread :', err);
+    // La file a quand même été mise à jour — on prévient sans bloquer
+    return interaction.reply({
+      content: `✅ Tu es inscrit(e) dans la file d'attente, mais le fil est inaccessible. Rejoins-le manuellement : <#${threadId}>`,
+      ephemeral: true,
+    });
+  }
+
+  await interaction.reply({
+    content: `✅ Tu es inscrit(e) dans la file d'attente de la table ♠️ ! <#${threadId}>`,
+    ephemeral: true,
+  });
 }
 
 async function handlePokerAnnonceSpectateur(interaction, client) {
