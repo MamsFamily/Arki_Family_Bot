@@ -883,8 +883,10 @@ async function handlePokerAnnonceRejoindre(interaction, client) {
     });
   }
 
-  // ── Ajouter à la file d'attente ──────────────────────────────────────────────
+  // ── Ajouter à la file d'attente + participants (pour que quitter la table fonctionne) ──
   table.enAttenteDeLaProchainePartie.push(userId);
+  table.participants ||= [];
+  if (!table.participants.includes(userId)) table.participants.push(userId);
 
   try {
     await fs.promises.writeFile(TABLES_PATH, JSON.stringify(tables, null, 2), 'utf8');

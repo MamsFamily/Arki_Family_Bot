@@ -417,6 +417,8 @@ async function executerRejoindreListeAttente(interaction) {
             });
         }
         table.enAttenteDeLaProchainePartie.push(userId);
+        table.participants ||= [];
+        if (!table.participants.includes(userId)) table.participants.push(userId);
     }
     await fs.writeFile(filePath, JSON.stringify(tables, null, 2), 'utf8');
 
