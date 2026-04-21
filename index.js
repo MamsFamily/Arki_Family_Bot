@@ -936,6 +936,17 @@ function buildGiveawayEmbed(g) {
 }
 
 client.on('interactionCreate', async interaction => {
+  // ── Fils poker : bloquer les commandes slash (laisser passer les boutons/modaux) ──
+  if (
+    interaction.isChatInputCommand() &&
+    interaction.channel?.name?.startsWith('♠️poker')
+  ) {
+    return interaction.reply({
+      content: '❌ Les commandes ne sont pas autorisées dans un fil de poker.',
+      ephemeral: true
+    });
+  }
+
   // ── Shop interactions (buttons + select menus) ──
   if (interaction.isButton() || interaction.isStringSelectMenu()) {
     const id = interaction.customId;
@@ -3666,6 +3677,16 @@ client.on('interactionCreate', async interaction => {
 
 // ─── XP : gain automatique sur message ───────────────────────────────────────
 client.on('messageCreate', async message => {
+  // ── Fils poker : suppression automatique des messages joueurs ─────────────
+  if (
+    !message.author.bot &&
+    message.guild &&
+    message.channel?.name?.startsWith('♠️poker')
+  ) {
+    try { await message.delete(); } catch {}
+    return;
+  }
+
   if (message.author.bot || !message.guild) return;
 
   const xpConfig = await xpManager.loadXpConfig();
