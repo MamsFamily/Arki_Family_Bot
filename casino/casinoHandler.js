@@ -37,6 +37,7 @@ const COLOR = '#2b2d31';
 
 
 const CASINO_LOGO_PATH = path.join(__dirname, '..', 'assets', 'img', 'casino_logo.png');
+const SLOTS_LOGO_PATH  = path.join(__dirname, '..', 'assets', 'img', 'slots_logo.png');
 
 function menuCasinoEmbed() {
   return new EmbedBuilder()
@@ -278,9 +279,11 @@ async function handleSlotModal(interaction, { getPlayerInventory, addToInventory
   const newBalance = getPlayerDiamonds(getPlayerInventory, userId);
   const affichage = `${r1} ┃ ${r2} ┃ ${r3}`;
 
+  const slotsLogo = new AttachmentBuilder(SLOTS_LOGO_PATH, { name: 'slots_logo.png' });
   const embed = new EmbedBuilder()
     .setTitle('🎰 Machines à Sous')
     .setColor(gain > 0 ? '#57F287' : '#ED4245')
+    .setThumbnail('attachment://slots_logo.png')
     .addFields(
       { name: 'Résultat', value: affichage, inline: false },
       { name: 'Mise', value: `${mise} 💎`, inline: true },
@@ -288,7 +291,7 @@ async function handleSlotModal(interaction, { getPlayerInventory, addToInventory
       { name: 'Solde', value: `${newBalance} 💎`, inline: true }
     );
 
-  await interaction.editReply({ content: '', embeds: [embed] });
+  await interaction.editReply({ content: '', embeds: [embed], files: [slotsLogo] });
 }
 
 async function handleBlackjackModal(interaction, { getPlayerInventory, addToInventory, removeFromInventory }) {
