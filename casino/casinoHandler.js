@@ -40,6 +40,7 @@ const CASINO_LOGO_PATH = path.join(__dirname, '..', 'assets', 'img', 'casino_log
 const SLOTS_LOGO_PATH  = path.join(__dirname, '..', 'assets', 'img', 'slots_logo.png');
 const RR_LOGO_PATH     = path.join(__dirname, '..', 'assets', 'img', 'rouletterusse_logo.png');
 const ROULETTE_LOGO_PATH = path.join(__dirname, '..', 'assets', 'img', 'roulette_logo.png');
+const POKER_LOGO_PATH_HANDLER = path.join(__dirname, '..', 'assets', 'img', 'poker_logo.png');
 
 function menuCasinoEmbed() {
   return new EmbedBuilder()
@@ -773,10 +774,12 @@ async function handlePokerCreerTable(interaction, ctx) {
     }
   }
 
+  const pokerLogoAnnonce = new AttachmentBuilder(POKER_LOGO_PATH_HANDLER, { name: 'poker_logo.png' });
   const announceEmbed = new EmbedBuilder()
     .setTitle('♠️ Nouvelle table de Poker !')
     .setDescription(`**${displayName}** a ouvert une table de Texas Hold'em !\nRejoins la file d'attente pour participer à la prochaine partie.`)
     .setColor('#2ecc71')
+    .setThumbnail('attachment://poker_logo.png')
     .setFooter({ text: `Fil : ♠️poker-${displayName}` });
 
   const announceRow = new ActionRowBuilder().addComponents(
@@ -788,7 +791,7 @@ async function handlePokerCreerTable(interaction, ctx) {
 
   let announceMsg;
   try {
-    announceMsg = await casinoChannel.send({ embeds: [announceEmbed], components: [announceRow] });
+    announceMsg = await casinoChannel.send({ embeds: [announceEmbed], components: [announceRow], files: [pokerLogoAnnonce] });
   } catch (e) {
     console.error('[Poker créer table] Envoi embed annonce échoué :', e);
     return;

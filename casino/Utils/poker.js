@@ -19,6 +19,7 @@ const {
 const { chargerInventaire, sauvegarderInventaire, getBalance, setBalance } = require('./inventaire');
 const tablesFile = path.join(__dirname, '..', 'data', 'tables.json');
 const config = require("../config");
+const POKER_LOGO_PATH = path.join(__dirname, '..', '..', 'assets', 'img', 'poker_logo.png');
 
 
 async function executerPoker(interaction) {
@@ -37,8 +38,8 @@ async function executerPoker(interaction) {
     }
 
     // 2) Construire l’embed
-    const imagePoker = new AttachmentBuilder('./assets/img/poker.png');
-    const embed = new EmbedBuilder().setTitle('Poker').setThumbnail('attachment://poker.png').setColor(config.color);
+    const imagePoker = new AttachmentBuilder(POKER_LOGO_PATH);
+    const embed = new EmbedBuilder().setTitle('Poker').setThumbnail('attachment://poker_logo.png').setColor(config.color);
     const row = new ActionRowBuilder();
 
     if (tables.length === 0) {
@@ -159,7 +160,7 @@ async function executerCreerTable(interaction) {
                 "• Carte haute"
             ].join("\n")
         )
-        .setThumbnail('attachment://Texas-Holdem-Poker.png')
+        .setThumbnail('attachment://poker_logo.png')
         .addFields({
             name: `⏱️ En attente de joueurs (${waitingIds.length}/10)`,
             value: waitingValue
@@ -178,18 +179,10 @@ async function executerCreerTable(interaction) {
     );
 
     // 7) Envoyer l’embed + image + boutons dans le thread
-    const imagePath = path.join(
-        __dirname,
-        '..',
-        'assets',
-        'poker',
-        'backgrounds',
-        'Texas-Holdem-Poker.png'
-    );
     await thread.send({
         embeds: [rulesEmbed],
         components: [row],
-        files: [{ attachment: imagePath, name: 'Texas-Holdem-Poker.png' }]
+        files: [{ attachment: POKER_LOGO_PATH, name: 'poker_logo.png' }]
     });
 
     // 8) Confirmer à l’utilisateur
@@ -353,17 +346,11 @@ async function executerQuitterTable(interaction) {
                     f => !f.name.startsWith('⏱️ En attente de joueurs')
                 )
 
-                const imagePath = path.join(
-                    __dirname, '..',
-                    'assets', 'poker', 'backgrounds',
-                    'Texas-Holdem-Poker.png'
-                )
-
                 const newEmbed = new EmbedBuilder()
                     .setTitle(oldEmbed.title)
                     .setDescription(oldEmbed.description)
                     .setColor(config.color)
-                    .setThumbnail('attachment://Texas-Holdem-Poker.png')
+                    .setThumbnail('attachment://poker_logo.png')
                     .addFields([
                         ...baseFields,
                         {
@@ -375,7 +362,7 @@ async function executerQuitterTable(interaction) {
                 await rulesMsg.edit({
                     embeds: [newEmbed],
                     components: rulesMsg.components,
-                    files: [{ attachment: imagePath, name: 'Texas-Holdem-Poker.png' }]
+                    files: [{ attachment: POKER_LOGO_PATH, name: 'poker_logo.png' }]
                 })
             }
         } catch (err) {
@@ -436,14 +423,6 @@ async function executerRejoindreListeAttente(interaction) {
     // Recréation de l’embed
     const rulesMsg = interaction.message;
     const oldEmbed = rulesMsg.embeds[0];
-    const imagePath = path.join(
-        __dirname,
-        '..',
-        'assets',
-        'poker',
-        'backgrounds',
-        'Texas-Holdem-Poker.png'
-    );
     const waiting = table.enAttenteDeLaProchainePartie;
     const names = waiting.length
         ? await Promise.all(
@@ -461,7 +440,7 @@ async function executerRejoindreListeAttente(interaction) {
         .setTitle(oldEmbed.title)
         .setDescription(oldEmbed.description)
         .setColor(config.color)
-        .setThumbnail('attachment://Texas-Holdem-Poker.png')
+        .setThumbnail('attachment://poker_logo.png')
         .addFields([
             ...baseFields,
             {
@@ -495,7 +474,7 @@ async function executerRejoindreListeAttente(interaction) {
     await rulesMsg.edit({
         embeds: [newEmbed],
         components: [row],
-        files: [{ attachment: imagePath, name: 'Texas-Holdem-Poker.png' }]
+        files: [{ attachment: POKER_LOGO_PATH, name: 'poker_logo.png' }]
     });
 
     return interaction.followUp({
@@ -727,7 +706,7 @@ async function winPartie(thread, table, quitterId = null) {
     )
 
     const resultEmbed = new EmbedBuilder()
-        .setTitle('🏆 Partie Terminée !')
+        .setTitle('🏆 Partie Terminée !').setThumbnail('attachment://poker_logo.png')
         .setDescription(
             `Bravo <@${winnerId}> qui remporte **${pot} ${config.iconMonnaie}** !`
         )
@@ -750,7 +729,8 @@ async function winPartie(thread, table, quitterId = null) {
     // 5) Envoyer l'embed et les boutons
     await thread.send({
         embeds: [resultEmbed],
-        components: [row]
+        components: [row],
+        files: [new AttachmentBuilder(POKER_LOGO_PATH)]
     })
 }
 async function executerRelaunch(interaction) {
@@ -824,7 +804,7 @@ async function executerRelaunch(interaction) {
     .setTitle("Règles du Texas Hold'em")
     .setColor(config.color)
     .setDescription(rulesDescription)
-    .setThumbnail('attachment://Texas-Holdem-Poker.png')
+    .setThumbnail('attachment://poker_logo.png')
     .addFields({
       name: `⏱️ En attente de joueurs (${waitingIds.length}/10)`,
       value: waitingIds.length
@@ -832,7 +812,6 @@ async function executerRelaunch(interaction) {
         : 'Aucun joueur'
     })
 
-    const imageTexasHoldem = new AttachmentBuilder('./assets/poker/backgrounds/Texas-Holdem-Poker.png');
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId("poker_rejoindreListeAttente")
@@ -852,7 +831,7 @@ async function executerRelaunch(interaction) {
   await thread.send({
     embeds:     [rulesEmbed],
     components: [row],
-    files:      [imageTexasHoldem]
+    files:      [new AttachmentBuilder(POKER_LOGO_PATH)]
   })
 }
 
