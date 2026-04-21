@@ -823,26 +823,95 @@ async function handlePokerAnnonceRejoindre(interaction, client) {
     return interaction.reply({ content: '❌ Erreur lors de l\'enregistrement.', ephemeral: true });
   }
 
-  // ── Ajouter au thread + notifier ─────────────────────────────────────────────
+  // ── Ajouter au thread + mettre à jour l'embed de règles ─────────────────────
   let thread;
   try {
     thread = await client.channels.fetch(threadId);
     await thread.members.add(userId);
-    const pos = table.enAttenteDeLaProchainePartie.length;
-    await thread.send(
-      `🃏 <@${userId}> a rejoint la file d'attente (**position #${pos}**) et participera à la prochaine partie !`
-    );
   } catch (err) {
     console.error('[Poker annonce rejoindre] Accès thread :', err);
-    // La file a quand même été mise à jour — on prévient sans bloquer
     return interaction.reply({
       content: `✅ Tu es inscrit(e) dans la file d'attente, mais le fil est inaccessible. Rejoins-le manuellement : <#${threadId}>`,
       ephemeral: true,
     });
   }
 
+  // ── Trouver le message de règles (celui avec le bouton poker_rejoindreListeAttente) ──
+  try {
+    const messages = await thread.messages.fetch({ limit: 20 });
+    const rulesMsg = messages.find(m =>
+      m.components?.some(row =>
+        row.components?.some(c => c.customId === 'poker_rejoindreListeAttente')
+      )
+    );
+
+    if (rulesMsg) {
+      const oldEmbed = rulesMsg.embeds[0];
+      const waiting = table.enAttenteDeLaProchainePartie;
+
+      // Résolution des noms via Discord
+      const names = waiting.length
+        ? (await Promise.all(
+            waiting.map(async (id, i) => {
+              const member = await interaction.guild.members.fetch(id).catch(() => null);
+              return `**${i + 1}.** ${member?.displayName || `<@${id}>`}`;
+            })
+          )).join('\n')
+        : 'Aucun joueur';
+
+      // Reconstuire l'embed identiquement à executerRejoindreListeAttente
+      const baseFields = (oldEmbed?.fields || []).filter(
+        f => !f.name.startsWith('⏱️ En attente de joueurs')
+      );
+      const newEmbed = new EmbedBuilder()
+        .setTitle(oldEmbed?.title || "Règles du Texas Hold'em")
+        .setDescription(oldEmbed?.description || '')
+        .setColor(COLOR)
+        .setThumbnail('attachment://Texas-Holdem-Poker.png')
+        .addFields([
+          ...baseFields,
+          { name: `⏱️ En attente de joueurs (${waiting.length}/10)`, value: names },
+        ]);
+
+      const inGame = Array.isArray(table.dansLaPartie) && table.dansLaPartie.length > 0;
+      const buttons = [
+        new ButtonBuilder()
+          .setCustomId('poker_rejoindreListeAttente')
+          .setLabel('Rejoindre la file')
+          .setStyle(ButtonStyle.Primary),
+        !inGame && new ButtonBuilder()
+          .setCustomId('poker_start_partie')
+          .setLabel('Démarrer la partie')
+          .setStyle(ButtonStyle.Success)
+          .setDisabled(waiting.length < 2),
+        new ButtonBuilder()
+          .setCustomId('poker_quitter_table')
+          .setLabel('Quitter la table')
+          .setStyle(ButtonStyle.Danger),
+      ].filter(Boolean);
+
+      const imagePath = path.join(__dirname, 'assets', 'poker', 'backgrounds', 'Texas-Holdem-Poker.png');
+      await rulesMsg.edit({
+        embeds: [newEmbed],
+        components: [new ActionRowBuilder().addComponents(...buttons)],
+        files: [{ attachment: imagePath, name: 'Texas-Holdem-Poker.png' }],
+      });
+    }
+  } catch (err) {
+    console.error('[Poker annonce rejoindre] Mise à jour embed règles :', err);
+    // Non bloquant — l'inscription est déjà enregistrée
+  }
+
+  // ── Notifier dans le thread ──────────────────────────────────────────────────
+  try {
+    const pos = table.enAttenteDeLaProchainePartie.length;
+    await thread.send(
+      `🃏 <@${userId}> a rejoint la file d'attente (**position #${pos}**) et participera à la prochaine partie !`
+    );
+  } catch {}
+
   await interaction.reply({
-    content: `✅ Tu es inscrit(e) dans la file d'attente de la table ♠️ ! <#${threadId}>`,
+    content: `✅ Tu es inscrit(e) en position **#${table.enAttenteDeLaProchainePartie.length}** dans la file d'attente ! <#${threadId}>`,
     ephemeral: true,
   });
 }
