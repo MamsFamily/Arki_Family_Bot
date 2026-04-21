@@ -1,162 +1,178 @@
-<%- include('partials/header', { title: 'Casino', path: '/casino' }) %>
-<%- include('partials/sidebar', { path: '/casino' }) %>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Casino - Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
 
-<div class="main-content">
-  <div class="page-header">
-    <h1>🎰 Casino</h1>
-    <p class="page-subtitle">Statistiques et configuration du casino</p>
-  </div>
-
-  <% if (success) { %>
-    <div class="alert alert-success"><%= success %></div>
-  <% } %>
-  <% if (error) { %>
-    <div class="alert alert-danger"><%= error %></div>
-  <% } %>
-
-  <!-- Stats globales -->
-  <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 2rem;">
-    <div class="stat-card">
-      <div class="stat-number"><%= stats.totalSessions %></div>
-      <div class="stat-label">Parties jouées</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-number"><%= stats.uniquePlayers %></div>
-      <div class="stat-label">Joueurs uniques</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-number"><%= stats.totalWagered %> 💎</div>
-      <div class="stat-label">Total misé</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-number"><%= stats.totalWon %> 💎</div>
-      <div class="stat-label">Total gagné</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-number" style="color: <%= stats.houseProfit >= 0 ? '#57F287' : '#ED4245' %>"><%= stats.houseProfit %> 💎</div>
-      <div class="stat-label">Bénéfice maison</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-number"><%= stats.popularGame || '—' %></div>
-      <div class="stat-label">Jeu le plus joué</div>
-    </div>
-  </div>
-
-  <div class="content-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
-
-    <!-- Config salon -->
-    <div class="card">
-      <div class="card-header"><h2>⚙️ Configuration</h2></div>
-      <div class="card-body">
-        <form method="POST" action="/casino/config">
-          <div class="form-group">
-            <label>Salon casino</label>
-            <select name="channelId" class="form-control">
-              <option value="">— Aucune restriction —</option>
-              <% channels.forEach(ch => { %>
-                <option value="<%= ch.id %>" <%= config.channelId === ch.id ? 'selected' : '' %>>#<%= ch.name %></option>
-              <% }) %>
-            </select>
-          </div>
-          <button type="submit" class="btn btn-primary">Enregistrer</button>
-        </form>
+      <div class="page-header">
+        <h1>🎰 Casino</h1>
+        <p>Statistiques et configuration du casino</p>
       </div>
-    </div>
 
-    <!-- Stats par jeu -->
-    <div class="card">
-      <div class="card-header"><h2>🎮 Stats par jeu</h2></div>
-      <div class="card-body">
-        <% if (Object.keys(stats.byGame).length === 0) { %>
-          <p class="text-muted">Aucune partie enregistrée.</p>
-        <% } else { %>
-          <table class="table">
-            <thead><tr><th>Jeu</th><th>Parties</th><th>Misé</th><th>Gagné</th></tr></thead>
-            <tbody>
-              <% Object.entries(stats.byGame).forEach(([game, s]) => { %>
-                <tr>
-                  <td><%= game %></td>
-                  <td><%= s.sessions %></td>
-                  <td><%= s.wagered %> 💎</td>
-                  <td><%= s.won %> 💎</td>
-                </tr>
-              <% }) %>
-            </tbody>
-          </table>
-        <% } %>
-      </div>
-    </div>
-
-    <!-- Top gagnants -->
-    <div class="card">
-      <div class="card-header"><h2>🏆 Top Gagnants</h2></div>
-      <div class="card-body">
-        <% if (topWinners.length === 0) { %>
-          <p class="text-muted">Aucun gagnant.</p>
-        <% } else { %>
-          <table class="table">
-            <thead><tr><th>Joueur</th><th>Net gagné</th></tr></thead>
-            <tbody>
-              <% topWinners.forEach(p => { %>
-                <tr><td><%= p.name %></td><td style="color:#57F287">+<%= p.net %> 💎</td></tr>
-              <% }) %>
-            </tbody>
-          </table>
-        <% } %>
-      </div>
-    </div>
-
-    <!-- Top perdants -->
-    <div class="card">
-      <div class="card-header"><h2>📉 Top Perdants</h2></div>
-      <div class="card-body">
-        <% if (topLosers.length === 0) { %>
-          <p class="text-muted">Aucun perdant.</p>
-        <% } else { %>
-          <table class="table">
-            <thead><tr><th>Joueur</th><th>Net perdu</th></tr></thead>
-            <tbody>
-              <% topLosers.forEach(p => { %>
-                <tr><td><%= p.name %></td><td style="color:#ED4245"><%= p.net %> 💎</td></tr>
-              <% }) %>
-            </tbody>
-          </table>
-        <% } %>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- Historique -->
-  <div class="card" style="margin-top: 1.5rem;">
-    <div class="card-header"><h2>📋 Historique des 100 dernières parties</h2></div>
-    <div class="card-body">
-      <% if (history.length === 0) { %>
-        <p class="text-muted">Aucun historique disponible.</p>
-      <% } else { %>
-        <div style="overflow-x:auto;">
-          <table class="table">
-            <thead>
-              <tr><th>Date</th><th>Joueur</th><th>Jeu</th><th>Mise / Gain</th></tr>
-            </thead>
-            <tbody>
-              <% history.forEach(tx => { %>
-                <tr>
-                  <td><%= new Date(tx.timestamp).toLocaleString('fr-FR') %></td>
-                  <td><%= tx.playerName %></td>
-                  <td><%= tx.game %></td>
-                  <td style="color: <%= tx.quantity >= 0 ? '#57F287' : '#ED4245' %>">
-                    <%= tx.quantity >= 0 ? '+' : '' %><%= tx.quantity %> 💎
-                  </td>
-                </tr>
-              <% }) %>
-            </tbody>
-          </table>
-        </div>
+      <% if (success) { %>
+        <div class="alert alert-success">✅ <%= success %></div>
       <% } %>
-    </div>
+      <% if (error) { %>
+        <div class="alert alert-danger">❌ <%= error %></div>
+      <% } %>
+
+      <!-- Stats globales -->
+      <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 2rem;">
+        <div class="stat-card">
+          <div class="stat-number"><%= stats.totalSessions %></div>
+          <div class="stat-label">Parties jouées</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number"><%= stats.uniquePlayers %></div>
+          <div class="stat-label">Joueurs uniques</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number"><%= stats.totalWagered %> 💎</div>
+          <div class="stat-label">Total misé</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number"><%= stats.totalWon %> 💎</div>
+          <div class="stat-label">Total gagné</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" style="color: <%= stats.houseProfit >= 0 ? '#57F287' : '#ED4245' %>"><%= stats.houseProfit %> 💎</div>
+          <div class="stat-label">Bénéfice maison</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number"><%= stats.popularGame || '—' %></div>
+          <div class="stat-label">Jeu le plus joué</div>
+        </div>
+      </div>
+
+      <div class="content-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+
+        <!-- Config salon -->
+        <div class="card">
+          <div class="card-header"><h2>⚙️ Configuration</h2></div>
+          <div class="card-body">
+            <form method="POST" action="/casino/config">
+              <div class="form-group">
+                <label>Salon casino</label>
+                <select name="channelId" class="form-control">
+                  <option value="">— Aucune restriction —</option>
+                  <% channels.forEach(ch => { %>
+                    <option value="<%= ch.id %>" <%= config.channelId === ch.id ? 'selected' : '' %>>#<%= ch.name %></option>
+                  <% }) %>
+                </select>
+              </div>
+              <button type="submit" class="btn btn-primary">Enregistrer</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Stats par jeu -->
+        <div class="card">
+          <div class="card-header"><h2>🎮 Stats par jeu</h2></div>
+          <div class="card-body">
+            <% if (Object.keys(stats.byGame).length === 0) { %>
+              <p class="text-muted">Aucune partie enregistrée.</p>
+            <% } else { %>
+              <table class="table">
+                <thead><tr><th>Jeu</th><th>Parties</th><th>Misé</th><th>Gagné</th></tr></thead>
+                <tbody>
+                  <% Object.entries(stats.byGame).forEach(([game, s]) => { %>
+                    <tr>
+                      <td><%= game %></td>
+                      <td><%= s.sessions %></td>
+                      <td><%= s.wagered %> 💎</td>
+                      <td><%= s.won %> 💎</td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            <% } %>
+          </div>
+        </div>
+
+        <!-- Top gagnants -->
+        <div class="card">
+          <div class="card-header"><h2>🏆 Top Gagnants</h2></div>
+          <div class="card-body">
+            <% if (topWinners.length === 0) { %>
+              <p class="text-muted">Aucun gagnant.</p>
+            <% } else { %>
+              <table class="table">
+                <thead><tr><th>Joueur</th><th>Net gagné</th></tr></thead>
+                <tbody>
+                  <% topWinners.forEach(p => { %>
+                    <tr>
+                      <td><%= p.name %></td>
+                      <td style="color:#57F287">+<%= p.net %> 💎</td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            <% } %>
+          </div>
+        </div>
+
+        <!-- Top perdants -->
+        <div class="card">
+          <div class="card-header"><h2>📉 Top Perdants</h2></div>
+          <div class="card-body">
+            <% if (topLosers.length === 0) { %>
+              <p class="text-muted">Aucun perdant.</p>
+            <% } else { %>
+              <table class="table">
+                <thead><tr><th>Joueur</th><th>Net perdu</th></tr></thead>
+                <tbody>
+                  <% topLosers.forEach(p => { %>
+                    <tr>
+                      <td><%= p.name %></td>
+                      <td style="color:#ED4245"><%= p.net %> 💎</td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            <% } %>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Historique -->
+      <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header"><h2>📋 Historique des 100 dernières parties</h2></div>
+        <div class="card-body">
+          <% if (history.length === 0) { %>
+            <p class="text-muted">Aucun historique disponible.</p>
+          <% } else { %>
+            <div style="overflow-x:auto;">
+              <table class="table">
+                <thead>
+                  <tr><th>Date</th><th>Joueur</th><th>Jeu</th><th>Mise / Gain</th></tr>
+                </thead>
+                <tbody>
+                  <% history.forEach(tx => { %>
+                    <tr>
+                      <td><%= new Date(tx.timestamp).toLocaleString('fr-FR') %></td>
+                      <td><%= tx.playerName %></td>
+                      <td><%= tx.game %></td>
+                      <td style="color: <%= tx.quantity >= 0 ? '#57F287' : '#ED4245' %>">
+                        <%= tx.quantity >= 0 ? '+' : '' %><%= tx.quantity %> 💎
+                      </td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          <% } %>
+        </div>
+      </div>
+
+    </main>
   </div>
-
-</div>
-
-<%- include('partials/footer') %>
+</body>
+</html>

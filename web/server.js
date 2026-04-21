@@ -3106,6 +3106,7 @@ function createWebServer(discordClient) {
   // ═══════════════════════════ CASINO ════════════════════════════════════════
 
   app.get('/casino', requireAdmin, async (req, res) => {
+    try {
     const config = (await pgStore.getData('casino_config')) || {};
     let channels = [];
     if (discordClient) {
@@ -3202,6 +3203,10 @@ function createWebServer(discordClient) {
       role: req.session?.role || 'admin',
       path: '/casino',
     });
+    } catch (e) {
+      console.error('[Dashboard /casino] Erreur :', e);
+      res.status(500).send(`<pre>Erreur Casino : ${e.message}\n\n${e.stack}</pre>`);
+    }
   });
 
   app.post('/casino/config', requireAdmin, async (req, res) => {
