@@ -705,6 +705,14 @@ async function handlePokerCreerTable(interaction, ctx) {
     return;
   }
 
+  // Verrouiller le fil : les joueurs ne peuvent pas écrire, seul le bot peut.
+  // Les boutons restent fonctionnels — les interactions ne nécessitent pas SEND_MESSAGES.
+  try {
+    await thread.setLocked(true, 'Fil de poker — lecture seule, interactions uniquement');
+  } catch (e) {
+    console.warn('[Poker créer table] Impossible de verrouiller le thread :', e.message);
+  }
+
   const specRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`poker_spectateurs_oui_${table.threadId}`)
