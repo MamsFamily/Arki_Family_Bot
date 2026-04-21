@@ -41,6 +41,7 @@ const SLOTS_LOGO_PATH  = path.join(__dirname, '..', 'assets', 'img', 'slots_logo
 const RR_LOGO_PATH     = path.join(__dirname, '..', 'assets', 'img', 'rouletterusse_logo.png');
 const ROULETTE_LOGO_PATH = path.join(__dirname, '..', 'assets', 'img', 'roulette_logo.png');
 const POKER_LOGO_PATH_HANDLER = path.join(__dirname, '..', 'assets', 'img', 'poker_logo.png');
+const BJ_LOGO_PATH = path.join(__dirname, '..', 'assets', 'img', 'blackjack_logo.png');
 
 function menuCasinoEmbed() {
   return new EmbedBuilder()
@@ -325,9 +326,11 @@ async function handleBlackjackModal(interaction, { getPlayerInventory, addToInve
   const partie = partiesAfter[userId];
   const score = partie.cartes.reduce((a, b) => a + b, 0);
 
+  const bjLogo1 = new AttachmentBuilder(BJ_LOGO_PATH, { name: 'blackjack_logo.png' });
   const embed = new EmbedBuilder()
     .setTitle('🃏 Blackjack')
     .setColor(COLOR)
+    .setThumbnail('attachment://blackjack_logo.png')
     .setDescription(`Mise : **${mise} 💎** | Solde restant : **${getPlayerDiamonds(getPlayerInventory, userId)} 💎**`)
     .addFields(
       { name: 'Tes cartes', value: `${partie.cartes.join(' + ')} = **${score}**`, inline: true }
@@ -337,7 +340,7 @@ async function handleBlackjackModal(interaction, { getPlayerInventory, addToInve
     const gainBJ = Math.floor(mise * 2.5);
     await addToInventory(userId, 'diamants', gainBJ, 'Casino', 'Blackjack naturel');
     embed.setColor('#F1C40F').addFields({ name: '🎉 Blackjack Naturel !', value: `Tu remportes **${gainBJ} 💎** !`, inline: false });
-    return interaction.reply({ embeds: [embed] });
+    return interaction.reply({ embeds: [embed], files: [bjLogo1] });
   }
 
   const row = new ActionRowBuilder().addComponents(
@@ -345,7 +348,7 @@ async function handleBlackjackModal(interaction, { getPlayerInventory, addToInve
     new ButtonBuilder().setCustomId(`casino_bj_rester_${userId}`).setLabel('Rester').setStyle(ButtonStyle.Secondary),
   );
 
-  await interaction.reply({ embeds: [embed], components: [row] });
+  await interaction.reply({ embeds: [embed], components: [row], files: [bjLogo1] });
 }
 
 async function handleRouletteModal(interaction, { getPlayerInventory, addToInventory, removeFromInventory, pgStore, client }) {
@@ -468,19 +471,21 @@ async function handleBJTirer(interaction, targetUserId, { getPlayerInventory }) 
   if (!result) return interaction.editReply({ content: '❌ Aucune partie en cours.', components: [] });
 
   const { cartes, score, etat } = result;
+  const bjLogo2 = new AttachmentBuilder(BJ_LOGO_PATH, { name: 'blackjack_logo.png' });
   const embed = new EmbedBuilder().setTitle('🃏 Blackjack').setColor(COLOR)
+    .setThumbnail('attachment://blackjack_logo.png')
     .addFields({ name: 'Tes cartes', value: `${cartes.join(' + ')} = **${score}**`, inline: false });
 
   if (etat === 'perdu') {
     embed.setColor('#ED4245').addFields({ name: 'Résultat', value: '❌ Tu as dépassé 21. Perdu !', inline: false });
-    return interaction.editReply({ embeds: [embed], components: [] });
+    return interaction.editReply({ embeds: [embed], components: [], files: [bjLogo2] });
   }
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`casino_bj_tirer_${targetUserId}`).setLabel('Tirer').setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(`casino_bj_rester_${targetUserId}`).setLabel('Rester').setStyle(ButtonStyle.Secondary),
   );
-  await interaction.editReply({ embeds: [embed], components: [row] });
+  await interaction.editReply({ embeds: [embed], components: [row], files: [bjLogo2] });
 }
 
 async function handleBJRester(interaction, targetUserId, { getPlayerInventory, addToInventory }) {
@@ -513,9 +518,11 @@ async function handleBJRester(interaction, targetUserId, { getPlayerInventory, a
   }
 
   const balanceAfter = getPlayerDiamonds(getPlayerInventory, targetUserId);
+  const bjLogo3 = new AttachmentBuilder(BJ_LOGO_PATH, { name: 'blackjack_logo.png' });
   const embed = new EmbedBuilder()
     .setTitle('🃏 Blackjack — Résultat')
     .setColor(gain > 0 ? '#57F287' : '#ED4245')
+    .setThumbnail('attachment://blackjack_logo.png')
     .addFields(
       { name: 'Tes cartes', value: `${joueur.join(' + ')} = **${joueurScore}**`, inline: true },
       { name: 'Croupier', value: `${croupier.join(' + ')} = **${croupierScore}**`, inline: true },
@@ -523,7 +530,7 @@ async function handleBJRester(interaction, targetUserId, { getPlayerInventory, a
       { name: 'Solde', value: `${balanceAfter} 💎`, inline: true }
     );
 
-  await interaction.editReply({ embeds: [embed], components: [] });
+  await interaction.editReply({ embeds: [embed], components: [], files: [bjLogo3] });
 }
 
 // ─── ROULETTE RUSSE ───────────────────────────────────────────────────────────
