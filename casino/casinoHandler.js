@@ -55,7 +55,7 @@ function menuCasinoEmbed() {
       '♠️ **Poker** — Texas Hold\'em avec tables privées'
     )
     .setColor(COLOR)
-    .setImage('attachment://casino_logo.png');
+    .setThumbnail('attachment://casino_logo.png');
 }
 
 function menuCasinoRow() {
@@ -781,12 +781,10 @@ async function handlePokerCreerTable(interaction, ctx) {
     }
   }
 
-  const pokerLogoAnnonce = new AttachmentBuilder(POKER_LOGO_PATH_HANDLER, { name: 'poker_logo.png' });
   const announceEmbed = new EmbedBuilder()
     .setTitle('♠️ Nouvelle table de Poker !')
     .setDescription(`**${displayName}** a ouvert une table de Texas Hold'em !\nRejoins la file d'attente pour participer à la prochaine partie.`)
     .setColor('#2ecc71')
-    .setThumbnail('attachment://poker_logo.png')
     .setFooter({ text: `Fil : ♠️poker-${displayName}` });
 
   const announceRow = new ActionRowBuilder().addComponents(
@@ -798,7 +796,7 @@ async function handlePokerCreerTable(interaction, ctx) {
 
   let announceMsg;
   try {
-    announceMsg = await casinoChannel.send({ embeds: [announceEmbed], components: [announceRow], files: [pokerLogoAnnonce] });
+    announceMsg = await casinoChannel.send({ embeds: [announceEmbed], components: [announceRow] });
   } catch (e) {
     console.error('[Poker créer table] Envoi embed annonce échoué :', e);
     return;
@@ -907,7 +905,7 @@ async function handlePokerAnnonceRejoindre(interaction, client) {
         .setTitle(oldEmbed?.title || "Règles du Texas Hold'em")
         .setDescription(oldEmbed?.description || '')
         .setColor(COLOR)
-        .setThumbnail('attachment://Texas-Holdem-Poker.png')
+        .setThumbnail('attachment://poker_logo.png')
         .addFields([
           ...baseFields,
           { name: `⏱️ En attente de joueurs (${waiting.length}/10)`, value: names },
@@ -930,11 +928,10 @@ async function handlePokerAnnonceRejoindre(interaction, client) {
           .setStyle(ButtonStyle.Danger),
       ].filter(Boolean);
 
-      const imagePath = path.join(__dirname, 'assets', 'poker', 'backgrounds', 'Texas-Holdem-Poker.png');
       await rulesMsg.edit({
         embeds: [newEmbed],
         components: [new ActionRowBuilder().addComponents(...buttons)],
-        files: [{ attachment: imagePath, name: 'Texas-Holdem-Poker.png' }],
+        files: [{ attachment: POKER_LOGO_PATH_HANDLER, name: 'poker_logo.png' }],
       });
     }
   } catch (err) {
