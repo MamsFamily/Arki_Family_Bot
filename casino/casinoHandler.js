@@ -246,27 +246,30 @@ async function handleSlotModal(interaction, { getPlayerInventory, addToInventory
   }
 
   // ── Animation : rouleaux qui tournent ──────────────────────────────────────
-  const spinHeader = '🎰 **Les rouleaux tournent...**';
+  // Enveloppée dans un try/catch : si Discord rate-limite ou l'interaction
+  // devient inaccessible, on passe directement au résultat final.
+  try {
+    const spinHeader = '🎰 **Les rouleaux tournent...**';
 
-  // 3 frames : tout tourne
-  for (let i = 0; i < 3; i++) {
-    await interaction.editReply({ content: `${spinHeader}\n${slotsSpinLine()}` });
+    for (let i = 0; i < 3; i++) {
+      await interaction.editReply({ content: `${spinHeader}\n${slotsSpinLine()}` });
+      await sleep(380);
+    }
+
+    await interaction.editReply({ content: `${spinHeader}\n${slotsSpinLine(r1)}` });
     await sleep(380);
+    await interaction.editReply({ content: `${spinHeader}\n${slotsSpinLine(r1)}` });
+    await sleep(380);
+
+    await interaction.editReply({ content: `${spinHeader}\n${slotsSpinLine(r1, r2)}` });
+    await sleep(380);
+    await interaction.editReply({ content: `${spinHeader}\n${slotsSpinLine(r1, r2)}` });
+    await sleep(380);
+  } catch {
+    // Animation échouée → on affiche directement le résultat final ci-dessous
   }
 
-  // Rouleau 1 s'immobilise
-  await interaction.editReply({ content: `${spinHeader}\n${slotsSpinLine(r1)}` });
-  await sleep(380);
-  await interaction.editReply({ content: `${spinHeader}\n${slotsSpinLine(r1)}` });
-  await sleep(380);
-
-  // Rouleau 2 s'immobilise
-  await interaction.editReply({ content: `${spinHeader}\n${slotsSpinLine(r1, r2)}` });
-  await sleep(380);
-  await interaction.editReply({ content: `${spinHeader}\n${slotsSpinLine(r1, r2)}` });
-  await sleep(380);
-
-  // Rouleau 3 s'immobilise → résultat final
+  // Résultat final — toujours exécuté, même si l'animation a planté
   const newBalance = getPlayerDiamonds(getPlayerInventory, userId);
   const affichage = `${r1} ┃ ${r2} ┃ ${r3}`;
 
@@ -642,8 +645,7 @@ async function handleRRLancer(interaction, { addToInventory }) {
   for (const p of survivants) {
     await addToInventory(String(p.id), 'diamants', gainParSurvivant, 'Casino', 'Gain roulette russe');
   }
-
-  resetPartie();
+  // Note : lancerPartie() appelle déjà resetPartie() en interne — pas besoin de le rappeler ici.
 
   await interaction.editReply({ content: '🔫 Le barillet tourne...' });
 
@@ -838,6 +840,29 @@ function registerCasinoHandlers(client, deps) {
   const { pgStore, getPlayerInventory, addToInventory, removeFromInventory } = deps;
   const ctx = { getPlayerInventory, addToInventory, removeFromInventory, pgStore, client };
 
+  // ── Guard de démarrage : roulette russe avec participants en attente ────────
+  // Si le bot a redémarré pendant qu'une partie était créée mais pas encore lancée,
+  // les mises sont déjà déduites. On rembourse et on remet l'état à zéro.
+  try {
+    const partieRR = chargerPartie();
+    if (partieRR.participants && partieRR.participants.length > 0) {
+      console.warn(`[Casino RR] Partie orpheline détectée (${partieRR.participants.length} joueur(s)) — remboursement en cours...`);
+      (async () => {
+        for (const p of partieRR.participants) {
+          try {
+            await addToInventory(String(p.id), 'diamants', partieRR.mise, 'Casino', 'Remboursement RR (redémarrage bot)');
+          } catch (e) {
+            console.error(`[Casino RR] Remboursement échoué pour ${p.id}:`, e);
+          }
+        }
+        resetPartie();
+        console.log('[Casino RR] Partie orpheline résolue, tous les joueurs remboursés.');
+      })();
+    }
+  } catch (e) {
+    console.warn('[Casino RR] Vérification démarrage échouée:', e);
+  }
+
   client.on('interactionCreate', async interaction => {
     try {
       // ── Commandes slash ────────────────────────────────────────────────────
@@ -924,10 +949,18 @@ function registerCasinoHandlers(client, deps) {
         }
         if (id.startsWith('poker_rejoindre_')) return await executerRejoindreTable(interaction);
         if (id === 'poker_raise') {
-          const { ModalBuilder: MB, TextInputBuilder: TIB, TextInputStyle: TIS, ActionRowBuilder: ARB } = require('discord.js');
-          const modal = new MB().setCustomId('poker_raise_modal').setTitle('♠️ Raise');
-          modal.addComponents(new ARB().addComponents(new TIB().setCustomId('amount').setLabel('Montant du raise').setStyle(TIS.Short).setRequired(true).setPlaceholder('ex: 100')));
-          return await interaction.showModal(modal);
+          const raiseModal = new ModalBuilder().setCustomId('poker_raise_modal').setTitle('♠️ Raise');
+          raiseModal.addComponents(
+            new ActionRowBuilder().addComponents(
+              new TextInputBuilder()
+                .setCustomId('amount')
+                .setLabel('Montant du raise (💎)')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true)
+                .setPlaceholder('ex: 100')
+            )
+          );
+          return await interaction.showModal(raiseModal);
         }
 
         return;
