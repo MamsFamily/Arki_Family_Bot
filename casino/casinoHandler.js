@@ -6,6 +6,7 @@ const {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
+  AttachmentBuilder,
 } = require('discord.js');
 
 const { jouerBlackjack, tirer, rester, chargerParties } = require('./Utils/blackjack');
@@ -35,6 +36,8 @@ const COLOR = '#2b2d31';
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 
+const CASINO_LOGO_PATH = path.join(__dirname, '..', 'assets', 'img', 'casino_logo.png');
+
 function menuCasinoEmbed() {
   return new EmbedBuilder()
     .setTitle('🎰 Casino Arki')
@@ -46,7 +49,8 @@ function menuCasinoEmbed() {
       '🔫 **Roulette Russe** — Multi-joueurs, un seul survivant... ou plusieurs !\n' +
       '♠️ **Poker** — Texas Hold\'em avec tables privées'
     )
-    .setColor(COLOR);
+    .setColor(COLOR)
+    .setImage('attachment://casino_logo.png');
 }
 
 function menuCasinoRow() {
@@ -113,7 +117,8 @@ async function handleCasinoCommand(interaction, pgStore) {
       ephemeral: true,
     });
   }
-  await interaction.reply({ embeds: [menuCasinoEmbed()], components: menuCasinoRow() });
+  const casinoLogo = new AttachmentBuilder(CASINO_LOGO_PATH, { name: 'casino_logo.png' });
+  await interaction.reply({ embeds: [menuCasinoEmbed()], components: menuCasinoRow(), files: [casinoLogo] });
 }
 
 // ─── BOUTONS MENU ─────────────────────────────────────────────────────────────
