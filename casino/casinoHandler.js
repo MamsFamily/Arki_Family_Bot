@@ -684,14 +684,26 @@ async function handlePokerCreerTable(interaction, ctx) {
   try {
     const raw = await fs.promises.readFile(TABLES_PATH, 'utf8');
     tables = JSON.parse(raw);
-  } catch { return; }
+  } catch (e) {
+    console.error('[Poker créer table] Lecture tables.json échouée :', e);
+    return;
+  }
 
+  // Cherche la table du joueur (sans announcementMessageId = pas encore annoncée)
   const table = tables.find(t => t.participants.includes(userId) && !t.announcementMessageId);
-  if (!table) return;
+  if (!table) {
+    console.warn(`[Poker créer table] Table introuvable pour userId=${userId} après création.`);
+    return;
+  }
 
-  // Poser la question spectateurs dans le fil
+  // ── Poser la question spectateurs dans le fil ────────────────────────────
   let thread;
-  try { thread = await client.channels.fetch(table.threadId); } catch { return; }
+  try {
+    thread = await client.channels.fetch(table.threadId);
+  } catch (e) {
+    console.error(`[Poker créer table] Impossible de fetch le thread ${table.threadId} :`, e);
+    return;
+  }
 
   const specRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -703,16 +715,35 @@ async function handlePokerCreerTable(interaction, ctx) {
       .setLabel('❌ Non')
       .setStyle(ButtonStyle.Danger),
   );
-  await thread.send({
-    content: `<@${userId}> Souhaites-tu autoriser des **spectateurs** à observer la partie ?`,
-    components: [specRow],
-  });
+  try {
+    await thread.send({
+      content: `<@${userId}> Souhaites-tu autoriser des **spectateurs** à observer la partie ?`,
+      components: [specRow],
+    });
+  } catch (e) {
+    console.error('[Poker créer table] Envoi question spectateurs échoué :', e);
+  }
 
-  // Poster l'annonce dans le salon casino principal
+  // ── Poster l'annonce dans le salon casino (ou le salon courant si non configuré) ─
   const casinoConfig = await getCasinoConfig(pgStore);
-  if (!casinoConfig.channelId) return;
+
+  // Fallback : si aucun salon casino configuré, on poste dans le salon où le bouton a été cliqué
   let casinoChannel;
-  try { casinoChannel = await client.channels.fetch(casinoConfig.channelId); } catch { return; }
+  if (casinoConfig.channelId) {
+    try {
+      casinoChannel = await client.channels.fetch(casinoConfig.channelId);
+    } catch (e) {
+      console.error(`[Poker créer table] Impossible de fetch le salon casino configuré (${casinoConfig.channelId}) :`, e);
+    }
+  }
+  if (!casinoChannel) {
+    try {
+      casinoChannel = await client.channels.fetch(interaction.channelId);
+    } catch (e) {
+      console.error('[Poker créer table] Impossible de fetch le salon courant :', e);
+      return;
+    }
+  }
 
   const announceEmbed = new EmbedBuilder()
     .setTitle('♠️ Nouvelle table de Poker !')
@@ -727,13 +758,23 @@ async function handlePokerCreerTable(interaction, ctx) {
       .setStyle(ButtonStyle.Primary),
   );
 
-  const announceMsg = await casinoChannel.send({ embeds: [announceEmbed], components: [announceRow] });
+  let announceMsg;
+  try {
+    announceMsg = await casinoChannel.send({ embeds: [announceEmbed], components: [announceRow] });
+  } catch (e) {
+    console.error('[Poker créer table] Envoi embed annonce échoué :', e);
+    return;
+  }
 
   // Sauvegarder les métadonnées dans la table
   table.announcementChannelId = casinoChannel.id;
   table.announcementMessageId = announceMsg.id;
   table.spectatorsAllowed = false;
-  await fs.promises.writeFile(TABLES_PATH, JSON.stringify(tables, null, 2), 'utf8');
+  try {
+    await fs.promises.writeFile(TABLES_PATH, JSON.stringify(tables, null, 2), 'utf8');
+  } catch (e) {
+    console.error('[Poker créer table] Sauvegarde tables.json échouée :', e);
+  }
 }
 
 async function handlePokerAnnonceRejoindre(interaction, client) {
