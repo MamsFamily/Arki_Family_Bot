@@ -1379,7 +1379,7 @@ client.on('interactionCreate', async interaction => {
             new TextInputBuilder().setCustomId('gw_titre').setLabel('Titre du giveaway').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setPlaceholder('Ex: Giveaway Pack Légendaire')
           ),
           new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId('gw_gain').setLabel('Gain (ex: Diamants ×5)').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(150).setPlaceholder('Ex: 5 Diamants, Pack Légendaire ×3...')
+            new TextInputBuilder().setCustomId('gw_gain').setLabel('Quantité').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(150).setPlaceholder('Ex: 5 Diamants, Pack Légendaire ×3...')
           ),
           new ActionRowBuilder().addComponents(
             new TextInputBuilder().setCustomId('gw_heure').setLabel('Heure de fin (format 00:00, fuseau Paris)').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(5).setPlaceholder('Ex: 21:00')
