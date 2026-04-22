@@ -758,7 +758,8 @@ Reste concis. Ne mets pas de guillemets autour du texte. Ne dis pas quel personn
 // GIVEAWAY HELPERS (bot Railway)
 // ────────────────────────────────────────────────────────────────────────────
 const giveawayTimers = new Map();
-const endingGiveaways = new Set(); // Verrou anti-doublon
+const endingGiveaways = new Set(); // Verrou anti-doublon (en cours de clôture)
+const locallyEndedGiveaways = new Set(); // Giveaways déjà terminés en mémoire (survit aux rechargements PG)
 
 function buildGiveawayButton(id) {
   const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
@@ -772,9 +773,11 @@ function buildGiveawayButton(id) {
 
 async function endGiveawayNow(id, botClient) {
   if (endingGiveaways.has(id)) return; // Déjà en cours de clôture
+  if (locallyEndedGiveaways.has(id)) return; // Déjà terminé en mémoire (PG peut être en retard)
   const g = giveawayManager.getGiveaway(id);
   if (!g || g.status !== 'active') return;
   endingGiveaways.add(id); // Poser le verrou
+  locallyEndedGiveaways.add(id); // Marquer terminé immédiatement (avant toute opération async)
 
   // Vider les timers
   if (giveawayTimers.has(id)) { clearTimeout(giveawayTimers.get(id)); giveawayTimers.delete(id); }
@@ -887,8 +890,8 @@ async function publishAndScheduleGiveaways(botClient) {
       }
     }
 
-    // Programmer le timer si pas encore fait
-    if (!giveawayTimers.has(g.id)) {
+    // Programmer le timer si pas encore fait et pas déjà terminé localement
+    if (!giveawayTimers.has(g.id) && !locallyEndedGiveaways.has(g.id)) {
       scheduleGiveawayEnd(g, botClient);
     }
   }
