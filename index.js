@@ -1632,11 +1632,14 @@ client.on('interactionCreate', async interaction => {
       try { await interaction.respond(choices); } catch (e) {}
       return;
     }
-    if (commandName === 'inventaire-admin') {
+    if (commandName === 'inventaire-admin' || commandName === 'inventaire-ajouter' || commandName === 'inventaire-retirer') {
       const focusedOption = interaction.options.getFocused(true);
       if (focusedOption.name === 'item') {
         const raw = focusedOption.value;
-        const subcommand = interaction.options.getSubcommand(false);
+        // Pour les nouvelles commandes top-level, on détermine le mode via le nom de la commande
+        const subcommand = commandName === 'inventaire-ajouter' ? 'ajouter'
+          : commandName === 'inventaire-retirer' ? 'retirer'
+          : interaction.options.getSubcommand(false);
         const itemTypes = getItemTypes();
 
         if (subcommand === 'ajouter') {
@@ -2955,10 +2958,10 @@ client.on('interactionCreate', async interaction => {
       '',
       '__📦 Inventaire__',
       '    **/attribuer-pack** : Attribue un pack spécial complet à un joueur.',
-      '    **/inventaire-admin ajouter** : Ajoute des items à l\'inventaire d\'un joueur.',
+      '    **/inventaire-ajouter** : Ajoute des items à l\'inventaire d\'un joueur.',
+      '    **/inventaire-retirer** : Retire des items de l\'inventaire d\'un joueur.',
       '    **/inventaire-admin historique** : Historique des transactions d\'un joueur.',
       '    **/inventaire-admin reset** : Réinitialise entièrement l\'inventaire d\'un joueur.',
-      '    **/inventaire-admin retirer** : Retire des items de l\'inventaire d\'un joueur.',
       '    **/inventaire-distribuer-item** : Distribue un item à plusieurs joueurs en masse.',
       '    **/migrer-ub** : Importe les soldes UnbelievaBoat → Diamants Arki.',
       '',
@@ -3175,6 +3178,87 @@ client.on('interactionCreate', async interaction => {
     return interaction.reply({ embeds: [embed] });
   }
 
+  // ── /inventaire-ajouter (nouvelle commande top-level) ──
+  if (commandName === 'inventaire-ajouter') {
+    if (!hasRoulettePermission(interaction.member)) {
+      return interaction.reply({ content: '❌ Seuls les administrateurs et les Modos peuvent gérer les inventaires !', ephemeral: true });
+    }
+
+    const targetUser = interaction.options.getUser('joueur');
+    const rawItem = interaction.options.getString('item');
+    const commandQty = interaction.options.getInteger('quantité');
+    const reason = interaction.options.getString('raison') || '';
+
+    if (rawItem === '__libre__') {
+      const modalKey = `inv_libre_${interaction.id}`;
+      pendingLibreItems.set(modalKey, { targetUserId: targetUser.id, reason, adminId: interaction.user.id, guildId: interaction.guild.id });
+      setTimeout(() => pendingLibreItems.delete(modalKey), 10 * 60 * 1000);
+      const modal = new ModalBuilder().setCustomId(modalKey).setTitle(`Item occasionnel → ${targetUser.displayName || targetUser.username}`);
+      const nameInput = new TextInputBuilder().setCustomId('item_name').setLabel('Nom de l\'item').setStyle(TextInputStyle.Short).setPlaceholder('Ex: Pack Boss Gamma, Selle Dragon Tek...').setRequired(true).setMaxLength(100);
+      const qtyInput = new TextInputBuilder().setCustomId('item_qty').setLabel('Quantité').setStyle(TextInputStyle.Short).setPlaceholder('Ex: 1').setRequired(true).setMaxLength(5).setValue(commandQty ? String(commandQty) : '');
+      modal.addComponents(new ActionRowBuilder().addComponents(nameInput), new ActionRowBuilder().addComponents(qtyInput));
+      return interaction.showModal(modal);
+    }
+
+    const itemType = getItemTypeById(rawItem);
+    if (!itemType) return interaction.reply({ content: '❌ Item introuvable.', ephemeral: true });
+    const isCustomEmoji = /^<a?:\w+:\d+>$/.test(itemType.emoji);
+    const itemLabel = isCustomEmoji ? itemType.name : `${itemType.emoji} ${itemType.name}`;
+    await addToInventory(targetUser.id, rawItem, commandQty, interaction.user.id, reason);
+    const embed = new EmbedBuilder().setColor('#00BFFF').setTitle('✅ Item ajouté').setDescription(`**${itemLabel}** x${commandQty} ajouté à <@${targetUser.id}>`).setTimestamp();
+    if (reason) embed.addFields({ name: 'Raison', value: reason, inline: false });
+    await interaction.reply({ embeds: [embed] });
+    try {
+      const logChannelId = getSettings().guild.inventoryLogChannelId;
+      if (logChannelId) {
+        const logChannel = await client.channels.fetch(logChannelId);
+        if (logChannel) {
+          const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+          await logChannel.send(`**${member?.displayName || interaction.user.username}** a ajouté **${commandQty}x ${itemLabel}** à l'inventaire de <@${targetUser.id}>`);
+        }
+      }
+    } catch (e) {}
+    return;
+  }
+
+  // ── /inventaire-retirer (nouvelle commande top-level) ──
+  if (commandName === 'inventaire-retirer') {
+    if (!hasRoulettePermission(interaction.member)) {
+      return interaction.reply({ content: '❌ Seuls les administrateurs et les Modos peuvent gérer les inventaires !', ephemeral: true });
+    }
+
+    const targetUser = interaction.options.getUser('joueur');
+    const itemId = interaction.options.getString('item');
+    const quantity = interaction.options.getInteger('quantité');
+    const reason = interaction.options.getString('raison') || '';
+
+    let itemLabel;
+    if (itemId.startsWith('[libre] ')) {
+      itemLabel = `📦 ${itemId.slice('[libre] '.length)}`;
+    } else {
+      const itemType = getItemTypeById(itemId);
+      if (!itemType) return interaction.reply({ content: '❌ Item introuvable.', ephemeral: true });
+      const isCustom = /^<a?:\w+:\d+>$/.test(itemType.emoji);
+      itemLabel = isCustom ? itemType.name : `${itemType.emoji} ${itemType.name}`;
+    }
+
+    await removeFromInventory(targetUser.id, itemId, quantity, interaction.user.id, reason);
+    const embed = new EmbedBuilder().setColor('#E74C3C').setTitle('➖ Item retiré').setDescription(`**${itemLabel}** x${quantity} retiré de <@${targetUser.id}>`).setTimestamp();
+    if (reason) embed.addFields({ name: 'Raison', value: reason, inline: false });
+    await interaction.reply({ embeds: [embed] });
+    try {
+      const logChannelId = getSettings().guild.inventoryLogChannelId;
+      if (logChannelId) {
+        const logChannel = await client.channels.fetch(logChannelId);
+        if (logChannel) {
+          const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+          await logChannel.send(`**${member?.displayName || interaction.user.username}** a retiré **${quantity}x ${itemLabel}** de l'inventaire de <@${targetUser.id}>`);
+        }
+      }
+    } catch (e) {}
+    return;
+  }
+
   if (commandName === 'inventaire-admin') {
     if (!hasRoulettePermission(interaction.member)) {
       return interaction.reply({
@@ -3184,135 +3268,6 @@ client.on('interactionCreate', async interaction => {
     }
 
     const subcommand = interaction.options.getSubcommand();
-
-    if (subcommand === 'ajouter') {
-      const targetUser = interaction.options.getUser('joueur');
-      const rawItem = interaction.options.getString('item');
-      const commandQty = interaction.options.getInteger('quantité');
-      const reason = interaction.options.getString('raison') || '';
-
-      // Item occasionnel → ouvrir la modale (nom + quantité)
-      if (rawItem === '__libre__') {
-        const modalKey = `inv_libre_${interaction.id}`;
-        pendingLibreItems.set(modalKey, {
-          targetUserId: targetUser.id,
-          reason,
-          adminId: interaction.user.id,
-          guildId: interaction.guild.id,
-        });
-        setTimeout(() => pendingLibreItems.delete(modalKey), 10 * 60 * 1000);
-
-        const modal = new ModalBuilder()
-          .setCustomId(modalKey)
-          .setTitle(`Item occasionnel → ${targetUser.displayName || targetUser.username}`);
-        const nameInput = new TextInputBuilder()
-          .setCustomId('item_name')
-          .setLabel('Nom de l\'item')
-          .setStyle(TextInputStyle.Short)
-          .setPlaceholder('Ex: Pack Boss Gamma, Selle Dragon Tek...')
-          .setRequired(true)
-          .setMaxLength(100);
-        const qtyInput = new TextInputBuilder()
-          .setCustomId('item_qty')
-          .setLabel('Quantité')
-          .setStyle(TextInputStyle.Short)
-          .setPlaceholder('Ex: 1')
-          .setRequired(true)
-          .setMaxLength(5)
-          .setValue(commandQty ? String(commandQty) : '');
-        modal.addComponents(
-          new ActionRowBuilder().addComponents(nameInput),
-          new ActionRowBuilder().addComponents(qtyInput),
-        );
-        return interaction.showModal(modal);
-      }
-
-      // Item standard
-      const itemType = getItemTypeById(rawItem);
-      if (!itemType) {
-        return interaction.reply({ content: '❌ Item introuvable.', ephemeral: true });
-      }
-
-      const isCustomEmoji = /^<a?:\w+:\d+>$/.test(itemType.emoji);
-      const itemLabel = isCustomEmoji ? itemType.name : `${itemType.emoji} ${itemType.name}`;
-
-      const quantity = commandQty;
-      await addToInventory(targetUser.id, rawItem, quantity, interaction.user.id, reason);
-
-      const embed = new EmbedBuilder()
-        .setColor('#00BFFF')
-        .setTitle('✅ Item ajouté')
-        .setDescription(`**${itemLabel}** x${quantity} ajouté à <@${targetUser.id}>`)
-        .setTimestamp();
-
-      if (reason) {
-        embed.addFields({ name: 'Raison', value: reason, inline: false });
-      }
-
-      await interaction.reply({ embeds: [embed] });
-
-      try {
-        const settings = getSettings();
-        const logChannelId = settings.guild.inventoryLogChannelId;
-        if (logChannelId) {
-          const logChannel = await client.channels.fetch(logChannelId);
-          if (logChannel) {
-            const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
-            const adminName = member ? member.displayName : interaction.user.username;
-            await logChannel.send(`**${adminName}** a ajouté **${quantity}x ${itemLabel}** à l'inventaire de <@${targetUser.id}>`);
-          }
-        }
-      } catch (e) {}
-    }
-
-    if (subcommand === 'retirer') {
-      const targetUser = interaction.options.getUser('joueur');
-      const itemId = interaction.options.getString('item');
-      const quantity = interaction.options.getInteger('quantité');
-      const reason = interaction.options.getString('raison') || '';
-
-      let itemLabel;
-
-      if (itemId.startsWith('[libre] ')) {
-        // Item occasionnel
-        const name = itemId.slice('[libre] '.length);
-        itemLabel = `📦 ${name}`;
-      } else {
-        const itemType = getItemTypeById(itemId);
-        if (!itemType) {
-          return interaction.reply({ content: '❌ Item introuvable.', ephemeral: true });
-        }
-        const isCustom = /^<a?:\w+:\d+>$/.test(itemType.emoji);
-        itemLabel = isCustom ? itemType.name : `${itemType.emoji} ${itemType.name}`;
-      }
-
-      await removeFromInventory(targetUser.id, itemId, quantity, interaction.user.id, reason);
-
-      const embed = new EmbedBuilder()
-        .setColor('#E74C3C')
-        .setTitle('➖ Item retiré')
-        .setDescription(`**${itemLabel}** x${quantity} retiré de <@${targetUser.id}>`)
-        .setTimestamp();
-
-      if (reason) {
-        embed.addFields({ name: 'Raison', value: reason, inline: false });
-      }
-
-      await interaction.reply({ embeds: [embed] });
-
-      try {
-        const settings = getSettings();
-        const logChannelId = settings.guild.inventoryLogChannelId;
-        if (logChannelId) {
-          const logChannel = await client.channels.fetch(logChannelId);
-          if (logChannel) {
-            const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
-            const adminName = member ? member.displayName : interaction.user.username;
-            await logChannel.send(`**${adminName}** a retiré **${quantity}x ${itemLabel}** de l'inventaire de <@${targetUser.id}>`);
-          }
-        }
-      } catch (e) {}
-    }
 
     if (subcommand === 'reset') {
       const targetUser = interaction.options.getUser('joueur');

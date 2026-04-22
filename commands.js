@@ -90,28 +90,6 @@ const commands = [
     description: 'Gestion des inventaires (Admin et Modo)',
     options: [
       {
-        name: 'ajouter',
-        type: 1,
-        description: 'Ajouter des items à un joueur',
-        options: [
-          { name: 'joueur', type: 6, description: 'Le joueur', required: true },
-          { name: 'item', type: 3, description: "L'item à ajouter (liste) ou ➕ Ajouter item occasionnel", required: true, autocomplete: true },
-          { name: 'quantité', type: 4, description: 'La quantité à ajouter', required: true, min_value: 1 },
-          { name: 'raison', type: 3, description: "Raison de l'ajout", required: false },
-        ],
-      },
-      {
-        name: 'retirer',
-        type: 1,
-        description: 'Retirer des items à un joueur',
-        options: [
-          { name: 'joueur', type: 6, description: 'Le joueur', required: true },
-          { name: 'item', type: 3, description: "L'item à retirer", required: true, autocomplete: true },
-          { name: 'quantité', type: 4, description: 'La quantité à retirer', required: true, min_value: 1 },
-          { name: 'raison', type: 3, description: 'Raison du retrait', required: false },
-        ],
-      },
-      {
         name: 'reset',
         type: 1,
         description: "Réinitialiser l'inventaire d'un joueur",
@@ -127,6 +105,26 @@ const commands = [
           { name: 'joueur', type: 6, description: "Le joueur dont vous voulez voir l'historique", required: true },
         ],
       },
+    ],
+  },
+  {
+    name: 'inventaire-ajouter',
+    description: 'Ajouter des items à un joueur (Admin et Modo)',
+    options: [
+      { name: 'joueur', type: 6, description: 'Le joueur', required: true },
+      { name: 'item', type: 3, description: "L'item à ajouter (liste) ou ➕ Ajouter item occasionnel", required: true, autocomplete: true },
+      { name: 'quantité', type: 4, description: 'La quantité à ajouter', required: true, min_value: 1 },
+      { name: 'raison', type: 3, description: "Raison de l'ajout", required: false },
+    ],
+  },
+  {
+    name: 'inventaire-retirer',
+    description: 'Retirer des items à un joueur (Admin et Modo)',
+    options: [
+      { name: 'joueur', type: 6, description: 'Le joueur', required: true },
+      { name: 'item', type: 3, description: "L'item à retirer", required: true, autocomplete: true },
+      { name: 'quantité', type: 4, description: 'La quantité à retirer', required: true, min_value: 1 },
+      { name: 'raison', type: 3, description: 'Raison du retrait', required: false },
     ],
   },
   {
