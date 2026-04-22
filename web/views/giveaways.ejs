@@ -190,6 +190,69 @@
     <% } %>
   </div>
 
+  <!-- ═══════════════════ WIZARD ÉTAPE 1 : GAIN ═══════════════════ -->
+  <div id="wz1Modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+    <div class="modal" style="max-width:460px;width:95%;" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h2>🎁 Quel est le lot ? <span style="font-size:13px;font-weight:400;color:var(--text-muted);">Étape 1 / 2</span></h2>
+        <button class="modal-close" onclick="document.getElementById('wz1Modal').style.display='none'">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="prize-tabs" style="margin-bottom:14px;">
+          <div class="prize-tab active" id="wz1TabItem"  onclick="_wz1SetType('item')">📦 Item inventaire</div>
+          <div class="prize-tab"        id="wz1TabLibre" onclick="_wz1SetType('libre')">✨ Occasionnel</div>
+        </div>
+
+        <div id="wz1ItemSection">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Item <span style="color:#FF6B6B">*</span></label>
+            <select id="wz1ItemSelect" class="form-control">
+              <option value="">— Choisir un item —</option>
+              <% for (const it of itemTypes) { %>
+              <option value="<%=it.id%>" data-label="<%=it.emoji%> <%=it.name%>"><%=it.emoji%> <%=it.name%></option>
+              <% } %>
+            </select>
+          </div>
+        </div>
+
+        <div id="wz1LibreSection" style="display:none;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Nom du lot <span style="color:#FF6B6B">*</span></label>
+            <input type="text" id="wz1LibreName" placeholder="Ex : Pack Légendaire" maxlength="100" class="form-control">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:10px;padding:14px 20px;border-top:1px solid var(--border-color);">
+        <button class="btn btn-secondary" onclick="document.getElementById('wz1Modal').style.display='none'">Annuler</button>
+        <button class="btn btn-primary" onclick="_wizardToStep2()">Suivant →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ WIZARD ÉTAPE 2 : QUANTITÉ ═══════════════════ -->
+  <div id="wz2Modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+    <div class="modal" style="max-width:380px;width:95%;" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h2>🔢 Quelle quantité ? <span style="font-size:13px;font-weight:400;color:var(--text-muted);">Étape 2 / 2</span></h2>
+        <button class="modal-close" onclick="document.getElementById('wz2Modal').style.display='none'">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:var(--bg-input);border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:14px;font-weight:600;">
+          🎁 <span id="wz2GainRecap">—</span>
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label>Quantité <span style="color:#FF6B6B">*</span></label>
+          <input type="number" id="wz2Qty" value="1" min="1" max="9999" class="form-control"
+            onkeydown="if(event.key==='Enter'){_wizardFinish();}">
+        </div>
+      </div>
+      <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:10px;padding:14px 20px;border-top:1px solid var(--border-color);">
+        <button class="btn btn-secondary" onclick="_wizardBack()">← Retour</button>
+        <button class="btn btn-primary" onclick="_wizardFinish()">Continuer →</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ═══════════════════ MODAL CRÉER GIVEAWAY ═══════════════════ -->
   <div id="createModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeCreate()">
     <div class="modal" style="max-width:680px;width:95%;max-height:92vh;overflow:hidden;" onclick="event.stopPropagation()">
@@ -379,8 +442,79 @@
   </div>
 
   <script>
-    /* ── Utilitaires modal ── */
-    function openCreate() { document.getElementById('createModal').style.display = 'flex'; }
+    /* ══════════════════════════════════════════════════
+       WIZARD PRÉ-CRÉATION (Étape 1 : gain  →  Étape 2 : quantité)
+    ══════════════════════════════════════════════════ */
+    var _wizard = { type: 'item', itemId: '', itemLabel: '', name: '', qty: 1 };
+
+    function openCreate() {
+      _wizard = { type: 'item', itemId: '', itemLabel: '', name: '', qty: 1 };
+      _wizardStep1();
+    }
+
+    function _wizardStep1() {
+      document.getElementById('wz1Modal').style.display = 'flex';
+      document.getElementById('wz2Modal').style.display = 'none';
+      // reset tabs
+      _wz1SetType('item');
+    }
+
+    function _wz1SetType(t) {
+      _wizard.type = t;
+      document.getElementById('wz1TabItem').classList.toggle('active', t === 'item');
+      document.getElementById('wz1TabLibre').classList.toggle('active', t === 'libre');
+      document.getElementById('wz1ItemSection').style.display  = t === 'item'  ? 'block' : 'none';
+      document.getElementById('wz1LibreSection').style.display = t === 'libre' ? 'block' : 'none';
+    }
+
+    function _wizardToStep2() {
+      var t = _wizard.type;
+      if (t === 'item') {
+        var sel = document.getElementById('wz1ItemSelect');
+        var opt = sel.options[sel.selectedIndex];
+        if (!opt || !opt.value) { alert('❌ Choisis un item.'); return; }
+        _wizard.itemId    = opt.value;
+        _wizard.itemLabel = opt.dataset.label || opt.text;
+      } else {
+        var n = document.getElementById('wz1LibreName').value.trim();
+        if (!n) { alert('❌ Saisis un nom de lot.'); return; }
+        _wizard.name = n;
+      }
+      document.getElementById('wz1Modal').style.display = 'none';
+      document.getElementById('wz2Modal').style.display = 'flex';
+      // Affiche le récapitulatif dans l'étape 2
+      var recap = _wizard.type === 'item' ? _wizard.itemLabel : _wizard.name;
+      document.getElementById('wz2GainRecap').textContent = recap;
+      document.getElementById('wz2Qty').value = 1;
+      document.getElementById('wz2Qty').focus();
+    }
+
+    function _wizardBack() {
+      document.getElementById('wz2Modal').style.display = 'none';
+      document.getElementById('wz1Modal').style.display = 'flex';
+    }
+
+    function _wizardFinish() {
+      var qty = parseInt(document.getElementById('wz2Qty').value, 10);
+      if (isNaN(qty) || qty < 1) { alert('❌ Quantité invalide.'); return; }
+      _wizard.qty = qty;
+      document.getElementById('wz2Modal').style.display = 'none';
+
+      // Pré-remplir les champs du grand formulaire
+      if (_wizard.type === 'item') {
+        setPrizeType('item');
+        document.getElementById('prizeItemSelect').value = _wizard.itemId;
+        document.getElementById('prizeQtyItem').value    = _wizard.qty;
+      } else {
+        setPrizeType('libre');
+        document.getElementById('prizeItemName').value  = _wizard.name;
+        document.getElementById('prizeQtyLibre').value  = _wizard.qty;
+      }
+      updatePreview();
+      document.getElementById('createModal').style.display = 'flex';
+    }
+
+    /* ── Utilitaires modal principal ── */
     function closeCreate() { document.getElementById('createModal').style.display = 'none'; }
 
     /* ── Type de gain ── */
