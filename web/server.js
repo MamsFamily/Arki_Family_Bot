@@ -2482,9 +2482,7 @@ function createWebServer(discordClient) {
     const parisDateOpts = { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit' };
     const endStr = new Date(g.endTime).toLocaleTimeString('fr-FR', parisOpts);
     const endDateStr = new Date(g.endTime).toLocaleDateString('fr-FR', parisDateOpts);
-    const prizeLabel = g.prize.type === 'libre'
-      ? `📦 ${g.prize.name} ×${g.prize.quantity}`
-      : `🎁 ${g.prize.name || g.prize.itemId} ×${g.prize.quantity}`;
+    const prizeLabel = `${g.prize.name || g.prize.itemId} ×${g.prize.quantity}`;
 
     const embed = new EmbedBuilder()
       .setColor('#FF6B6B')
@@ -2546,7 +2544,7 @@ function createWebServer(discordClient) {
           await msg.edit({ embeds: [endEmbed], components: [disabledRow] });
         }
       }
-      const prizeLabel = g.prize.type === 'libre' ? `📦 ${g.prize.name} ×${g.prize.quantity}` : `🎁 ${g.prize.itemId} ×${g.prize.quantity}`;
+      const prizeLabel = `${g.prize.name || g.prize.itemId} ×${g.prize.quantity}`;
       if (winners && winners.length > 0) {
         const winnerMentions = winners.map(uid => `<@${uid}>`).join(', ');
         await channel.send(`🎉 **Fin du Giveaway !**\n\n🏆 Félicitations ${winnerMentions} ! Vous remportez **${prizeLabel}** !\n\n> Contactez un administrateur pour recevoir votre gain.`);

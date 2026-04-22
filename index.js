@@ -803,9 +803,7 @@ async function endGiveawayNow(id, botClient) {
     // Annoncer les gagnants
     if (winners && winners.length > 0) {
       const winnerMentions = winners.map(uid => `<@${uid}>`).join(', ');
-      const prizeLabel = g.prize.type === 'libre'
-        ? `📦 ${g.prize.name} ×${g.prize.quantity}`
-        : `🎁 ${g.prize.name || g.prize.itemId} ×${g.prize.quantity}`;
+      const prizeLabel = `${g.prize.name || g.prize.itemId} ×${g.prize.quantity}`;
       await channel.send(`🎉 **Fin du Giveaway !**\n\n🏆 Félicitations ${winnerMentions} ! Vous remportez **${prizeLabel}** !\n\n> ✅ Votre gain a été crédité dans votre inventaire.`);
 
       // DM gagnants
@@ -902,9 +900,7 @@ function buildGiveawayEmbed(g) {
   const parisDateOpts = { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit' };
   const endStr = new Date(g.endTime).toLocaleTimeString('fr-FR', parisOpts);
   const endDateStr = new Date(g.endTime).toLocaleDateString('fr-FR', parisDateOpts);
-  const prizeLabel = g.prize.type === 'libre'
-    ? `📦 ${g.prize.name} ×${g.prize.quantity}`
-    : `🎁 ${g.prize.itemId} ×${g.prize.quantity}`;
+  const prizeLabel = `${g.prize.name || g.prize.itemId} ×${g.prize.quantity}`;
 
   const embed = new EmbedBuilder()
     .setColor('#FF6B6B')
@@ -979,28 +975,35 @@ client.on('interactionCreate', async interaction => {
     const selectedItemId = parts[2] || '';
 
     const titre = interaction.fields.getTextInputValue('gw_titre').trim();
-    // gw_gain n'existe que pour les items libres (occasionnels)
+    // gw_gain : champ libre commun aux deux branches (Nom du lot pour libre, Gain pour item inventaire)
     let gainRaw = '';
     try { gainRaw = interaction.fields.getTextInputValue('gw_gain').trim(); } catch {}
-    // Quantité : champ dédié gw_quantite (nouveau flux)
+
+    // Parser la quantité depuis le champ gw_quantite (branche libre) ou depuis gainRaw (branche item)
     let quantity = 1;
     try {
       const qtyStr = interaction.fields.getTextInputValue('gw_quantite').trim();
       const parsed = parseInt(qtyStr, 10);
       if (!isNaN(parsed) && parsed >= 1) quantity = parsed;
     } catch {
-      // Compatibilité ancien flux : parser depuis le gain ("× N")
-      const qtyMatch = gainRaw.match(/[×x]\s*(\d+)\s*$/i);
+      // Branche item inventaire : quantité encodée dans gainRaw ("× N" ou "N item")
+    }
+    // Extraire quantité depuis gainRaw si pas encore trouvée
+    if (quantity === 1 && gainRaw) {
+      const qtyMatch = gainRaw.match(/[×x]\s*(\d+)\s*$/i) || gainRaw.match(/^(\d+)\s+/);
       if (qtyMatch) quantity = Math.max(1, parseInt(qtyMatch[1]));
     }
+    // Texte du gain sans la partie quantité
+    let gainText = gainRaw
+      .replace(/\s*[×x]\s*\d+\s*$/i, '')
+      .replace(/^\d+\s+/, '')
+      .trim();
+
     const heureRaw = interaction.fields.getTextInputValue('gw_heure').trim();
     let description = '';
     try { description = interaction.fields.getTextInputValue('gw_description').trim(); } catch {}
     let conditions = '';
     try { conditions = interaction.fields.getTextInputValue('gw_conditions').trim(); } catch {}
-
-    // Nom du lot pour items libres (retirer le "× N" si présent, compatibilité)
-    let gainText = gainRaw.replace(/\s*[×x]\s*\d+\s*$/i, '').trim();
 
     // Parser l'heure de fin (format HH:MM) — heure Paris
     const heureMatch = heureRaw.match(/^(\d{1,2}):(\d{2})$/);
@@ -1025,13 +1028,14 @@ client.on('interactionCreate', async interaction => {
     // Construire la prize selon le type sélectionné
     let prize;
     if (selectedItemId && selectedItemId !== '__libre__') {
+      // Item inventaire : utiliser le texte libre du champ Gain (gainText), fallback sur le nom de l'item
       const itemTypes = getItemTypes();
       const found = itemTypes.find(i => i.id === selectedItemId);
       const isCustom = found && /^<a?:\w+:\d+>$/.test(found.emoji);
-      const itemName = found ? (isCustom ? found.name : `${found.emoji} ${found.name}`) : gainText;
-      prize = { type: 'item', itemId: selectedItemId, name: itemName, quantity };
+      const fallbackName = found ? (isCustom ? found.name : `${found.emoji} ${found.name}`) : selectedItemId;
+      prize = { type: 'item', itemId: selectedItemId, name: gainText || fallbackName, quantity };
     } else {
-      prize = { type: 'libre', name: gainText, quantity };
+      prize = { type: 'libre', name: gainText || gainRaw, quantity };
     }
 
     const gwSettings = getSettings();
@@ -1332,13 +1336,13 @@ client.on('interactionCreate', async interaction => {
           ),
         );
       } else {
-        // Item inventaire : Titre / Quantité / Heure / Description / Conditions
+        // Item inventaire : Titre / Gain (libre) / Heure / Description / Conditions
         modal.addComponents(
           new ActionRowBuilder().addComponents(
             new TextInputBuilder().setCustomId('gw_titre').setLabel('Titre du giveaway').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setPlaceholder('Ex: Giveaway Pack Légendaire')
           ),
           new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId('gw_quantite').setLabel('Quantité').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(6).setPlaceholder('Ex: 5').setValue('1')
+            new TextInputBuilder().setCustomId('gw_gain').setLabel('Gain (ex: Diamants ×5)').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(150).setPlaceholder('Ex: 5 Diamants, Pack Légendaire ×3...')
           ),
           new ActionRowBuilder().addComponents(
             new TextInputBuilder().setCustomId('gw_heure').setLabel('Heure de fin (format 00:00, fuseau Paris)').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(5).setPlaceholder('Ex: 21:00')
@@ -3496,9 +3500,7 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    const prizeLabel = g.prize.type === 'libre'
-      ? `📦 ${g.prize.name} ×${g.prize.quantity}`
-      : `🎁 ${g.prize.itemId} ×${g.prize.quantity}`;
+    const prizeLabel = `${g.prize.name || g.prize.itemId} ×${g.prize.quantity}`;
     const embed = new EmbedBuilder()
       .setColor('#FF6B6B')
       .setTitle(`🎉 Participants — ${g.title}`)
@@ -3584,9 +3586,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     const winnerMentions = newWinners.map(uid => `<@${uid}>`).join(', ');
-    const prizeLabel = updated.prize.type === 'libre'
-      ? `📦 ${updated.prize.name} ×${updated.prize.quantity}`
-      : `🎁 ${updated.prize.itemId} ×${updated.prize.quantity}`;
+    const prizeLabel = `${updated.prize.name || updated.prize.itemId} ×${updated.prize.quantity}`;
 
     // Annoncer dans le salon du giveaway
     try {
