@@ -149,7 +149,11 @@ async function drawWinners(id) {
 
   const eligible = g.participants.filter(uid => !g.previousWinners.includes(uid));
   const count = Math.min(g.winnerCount, eligible.length);
-  if (count === 0) return [];
+  if (count === 0) {
+    g.status = 'ended'; // Marquer terminé même sans participants pour éviter la boucle
+    await saveData(data);
+    return [];
+  }
 
   const shuffled = [...eligible].sort(() => Math.random() - 0.5);
   const winners = shuffled.slice(0, count);
