@@ -551,6 +551,20 @@ client.once('clientReady', async () => {
   await restartScheduler.init().catch(e => console.error('[RestartSched] init error:', e.message));
   restartScheduler.startPolling(60000);
 
+  // Nettoyer silencieusement les giveaways expirés bloqués en 'active' dans PG
+  // (ne pas envoyer de message Discord, juste mettre à jour le statut en base)
+  try {
+    await giveawayManager.initGiveaways();
+    const stuckGiveaways = giveawayManager.getActiveGiveaways().filter(g => new Date(g.endTime).getTime() <= Date.now());
+    for (const g of stuckGiveaways) {
+      locallyEndedGiveaways.add(g.id); // Bloquer tout re-scheduling
+      await giveawayManager.drawWinners(g.id).catch(() => {}); // Marquer 'ended' en DB silencieusement
+      console.log(`[Giveaway] Giveaway expiré nettoyé silencieusement : "${g.title}" (${g.id})`);
+    }
+  } catch (e) {
+    console.error('[Giveaway] Erreur nettoyage giveaways expirés:', e.message);
+  }
+
   // Publier les giveaways sans messageId + programmer les timers
   await publishAndScheduleGiveaways(client);
   // Polling toutes les 60s pour détecter les nouveaux giveaways créés depuis le dashboard
@@ -806,7 +820,7 @@ async function endGiveawayNow(id, botClient) {
     // Annoncer les gagnants
     if (winners && winners.length > 0) {
       const winnerMentions = winners.map(uid => `<@${uid}>`).join(', ');
-      const prizeLabel = `${g.prize.name || g.prize.itemId} ×${g.prize.quantity}`;
+      const prizeLabel = buildPrizeLabel(g.prize);
       await channel.send(`🎉 **Fin du Giveaway !**\n\n🏆 Félicitations ${winnerMentions} ! Vous remportez **${prizeLabel}** !\n\n> ✅ Votre gain a été crédité dans votre inventaire.`);
 
       // DM gagnants
@@ -897,13 +911,33 @@ async function publishAndScheduleGiveaways(botClient) {
   }
 }
 
+function buildPrizeLabel(prize) {
+  // Nettoyer les préfixes emoji hérités des anciennes versions (🎁, 📦, etc.)
+  const cleanName = (str) => (str || '').replace(/^[🎁📦🎀🎊🎉\s]+/, '').trim() || (str || '');
+
+  if (prize.itemId && prize.itemId !== '__libre__') {
+    // Chercher l'emoji de l'item dans les types configurés
+    const itemTypes = getItemTypes();
+    const found = itemTypes.find(i => i.id === prize.itemId);
+    if (found) {
+      const isCustomEmoji = /^<a?:\w+:\d+>$/.test(found.emoji);
+      const displayName = isCustomEmoji ? found.name : `${found.emoji} ${found.name}`;
+      return `${displayName} ×${prize.quantity}`;
+    }
+    // Fallback : nom stocké sans préfixe parasite
+    return `${cleanName(prize.name) || prize.itemId} ×${prize.quantity}`;
+  }
+  // Item libre : juste le nom propre
+  return `${cleanName(prize.name) || prize.itemId || '—'} ×${prize.quantity}`;
+}
+
 function buildGiveawayEmbed(g) {
   const timeLeft = giveawayManager.formatTimeLeft(g.endTime);
   const parisOpts = { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' };
   const parisDateOpts = { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit' };
   const endStr = new Date(g.endTime).toLocaleTimeString('fr-FR', parisOpts);
   const endDateStr = new Date(g.endTime).toLocaleDateString('fr-FR', parisDateOpts);
-  const prizeLabel = `${g.prize.name || g.prize.itemId} ×${g.prize.quantity}`;
+  const prizeLabel = buildPrizeLabel(g.prize);
 
   const embed = new EmbedBuilder()
     .setColor('#FF6B6B')
@@ -3503,7 +3537,7 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    const prizeLabel = `${g.prize.name || g.prize.itemId} ×${g.prize.quantity}`;
+    const prizeLabel = buildPrizeLabel(g.prize);
     const embed = new EmbedBuilder()
       .setColor('#FF6B6B')
       .setTitle(`🎉 Participants — ${g.title}`)
@@ -3589,7 +3623,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     const winnerMentions = newWinners.map(uid => `<@${uid}>`).join(', ');
-    const prizeLabel = `${updated.prize.name || updated.prize.itemId} ×${updated.prize.quantity}`;
+    const prizeLabel = buildPrizeLabel(updated.prize);
 
     // Annoncer dans le salon du giveaway
     try {

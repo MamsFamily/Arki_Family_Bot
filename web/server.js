@@ -2475,6 +2475,21 @@ function createWebServer(discordClient) {
     res.json({ success: true });
   });
 
+  function buildPrizeLabelServer(prize) {
+    const cleanName = (str) => (str || '').replace(/^[🎁📦🎀🎊🎉\s]+/, '').trim() || (str || '');
+    if (prize.itemId && prize.itemId !== '__libre__') {
+      const itemTypes = inventoryManager.getItemTypes();
+      const found = itemTypes.find(i => i.id === prize.itemId);
+      if (found) {
+        const isCustomEmoji = /^<a?:\w+:\d+>$/.test(found.emoji);
+        const displayName = isCustomEmoji ? found.name : `${found.emoji} ${found.name}`;
+        return `${displayName} ×${prize.quantity}`;
+      }
+      return `${cleanName(prize.name) || prize.itemId} ×${prize.quantity}`;
+    }
+    return `${cleanName(prize.name) || prize.itemId || '—'} ×${prize.quantity}`;
+  }
+
   function buildGiveawayEmbed(g, client) {
     const { EmbedBuilder } = require('discord.js');
     const timeLeft = giveawayManager.formatTimeLeft(g.endTime);
@@ -2482,7 +2497,7 @@ function createWebServer(discordClient) {
     const parisDateOpts = { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit' };
     const endStr = new Date(g.endTime).toLocaleTimeString('fr-FR', parisOpts);
     const endDateStr = new Date(g.endTime).toLocaleDateString('fr-FR', parisDateOpts);
-    const prizeLabel = `${g.prize.name || g.prize.itemId} ×${g.prize.quantity}`;
+    const prizeLabel = buildPrizeLabelServer(g.prize);
 
     const embed = new EmbedBuilder()
       .setColor('#FF6B6B')
@@ -2544,7 +2559,7 @@ function createWebServer(discordClient) {
           await msg.edit({ embeds: [endEmbed], components: [disabledRow] });
         }
       }
-      const prizeLabel = `${g.prize.name || g.prize.itemId} ×${g.prize.quantity}`;
+      const prizeLabel = buildPrizeLabelServer(g.prize);
       if (winners && winners.length > 0) {
         const winnerMentions = winners.map(uid => `<@${uid}>`).join(', ');
         await channel.send(`🎉 **Fin du Giveaway !**\n\n🏆 Félicitations ${winnerMentions} ! Vous remportez **${prizeLabel}** !\n\n> Contactez un administrateur pour recevoir votre gain.`);
