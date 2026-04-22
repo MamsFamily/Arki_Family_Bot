@@ -450,11 +450,6 @@ async function handleRouletteModal(interaction, { getPlayerInventory, addToInven
         delete allParis[userId];
         sauvegarderParis(allParis);
 
-        // Édite le message de pari pour signaler la résolution
-        try {
-          await replyMsg.edit({ content: `🎡 Résolution en cours...` });
-        } catch {}
-
         const rouletteLogo = new AttachmentBuilder(ROULETTE_LOGO_PATH, { name: 'roulette_logo.png' });
         const embed = new EmbedBuilder()
           .setTitle('🎡 Roulette — Résultat')
@@ -606,7 +601,8 @@ async function handleRRCreerModal(interaction, { getPlayerInventory, removeFromI
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('casino_rr_rejoindre').setLabel('Rejoindre').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('casino_rouletterusse').setLabel('Rafraîchir').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('casino_rr_republier').setLabel('📢 Republier').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('casino_rr_annuler').setLabel('❌ Annuler').setStyle(ButtonStyle.Danger),
   );
 
   await interaction.reply({ embeds: [embed], components: [row], files: [rrLogo2] });
@@ -658,6 +654,10 @@ async function handleRRRejoindre(interaction, { getPlayerInventory, removeFromIn
   if (partieApres.participants.length >= ROULETTE_RUSSE_MIN) {
     row.addComponents(new ButtonBuilder().setCustomId('casino_rr_lancer').setLabel('🔫 Lancer !').setStyle(ButtonStyle.Danger));
   }
+  row.addComponents(
+    new ButtonBuilder().setCustomId('casino_rr_republier').setLabel('📢 Republier').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('casino_rr_annuler').setLabel('❌ Annuler').setStyle(ButtonStyle.Danger),
+  );
 
   await interaction.reply({ embeds: [embed], components: [row], files: [rrLogo3] });
 }
@@ -715,6 +715,76 @@ async function handleRRLancer(interaction, { addToInventory }) {
       await interaction.editReply({ embeds: [embed], components: [], files: [rrLogo4] });
     } catch {}
   }, 4000);
+}
+
+// ─── RR : republier embed public ────────────────────────────────────────────────
+async function handleRRRePublier(interaction) {
+  const partie = chargerPartie();
+
+  if (!partie.participants || partie.participants.length === 0) {
+    return interaction.reply({ content: '❌ Aucune partie en cours à republier.', ephemeral: true });
+  }
+
+  const liste = partie.participants.map(p => `• ${p.nom}`).join('\n');
+  const rrLogo = new AttachmentBuilder(RR_LOGO_PATH, { name: 'rouletterusse_logo.png' });
+  const embed = new EmbedBuilder()
+    .setTitle('🔫 Roulette Russe — Partie en cours')
+    .setColor(COLOR)
+    .setThumbnail('attachment://rouletterusse_logo.png')
+    .setDescription(
+      `**Mise :** ${partie.mise} 💎\n` +
+      `**Participants (${partie.participants.length}/6) :**\n${liste}\n\n` +
+      `Minimum **${ROULETTE_RUSSE_MIN}** joueurs pour lancer. Rejoins la partie !`
+    );
+
+  const row = new ActionRowBuilder();
+  row.addComponents(new ButtonBuilder().setCustomId('casino_rr_rejoindre').setLabel('Rejoindre').setStyle(ButtonStyle.Secondary));
+  if (partie.participants.length >= ROULETTE_RUSSE_MIN) {
+    row.addComponents(new ButtonBuilder().setCustomId('casino_rr_lancer').setLabel('🔫 Lancer !').setStyle(ButtonStyle.Danger));
+  }
+  row.addComponents(
+    new ButtonBuilder().setCustomId('casino_rr_republier').setLabel('📢 Republier').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('casino_rr_annuler').setLabel('❌ Annuler').setStyle(ButtonStyle.Danger),
+  );
+
+  await interaction.reply({ embeds: [embed], components: [row], files: [rrLogo] });
+}
+
+// ─── RR : annuler la partie (créateur uniquement) ───────────────────────────────
+async function handleRRAnnuler(interaction, { addToInventory }) {
+  const userId = interaction.user.id;
+  const partie = chargerPartie();
+
+  if (!partie.participants || partie.participants.length === 0) {
+    return interaction.reply({ content: '❌ Aucune partie en cours.', ephemeral: true });
+  }
+
+  const createur = partie.participants[0];
+  if (String(createur.id) !== userId) {
+    return interaction.reply({ content: '❌ Seul le créateur de la partie peut l\'annuler.', ephemeral: true });
+  }
+
+  const mise = partie.mise;
+  const participants = [...partie.participants];
+
+  resetPartie();
+
+  for (const p of participants) {
+    await addToInventory(String(p.id), 'diamants', mise, 'Casino', 'Remboursement annulation RR');
+  }
+
+  const noms = participants.map(p => `• ${p.nom}`).join('\n');
+  await interaction.reply({
+    embeds: [
+      new EmbedBuilder()
+        .setTitle('🔫 Roulette Russe — Partie annulée')
+        .setColor('#95a5a6')
+        .setDescription(
+          `La partie a été annulée par **${createur.nom}**.\n\n` +
+          `**Participants remboursés (${mise} 💎 chacun) :**\n${noms}`
+        )
+    ]
+  });
 }
 
 // ─── POKER : annonce salon + spectateurs ──────────────────────────────────────
@@ -1136,9 +1206,11 @@ function registerCasinoHandlers(client, deps) {
         if (id === 'casino_blackjack')   return await handleCasinoBlackjackButton(interaction);
         if (id === 'casino_roulette')    return await handleCasinoRouletteButton(interaction);
         if (id === 'casino_rouletterusse') return await handleCasinoRRButton(interaction);
-        if (id === 'casino_rr_creer')    return await handleRRCreerButton(interaction);
+        if (id === 'casino_rr_creer')     return await handleRRCreerButton(interaction);
         if (id === 'casino_rr_rejoindre') return await handleRRRejoindre(interaction, ctx);
-        if (id === 'casino_rr_lancer')   return await handleRRLancer(interaction, ctx);
+        if (id === 'casino_rr_lancer')    return await handleRRLancer(interaction, ctx);
+        if (id === 'casino_rr_republier') return await handleRRRePublier(interaction);
+        if (id === 'casino_rr_annuler')   return await handleRRAnnuler(interaction, ctx);
 
         if (id.startsWith('casino_bj_tirer_')) {
           const target = id.replace('casino_bj_tirer_', '');
