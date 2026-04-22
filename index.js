@@ -977,17 +977,27 @@ client.on('interactionCreate', async interaction => {
     const targetChannelId = parts[0] || interaction.channelId;
     const pingEveryone = parts[1] === '1';
     const selectedItemId = parts[2] || '';
+    // Quantité transmise via le customId (étape 2/3 du wizard)
+    const quantity = parts[3] ? Math.max(1, parseInt(parts[3])) : 1;
 
     const titre = interaction.fields.getTextInputValue('gw_titre').trim();
-    const gainRaw = interaction.fields.getTextInputValue('gw_gain').trim();
+    // gw_gain n'existe que pour les items libres (occasionnels)
+    let gainRaw = '';
+    try { gainRaw = interaction.fields.getTextInputValue('gw_gain').trim(); } catch {}
     const heureRaw = interaction.fields.getTextInputValue('gw_heure').trim();
-    const description = interaction.fields.getTextInputValue('gw_description').trim();
-    const conditions = interaction.fields.getTextInputValue('gw_conditions').trim();
+    let description = '';
+    try { description = interaction.fields.getTextInputValue('gw_description').trim(); } catch {}
+    let conditions = '';
+    try { conditions = interaction.fields.getTextInputValue('gw_conditions').trim(); } catch {}
 
-    // Parser la quantité depuis le gain (format "Nom × N" ou "Nom x N")
-    const qtyMatch = gainRaw.match(/[×x]\s*(\d+)\s*$/i);
-    const quantity = qtyMatch ? Math.max(1, parseInt(qtyMatch[1])) : 1;
-    const gainText = qtyMatch ? gainRaw.slice(0, gainRaw.lastIndexOf(qtyMatch[0])).trim() : gainRaw;
+    // Compatibilité ancien flux : si pas de quantité dans customId, parser depuis le gain
+    let gainText = gainRaw;
+    if (!parts[3] && gainRaw) {
+      const qtyMatch = gainRaw.match(/[×x]\s*(\d+)\s*$/i);
+      if (qtyMatch) {
+        gainText = gainRaw.slice(0, gainRaw.lastIndexOf(qtyMatch[0])).trim();
+      }
+    }
 
     // Parser l'heure de fin (format HH:MM) — heure Paris
     const heureMatch = heureRaw.match(/^(\d{1,2}):(\d{2})$/);
@@ -1295,48 +1305,82 @@ client.on('interactionCreate', async interaction => {
       const pingEveryone = parts[1] || '0';
       const selectedItemId = interaction.values[0];
 
-      let gainPreFill = '';
-      let gainLabel = 'Gain (ce que le gagnant remporte)';
-      if (selectedItemId && selectedItemId !== '__libre__') {
+      // Étiquette du gain pour l'affichage à l'étape 2
+      let itemLabel = '✨ Item occasionnel';
+      if (selectedItemId !== '__libre__') {
         const itemTypes = getItemTypes();
         const found = itemTypes.find(i => i.id === selectedItemId);
         if (found) {
           const isCustomEmoji = /^<a?:\w+:\d+>$/.test(found.emoji);
-          gainPreFill = isCustomEmoji ? found.name : `${found.emoji} ${found.name}`;
-          gainLabel = `Gain : ${found.name}`.slice(0, 45);
+          itemLabel = isCustomEmoji ? found.name : `${found.emoji} ${found.name}`;
         }
-      } else if (selectedItemId === '__libre__') {
-        gainLabel = 'Item occasionnel — Nom du gain';
       }
 
+      // Étape 2 : sélectionner la quantité
+      const qtyOptions = [1, 2, 3, 5, 10, 15, 20, 25, 30, 50, 75, 100].map(n => ({
+        label: `${n}`,
+        value: `${n}`,
+      }));
+
+      const qtySelect = new StringSelectMenuBuilder()
+        .setCustomId(`giveaway_qty_select_${channelId}|${pingEveryone}|${selectedItemId}`)
+        .setPlaceholder('🔢 Choisir la quantité...')
+        .addOptions(qtyOptions);
+
+      return interaction.update({
+        content: `## 🎉 Créer un Giveaway\n**Gain choisi :** ${itemLabel}\n**Étape 2/3 — Quelle quantité ?**`,
+        components: [new ActionRowBuilder().addComponents(qtySelect)],
+      });
+    }
+
+    if (interaction.customId.startsWith('giveaway_qty_select_')) {
+      const raw = interaction.customId.replace('giveaway_qty_select_', '');
+      const parts = raw.split('|');
+      const channelId = parts[0];
+      const pingEveryone = parts[1] || '0';
+      const selectedItemId = parts[2] || '';
+      const quantity = interaction.values[0];
+
       const modal = new ModalBuilder()
-        .setCustomId(`giveway_create_modal_${channelId}|${pingEveryone}|${selectedItemId}`)
+        .setCustomId(`giveway_create_modal_${channelId}|${pingEveryone}|${selectedItemId}|${quantity}`)
         .setTitle('🎉 Créer un Giveaway');
 
-      const gainInput = new TextInputBuilder()
-        .setCustomId('gw_gain')
-        .setLabel(gainLabel)
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-        .setMaxLength(120)
-        .setPlaceholder('Ex: Pack Légendaire × 2  (ajoute × N pour la quantité)');
-      if (gainPreFill) gainInput.setValue(gainPreFill);
-
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId('gw_titre').setLabel('Titre du giveaway').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setPlaceholder('Ex: Giveaway Pack Légendaire')
-        ),
-        new ActionRowBuilder().addComponents(gainInput),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId('gw_heure').setLabel('Heure de fin (format 00:00, fuseau Paris)').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(5).setPlaceholder('Ex: 21:00')
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId('gw_description').setLabel('Description (optionnel)').setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(500).setPlaceholder('Ex: Un giveaway spécial pour les membres actifs !')
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId('gw_conditions').setLabel('Conditions (optionnel)').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(300).setPlaceholder('Ex: Être membre depuis +30 jours')
-        ),
-      );
+      if (selectedItemId === '__libre__') {
+        // Item libre : on a besoin du nom + heure + description + conditions (5 champs max)
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId('gw_titre').setLabel('Titre du giveaway').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setPlaceholder('Ex: Giveaway Pack Légendaire')
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId('gw_gain').setLabel('Nom du lot').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(120).setPlaceholder('Ex: Pack Légendaire')
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId('gw_heure').setLabel('Heure de fin (format 00:00, fuseau Paris)').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(5).setPlaceholder('Ex: 21:00')
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId('gw_description').setLabel('Description (optionnel)').setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(500).setPlaceholder('Ex: Un giveaway spécial pour les membres actifs !')
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId('gw_conditions').setLabel('Conditions (optionnel)').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(300).setPlaceholder('Ex: Être membre depuis +30 jours')
+          ),
+        );
+      } else {
+        // Item inventaire : nom déjà connu via customId → 4 champs disponibles
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId('gw_titre').setLabel('Titre du giveaway').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setPlaceholder('Ex: Giveaway Pack Légendaire')
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId('gw_heure').setLabel('Heure de fin (format 00:00, fuseau Paris)').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(5).setPlaceholder('Ex: 21:00')
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId('gw_description').setLabel('Description (optionnel)').setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(500).setPlaceholder('Ex: Un giveaway spécial pour les membres actifs !')
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder().setCustomId('gw_conditions').setLabel('Conditions (optionnel)').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(300).setPlaceholder('Ex: Être membre depuis +30 jours')
+          ),
+        );
+      }
 
       return interaction.showModal(modal);
     }
