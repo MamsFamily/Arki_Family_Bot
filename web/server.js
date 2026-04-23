@@ -2276,8 +2276,8 @@ function createWebServer(discordClient) {
 
   app.post('/economy/roles/add', requireAdmin, express.json(), async (req, res) => {
     const { roleId, roleName, income, shopDiscount } = req.body;
-    if (!roleId || !income) return res.json({ error: 'Données manquantes' });
-    await economyManager.setRoleIncome(roleId, roleName || roleId, income, shopDiscount || 0);
+    if (!roleId) return res.json({ error: 'Rôle manquant' });
+    await economyManager.setRoleIncome(roleId, roleName || roleId, income || 0, shopDiscount || 0);
     res.json({ ok: true });
   });
 
