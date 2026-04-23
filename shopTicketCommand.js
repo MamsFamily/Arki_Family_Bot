@@ -106,9 +106,16 @@ function calcCartTotal(cartItems, discount = 0) {
 
 // ── Construire les options de paiement depuis l'inventaire ────────────────────
 // Retourne un tableau d'options proposables au joueur
-function getPaymentOptions(cartItems, playerInventory) {
+// discount : pourcentage de réduction à appliquer sur les articles sans noReduction
+function getPaymentOptions(cartItems, playerInventory, discount = 0) {
   const inv = playerInventory || {};
   const options = [];
+
+  // Helper : calcule le coût restant (avec réduction) des articles non couverts
+  function calcRemaining(coveredIds) {
+    const remaining = cartItems.filter(i => !coveredIds.has(i.id));
+    return calcCartTotal(remaining, discount);
+  }
 
   // Séparer dinos normaux et dinos d'épaule
   const regularDinos = cartItems.filter(i => i.type === 'dino' && !i.isShoulder && !i.notAvailableDona);
@@ -119,12 +126,16 @@ function getPaymentOptions(cartItems, playerInventory) {
   const dinoDona = inv['dino_dona'] || 0;
   if (dinoDona > 0 && regularDinos.length > 0) {
     const usable = Math.min(dinoDona, regularDinos.length);
+    const covered = regularDinos.slice(0, usable).map(i => i.id);
+    const { totalDiamonds: remD, totalStrawberries: remS } = calcRemaining(new Set(covered));
     options.push({
       id: 'dino_dona',
       inventoryId: 'dino_dona',
-      label: `🦕 Dino Dona (${dinoDona} en stock, ${usable} utilisable${usable > 1 ? 's' : ''})`,
+      label: `🦕 Dino Dona (${usable}/${dinoDona} stock)`,
       usedQty: usable,
-      coveredItemIds: regularDinos.slice(0, usable).map(i => i.id),
+      coveredItemIds: covered,
+      remainingDiamonds: remD,
+      remainingStrawberries: remS,
     });
   }
 
@@ -132,25 +143,33 @@ function getPaymentOptions(cartItems, playerInventory) {
   const dinoEpauleShop = inv['dino_epaule_shop'] || 0;
   if (dinoEpauleShop > 0 && shoulderDinos.length > 0) {
     const usable = Math.min(dinoEpauleShop, shoulderDinos.length);
+    const covered = shoulderDinos.slice(0, usable).map(i => i.id);
+    const { totalDiamonds: remD, totalStrawberries: remS } = calcRemaining(new Set(covered));
     options.push({
       id: 'dino_epaule_shop',
       inventoryId: 'dino_epaule_shop',
-      label: `🦎 Dino d'épaule Shop (${dinoEpauleShop} en stock, ${usable} utilisable${usable > 1 ? 's' : ''})`,
+      label: `🦎 Dino d'épaule Shop (${usable}/${dinoEpauleShop} stock)`,
       usedQty: usable,
-      coveredItemIds: shoulderDinos.slice(0, usable).map(i => i.id),
+      coveredItemIds: covered,
+      remainingDiamonds: remD,
+      remainingStrawberries: remS,
     });
   }
 
-  // dino_epaule (générique) → option indépendante, aussi proposée si le joueur en a
+  // dino_epaule (générique) → option indépendante
   const dinoEpaule = inv['dino_epaule'] || 0;
   if (dinoEpaule > 0 && shoulderDinos.length > 0) {
     const usable = Math.min(dinoEpaule, shoulderDinos.length);
+    const covered = shoulderDinos.slice(0, usable).map(i => i.id);
+    const { totalDiamonds: remD, totalStrawberries: remS } = calcRemaining(new Set(covered));
     options.push({
       id: 'dino_epaule',
       inventoryId: 'dino_epaule',
-      label: `🦎 Dino d'épaule (${dinoEpaule} en stock, ${usable} utilisable${usable > 1 ? 's' : ''})`,
+      label: `🦎 Dino d'épaule (${usable}/${dinoEpaule} stock)`,
       usedQty: usable,
-      coveredItemIds: shoulderDinos.slice(0, usable).map(i => i.id),
+      coveredItemIds: covered,
+      remainingDiamonds: remD,
+      remainingStrawberries: remS,
     });
   }
 
@@ -158,17 +177,20 @@ function getPaymentOptions(cartItems, playerInventory) {
   const packQty = inv['pack'] || 0;
   if (packQty > 0 && packCompatItems.length > 0) {
     const usable = Math.min(packQty, packCompatItems.length);
+    const covered = packCompatItems.slice(0, usable).map(i => i.id);
+    const { totalDiamonds: remD, totalStrawberries: remS } = calcRemaining(new Set(covered));
     options.push({
       id: 'pack',
       inventoryId: 'pack',
-      label: `📦 Pack inventaire (${packQty} en stock, ${usable} utilisable${usable > 1 ? 's' : ''})`,
+      label: `📦 Pack inventaire (${usable}/${packQty} stock)`,
       usedQty: usable,
-      coveredItemIds: packCompatItems.slice(0, usable).map(i => i.id),
+      coveredItemIds: covered,
+      remainingDiamonds: remD,
+      remainingStrawberries: remS,
     });
   }
 
   // inventoryItemId → couvre les items shop liés à un type d'inventaire spécifique
-  // ex : "1 couleur" avec inventoryItemId:'peinture_dino'
   const invItemGroups = {};
   for (const item of cartItems) {
     if (item.inventoryItemId) {
@@ -180,12 +202,16 @@ function getPaymentOptions(cartItems, playerInventory) {
     const stock = inv[invItemId] || 0;
     if (stock > 0) {
       const usable = Math.min(stock, matchedItems.length);
+      const covered = matchedItems.slice(0, usable).map(i => i.id);
+      const { totalDiamonds: remD, totalStrawberries: remS } = calcRemaining(new Set(covered));
       options.push({
         id: `inv_${invItemId}`,
         inventoryId: invItemId,
-        label: `🎒 ${invItemId.replace(/_/g, ' ')} inventaire (${stock} en stock, ${usable} utilisable${usable > 1 ? 's' : ''})`,
+        label: `🎒 ${invItemId.replace(/_/g, ' ')} (${usable}/${stock} stock)`,
         usedQty: usable,
-        coveredItemIds: matchedItems.slice(0, usable).map(i => i.id),
+        coveredItemIds: covered,
+        remainingDiamonds: remD,
+        remainingStrawberries: remS,
       });
     }
   }
@@ -1100,7 +1126,7 @@ async function handleCartValidation(interaction, cart) {
 
   // 2. Analyser l'inventaire pour préparer les options de paiement (sans déduire)
   const playerInventory = getPlayerInventory(interaction.user.id);
-  const paymentOptions = getPaymentOptions(cart.items, playerInventory);
+  const paymentOptions = getPaymentOptions(cart.items, playerInventory, discount);
 
   // 3. Créer le ticket — le joueur choisira son mode de paiement dans le salon
   return createTicketThread(interaction, cart, discount, roleName, paymentOptions);
@@ -1206,14 +1232,39 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
     });
 
     // ── Message joueur (choix du paiement + voir commande) ────────────────────
+    const { totalDiamonds: directD, totalStrawberries: directS } = calcCartTotal(cart.items, discount);
+
+    let payDesc = '> *Le paiement n\'est débité **qu\'après la livraison** (validation admin).*\n\n';
+
+    if (paymentOptions.length > 0) {
+      payDesc += '**Options disponibles :**\n';
+      paymentOptions.forEach((opt, idx) => {
+        payDesc += `\n**Option ${idx + 1} — ${opt.label}**\n`;
+        const coveredNames = cart.items
+          .filter(i => opt.coveredItemIds.includes(i.id))
+          .map(i => `• ${i.name}`)
+          .join('\n');
+        payDesc += coveredNames ? `${coveredNames}\n` : '';
+        const hasRemainder = opt.remainingDiamonds > 0 || opt.remainingStrawberries > 0;
+        if (hasRemainder) {
+          payDesc += `↳ Reste à payer : **${formatPrice(opt.remainingDiamonds, opt.remainingStrawberries)}**`;
+          if (discount > 0 && discountRoleName) payDesc += ` *(${discountRoleName} −${discount}%)*`;
+          payDesc += '\n';
+        } else {
+          payDesc += '↳ Couvre **toute** la commande ✅\n';
+        }
+      });
+      payDesc += `\n**Option paiement direct** — tout en 💎+🍓\n↳ **${formatPrice(directD, directS)}**`;
+      if (discount > 0 && discountRoleName) payDesc += ` *(${discountRoleName} −${discount}%)*`;
+    } else {
+      payDesc += `💎 Paiement intégral : **${formatPrice(directD, directS)}**`;
+      if (discount > 0 && discountRoleName) payDesc += ` *(${discountRoleName} −${discount}%)*`;
+    }
+
     const paymentEmbed = new EmbedBuilder()
       .setColor(0x9b59b6)
       .setTitle('💳 Mode de paiement')
-      .setDescription(
-        paymentOptions.length > 0
-          ? 'Tu peux régler ta commande avec des items de ton inventaire ou en paiement direct.\n\nChaque option n\'est débitée **qu\'après la livraison** (validation admin).'
-          : '💎 Tu régleras cette commande directement en diamants/fraises après la livraison.'
-      );
+      .setDescription(payDesc);
 
     const payRows = buildPaymentChoiceComponents(orderId, paymentOptions);
     const viewRow = new ActionRowBuilder().addComponents(
@@ -1396,18 +1447,31 @@ async function handlePayMethod(interaction, orderId, methodKey) {
   order.paymentMethod = choice.id;
   order.paymentChoice = choice;
 
-  const label = choice.id === 'direct'
-    ? '💎 Paiement direct (diamants + fraises)'
-    : choice.label;
-
   // Désactiver les boutons de paiement
   try { await interaction.message.edit({ components: [] }); } catch (e) {}
+
+  // Construire le résumé du choix
+  let summary = '';
+  if (choice.id === 'direct') {
+    const { totalDiamonds, totalStrawberries } = calcCartTotal(order.cart.items, order.discount || 0);
+    summary = `💎 Paiement direct : **${formatPrice(totalDiamonds, totalStrawberries)}**`;
+    if (order.discount > 0 && order.discountRoleName) summary += ` *(${order.discountRoleName} −${order.discount}%)*`;
+  } else {
+    summary = `**${choice.label}**\n`;
+    const hasRemainder = (choice.remainingDiamonds || 0) > 0 || (choice.remainingStrawberries || 0) > 0;
+    if (hasRemainder) {
+      summary += `↳ Reste à payer après livraison : **${formatPrice(choice.remainingDiamonds || 0, choice.remainingStrawberries || 0)}**`;
+      if (order.discount > 0 && order.discountRoleName) summary += ` *(${order.discountRoleName} −${order.discount}%)*`;
+    } else {
+      summary += '↳ Couvre toute la commande ✅';
+    }
+  }
 
   await interaction.reply({
     embeds: [new EmbedBuilder()
       .setColor(0x2ecc71)
       .setTitle('✅ Mode de paiement enregistré')
-      .setDescription(`**Choix :** ${label}\n\nL'admin pourra maintenant valider ta commande et encaisser le paiement après livraison.`)
+      .setDescription(`${summary}\n\nL'admin va maintenant valider ta commande et encaisser après livraison.`)
       .setTimestamp()],
   });
 }
