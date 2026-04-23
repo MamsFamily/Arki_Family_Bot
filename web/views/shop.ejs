@@ -176,11 +176,12 @@
                       <% if (pack.noReduction) { %>
                         <span class="pack-badge badge-nored">&#x26D4; Pas de r&eacute;duc</span>
                       <% } %>
-                      <% if (pack.inventoryItemId) {
-                           const linkedType = (typeof itemTypes !== 'undefined') ? itemTypes.find(t => t.id === pack.inventoryItemId) : null;
+                      <% const allLinkedIds = pack.inventoryItemIds || (pack.inventoryItemId ? [pack.inventoryItemId] : []); %>
+                      <% allLinkedIds.forEach(function(lid) {
+                           const linkedType = (typeof itemTypes !== 'undefined') ? itemTypes.find(t => t.id === lid) : null;
                       %>
-                        <span class="pack-badge" style="background:rgba(155,89,182,0.15);color:#9b59b6;border:1px solid rgba(155,89,182,0.3);">&#x1F3AB; <%= linkedType ? (linkedType.emoji + ' ' + linkedType.name) : pack.inventoryItemId %></span>
-                      <% } %>
+                        <span class="pack-badge" style="background:rgba(155,89,182,0.15);color:#9b59b6;border:1px solid rgba(155,89,182,0.3);">&#x1F3AB; <%= linkedType ? (linkedType.emoji + ' ' + linkedType.name) : lid %></span>
+                      <% }); %>
                       <% if (pack.messageId) { %>
                         <span class="pack-badge badge-published">&#x2705; Publi&eacute;</span>
                       <% } else { %>
@@ -379,15 +380,15 @@
               </div>
 
               <div class="form-group">
-                <label for="inventoryItemId">🎒 Item inventaire lié <small style="font-weight:400;color:var(--text-muted)">(proposé au joueur comme moyen de paiement)</small></label>
-                <select id="inventoryItemId" name="inventoryItemId">
-                  <option value="">— Aucun lien —</option>
+                <label>🎒 Items inventaire liés <small style="font-weight:400;color:var(--text-muted)">(proposés au joueur comme moyen de paiement)</small></label>
+                <select id="inventoryItemIds" name="inventoryItemIds" multiple size="4" style="min-height:80px">
                   <% if (typeof itemTypes !== 'undefined') { %>
                     <% itemTypes.forEach(function(it) { %>
                       <option value="<%= it.id %>"><%= it.emoji %> <%= it.name %> — <%= it.id %></option>
                     <% }); %>
                   <% } %>
                 </select>
+                <small style="color:var(--text-muted)">Ctrl+clic (ou Cmd+clic) pour sélectionner plusieurs — laisser vide = aucun lien</small>
               </div>
 
               <div class="form-row">
@@ -487,6 +488,8 @@
       console.error('Erreur chargement packsData:', e);
     }
 
+    const INVENTORY_ITEM_TYPES = <%- JSON.stringify(typeof itemTypes !== 'undefined' ? itemTypes : []) %>;
+
     /* ── Multi-options state ── */
     let currentOptions = [];
     const OPTION_NUMS = ['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟'];
@@ -504,24 +507,46 @@
       const list = document.getElementById('optionsList');
       list.innerHTML = '';
       currentOptions.forEach((opt, i) => {
+        const invOptions = INVENTORY_ITEM_TYPES.map(it => {
+          const sel = (opt.inventoryItemIds || []).includes(it.id) ? 'selected' : '';
+          return `<option value="${it.id}" ${sel}>${it.emoji} ${it.name}</option>`;
+        }).join('');
+
         const row = document.createElement('div');
         row.className = 'option-row';
+        row.style.flexDirection = 'column';
+        row.style.gap = '4px';
         row.innerHTML = `
-          <span class="option-num">${OPTION_NUMS[i] || (i+1+'.')}</span>
-          <input type="text" class="form-control option-name" placeholder="Nom de la formule" value="${escHtml(opt.name)}" oninput="currentOptions[${i}].name=this.value;updatePreview()">
-          <div class="option-prices">
-            <div class="option-price-field">
-              <span class="option-price-icon">💎</span>
-              <input type="number" min="0" class="form-control" value="${opt.priceDiamonds||0}" placeholder="Diamants" oninput="currentOptions[${i}].priceDiamonds=parseInt(this.value)||0;updatePreview()">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span class="option-num">${OPTION_NUMS[i] || (i+1+'.')}</span>
+            <input type="text" class="form-control option-name" style="flex:1;min-width:100px" placeholder="Nom de la formule" value="${escHtml(opt.name)}" oninput="currentOptions[${i}].name=this.value;updatePreview()">
+            <div class="option-prices">
+              <div class="option-price-field">
+                <span class="option-price-icon">💎</span>
+                <input type="number" min="0" class="form-control" value="${opt.priceDiamonds||0}" placeholder="Diamants" oninput="currentOptions[${i}].priceDiamonds=parseInt(this.value)||0;updatePreview()">
+              </div>
+              <div class="option-price-field">
+                <span class="option-price-icon">🍓</span>
+                <input type="number" min="0" class="form-control" value="${opt.priceStrawberries||0}" placeholder="Fraises" oninput="currentOptions[${i}].priceStrawberries=parseInt(this.value)||0;updatePreview()">
+              </div>
             </div>
-            <div class="option-price-field">
-              <span class="option-price-icon">🍓</span>
-              <input type="number" min="0" class="form-control" value="${opt.priceStrawberries||0}" placeholder="Fraises" oninput="currentOptions[${i}].priceStrawberries=parseInt(this.value)||0;updatePreview()">
-            </div>
+            <button type="button" class="btn btn-sm btn-danger" onclick="removeOption(${i})" title="Supprimer">✕</button>
           </div>
-          <button type="button" class="btn btn-sm btn-danger" onclick="removeOption(${i})" title="Supprimer">✕</button>
+          <div style="padding-left:28px;display:flex;align-items:flex-start;gap:6px">
+            <span style="font-size:11px;color:var(--text-muted);white-space:nowrap;padding-top:4px">🎒 Items liés :</span>
+            <select multiple size="2" class="form-control" style="font-size:12px;flex:1" id="optInv_${i}">${invOptions}</select>
+          </div>
         `;
         list.appendChild(row);
+
+        // Attacher l'event après insertion dans le DOM
+        requestAnimationFrame(() => {
+          const sel = document.getElementById('optInv_' + i);
+          if (sel) sel.addEventListener('change', () => {
+            currentOptions[i].inventoryItemIds = [...sel.selectedOptions].map(o => o.value);
+            document.getElementById('optionsJson').value = JSON.stringify(currentOptions);
+          });
+        });
       });
       document.getElementById('optionsJson').value = JSON.stringify(currentOptions);
       updatePreview();
@@ -530,7 +555,7 @@
     function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
     function addOption() {
-      currentOptions.push({ name: '', priceDiamonds: 0, priceStrawberries: 0 });
+      currentOptions.push({ name: '', priceDiamonds: 0, priceStrawberries: 0, inventoryItemIds: [] });
       renderOptions();
     }
 
@@ -599,7 +624,7 @@
         document.getElementById('packContent').value = '';
         document.getElementById('packNote').value = '';
         document.getElementById('packColor').value = '#e74c3c';
-        document.getElementById('inventoryItemId').value = '';
+        [...document.getElementById('inventoryItemIds').options].forEach(o => o.selected = false);
         document.getElementById('donationAvailable').checked = false;
         document.getElementById('notCompatible').checked = false;
         document.getElementById('packUnavailable').checked = false;
@@ -615,7 +640,10 @@
         if (!pack) { alert('Erreur : pack introuvable. Rechargez la page.'); return; }
 
         const hasOptions = Array.isArray(pack.options) && pack.options.length > 0;
-        currentOptions = hasOptions ? JSON.parse(JSON.stringify(pack.options)) : [];
+        currentOptions = hasOptions ? JSON.parse(JSON.stringify(pack.options)).map(o => ({
+          ...o,
+          inventoryItemIds: o.inventoryItemIds || (o.inventoryItemId ? [o.inventoryItemId] : [])
+        })) : [];
 
         document.getElementById('multiOption').checked = hasOptions;
         document.getElementById('singlePriceSection').style.display = hasOptions ? 'none' : '';
@@ -639,7 +667,10 @@
         document.getElementById('packContent').value = pack.content || '';
         document.getElementById('packNote').value = pack.note || '';
         document.getElementById('packColor').value = pack.color || '#e74c3c';
-        document.getElementById('inventoryItemId').value = pack.inventoryItemId || '';
+        const linkedIds = pack.inventoryItemIds || (pack.inventoryItemId ? [pack.inventoryItemId] : []);
+        [...document.getElementById('inventoryItemIds').options].forEach(o => {
+          o.selected = linkedIds.includes(o.value);
+        });
         document.getElementById('donationAvailable').checked = !!pack.donationAvailable;
         document.getElementById('notCompatible').checked = !!pack.notCompatible;
         document.getElementById('packUnavailable').checked = pack.available === false;

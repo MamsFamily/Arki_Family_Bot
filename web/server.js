@@ -834,7 +834,13 @@ function createWebServer(discordClient) {
   });
 
   app.post('/shop/pack', requireAuth, async (req, res) => {
-    const { packId, name, category, priceDiamonds, priceStrawberries, content, note, color, donationAvailable, notCompatible, unavailable, noReduction, optionsJson, type, imageUrl, inventoryItemId } = req.body;
+    const { packId, name, category, priceDiamonds, priceStrawberries, content, note, color, donationAvailable, notCompatible, unavailable, noReduction, optionsJson, type, imageUrl } = req.body;
+
+    // inventoryItemIds : multi-select → peut être string, array ou undefined
+    const rawInvIds = req.body.inventoryItemIds;
+    const inventoryItemIds = Array.isArray(rawInvIds)
+      ? rawInvIds.filter(Boolean)
+      : (rawInvIds ? [rawInvIds] : []);
 
     let options = [];
     if (optionsJson) {
@@ -845,6 +851,7 @@ function createWebServer(discordClient) {
             name: o.name.trim(),
             priceDiamonds: parseInt(o.priceDiamonds) || 0,
             priceStrawberries: parseInt(o.priceStrawberries) || 0,
+            inventoryItemIds: Array.isArray(o.inventoryItemIds) ? o.inventoryItemIds.filter(Boolean) : [],
           }));
         }
       } catch (e) {}
@@ -865,7 +872,7 @@ function createWebServer(discordClient) {
       notCompatible: notCompatible === 'true',
       available: unavailable !== 'true',
       noReduction: noReduction === 'true',
-      inventoryItemId: (inventoryItemId || '').trim() || null,
+      inventoryItemIds: inventoryItemIds.length > 0 ? inventoryItemIds : null,
     };
 
     if (packId) {

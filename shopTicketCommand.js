@@ -204,12 +204,15 @@ function getPaymentOptions(cartItems, playerInventory, discount = 0) {
     });
   }
 
-  // inventoryItemId → couvre les items shop liés à un type d'inventaire spécifique
+  // inventoryItemIds → couvre les items shop liés à un type d'inventaire spécifique
   const invItemGroups = {};
   for (const item of cartItems) {
-    if (item.inventoryItemId) {
-      if (!invItemGroups[item.inventoryItemId]) invItemGroups[item.inventoryItemId] = [];
-      invItemGroups[item.inventoryItemId].push(item);
+    // Support tableau inventoryItemIds (nouveau) et legacy inventoryItemId
+    const ids = item.inventoryItemIds?.length ? item.inventoryItemIds
+      : (item.inventoryItemId ? [item.inventoryItemId] : []);
+    for (const invId of ids) {
+      if (!invItemGroups[invId]) invItemGroups[invId] = [];
+      if (!invItemGroups[invId].includes(item)) invItemGroups[invId].push(item);
     }
   }
   for (const [invItemId, matchedItems] of Object.entries(invItemGroups)) {
@@ -1121,7 +1124,9 @@ function addPackToCart(cart, pack, option) {
     noReduction: pack.noReduction || false,
     donationAvailable: pack.donationAvailable || false,
     notCompatible: pack.notCompatible || false,
-    inventoryItemId: pack.inventoryItemId || null,
+    inventoryItemIds: (option?.inventoryItemIds?.length ? option.inventoryItemIds
+      : (pack.inventoryItemIds?.length ? pack.inventoryItemIds
+      : (pack.inventoryItemId ? [pack.inventoryItemId] : []))),
   };
   cart.items.push(item);
 }
