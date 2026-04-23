@@ -104,49 +104,100 @@ function calcCartTotal(cartItems, discount = 0) {
   return { totalDiamonds, totalStrawberries };
 }
 
-// ── Déterminer ce qui est déductible de l'inventaire ─────────────────────────
-function getInventoryDeductions(cartItems, playerInventory) {
+// ── Construire les options de paiement depuis l'inventaire ────────────────────
+// Retourne un tableau d'options proposables au joueur
+function getPaymentOptions(cartItems, playerInventory) {
   const inv = playerInventory || {};
-  const deductions = [];
+  const options = [];
 
-  // Compter les dinos "dona" dans l'inventaire du joueur
+  // Séparer dinos normaux et dinos d'épaule
+  const regularDinos = cartItems.filter(i => i.type === 'dino' && !i.isShoulder && !i.notAvailableDona);
+  const shoulderDinos = cartItems.filter(i => i.type === 'dino' && i.isShoulder);
+  const packCompatItems = cartItems.filter(i => (i.type === 'pack' || i.type === 'unitaire') && i.donationAvailable);
+
+  // dino_dona → couvre les dinos normaux
   const dinoDona = inv['dino_dona'] || 0;
-  const pack = inv['pack'] || 0;
-
-  // Items comptabilisables par catégorie
-  let dinoCount = 0;
-  let packCompatCount = 0;
-
-  for (const item of cartItems) {
-    if (item.type === 'dino') {
-      if (!item.notAvailableDona) dinoCount++;
-    } else if (item.type === 'pack') {
-      if (item.donationAvailable) packCompatCount++;
-    } else if (item.type === 'unitaire') {
-      if (item.donationAvailable) packCompatCount++;
-    }
-  }
-
-  if (dinoDona > 0 && dinoCount > 0) {
-    deductions.push({
+  if (dinoDona > 0 && regularDinos.length > 0) {
+    const usable = Math.min(dinoDona, regularDinos.length);
+    options.push({
       id: 'dino_dona',
-      label: '🦕 Dino Dona',
-      available: dinoDona,
-      usable: Math.min(dinoDona, dinoCount),
-      appliesToCount: dinoCount,
-    });
-  }
-  if (pack > 0 && packCompatCount > 0) {
-    deductions.push({
-      id: 'pack',
-      label: '📦 Pack inventaire',
-      available: pack,
-      usable: Math.min(pack, packCompatCount),
-      appliesToCount: packCompatCount,
+      inventoryId: 'dino_dona',
+      label: `🦕 Dino Dona (${dinoDona} en stock, ${usable} utilisable${usable > 1 ? 's' : ''})`,
+      usedQty: usable,
+      coveredItemIds: regularDinos.slice(0, usable).map(i => i.id),
     });
   }
 
-  return deductions;
+  // dino_epaule_shop → couvre les dinos d'épaule
+  const dinoEpauleShop = inv['dino_epaule_shop'] || 0;
+  if (dinoEpauleShop > 0 && shoulderDinos.length > 0) {
+    const usable = Math.min(dinoEpauleShop, shoulderDinos.length);
+    options.push({
+      id: 'dino_epaule_shop',
+      inventoryId: 'dino_epaule_shop',
+      label: `🦎 Dino d'épaule Shop (${dinoEpauleShop} en stock, ${usable} utilisable${usable > 1 ? 's' : ''})`,
+      usedQty: usable,
+      coveredItemIds: shoulderDinos.slice(0, usable).map(i => i.id),
+    });
+  }
+
+  // dino_epaule (générique) → couvre aussi les dinos d'épaule si pas de dino_epaule_shop
+  const dinoEpaule = inv['dino_epaule'] || 0;
+  const alreadyCoveredShoulder = options.find(o => o.id === 'dino_epaule_shop')?.usedQty || 0;
+  const remainingShoulder = shoulderDinos.length - alreadyCoveredShoulder;
+  if (dinoEpaule > 0 && remainingShoulder > 0) {
+    const usable = Math.min(dinoEpaule, remainingShoulder);
+    options.push({
+      id: 'dino_epaule',
+      inventoryId: 'dino_epaule',
+      label: `🦎 Dino d'épaule (${dinoEpaule} en stock, ${usable} utilisable${usable > 1 ? 's' : ''})`,
+      usedQty: usable,
+      coveredItemIds: shoulderDinos.slice(alreadyCoveredShoulder, alreadyCoveredShoulder + usable).map(i => i.id),
+    });
+  }
+
+  // pack → couvre les items compatibles
+  const packQty = inv['pack'] || 0;
+  if (packQty > 0 && packCompatItems.length > 0) {
+    const usable = Math.min(packQty, packCompatItems.length);
+    options.push({
+      id: 'pack',
+      inventoryId: 'pack',
+      label: `📦 Pack inventaire (${packQty} en stock, ${usable} utilisable${usable > 1 ? 's' : ''})`,
+      usedQty: usable,
+      coveredItemIds: packCompatItems.slice(0, usable).map(i => i.id),
+    });
+  }
+
+  return options;
+}
+
+// ── Construire les boutons de choix de paiement (pour le salon ticket) ────────
+function buildPaymentChoiceComponents(orderId, paymentOptions) {
+  const btns = paymentOptions.map((opt, idx) =>
+    new ButtonBuilder()
+      .setCustomId(`st_pay_method::${orderId}::${idx}`)
+      .setLabel(opt.label.slice(0, 80))
+      .setStyle(ButtonStyle.Primary)
+  );
+
+  btns.push(
+    new ButtonBuilder()
+      .setCustomId(`st_pay_method::${orderId}::direct`)
+      .setLabel('💎 Paiement direct (💎 + 🍓)')
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  const rows = [];
+  for (let i = 0; i < btns.length; i += 5) {
+    rows.push(new ActionRowBuilder().addComponents(btns.slice(i, i + 5)));
+  }
+  return rows;
+}
+
+// Compatibilité ancienne interface (non utilisé directement mais gardé)
+function getInventoryDeductions(cartItems, playerInventory) {
+  return getPaymentOptions(cartItems, playerInventory);
 }
 
 // ── Initialiser un panier vide ────────────────────────────────────────────────
@@ -325,26 +376,40 @@ function buildCartEmbed(cart, discount = 0, discountRoleName = null) {
       if (item.selectedOption) desc += ` — *${item.selectedOption}*`;
     }
 
-    let d = item.priceDiamonds || 0;
-    let s = item.priceStrawberries || 0;
-    if (!item.noReduction && discount > 0) {
+    const dBase = item.priceDiamonds || 0;
+    const sBase = item.priceStrawberries || 0;
+    let d = dBase;
+    let s = sBase;
+    const hasDiscount = !item.noReduction && discount > 0;
+    if (hasDiscount) {
       d = applyDiscount(d, discount);
       s = applyDiscount(s, discount);
     }
-    desc += `\n> 💰 ${formatPrice(d, s)}`;
-    if (!item.noReduction && discount > 0) desc += ` *(−${discount}%)*`;
+    if (hasDiscount && (dBase > 0 || sBase > 0)) {
+      desc += `\n> 💰 ~~${formatPrice(dBase, sBase)}~~ → ${formatPrice(d, s)} *(−${discount}%)*`;
+    } else {
+      desc += `\n> 💰 ${formatPrice(d, s)}`;
+      if (item.noReduction && discount > 0) desc += ' *(réd. non applicable)*';
+    }
     desc += '\n\n';
   }
 
   const { totalDiamonds, totalStrawberries } = calcCartTotal(items, discount);
+  const { totalDiamonds: totalBase, totalStrawberries: totalBaseS } = calcCartTotal(items, 0);
   const embed = new EmbedBuilder()
     .setTitle('🛒 Ton panier')
     .setDescription(desc.trim())
     .setColor(0x7c5cfc);
 
+  let totalLine = '';
+  if (discount > 0 && discountRoleName && (totalBase !== totalDiamonds || totalBaseS !== totalStrawberries)) {
+    totalLine = `~~${formatPrice(totalBase, totalBaseS)}~~ → **${formatPrice(totalDiamonds, totalStrawberries)}** *(${discountRoleName} −${discount}%)*`;
+  } else {
+    totalLine = `**${formatPrice(totalDiamonds, totalStrawberries)}**`;
+  }
   embed.addFields({
     name: '💰 Total estimé',
-    value: formatPrice(totalDiamonds, totalStrawberries) + (discount > 0 && discountRoleName ? `\n*Réduction **${discountRoleName}** (−${discount}%) appliquée*` : ''),
+    value: totalLine,
     inline: false,
   });
 
@@ -384,24 +449,35 @@ function buildOrderRecapEmbed(cart, discount, discountRoleName, deductionsChosen
       desc += `📦 **${item.name}**`;
       if (item.selectedOption) desc += ` *(${item.selectedOption})*`;
     }
-    let d = item.priceDiamonds || 0;
-    let s = item.priceStrawberries || 0;
-    if (!item.noReduction && discount > 0) {
+    const dBase = item.priceDiamonds || 0;
+    const sBase = item.priceStrawberries || 0;
+    let d = dBase;
+    let s = sBase;
+    const hasDiscount = !item.noReduction && discount > 0;
+    if (hasDiscount) {
       d = applyDiscount(d, discount);
       s = applyDiscount(s, discount);
     }
-    desc += `\n> ${formatPrice(d, s)}\n`;
+    if (hasDiscount && (dBase > 0 || sBase > 0)) {
+      desc += `\n> 💰 ~~${formatPrice(dBase, sBase)}~~ → ${formatPrice(d, s)} *(−${discount}%)*\n`;
+    } else {
+      desc += `\n> 💰 ${formatPrice(d, s)}\n`;
+    }
+  }
+
+  const { totalDiamonds: totalBase, totalStrawberries: totalBaseS } = calcCartTotal(cart.items, 0);
+  let totalValue = '';
+  if (discount > 0 && discountRoleName && (totalBase !== totalDiamonds || totalBaseS !== totalStrawberries)) {
+    totalValue = `~~${formatPrice(totalBase, totalBaseS)}~~\n→ **${formatPrice(totalDiamonds, totalStrawberries)}** *(${discountRoleName} −${discount}%)*`;
+  } else {
+    totalValue = `**${formatPrice(totalDiamonds, totalStrawberries)}**`;
   }
 
   const embed = new EmbedBuilder()
     .setTitle('📋 Récapitulatif de commande')
     .setDescription(desc.trim())
     .setColor(0xe67e22)
-    .addFields({ name: '💰 Total brut', value: formatPrice(totalDiamonds, totalStrawberries), inline: true });
-
-  if (discount > 0 && discountRoleName) {
-    embed.addFields({ name: `🏷️ Réduction (${discountRoleName})`, value: `−${discount}%`, inline: true });
-  }
+    .addFields({ name: '💰 Total à régler', value: totalValue, inline: false });
 
   if (deductionsChosen && deductionsChosen.length > 0) {
     const ded = deductionsChosen.map(d => `${d.label} : −${d.usedQty} utilisé(s)`).join('\n');
@@ -641,6 +717,7 @@ async function handleShopTicketInteraction(interaction) {
       priceStrawberries,
       noReduction: dino.noReduction || false,
       notAvailableDona: dino.notAvailableDona || false,
+      isShoulder: dino.isShoulder || false,
     };
 
     cart.items.push(cartItem);
@@ -807,7 +884,11 @@ async function handleShopTicketInteraction(interaction) {
   // ── Modal commentaire soumis ────────────────────────────────────────────────
   if (id === 'st_comment_modal') {
     cart.comment = interaction.fields.getTextInputValue('comment_text') || '';
-    await interaction.reply({ content: '✅ Commentaire enregistré !', ephemeral: true });
+    const memberRoleIds = await getMemberRoleIds(interaction);
+    const { discount: disc, roleName: rn } = await getMaxDiscount(memberRoleIds);
+    const updatedEmbed = buildCartEmbed(cart, disc, rn);
+    const rows = buildCartButtons(cart.items.length === 0);
+    await interaction.reply({ content: '✅ Commentaire enregistré !', embeds: [updatedEmbed], components: rows, ephemeral: true });
     return;
   }
 
@@ -844,10 +925,41 @@ async function handleShopTicketInteraction(interaction) {
     });
   }
 
-  // ── Bouton admin : fermer le ticket ─────────────────────────────────────────
+  // ── Bouton admin : fermer le ticket (confirmation) ───────────────────────────
   if (id.startsWith('st_admin_close::')) {
     const orderId = id.split('::')[1];
     return handleAdminClose(interaction, orderId);
+  }
+
+  // ── Confirmation fermeture ────────────────────────────────────────────────
+  if (id.startsWith('st_close_confirm::')) {
+    const orderId = id.split('::')[1];
+    return handleCloseConfirm(interaction, orderId);
+  }
+
+  // ── Annuler fermeture ─────────────────────────────────────────────────────
+  if (id.startsWith('st_close_cancel::')) {
+    const orderId = id.split('::')[1];
+    return handleCloseCancel(interaction, orderId);
+  }
+
+  // ── Joueur : choix du mode de paiement ───────────────────────────────────
+  if (id.startsWith('st_pay_method::')) {
+    const parts = id.split('::');
+    const orderId = parts[1];
+    const methodKey = parts[2];
+    return handlePayMethod(interaction, orderId, methodKey);
+  }
+
+  // ── Voir le récap de commande ──────────────────────────────────────────────
+  if (id.startsWith('st_view_order::')) {
+    const orderId = id.split('::')[1];
+    return handleViewOrder(interaction, orderId);
+  }
+
+  // ── Nouvelle commande depuis le ticket ────────────────────────────────────
+  if (id === 'st_new_order') {
+    return handleNewOrder(interaction);
   }
 }
 
@@ -952,7 +1064,7 @@ function addPackToCart(cart, pack, option) {
   cart.items.push(item);
 }
 
-// ── Flux validation du panier (entièrement automatique) ──────────────────────
+// ── Flux validation du panier ─────────────────────────────────────────────────
 async function handleCartValidation(interaction, cart) {
   if (cart.items.length === 0) {
     return interaction.reply({ content: '❌ Ton panier est vide !', ephemeral: true });
@@ -962,13 +1074,12 @@ async function handleCartValidation(interaction, cart) {
   const memberRoleIds = await getMemberRoleIds(interaction);
   const { discount, roleName } = await getMaxDiscount(memberRoleIds);
 
-  // 2. Déduire automatiquement tout ce qui est possible depuis l'inventaire
+  // 2. Analyser l'inventaire pour préparer les options de paiement (sans déduire)
   const playerInventory = getPlayerInventory(interaction.user.id);
-  const deductions = getInventoryDeductions(cart.items, playerInventory);
-  const deductionsChosen = deductions.map(d => ({ ...d, usedQty: d.usable }));
+  const paymentOptions = getPaymentOptions(cart.items, playerInventory);
 
-  // 3. Devise automatique : 💎 + 🍓 selon les prix des articles
-  return createTicketThread(interaction, cart, discount, roleName, deductionsChosen);
+  // 3. Créer le ticket — le joueur choisira son mode de paiement dans le salon
+  return createTicketThread(interaction, cart, discount, roleName, paymentOptions);
 }
 
 // ── Texte récap du panier ─────────────────────────────────────────────────────
@@ -985,7 +1096,7 @@ function buildCartSummaryText(cart, discount, roleName) {
 }
 
 // ── Créer le thread ticket ────────────────────────────────────────────────────
-async function createTicketThread(interaction, cart, discount = 0, discountRoleName = null, deductionsChosen = []) {
+async function createTicketThread(interaction, cart, discount = 0, discountRoleName = null, paymentOptions = []) {
   const settings = getSettings();
   const shop = require('./shopManager').getShop();
 
@@ -1052,19 +1163,45 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
       cart: JSON.parse(JSON.stringify(cart)),
       discount,
       discountRoleName,
-      deductionsChosen,
+      paymentOptions: JSON.parse(JSON.stringify(paymentOptions)),
+      paymentMethod: null,   // sera défini par le joueur
+      paymentChoice: null,   // option choisie (objet)
       createdAt: Date.now(),
       status: 'pending',
     };
     activeOrders.set(orderId, orderData);
 
-    const recapEmbed = buildOrderRecapEmbed(cart, discount, discountRoleName, deductionsChosen, interaction.user.id);
+    const recapEmbed = buildOrderRecapEmbed(cart, discount, discountRoleName, [], interaction.user.id);
     const adminBtns = buildAdminButtons(orderId);
 
+    // ── Message admin (recap + boutons admin) ─────────────────────────────────
     await ticketChannel.send({
       content: `Bonjour <@${interaction.user.id}> ! 👋\n\nTa commande a bien été enregistrée. Un admin va la prendre en charge et valider le paiement une fois la livraison effectuée.\n\n*Tu peux ajouter des précisions directement ici.*`,
       embeds: [recapEmbed],
       components: adminBtns,
+    });
+
+    // ── Message joueur (choix du paiement + voir commande) ────────────────────
+    const paymentEmbed = new EmbedBuilder()
+      .setColor(0x9b59b6)
+      .setTitle('💳 Mode de paiement')
+      .setDescription(
+        paymentOptions.length > 0
+          ? 'Tu peux régler ta commande avec des items de ton inventaire ou en paiement direct.\n\nChaque option n\'est débitée **qu\'après la livraison** (validation admin).'
+          : '💎 Tu régleras cette commande directement en diamants/fraises après la livraison.'
+      );
+
+    const payRows = buildPaymentChoiceComponents(orderId, paymentOptions);
+    const viewRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`st_view_order::${orderId}`)
+        .setLabel('📋 Voir ma commande')
+        .setStyle(ButtonStyle.Secondary)
+    );
+
+    await ticketChannel.send({
+      embeds: [paymentEmbed],
+      components: paymentOptions.length > 0 ? [...payRows, viewRow] : [viewRow],
     });
 
     // ── Notifier dans le salon log admin ─────────────────────────────────────
@@ -1133,53 +1270,152 @@ async function handleAdminValidate(interaction, orderId) {
     return interaction.reply({ content: `⚠️ Cette commande a déjà été **${order.status === 'paid' ? 'encaissée' : 'annulée'}**.`, ephemeral: true });
   }
 
-  const { cart, discount, deductionsChosen, userId } = order;
-  const { totalDiamonds, totalStrawberries } = calcCartTotal(cart.items, discount);
-
+  const { cart, discount, discountRoleName, paymentChoice, userId } = order;
   const adminName = interaction.member?.displayName || interaction.user.username;
 
   try {
-    // 1. Déduire les items inventaire (déductions automatiques)
-    for (const ded of (deductionsChosen || [])) {
-      if (ded.usedQty > 0) {
-        await removeFromInventory(userId, ded.id, ded.usedQty, interaction.user.id, `Commande shop #${orderId}`);
+    let paymentDesc = '';
+
+    if (paymentChoice && paymentChoice.id !== 'direct') {
+      // ── Paiement par item inventaire ────────────────────────────────────────
+      await removeFromInventory(
+        userId, paymentChoice.inventoryId, paymentChoice.usedQty,
+        interaction.user.id, `Commande shop #${orderId}`
+      );
+      paymentDesc += `> ${paymentChoice.label.split(' (')[0]} : −${paymentChoice.usedQty}\n`;
+
+      // Calculer le reste à payer (items NON couverts par l'inventaire)
+      const coveredIds = new Set(paymentChoice.coveredItemIds || []);
+      const remainingItems = cart.items.filter(i => !coveredIds.has(i.id));
+      const { totalDiamonds: remD, totalStrawberries: remS } = calcCartTotal(remainingItems, discount);
+      if (remD > 0) {
+        await removeFromInventory(userId, 'diamants', remD, interaction.user.id, `Commande shop #${orderId}`);
+        paymentDesc += `> 💎 ${remD.toLocaleString('fr-FR')} diamants\n`;
+      }
+      if (remS > 0) {
+        await removeFromInventory(userId, 'fraises', remS, interaction.user.id, `Commande shop #${orderId}`);
+        paymentDesc += `> 🍓 ${remS.toLocaleString('fr-FR')} fraises\n`;
+      }
+    } else {
+      // ── Paiement direct diamants + fraises ──────────────────────────────────
+      const { totalDiamonds, totalStrawberries } = calcCartTotal(cart.items, discount);
+      if (totalDiamonds > 0) {
+        await removeFromInventory(userId, 'diamants', totalDiamonds, interaction.user.id, `Commande shop #${orderId}`);
+        paymentDesc += `> 💎 ${totalDiamonds.toLocaleString('fr-FR')} diamants\n`;
+      }
+      if (totalStrawberries > 0) {
+        await removeFromInventory(userId, 'fraises', totalStrawberries, interaction.user.id, `Commande shop #${orderId}`);
+        paymentDesc += `> 🍓 ${totalStrawberries.toLocaleString('fr-FR')} fraises\n`;
       }
     }
 
-    // 2. Déduire automatiquement 💎 + 🍓 selon les prix des articles
-    if (totalDiamonds > 0) {
-      await removeFromInventory(userId, 'diamants', totalDiamonds, interaction.user.id, `Commande shop #${orderId}`);
-    }
-    if (totalStrawberries > 0) {
-      await removeFromInventory(userId, 'fraises', totalStrawberries, interaction.user.id, `Commande shop #${orderId}`);
-    }
+    if (!paymentDesc.trim()) paymentDesc = '> *Aucun débit (commande gratuite ou gérée manuellement)*\n';
 
     order.status = 'paid';
 
-    // 3. Retirer les boutons du message admin
-    try {
-      await interaction.message.edit({ components: [] });
-    } catch (e) {}
+    // Retirer les boutons du message admin
+    try { await interaction.message.edit({ components: [] }); } catch (e) {}
 
     const paidEmbed = new EmbedBuilder()
       .setColor(0x2ecc71)
       .setTitle('✅ Commande validée & Paiement encaissé !')
       .setDescription(
         `**Admin :** ${adminName}\n` +
-        `**Paiement débité :**\n` +
-        (totalDiamonds > 0 ? `> 💎 ${totalDiamonds.toLocaleString('fr-FR')} diamants\n` : '') +
-        (totalStrawberries > 0 ? `> 🍓 ${totalStrawberries.toLocaleString('fr-FR')} fraises\n` : '') +
-        (deductionsChosen?.length > 0 ? deductionsChosen.map(d => `> ${d.label} : −${d.usedQty}`).join('\n') + '\n' : '') +
-        `\n*Merci pour ta commande <@${userId}> !* 🎉`
+        `**Paiement débité :**\n${paymentDesc}\n` +
+        `*Merci pour ta commande <@${userId}> !* 🎉`
       )
       .setTimestamp();
 
-    await interaction.reply({ embeds: [paidEmbed] });
+    const newOrderRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('st_new_order')
+        .setLabel('🛒 Passer une nouvelle commande')
+        .setStyle(ButtonStyle.Primary)
+    );
+
+    await interaction.reply({ embeds: [paidEmbed], components: [newOrderRow] });
 
   } catch (err) {
     console.error('[ShopTicket] Erreur encaissement:', err);
     return interaction.reply({ content: `❌ Erreur lors de l'encaissement : ${err.message}`, ephemeral: true });
   }
+}
+
+// ── Joueur : sélectionne son mode de paiement ─────────────────────────────────
+async function handlePayMethod(interaction, orderId, methodKey) {
+  // Chercher l'order depuis le channelId (le salon ticket)
+  let order = activeOrders.get(orderId);
+  if (!order) {
+    // Fallback : chercher par channelId
+    for (const [, o] of activeOrders) {
+      if (o.channelId === interaction.channelId) { order = o; break; }
+    }
+  }
+  if (!order) {
+    return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
+  }
+  if (order.status !== 'pending') {
+    return interaction.reply({ content: '⚠️ Cette commande a déjà été traitée.', ephemeral: true });
+  }
+
+  let choice;
+  if (methodKey === 'direct') {
+    choice = { id: 'direct', label: 'Paiement direct (💎+🍓)', coveredItemIds: [] };
+  } else {
+    const idx = parseInt(methodKey, 10);
+    choice = (order.paymentOptions || [])[idx];
+    if (!choice) {
+      return interaction.reply({ content: '❌ Option de paiement invalide.', ephemeral: true });
+    }
+  }
+
+  order.paymentMethod = choice.id;
+  order.paymentChoice = choice;
+
+  const label = choice.id === 'direct'
+    ? '💎 Paiement direct (diamants + fraises)'
+    : choice.label;
+
+  // Désactiver les boutons de paiement
+  try { await interaction.message.edit({ components: [] }); } catch (e) {}
+
+  await interaction.reply({
+    embeds: [new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle('✅ Mode de paiement enregistré')
+      .setDescription(`**Choix :** ${label}\n\nL'admin pourra maintenant valider ta commande et encaisser le paiement après livraison.`)
+      .setTimestamp()],
+  });
+}
+
+// ── Joueur/Admin : voir le récap de commande ──────────────────────────────────
+async function handleViewOrder(interaction, orderId) {
+  let order = activeOrders.get(orderId);
+  if (!order) {
+    for (const [, o] of activeOrders) {
+      if (o.channelId === interaction.channelId) { order = o; break; }
+    }
+  }
+  if (!order) {
+    return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
+  }
+
+  const embed = buildOrderRecapEmbed(order.cart, order.discount, order.discountRoleName, [], order.userId);
+  if (order.paymentChoice) {
+    const payLabel = order.paymentChoice.id === 'direct'
+      ? '💎 Paiement direct'
+      : order.paymentChoice.label.split(' (')[0];
+    embed.addFields({ name: '💳 Mode de paiement choisi', value: payLabel, inline: false });
+  } else {
+    embed.addFields({ name: '💳 Mode de paiement', value: '⏳ En attente du choix du joueur', inline: false });
+  }
+
+  return interaction.reply({ embeds: [embed], ephemeral: true });
+}
+
+// ── Joueur : passer une nouvelle commande depuis le ticket ────────────────────
+async function handleNewOrder(interaction) {
+  return handleShopTicketCommand(interaction);
 }
 
 // ── Admin : annuler la commande ───────────────────────────────────────────────
@@ -1201,25 +1437,55 @@ async function handleAdminCancel(interaction, orderId) {
   });
 }
 
-// ── Admin : fermer le ticket (supprime le salon) ──────────────────────────────
+// ── Admin : demander confirmation avant de fermer le ticket ──────────────────
 async function handleAdminClose(interaction, orderId) {
-  const order = activeOrders.get(orderId);
-  if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
-
-  const adminName = interaction.member?.displayName || interaction.user.username;
-
-  // Envoyer un message d'au-revoir avant de fermer
   await interaction.reply({
     embeds: [new EmbedBuilder()
-      .setColor(0x95a5a6)
-      .setTitle('🔒 Ticket fermé')
-      .setDescription(`Ce ticket a été fermé par **${adminName}**.\nLe salon sera supprimé dans 5 secondes.`)
-      .setTimestamp()],
+      .setColor(0xe67e22)
+      .setTitle('⚠️ Fermer ce ticket ?')
+      .setDescription('Cette action va **supprimer définitivement** ce salon.\nEs-tu sûr(e) de vouloir fermer le ticket ?')
+    ],
+    components: [new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`st_close_confirm::${orderId}`)
+        .setLabel('✅ Oui, fermer le ticket')
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId(`st_close_cancel::${orderId}`)
+        .setLabel('❌ Annuler')
+        .setStyle(ButtonStyle.Secondary),
+    )],
+    ephemeral: true,
   });
+}
 
+// ── Admin : confirme la fermeture ─────────────────────────────────────────────
+async function handleCloseConfirm(interaction, orderId) {
+  const adminName = interaction.member?.displayName || interaction.user.username;
   activeOrders.delete(orderId);
 
-  // Supprimer le salon après un court délai
+  try {
+    await interaction.update({
+      embeds: [new EmbedBuilder()
+        .setColor(0x95a5a6)
+        .setTitle('🔒 Ticket fermé')
+        .setDescription(`Fermeture par **${adminName}** — salon supprimé dans 5 secondes.`)
+      ],
+      components: [],
+    });
+  } catch (e) {}
+
+  // Envoyer un message public dans le salon avant de le supprimer
+  try {
+    await interaction.channel.send({
+      embeds: [new EmbedBuilder()
+        .setColor(0x95a5a6)
+        .setTitle('🔒 Ticket fermé')
+        .setDescription(`Ce ticket a été fermé par **${adminName}**.\nSuppression dans 5 secondes.`)
+        .setTimestamp()],
+    });
+  } catch (e) {}
+
   setTimeout(async () => {
     try {
       await interaction.channel.delete(`Ticket fermé par ${adminName}`);
@@ -1227,6 +1493,17 @@ async function handleAdminClose(interaction, orderId) {
       console.error('[ShopTicket] Impossible de supprimer le salon ticket:', e.message);
     }
   }, 5000);
+}
+
+// ── Admin : annule la fermeture ───────────────────────────────────────────────
+async function handleCloseCancel(interaction, orderId) {
+  await interaction.update({
+    embeds: [new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle('✅ Fermeture annulée')
+      .setDescription('Le ticket reste ouvert.')],
+    components: [],
+  });
 }
 
 module.exports = {
