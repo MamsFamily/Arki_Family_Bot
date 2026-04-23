@@ -131,10 +131,18 @@ function getPaymentOptions(cartItems, playerInventory, discount = 0) {
     return calcCartTotal(remaining, discount);
   }
 
-  // Séparer dinos normaux et dinos d'épaule
-  const regularDinos = cartItems.filter(i => i.type === 'dino' && !i.isShoulder && !i.notAvailableDona);
-  const shoulderDinos = cartItems.filter(i => i.type === 'dino' && i.isShoulder);
-  const packCompatItems = cartItems.filter(i => (i.type === 'pack' || i.type === 'unitaire') && i.donationAvailable);
+  // Séparer dinos normaux et dinos d'épaule (sans inventoryItemIds propres → chemin legacy)
+  // Les items avec inventoryItemIds explicites sont gérés par invItemGroups plus bas
+  const hasExplicitInvIds = i => !!(i.inventoryItemIds?.length || i.inventoryItemId);
+  const regularDinos = cartItems.filter(i => i.type === 'dino' && !i.isShoulder && !i.notAvailableDona && !hasExplicitInvIds(i));
+  const shoulderDinos = cartItems.filter(i => i.type === 'dino' && i.isShoulder && !hasExplicitInvIds(i));
+  // Packs compatibles pack inventaire = donationAvailable ET sans lien inventoryItemIds spécifique
+  // (les packs avec inventoryItemIds propres sont couverts par leur item spécifique)
+  const packCompatItems = cartItems.filter(i =>
+    (i.type === 'pack' || i.type === 'unitaire') &&
+    i.donationAvailable &&
+    !(i.inventoryItemIds?.length || i.inventoryItemId)
+  );
 
   // dino_dona → couvre les dinos normaux
   const dinoDona = inv['dino_dona'] || 0;
