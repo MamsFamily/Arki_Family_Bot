@@ -132,6 +132,10 @@ const commands = [
     description: 'Ouvre un ticket shop interactif pour passer une commande (dinos, packs...)',
   },
   {
+    name: 'ticket-shop-panel',
+    description: 'Publie l\'embed shop avec le bouton d\'ouverture de ticket dans le salon courant (Admin)',
+  },
+  {
     name: 'creer-giveway',
     description: 'Crée et publie un giveaway dans le salon courant (Admin et Modo)',
     options: [

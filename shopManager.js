@@ -67,6 +67,8 @@ function getShop() {
   if (!shop.shopUnitaireChannelId) shop.shopUnitaireChannelId = '';
   if (!shop.shopIndexChannelId) shop.shopIndexChannelId = '';
   if (!shop.shopTicketChannelId) shop.shopTicketChannelId = '';
+  if (!shop.shopTicketCategoryId) shop.shopTicketCategoryId = '';
+  if (!shop.shopTicketAdminRoleIds) shop.shopTicketAdminRoleIds = [];
   return shop;
 }
 
@@ -127,6 +129,8 @@ async function updateShopChannels(fields) {
   if ('shopUnitaireChannelId' in fields) shop.shopUnitaireChannelId = fields.shopUnitaireChannelId;
   if ('shopIndexChannelId' in fields) shop.shopIndexChannelId = fields.shopIndexChannelId;
   if ('shopTicketChannelId' in fields) shop.shopTicketChannelId = fields.shopTicketChannelId;
+  if ('shopTicketCategoryId' in fields) shop.shopTicketCategoryId = fields.shopTicketCategoryId;
+  if ('shopTicketAdminRoleIds' in fields) shop.shopTicketAdminRoleIds = fields.shopTicketAdminRoleIds;
   await saveShop(shop);
 }
 

@@ -37,7 +37,7 @@ const { initSpecialPacks, getSpecialPacks, getSpecialPack } = require('./special
 const economyManager = require('./economyManager');
 const xpManager = require('./xpManager');
 const { handleShopCommand, handleShopInteraction } = require('./shopCommand');
-const { handleShopTicketCommand, handleShopTicketInteraction } = require('./shopTicketCommand');
+const { handleShopTicketCommand, handleShopTicketInteraction, publishShopTicketPanel } = require('./shopTicketCommand');
 const restartScheduler = require('./nitradoRestartScheduler');
 const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
 const { registerCasinoHandlers } = require('./casino/casinoHandler');
@@ -1009,11 +1009,13 @@ client.on('interactionCreate', async interaction => {
       id === 'st_back_packs' || id === 'st_packs_select' || id === 'st_cart_remove' ||
       id === 'st_cart_remove_select' || id === 'st_cart_comment' || id === 'st_cart_validate' ||
       id === 'st_view_cart_btn' || id === 'st_main_menu_dinos' ||
+      id === 'st_open_ticket_shop' ||
       id.startsWith('st_dino_select::') || id.startsWith('st_dino_letter_back::') ||
       id.startsWith('st_dino_variant::') || id.startsWith('st_dino_sexe::') ||
       id.startsWith('st_dino_stat::') || id.startsWith('st_pack_option::') ||
       id.startsWith('st_admin_validate::') ||
-      id.startsWith('st_admin_cancel::') || id.startsWith('st_admin_modify::')
+      id.startsWith('st_admin_cancel::') || id.startsWith('st_admin_modify::') ||
+      id.startsWith('st_admin_close::')
     ) {
       try {
         await handleShopTicketInteraction(interaction);
@@ -1792,6 +1794,20 @@ client.on('interactionCreate', async interaction => {
       console.error('[ShopTicket] Erreur commande /ticket-shop:', err);
       try {
         const reply = { content: '❌ Impossible d\'ouvrir le ticket shop. Réessaie.', ephemeral: true };
+        if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
+        else await interaction.reply(reply);
+      } catch (e) {}
+    }
+    return;
+  }
+
+  if (commandName === 'ticket-shop-panel') {
+    try {
+      await publishShopTicketPanel(interaction);
+    } catch (err) {
+      console.error('[ShopTicket] Erreur commande /ticket-shop-panel:', err);
+      try {
+        const reply = { content: '❌ Impossible de publier le panneau shop. Réessaie.', ephemeral: true };
         if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
         else await interaction.reply(reply);
       } catch (e) {}

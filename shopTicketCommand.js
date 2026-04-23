@@ -4,9 +4,10 @@
  * - Navigation dinos (variantes, sexe M/F, stat forte)
  * - Navigation packs/unitaires
  * - Panier virtuel persistant (ajouter, retirer, commentaire)
- * - Calcul paiement : inventaire (déductions possibles) + réduction rôle
- * - Création thread ticket avec récap
- * - Bouton admin pour valider et encaisser automatiquement
+ * - Calcul paiement : inventaire (déductions auto) + réduction rôle
+ * - Création d'un salon ticket privé (ChannelType.GuildText)
+ * - Bouton admin pour valider & encaisser automatiquement
+ * - Bouton admin pour fermer le ticket (supprime le salon)
  */
 
 const {
@@ -18,6 +19,8 @@ const {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
+  ChannelType,
+  PermissionFlagsBits,
 } = require('discord.js');
 
 const { getDinoData, getDino } = require('./dinoManager');
@@ -418,7 +421,7 @@ function buildOrderRecapEmbed(cart, discount, discountRoleName, deductionsChosen
 
 // ── Boutons admin dans le thread ──────────────────────────────────────────────
 function buildAdminButtons(orderId) {
-  return new ActionRowBuilder().addComponents(
+  const row1 = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`st_admin_validate::${orderId}`)
       .setLabel('✅ Valider & Encaisser')
@@ -432,6 +435,13 @@ function buildAdminButtons(orderId) {
       .setLabel('✏️ Modifier avant paiement')
       .setStyle(ButtonStyle.Secondary),
   );
+  const row2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`st_admin_close::${orderId}`)
+      .setLabel('🔒 Fermer le ticket')
+      .setStyle(ButtonStyle.Secondary),
+  );
+  return [row1, row2];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -806,6 +816,11 @@ async function handleShopTicketInteraction(interaction) {
     return handleCartValidation(interaction, cart);
   }
 
+  // ── Bouton : ouvrir un ticket depuis le panneau ──────────────────────────────
+  if (id === 'st_open_ticket_shop') {
+    return handleShopTicketCommand(interaction);
+  }
+
   // ── Bouton admin : valider & encaisser ──────────────────────────────────────
   if (id.startsWith('st_admin_validate::')) {
     const orderId = id.split('::')[1];
@@ -824,9 +839,15 @@ async function handleShopTicketInteraction(interaction) {
     const order = activeOrders.get(orderId);
     if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
     return interaction.reply({
-      content: `✏️ Pour modifier cette commande, utilisez directement les boutons dans ce thread. La commande reste ouverte et le paiement n'a pas encore été déclenché.`,
+      content: `✏️ La commande reste ouverte et le paiement n'a pas encore été déclenché. Tu peux modifier les informations ici directement.`,
       ephemeral: true,
     });
+  }
+
+  // ── Bouton admin : fermer le ticket ─────────────────────────────────────────
+  if (id.startsWith('st_admin_close::')) {
+    const orderId = id.split('::')[1];
+    return handleAdminClose(interaction, orderId);
   }
 }
 
@@ -967,37 +988,65 @@ function buildCartSummaryText(cart, discount, roleName) {
 async function createTicketThread(interaction, cart, discount = 0, discountRoleName = null, deductionsChosen = []) {
   const settings = getSettings();
   const shop = require('./shopManager').getShop();
-  const ticketChannelId = shop.shopTicketChannelId;
-
-  if (!ticketChannelId) {
-    return interaction.update({
-      embeds: [new EmbedBuilder().setColor(0xe74c3c).setTitle('❌ Configuration manquante').setDescription('Le salon de tickets shop n\'est pas configuré. Contacte un admin.')],
-      components: [],
-    });
-  }
 
   try {
-    const ticketChannel = await interaction.guild.channels.fetch(ticketChannelId);
-    if (!ticketChannel) throw new Error('Salon introuvable');
-
     const guildMember = await interaction.guild.members.fetch(interaction.user.id).catch(() => interaction.member);
     const username = guildMember?.displayName || interaction.user.username;
 
-    // Résumé des dinos pour le nom du thread
-    const dinoNames = cart.items.filter(i => i.type === 'dino').map(i => i.name).slice(0, 2).join(', ');
-    const threadLabel = dinoNames || cart.items[0]?.name || 'Commande';
-    const threadName = `🛒 ${username} — ${threadLabel}`.slice(0, 100);
+    // ── Construire les overwrites de permissions ─────────────────────────────
+    const permOverwrites = [
+      // @everyone : aucun accès
+      {
+        id: interaction.guild.id,
+        deny: [PermissionFlagsBits.ViewChannel],
+      },
+      // L'acheteur : lecture + envoi
+      {
+        id: interaction.user.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.AttachFiles,
+        ],
+      },
+    ];
 
-    const thread = await ticketChannel.threads.create({
-      name: threadName,
-      autoArchiveDuration: 10080,
+    // Rôles admin configurés dans le shop
+    const adminRoleIds = Array.isArray(shop.shopTicketAdminRoleIds) ? shop.shopTicketAdminRoleIds : [];
+    // Fallback : modoRoleId depuis les paramètres globaux
+    const modoRoleId = settings.guild?.modoRoleId;
+    const allAdminRoles = [...new Set([...adminRoleIds, modoRoleId].filter(Boolean))];
+
+    for (const roleId of allAdminRoles) {
+      permOverwrites.push({
+        id: roleId,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.ManageMessages,
+        ],
+      });
+    }
+
+    // ── Nom du salon ─────────────────────────────────────────────────────────
+    const safeName = username.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '-').slice(0, 20);
+    const channelName = `🛒-ticket-${safeName}`;
+
+    // ── Créer le salon privé ─────────────────────────────────────────────────
+    const ticketChannel = await interaction.guild.channels.create({
+      name: channelName,
+      type: ChannelType.GuildText,
+      parent: shop.shopTicketCategoryId || null,
+      permissionOverwrites: permOverwrites,
       reason: `Ticket shop de ${username}`,
     });
 
     const orderId = genId();
     const orderData = {
       orderId,
-      threadId: thread.id,
+      channelId: ticketChannel.id,
       userId: interaction.user.id,
       username,
       cart: JSON.parse(JSON.stringify(cart)),
@@ -1012,42 +1061,66 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
     const recapEmbed = buildOrderRecapEmbed(cart, discount, discountRoleName, deductionsChosen, interaction.user.id);
     const adminBtns = buildAdminButtons(orderId);
 
-    await thread.members.add(interaction.user.id);
-    await thread.send({
-      content: `Bonjour <@${interaction.user.id}> ! 👋\n\nTa commande a été enregistrée. Un admin va la prendre en charge et valider le paiement une fois la livraison effectuée.\n\n*Tu peux ajouter un commentaire ici directement dans ce salon si tu as des précisions à donner.*`,
+    await ticketChannel.send({
+      content: `Bonjour <@${interaction.user.id}> ! 👋\n\nTa commande a bien été enregistrée. Un admin va la prendre en charge et valider le paiement une fois la livraison effectuée.\n\n*Tu peux ajouter des précisions directement ici.*`,
       embeds: [recapEmbed],
-      components: [adminBtns],
+      components: adminBtns,
     });
 
-    // Notifier dans un salon log admin si configuré
+    // ── Notifier dans le salon log admin ─────────────────────────────────────
     try {
-      const logChannelId = settings.guild?.inventoryLogChannelId;
+      const logChannelId = settings.guild?.inventoryLogChannelId || shop.shopTicketChannelId;
       if (logChannelId) {
-        const logChannel = await interaction.guild.channels.fetch(logChannelId);
+        const logChannel = await interaction.guild.channels.fetch(logChannelId).catch(() => null);
         if (logChannel) {
           const { totalDiamonds, totalStrawberries } = calcCartTotal(cart.items, discount);
-          await logChannel.send(`🛒 **Nouveau ticket shop** de <@${interaction.user.id}> : <#${thread.id}>\n> ${cart.items.length} article(s) — Total estimé : ${formatPrice(totalDiamonds, totalStrawberries)}`);
+          await logChannel.send(`🛒 **Nouveau ticket shop** de <@${interaction.user.id}> : <#${ticketChannel.id}>\n> ${cart.items.length} article(s) — Total estimé : ${formatPrice(totalDiamonds, totalStrawberries)}`);
         }
       }
     } catch (e) {}
 
-    // Nettoyer le panier de navigation
+    // ── Nettoyer le panier de navigation ─────────────────────────────────────
     activeCarts.delete(interaction.user.id);
 
     return interaction.update({
       embeds: [new EmbedBuilder()
         .setColor(0x2ecc71)
-        .setTitle('✅ Commande enregistrée !')
-        .setDescription(`Ton ticket a été créé : <#${thread.id}>\n\nUn admin va prendre en charge ta commande et valider le paiement après livraison. Tu peux ajouter des informations directement dans le thread.`)],
+        .setTitle('✅ Ticket créé !')
+        .setDescription(`Ton ticket a été ouvert : <#${ticketChannel.id}>\n\nUn admin va prendre en charge ta commande. Le paiement sera encaissé après la livraison.`)],
       components: [],
     });
   } catch (err) {
-    console.error('[ShopTicket] Erreur création thread:', err);
+    console.error('[ShopTicket] Erreur création salon ticket:', err);
     return interaction.update({
-      embeds: [new EmbedBuilder().setColor(0xe74c3c).setTitle('❌ Erreur').setDescription('Impossible de créer le ticket. Réessaie ou contacte un admin.')],
+      embeds: [new EmbedBuilder().setColor(0xe74c3c).setTitle('❌ Erreur').setDescription(`Impossible de créer le ticket : ${err.message}\n\nVérifie que la catégorie ticket est configurée dans le dashboard.`)],
       components: [],
     });
   }
+}
+
+// ── Publication du panneau shop (embed + bouton) ──────────────────────────────
+async function publishShopTicketPanel(interaction) {
+  const embed = new EmbedBuilder()
+    .setColor(0x2ecc71)
+    .setTitle('🛒 Shop Arki Family')
+    .setDescription(
+      '**Bienvenue dans le shop !**\n\n' +
+      'Clique sur le bouton ci-dessous pour passer une commande.\n' +
+      'Un ticket privé sera créé pour toi et un admin prendra en charge ta demande.\n\n' +
+      '🦕 Dinos (variantes, sexe, stat forte)\n' +
+      '📦 Packs & articles unitaires'
+    )
+    .setFooter({ text: 'Le paiement est encaissé après livraison.' });
+
+  const btn = new ButtonBuilder()
+    .setCustomId('st_open_ticket_shop')
+    .setLabel('🎫 Ouvrir un ticket')
+    .setStyle(ButtonStyle.Primary);
+
+  const row = new ActionRowBuilder().addComponents(btn);
+
+  await interaction.channel.send({ embeds: [embed], components: [row] });
+  return interaction.reply({ content: '✅ Panneau shop publié dans ce salon !', ephemeral: true });
 }
 
 // ── Admin : valider & encaisser ───────────────────────────────────────────────
@@ -1123,13 +1196,42 @@ async function handleAdminCancel(interaction, orderId) {
     embeds: [new EmbedBuilder()
       .setColor(0xe74c3c)
       .setTitle('❌ Commande annulée')
-      .setDescription(`La commande de <@${order.userId}> a été annulée par **${adminName}**.\n\nAucun paiement n'a été effectué.`)
+      .setDescription(`La commande de <@${order.userId}> a été annulée par **${adminName}**.\n\nAucun paiement n'a été effectué.\n\n*Utilise 🔒 Fermer le ticket pour supprimer ce salon.*`)
       .setTimestamp()],
   });
+}
+
+// ── Admin : fermer le ticket (supprime le salon) ──────────────────────────────
+async function handleAdminClose(interaction, orderId) {
+  const order = activeOrders.get(orderId);
+  if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
+
+  const adminName = interaction.member?.displayName || interaction.user.username;
+
+  // Envoyer un message d'au-revoir avant de fermer
+  await interaction.reply({
+    embeds: [new EmbedBuilder()
+      .setColor(0x95a5a6)
+      .setTitle('🔒 Ticket fermé')
+      .setDescription(`Ce ticket a été fermé par **${adminName}**.\nLe salon sera supprimé dans 5 secondes.`)
+      .setTimestamp()],
+  });
+
+  activeOrders.delete(orderId);
+
+  // Supprimer le salon après un court délai
+  setTimeout(async () => {
+    try {
+      await interaction.channel.delete(`Ticket fermé par ${adminName}`);
+    } catch (e) {
+      console.error('[ShopTicket] Impossible de supprimer le salon ticket:', e.message);
+    }
+  }, 5000);
 }
 
 module.exports = {
   handleShopTicketCommand,
   handleShopTicketInteraction,
+  publishShopTicketPanel,
   activeOrders,
 };
