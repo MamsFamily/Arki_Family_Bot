@@ -1008,11 +1008,11 @@ client.on('interactionCreate', async interaction => {
       id === 'st_main_menu' || id === 'st_back_home' || id === 'st_dino_letter' ||
       id === 'st_back_packs' || id === 'st_packs_select' || id === 'st_cart_remove' ||
       id === 'st_cart_remove_select' || id === 'st_cart_comment' || id === 'st_cart_validate' ||
-      id === 'st_currency_choice' || id === 'st_view_cart_btn' || id === 'st_main_menu_dinos' ||
+      id === 'st_view_cart_btn' || id === 'st_main_menu_dinos' ||
       id.startsWith('st_dino_select::') || id.startsWith('st_dino_letter_back::') ||
       id.startsWith('st_dino_variant::') || id.startsWith('st_dino_sexe::') ||
       id.startsWith('st_dino_stat::') || id.startsWith('st_pack_option::') ||
-      id.startsWith('st_ded_choice::') || id.startsWith('st_admin_validate::') ||
+      id.startsWith('st_admin_validate::') ||
       id.startsWith('st_admin_cancel::') || id.startsWith('st_admin_modify::')
     ) {
       try {

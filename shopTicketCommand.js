@@ -54,14 +54,29 @@ function applyDiscount(price, pct) {
   return Math.floor(price * (1 - pct / 100));
 }
 
+// ── Récupérer les IDs de rôles d'un membre (robuste) ─────────────────────────
+async function getMemberRoleIds(interaction) {
+  try {
+    // Préférer un fetch fresh pour être sûr d'avoir les rôles à jour
+    const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+    if (member) return [...member.roles.cache.keys()];
+    // Fallback sur le cache de l'interaction
+    if (interaction.member?.roles?.cache?.size > 0) {
+      return [...interaction.member.roles.cache.keys()];
+    }
+  } catch (e) {}
+  return [];
+}
+
 // ── Calcul réduction max du joueur ────────────────────────────────────────────
 async function getMaxDiscount(memberRoleIds) {
   const roles = await getRoleIncomes();
   let maxDiscount = 0;
   let discountRoleName = null;
   for (const [roleId, cfg] of Object.entries(roles)) {
-    if (memberRoleIds.includes(roleId) && (cfg.shopDiscount || 0) > maxDiscount) {
-      maxDiscount = cfg.shopDiscount;
+    const pct = parseFloat(cfg.shopDiscount) || 0;
+    if (memberRoleIds.includes(roleId) && pct > maxDiscount) {
+      maxDiscount = pct;
       discountRoleName = cfg.name;
     }
   }
@@ -791,22 +806,6 @@ async function handleShopTicketInteraction(interaction) {
     return handleCartValidation(interaction, cart);
   }
 
-  // ── Choix déductions inventaire ─────────────────────────────────────────────
-  if (id.startsWith('st_ded_choice::')) {
-    const dedId = id.split('::')[1];
-    const choice = interaction.values[0]; // 'all', 'partial', 'none'
-    cart.pendingDeductions = cart.pendingDeductions || {};
-    cart.pendingDeductions[dedId] = choice;
-    return handleCartValidation(interaction, cart, true);
-  }
-
-  // ── Choix devise ────────────────────────────────────────────────────────────
-  if (id === 'st_currency_choice') {
-    const currency = interaction.values[0]; // 'diamants', 'fraises', 'split'
-    cart.chosenCurrency = currency;
-    return createTicketThread(interaction, cart);
-  }
-
   // ── Bouton admin : valider & encaisser ──────────────────────────────────────
   if (id.startsWith('st_admin_validate::')) {
     const orderId = id.split('::')[1];
@@ -878,8 +877,8 @@ async function showPackMenu(interaction) {
 
 // ── Afficher le panier ────────────────────────────────────────────────────────
 async function showCart(interaction, cart) {
-  const memberRoles = interaction.member?.roles?.cache?.map(r => r.id) || [];
-  const { discount, roleName } = await getMaxDiscount(memberRoles);
+  const memberRoleIds = await getMemberRoleIds(interaction);
+  const { discount, roleName } = await getMaxDiscount(memberRoleIds);
   const embed = buildCartEmbed(cart, discount, roleName);
   const rows = buildCartButtons(cart.items.length === 0);
   return interaction.update({ embeds: [embed], components: rows });
@@ -887,8 +886,8 @@ async function showCart(interaction, cart) {
 
 // ── Afficher le panier en followup (après retrait) ───────────────────────────
 async function showCartFollowup(interaction, cart) {
-  const memberRoles = interaction.member?.roles?.cache?.map(r => r.id) || [];
-  const { discount, roleName } = await getMaxDiscount(memberRoles);
+  const memberRoleIds = await getMemberRoleIds(interaction);
+  const { discount, roleName } = await getMaxDiscount(memberRoleIds);
   const embed = buildCartEmbed(cart, discount, roleName);
   const rows = buildCartButtons(cart.items.length === 0);
   try {
@@ -932,77 +931,23 @@ function addPackToCart(cart, pack, option) {
   cart.items.push(item);
 }
 
-// ── Flux validation du panier ─────────────────────────────────────────────────
-async function handleCartValidation(interaction, cart, isUpdate = false) {
+// ── Flux validation du panier (entièrement automatique) ──────────────────────
+async function handleCartValidation(interaction, cart) {
   if (cart.items.length === 0) {
-    const reply = { content: '❌ Ton panier est vide !', ephemeral: true };
-    return isUpdate ? interaction.update(reply) : interaction.reply(reply);
+    return interaction.reply({ content: '❌ Ton panier est vide !', ephemeral: true });
   }
 
-  const memberRoles = interaction.member?.roles?.cache?.map(r => r.id) || [];
-  const { discount, roleName } = await getMaxDiscount(memberRoles);
+  // 1. Récupérer la réduction de rôle max
+  const memberRoleIds = await getMemberRoleIds(interaction);
+  const { discount, roleName } = await getMaxDiscount(memberRoleIds);
+
+  // 2. Déduire automatiquement tout ce qui est possible depuis l'inventaire
   const playerInventory = getPlayerInventory(interaction.user.id);
   const deductions = getInventoryDeductions(cart.items, playerInventory);
+  const deductionsChosen = deductions.map(d => ({ ...d, usedQty: d.usable }));
 
-  cart.pendingDeductions = cart.pendingDeductions || {};
-
-  // Vérifier s'il reste des déductions à traiter
-  const unhandled = deductions.filter(d => !(d.id in cart.pendingDeductions));
-
-  if (unhandled.length > 0) {
-    // Présenter la première déduction non traitée
-    const ded = unhandled[0];
-    const menu = new StringSelectMenuBuilder()
-      .setCustomId(`st_ded_choice::${ded.id}`)
-      .setPlaceholder(`Utiliser ${ded.label} ?`)
-      .addOptions([
-        { label: `✅ Utiliser tout (${ded.usable} disponible)`, value: 'all' },
-        { label: '🔸 Utiliser une partie', value: 'partial' },
-        { label: '❌ Ne pas utiliser', value: 'none' },
-      ]);
-
-    const embed = new EmbedBuilder()
-      .setTitle('📦 Déductions possibles depuis ton inventaire')
-      .setDescription(
-        `Tu as **${ded.available}x ${ded.label}** dans ton inventaire.\n` +
-        `Cela pourrait couvrir **${ded.usable}** article(s) de ta commande.\n\n` +
-        `Veux-tu utiliser des ${ded.label} pour payer une partie de ta commande ?`
-      )
-      .setColor(0xf39c12);
-
-    const method = isUpdate ? 'update' : 'reply';
-    return interaction[method]({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)], ephemeral: !isUpdate });
-  }
-
-  // Toutes les déductions traitées → choix de la devise
-  const { totalDiamonds, totalStrawberries } = calcCartTotal(cart.items, discount);
-
-  const currencyOptions = [];
-  if (totalDiamonds > 0) currencyOptions.push({ label: `💎 Payer en Diamants (${totalDiamonds.toLocaleString('fr-FR')})`, value: 'diamants' });
-  if (totalStrawberries > 0) currencyOptions.push({ label: `🍓 Payer en Fraises (${totalStrawberries.toLocaleString('fr-FR')})`, value: 'fraises' });
-  if (totalDiamonds > 0 && totalStrawberries > 0) {
-    currencyOptions.push({ label: '💎+🍓 Payer avec les deux devises', value: 'split' });
-  }
-
-  if (currencyOptions.length === 0) {
-    return createTicketThread(interaction, cart);
-  }
-
-  const currencyMenu = new StringSelectMenuBuilder()
-    .setCustomId('st_currency_choice')
-    .setPlaceholder('Choisir le mode de paiement...')
-    .addOptions(currencyOptions);
-
-  const embed = new EmbedBuilder()
-    .setTitle('💳 Choix du mode de paiement')
-    .setDescription(
-      buildCartSummaryText(cart, discount, roleName) +
-      '\n\nChoisis comment tu veux régler ta commande :'
-    )
-    .setColor(0x7c5cfc);
-
-  const method = isUpdate ? 'update' : 'reply';
-  return interaction[method]({ embeds: [embed], components: [new ActionRowBuilder().addComponents(currencyMenu)], ephemeral: !isUpdate });
+  // 3. Devise automatique : 💎 + 🍓 selon les prix des articles
+  return createTicketThread(interaction, cart, discount, roleName, deductionsChosen);
 }
 
 // ── Texte récap du panier ─────────────────────────────────────────────────────
@@ -1019,7 +964,7 @@ function buildCartSummaryText(cart, discount, roleName) {
 }
 
 // ── Créer le thread ticket ────────────────────────────────────────────────────
-async function createTicketThread(interaction, cart) {
+async function createTicketThread(interaction, cart, discount = 0, discountRoleName = null, deductionsChosen = []) {
   const settings = getSettings();
   const shop = require('./shopManager').getShop();
   const ticketChannelId = shop.shopTicketChannelId;
@@ -1035,8 +980,8 @@ async function createTicketThread(interaction, cart) {
     const ticketChannel = await interaction.guild.channels.fetch(ticketChannelId);
     if (!ticketChannel) throw new Error('Salon introuvable');
 
-    const member = interaction.member;
-    const username = member.displayName || interaction.user.username;
+    const guildMember = await interaction.guild.members.fetch(interaction.user.id).catch(() => interaction.member);
+    const username = guildMember?.displayName || interaction.user.username;
 
     // Résumé des dinos pour le nom du thread
     const dinoNames = cart.items.filter(i => i.type === 'dino').map(i => i.name).slice(0, 2).join(', ');
@@ -1049,19 +994,6 @@ async function createTicketThread(interaction, cart) {
       reason: `Ticket shop de ${username}`,
     });
 
-    const memberRoles = interaction.member?.roles?.cache?.map(r => r.id) || [];
-    const { discount, roleName } = await getMaxDiscount(memberRoles);
-
-    // Déductions choisies
-    const playerInventory = getPlayerInventory(interaction.user.id);
-    const deductionsAll = getInventoryDeductions(cart.items, playerInventory);
-    const deductionsChosen = deductionsAll
-      .filter(d => cart.pendingDeductions && cart.pendingDeductions[d.id] !== 'none')
-      .map(d => ({
-        ...d,
-        usedQty: cart.pendingDeductions?.[d.id] === 'all' ? d.usable : 1,
-      }));
-
     const orderId = genId();
     const orderData = {
       orderId,
@@ -1070,15 +1002,14 @@ async function createTicketThread(interaction, cart) {
       username,
       cart: JSON.parse(JSON.stringify(cart)),
       discount,
-      discountRoleName: roleName,
+      discountRoleName,
       deductionsChosen,
-      chosenCurrency: cart.chosenCurrency || 'split',
       createdAt: Date.now(),
       status: 'pending',
     };
     activeOrders.set(orderId, orderData);
 
-    const recapEmbed = buildOrderRecapEmbed(cart, discount, roleName, deductionsChosen, interaction.user.id);
+    const recapEmbed = buildOrderRecapEmbed(cart, discount, discountRoleName, deductionsChosen, interaction.user.id);
     const adminBtns = buildAdminButtons(orderId);
 
     await thread.members.add(interaction.user.id);
@@ -1129,34 +1060,30 @@ async function handleAdminValidate(interaction, orderId) {
     return interaction.reply({ content: `⚠️ Cette commande a déjà été **${order.status === 'paid' ? 'encaissée' : 'annulée'}**.`, ephemeral: true });
   }
 
-  const { cart, discount, deductionsChosen, chosenCurrency, userId } = order;
+  const { cart, discount, deductionsChosen, userId } = order;
   const { totalDiamonds, totalStrawberries } = calcCartTotal(cart.items, discount);
 
   const adminName = interaction.member?.displayName || interaction.user.username;
 
   try {
-    // 1. Déduire les items inventaire choisis
+    // 1. Déduire les items inventaire (déductions automatiques)
     for (const ded of (deductionsChosen || [])) {
       if (ded.usedQty > 0) {
         await removeFromInventory(userId, ded.id, ded.usedQty, interaction.user.id, `Commande shop #${orderId}`);
       }
     }
 
-    // 2. Déduire la devise choisie
-    if (chosenCurrency === 'diamants' || chosenCurrency === 'split') {
-      if (totalDiamonds > 0) {
-        await removeFromInventory(userId, 'diamants', totalDiamonds, interaction.user.id, `Commande shop #${orderId}`);
-      }
+    // 2. Déduire automatiquement 💎 + 🍓 selon les prix des articles
+    if (totalDiamonds > 0) {
+      await removeFromInventory(userId, 'diamants', totalDiamonds, interaction.user.id, `Commande shop #${orderId}`);
     }
-    if (chosenCurrency === 'fraises' || chosenCurrency === 'split') {
-      if (totalStrawberries > 0) {
-        await removeFromInventory(userId, 'fraises', totalStrawberries, interaction.user.id, `Commande shop #${orderId}`);
-      }
+    if (totalStrawberries > 0) {
+      await removeFromInventory(userId, 'fraises', totalStrawberries, interaction.user.id, `Commande shop #${orderId}`);
     }
 
     order.status = 'paid';
 
-    // 3. Mettre à jour le message du thread
+    // 3. Retirer les boutons du message admin
     try {
       await interaction.message.edit({ components: [] });
     } catch (e) {}
@@ -1166,9 +1093,9 @@ async function handleAdminValidate(interaction, orderId) {
       .setTitle('✅ Commande validée & Paiement encaissé !')
       .setDescription(
         `**Admin :** ${adminName}\n` +
-        `**Paiement débit\u00e9 :**\n` +
-        (totalDiamonds > 0 && (chosenCurrency === 'diamants' || chosenCurrency === 'split') ? `> 💎 ${totalDiamonds.toLocaleString('fr-FR')} diamants\n` : '') +
-        (totalStrawberries > 0 && (chosenCurrency === 'fraises' || chosenCurrency === 'split') ? `> 🍓 ${totalStrawberries.toLocaleString('fr-FR')} fraises\n` : '') +
+        `**Paiement débité :**\n` +
+        (totalDiamonds > 0 ? `> 💎 ${totalDiamonds.toLocaleString('fr-FR')} diamants\n` : '') +
+        (totalStrawberries > 0 ? `> 🍓 ${totalStrawberries.toLocaleString('fr-FR')} fraises\n` : '') +
         (deductionsChosen?.length > 0 ? deductionsChosen.map(d => `> ${d.label} : −${d.usedQty}`).join('\n') + '\n' : '') +
         `\n*Merci pour ta commande <@${userId}> !* 🎉`
       )
