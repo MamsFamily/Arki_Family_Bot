@@ -59,30 +59,44 @@ function applyDiscount(price, pct) {
 
 // ── Récupérer les IDs de rôles d'un membre (robuste) ─────────────────────────
 async function getMemberRoleIds(interaction) {
+  // Source 1 : interaction.member est toujours fiable pour les interactions boutons en guilde
+  if (interaction.member?.roles?.cache?.size > 0) {
+    const ids = [...interaction.member.roles.cache.keys()];
+    console.log(`[ShopTicket][Roles] Source: interaction.member — ${ids.length} rôle(s): [${ids.join(', ')}]`);
+    return ids;
+  }
+  // Source 2 : fetch depuis l'API Discord
   try {
-    // Préférer un fetch fresh pour être sûr d'avoir les rôles à jour
-    const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
-    if (member) return [...member.roles.cache.keys()];
-    // Fallback sur le cache de l'interaction
-    if (interaction.member?.roles?.cache?.size > 0) {
-      return [...interaction.member.roles.cache.keys()];
+    const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
+    if (member?.roles?.cache?.size > 0) {
+      const ids = [...member.roles.cache.keys()];
+      console.log(`[ShopTicket][Roles] Source: guild.members.fetch — ${ids.length} rôle(s): [${ids.join(', ')}]`);
+      return ids;
     }
-  } catch (e) {}
+  } catch (e) {
+    console.warn(`[ShopTicket][Roles] Erreur fetch member:`, e.message);
+  }
+  console.warn(`[ShopTicket][Roles] Impossible de récupérer les rôles de ${interaction.user.tag}`);
   return [];
 }
 
 // ── Calcul réduction max du joueur ────────────────────────────────────────────
 async function getMaxDiscount(memberRoleIds) {
   const roles = await getRoleIncomes();
+  const rolesWithDiscount = Object.entries(roles).filter(([, cfg]) => parseFloat(cfg.shopDiscount) > 0);
+  console.log(`[ShopTicket][Discount] Rôles en DB avec shopDiscount: ${rolesWithDiscount.map(([id, c]) => `${id}(${c.shopDiscount}%)`).join(', ') || 'aucun'}`);
+
   let maxDiscount = 0;
   let discountRoleName = null;
   for (const [roleId, cfg] of Object.entries(roles)) {
     const pct = parseFloat(cfg.shopDiscount) || 0;
-    if (memberRoleIds.includes(roleId) && pct > maxDiscount) {
+    if (pct > 0 && memberRoleIds.includes(roleId) && pct > maxDiscount) {
       maxDiscount = pct;
       discountRoleName = cfg.name;
+      console.log(`[ShopTicket][Discount] Match: rôle ${roleId} (${cfg.name}) → ${pct}%`);
     }
   }
+  console.log(`[ShopTicket][Discount] Résultat final: ${maxDiscount}% (${discountRoleName || 'aucun'})`);
   return { discount: maxDiscount, roleName: discountRoleName };
 }
 
