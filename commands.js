@@ -128,6 +128,10 @@ const commands = [
     ],
   },
   {
+    name: 'ticket-shop',
+    description: 'Ouvre un ticket shop interactif pour passer une commande (dinos, packs...)',
+  },
+  {
     name: 'creer-giveway',
     description: 'Crée et publie un giveaway dans le salon courant (Admin et Modo)',
     options: [

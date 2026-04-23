@@ -37,6 +37,7 @@ const { initSpecialPacks, getSpecialPacks, getSpecialPack } = require('./special
 const economyManager = require('./economyManager');
 const xpManager = require('./xpManager');
 const { handleShopCommand, handleShopInteraction } = require('./shopCommand');
+const { handleShopTicketCommand, handleShopTicketInteraction } = require('./shopTicketCommand');
 const restartScheduler = require('./nitradoRestartScheduler');
 const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
 const { registerCasinoHandlers } = require('./casino/casinoHandler');
@@ -1001,6 +1002,41 @@ client.on('interactionCreate', async interaction => {
       }
       return;
     }
+
+    // ── Shop Ticket interactions ──
+    if (
+      id === 'st_main_menu' || id === 'st_back_home' || id === 'st_dino_letter' ||
+      id === 'st_back_packs' || id === 'st_packs_select' || id === 'st_cart_remove' ||
+      id === 'st_cart_remove_select' || id === 'st_cart_comment' || id === 'st_cart_validate' ||
+      id === 'st_currency_choice' || id === 'st_view_cart_btn' || id === 'st_main_menu_dinos' ||
+      id.startsWith('st_dino_select::') || id.startsWith('st_dino_letter_back::') ||
+      id.startsWith('st_dino_variant::') || id.startsWith('st_dino_sexe::') ||
+      id.startsWith('st_dino_stat::') || id.startsWith('st_pack_option::') ||
+      id.startsWith('st_ded_choice::') || id.startsWith('st_admin_validate::') ||
+      id.startsWith('st_admin_cancel::') || id.startsWith('st_admin_modify::')
+    ) {
+      try {
+        await handleShopTicketInteraction(interaction);
+      } catch (err) {
+        console.error('[ShopTicket] Erreur interaction:', err);
+        try {
+          const reply = { content: '❌ Une erreur est survenue dans le ticket shop.', ephemeral: true };
+          if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
+          else await interaction.reply(reply);
+        } catch (e) {}
+      }
+      return;
+    }
+  }
+
+  // ── Shop Ticket : modal commentaire ──
+  if (interaction.isModalSubmit() && interaction.customId === 'st_comment_modal') {
+    try {
+      await handleShopTicketInteraction(interaction);
+    } catch (err) {
+      console.error('[ShopTicket] Erreur modal commentaire:', err);
+    }
+    return;
   }
 
   // ── Giveaway: soumission modal création ──
@@ -1742,6 +1778,20 @@ client.on('interactionCreate', async interaction => {
       console.error('[Shop] Erreur commande /shop:', err);
       try {
         const reply = { content: '❌ Impossible d\'ouvrir le shop. Réessaie.', ephemeral: true };
+        if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
+        else await interaction.reply(reply);
+      } catch (e) {}
+    }
+    return;
+  }
+
+  if (commandName === 'ticket-shop') {
+    try {
+      await handleShopTicketCommand(interaction);
+    } catch (err) {
+      console.error('[ShopTicket] Erreur commande /ticket-shop:', err);
+      try {
+        const reply = { content: '❌ Impossible d\'ouvrir le ticket shop. Réessaie.', ephemeral: true };
         if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
         else await interaction.reply(reply);
       } catch (e) {}
