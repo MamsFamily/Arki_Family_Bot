@@ -795,7 +795,8 @@ function createWebServer(discordClient) {
       .filter(ch => ch.type === 4)
       .sort((a, b) => a.position - b.position)
       .map(ch => ({ id: ch.id, name: ch.name })) : [];
-    res.render('shop', { shop, categories: shopCategories, channels, discordCategories, success: req.query.success || null, error: req.query.error || null });
+    const shopItemTypes = inventoryManager.getItemTypes().filter(t => t.category !== 'currency').sort((a, b) => a.order - b.order);
+    res.render('shop', { shop, categories: shopCategories, channels, discordCategories, itemTypes: shopItemTypes, success: req.query.success || null, error: req.query.error || null });
   });
 
   app.post('/shop/settings', requireAuth, async (req, res) => {
