@@ -833,7 +833,7 @@ function createWebServer(discordClient) {
   });
 
   app.post('/shop/pack', requireAuth, async (req, res) => {
-    const { packId, name, category, priceDiamonds, priceStrawberries, content, note, color, donationAvailable, notCompatible, unavailable, noReduction, optionsJson, type, imageUrl } = req.body;
+    const { packId, name, category, priceDiamonds, priceStrawberries, content, note, color, donationAvailable, notCompatible, unavailable, noReduction, optionsJson, type, imageUrl, inventoryItemId } = req.body;
 
     let options = [];
     if (optionsJson) {
@@ -864,6 +864,7 @@ function createWebServer(discordClient) {
       notCompatible: notCompatible === 'true',
       available: unavailable !== 'true',
       noReduction: noReduction === 'true',
+      inventoryItemId: (inventoryItemId || '').trim() || null,
     };
 
     if (packId) {

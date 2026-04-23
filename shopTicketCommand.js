@@ -128,7 +128,7 @@ function getPaymentOptions(cartItems, playerInventory) {
     });
   }
 
-  // dino_epaule_shop → couvre les dinos d'épaule
+  // dino_epaule_shop → option indépendante pour les dinos d'épaule
   const dinoEpauleShop = inv['dino_epaule_shop'] || 0;
   if (dinoEpauleShop > 0 && shoulderDinos.length > 0) {
     const usable = Math.min(dinoEpauleShop, shoulderDinos.length);
@@ -141,22 +141,20 @@ function getPaymentOptions(cartItems, playerInventory) {
     });
   }
 
-  // dino_epaule (générique) → couvre aussi les dinos d'épaule si pas de dino_epaule_shop
+  // dino_epaule (générique) → option indépendante, aussi proposée si le joueur en a
   const dinoEpaule = inv['dino_epaule'] || 0;
-  const alreadyCoveredShoulder = options.find(o => o.id === 'dino_epaule_shop')?.usedQty || 0;
-  const remainingShoulder = shoulderDinos.length - alreadyCoveredShoulder;
-  if (dinoEpaule > 0 && remainingShoulder > 0) {
-    const usable = Math.min(dinoEpaule, remainingShoulder);
+  if (dinoEpaule > 0 && shoulderDinos.length > 0) {
+    const usable = Math.min(dinoEpaule, shoulderDinos.length);
     options.push({
       id: 'dino_epaule',
       inventoryId: 'dino_epaule',
       label: `🦎 Dino d'épaule (${dinoEpaule} en stock, ${usable} utilisable${usable > 1 ? 's' : ''})`,
       usedQty: usable,
-      coveredItemIds: shoulderDinos.slice(alreadyCoveredShoulder, alreadyCoveredShoulder + usable).map(i => i.id),
+      coveredItemIds: shoulderDinos.slice(0, usable).map(i => i.id),
     });
   }
 
-  // pack → couvre les items compatibles
+  // pack → couvre les items compatibles (donationAvailable)
   const packQty = inv['pack'] || 0;
   if (packQty > 0 && packCompatItems.length > 0) {
     const usable = Math.min(packQty, packCompatItems.length);
@@ -167,6 +165,29 @@ function getPaymentOptions(cartItems, playerInventory) {
       usedQty: usable,
       coveredItemIds: packCompatItems.slice(0, usable).map(i => i.id),
     });
+  }
+
+  // inventoryItemId → couvre les items shop liés à un type d'inventaire spécifique
+  // ex : "1 couleur" avec inventoryItemId:'peinture_dino'
+  const invItemGroups = {};
+  for (const item of cartItems) {
+    if (item.inventoryItemId) {
+      if (!invItemGroups[item.inventoryItemId]) invItemGroups[item.inventoryItemId] = [];
+      invItemGroups[item.inventoryItemId].push(item);
+    }
+  }
+  for (const [invItemId, matchedItems] of Object.entries(invItemGroups)) {
+    const stock = inv[invItemId] || 0;
+    if (stock > 0) {
+      const usable = Math.min(stock, matchedItems.length);
+      options.push({
+        id: `inv_${invItemId}`,
+        inventoryId: invItemId,
+        label: `🎒 ${invItemId.replace(/_/g, ' ')} inventaire (${stock} en stock, ${usable} utilisable${usable > 1 ? 's' : ''})`,
+        usedQty: usable,
+        coveredItemIds: matchedItems.slice(0, usable).map(i => i.id),
+      });
+    }
   }
 
   return options;
@@ -1060,6 +1081,7 @@ function addPackToCart(cart, pack, option) {
     noReduction: pack.noReduction || false,
     donationAvailable: pack.donationAvailable || false,
     notCompatible: pack.notCompatible || false,
+    inventoryItemId: pack.inventoryItemId || null,
   };
   cart.items.push(item);
 }
@@ -1073,6 +1095,8 @@ async function handleCartValidation(interaction, cart) {
   // 1. Récupérer la réduction de rôle max
   const memberRoleIds = await getMemberRoleIds(interaction);
   const { discount, roleName } = await getMaxDiscount(memberRoleIds);
+  console.log(`[ShopTicket] Réduction pour ${interaction.user.tag} — rôles: [${memberRoleIds.join(', ')}] — discount: ${discount}% (${roleName || 'aucun rôle configuré'})`);
+
 
   // 2. Analyser l'inventaire pour préparer les options de paiement (sans déduire)
   const playerInventory = getPlayerInventory(interaction.user.id);

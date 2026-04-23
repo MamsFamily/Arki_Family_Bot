@@ -373,6 +373,11 @@
                 <input type="color" id="packColor" name="color" value="#e74c3c" style="width:60px;height:40px;padding:2px;cursor:pointer;">
               </div>
 
+              <div class="form-group">
+                <label for="inventoryItemId">🎒 ID item inventaire (paiement par inventaire)<br><small style="color:var(--text-muted);font-weight:400">Ex: <code>peinture_dino</code>, <code>schema</code>, <code>chibi_skin</code>… Laisser vide si sans lien.</small></label>
+                <input type="text" id="inventoryItemId" name="inventoryItemId" placeholder="Laisser vide ou ex: peinture_dino" style="font-family:monospace">
+              </div>
+
               <div class="form-row">
                 <div class="form-group">
                   <label class="toggle-label">
@@ -582,6 +587,7 @@
         document.getElementById('packContent').value = '';
         document.getElementById('packNote').value = '';
         document.getElementById('packColor').value = '#e74c3c';
+        document.getElementById('inventoryItemId').value = '';
         document.getElementById('donationAvailable').checked = false;
         document.getElementById('notCompatible').checked = false;
         document.getElementById('packUnavailable').checked = false;
@@ -621,6 +627,7 @@
         document.getElementById('packContent').value = pack.content || '';
         document.getElementById('packNote').value = pack.note || '';
         document.getElementById('packColor').value = pack.color || '#e74c3c';
+        document.getElementById('inventoryItemId').value = pack.inventoryItemId || '';
         document.getElementById('donationAvailable').checked = !!pack.donationAvailable;
         document.getElementById('notCompatible').checked = !!pack.notCompatible;
         document.getElementById('packUnavailable').checked = pack.available === false;
