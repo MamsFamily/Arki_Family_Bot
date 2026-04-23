@@ -244,27 +244,85 @@ function getPaymentOptions(cartItems, playerInventory, discount = 0) {
   return options;
 }
 
-// ── Construire les boutons de choix de paiement (pour le salon ticket) ────────
-function buildPaymentChoiceComponents(orderId, paymentOptions) {
-  const btns = paymentOptions.map((opt, idx) =>
-    new ButtonBuilder()
-      .setCustomId(`st_pay_method::${orderId}::${idx}`)
-      .setLabel(opt.label.slice(0, 80))
-      .setStyle(ButtonStyle.Primary)
+// ── Construire le message de sélection de paiement (select menu roulette) ─────
+function buildPaymentSelectMessage(orderId, order) {
+  const selectedDeductions = order.selectedDeductions || [];
+  const allCovered = new Set(selectedDeductions.flatMap(d => d.coveredItemIds || []));
+
+  // Options inventaire encore disponibles (couvrent au moins un article non encore couvert)
+  const remainingOpts = (order.paymentOptions || []).filter(opt =>
+    (opt.coveredItemIds || []).some(id => !allCovered.has(id))
   );
 
-  btns.push(
-    new ButtonBuilder()
-      .setCustomId(`st_pay_method::${orderId}::direct`)
-      .setLabel('💎 Paiement direct (💎 + 🍓)')
-      .setStyle(ButtonStyle.Secondary)
-  );
+  // Montant restant à payer
+  const remainingItems = order.cart.items.filter(i => !allCovered.has(i.id));
+  const { totalDiamonds: remD, totalStrawberries: remS } = calcCartTotal(remainingItems, order.discount || 0);
 
-  const rows = [];
-  for (let i = 0; i < btns.length; i += 5) {
-    rows.push(new ActionRowBuilder().addComponents(btns.slice(i, i + 5)));
+  // Description embed
+  let desc = '';
+  if (selectedDeductions.length > 0) {
+    desc += '**✅ Retraits sélectionnés :**\n';
+    for (const d of selectedDeductions) {
+      desc += `• ${d.label.split(' (')[0]}\n`;
+      for (const covId of (d.coveredItemIds || [])) {
+        const item = order.cart.items.find(i => i.id === covId);
+        if (item) desc += `  ↳ ${item.name}\n`;
+      }
+    }
+    desc += '\n';
   }
-  return rows;
+
+  if (remainingOpts.length > 0) {
+    desc += '*Sélectionne un retrait dans la liste, ou paye le reste directement.*';
+  } else if (remD > 0 || remS > 0) {
+    desc += '*Plus de retraits disponibles — paye le reste ci-dessous.*';
+  } else {
+    desc += '✅ *Toute la commande est couverte par tes retraits inventaire !*';
+  }
+
+  const embed = new EmbedBuilder()
+    .setColor(0x9b59b6)
+    .setTitle('💳 Mode de paiement')
+    .setDescription(desc || '\u200b')
+    .setFooter({ text: 'Le paiement n\'est débité qu\'après la livraison.' });
+
+  const components = [];
+
+  // Select menu des retraits restants
+  if (remainingOpts.length > 0) {
+    const selectOptions = remainingOpts.map(opt => {
+      const globalIdx = order.paymentOptions.indexOf(opt);
+      const coveredNames = (opt.coveredItemIds || [])
+        .map(id => order.cart.items.find(i => i.id === id)?.name)
+        .filter(Boolean).join(', ');
+      return {
+        label: opt.label.slice(0, 100),
+        description: coveredNames ? `Couvre : ${coveredNames}`.slice(0, 100) : 'Retrait inventaire',
+        value: globalIdx.toString(),
+      };
+    });
+    components.push(new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`st_inv_pick::${orderId}`)
+        .setPlaceholder('🎰 Retirer un article de ton inventaire...')
+        .addOptions(selectOptions)
+    ));
+  }
+
+  // Bouton "payer le reste" (toujours visible, prix mis à jour)
+  const nothingToPay = remD === 0 && remS === 0;
+  const btnLabel = nothingToPay
+    ? '✅ Confirmer (tout couvert par inventaire)'
+    : `💎 Payer le reste : ${formatPrice(remD, remS)}`;
+
+  components.push(new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`st_inv_direct::${orderId}`)
+      .setLabel(btnLabel.slice(0, 80))
+      .setStyle(nothingToPay ? ButtonStyle.Success : ButtonStyle.Secondary)
+  ));
+
+  return { embeds: [embed], components };
 }
 
 // Compatibilité ancienne interface (non utilisé directement mais gardé)
@@ -487,6 +545,12 @@ function buildCartEmbed(cart, discount = 0, discountRoleName = null) {
 
   if (cart.comment) {
     embed.addFields({ name: '💬 Commentaire', value: cart.comment, inline: false });
+  }
+
+  if (discount > 0 && discountRoleName) {
+    embed.addFields({ name: '🏷️ Réduction', value: `−${discount}% (${discountRoleName})`, inline: true });
+  } else {
+    embed.setFooter({ text: 'Aucune réduction de rôle active sur cette commande.' });
   }
 
   return embed;
@@ -940,21 +1004,19 @@ async function handleShopTicketInteraction(interaction) {
 
   // ── Commentaire ─────────────────────────────────────────────────────────────
   if (id === 'st_cart_comment') {
+    const textInput = new TextInputBuilder()
+      .setCustomId('comment_text')
+      .setLabel('Ton commentaire (infos spéciales, questions...)')
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder('Ex: Je voudrais un dino avec les couleurs bleues...')
+      .setRequired(false)
+      .setMaxLength(500);
+    // setValue crash si chaîne vide — Discord.js l'interdit
+    if (cart.comment) textInput.setValue(cart.comment);
     const modal = new ModalBuilder()
       .setCustomId('st_comment_modal')
       .setTitle('Ajouter un commentaire');
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId('comment_text')
-          .setLabel('Ton commentaire (infos spéciales, questions...)')
-          .setStyle(TextInputStyle.Paragraph)
-          .setPlaceholder('Ex: Je voudrais un dino avec les couleurs bleues...')
-          .setRequired(false)
-          .setMaxLength(500)
-          .setValue(cart.comment || '')
-      )
-    );
+    modal.addComponents(new ActionRowBuilder().addComponents(textInput));
     return interaction.showModal(modal);
   }
 
@@ -1036,6 +1098,18 @@ async function handleShopTicketInteraction(interaction) {
     const orderId = parts[1];
     const methodKey = parts[2];
     return handlePayMethod(interaction, orderId, methodKey);
+  }
+
+  // ── Roulette inventaire : sélection d'un retrait ───────────────────────────
+  if (id.startsWith('st_inv_pick::')) {
+    const orderId = id.split('::')[1];
+    return handleInvPick(interaction, orderId);
+  }
+
+  // ── Roulette inventaire : payer le reste (ou confirmer si tout couvert) ─────
+  if (id.startsWith('st_inv_direct::')) {
+    const orderId = id.split('::')[1];
+    return handleInvDirect(interaction, orderId);
   }
 
   // ── Voir le récap de commande ──────────────────────────────────────────────
@@ -1256,8 +1330,9 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
       discount,
       discountRoleName,
       paymentOptions: JSON.parse(JSON.stringify(paymentOptions)),
-      paymentMethod: null,   // sera défini par le joueur
-      paymentChoice: null,   // option choisie (objet)
+      paymentMethod: null,
+      paymentChoice: null,
+      selectedDeductions: [],  // retraits inventaire sélectionnés étape par étape
       createdAt: Date.now(),
       status: 'pending',
     };
@@ -1273,53 +1348,9 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
       components: adminBtns,
     });
 
-    // ── Message joueur (choix du paiement + voir commande) ────────────────────
-    const { totalDiamonds: directD, totalStrawberries: directS } = calcCartTotal(cart.items, discount);
-
-    let payDesc = '> *Le paiement n\'est débité **qu\'après la livraison** (validation admin).*\n\n';
-
-    if (paymentOptions.length > 0) {
-      payDesc += '**Options disponibles :**\n';
-      paymentOptions.forEach((opt, idx) => {
-        payDesc += `\n**Option ${idx + 1} — ${opt.label}**\n`;
-        const coveredNames = cart.items
-          .filter(i => opt.coveredItemIds.includes(i.id))
-          .map(i => `• ${i.name}`)
-          .join('\n');
-        payDesc += coveredNames ? `${coveredNames}\n` : '';
-        const hasRemainder = opt.remainingDiamonds > 0 || opt.remainingStrawberries > 0;
-        if (hasRemainder) {
-          payDesc += `↳ Reste à payer : **${formatPrice(opt.remainingDiamonds, opt.remainingStrawberries)}**`;
-          if (discount > 0 && discountRoleName) payDesc += ` *(${discountRoleName} −${discount}%)*`;
-          payDesc += '\n';
-        } else {
-          payDesc += '↳ Couvre **toute** la commande ✅\n';
-        }
-      });
-      payDesc += `\n**Option paiement direct** — tout en 💎+🍓\n↳ **${formatPrice(directD, directS)}**`;
-      if (discount > 0 && discountRoleName) payDesc += ` *(${discountRoleName} −${discount}%)*`;
-    } else {
-      payDesc += `💎 Paiement intégral : **${formatPrice(directD, directS)}**`;
-      if (discount > 0 && discountRoleName) payDesc += ` *(${discountRoleName} −${discount}%)*`;
-    }
-
-    const paymentEmbed = new EmbedBuilder()
-      .setColor(0x9b59b6)
-      .setTitle('💳 Mode de paiement')
-      .setDescription(payDesc);
-
-    const payRows = buildPaymentChoiceComponents(orderId, paymentOptions);
-    const viewRow = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`st_view_order::${orderId}`)
-        .setLabel('📋 Voir ma commande')
-        .setStyle(ButtonStyle.Secondary)
-    );
-
-    await ticketChannel.send({
-      embeds: [paymentEmbed],
-      components: paymentOptions.length > 0 ? [...payRows, viewRow] : [viewRow],
-    });
+    // ── Message joueur : select menu roulette de paiement ────────────────────
+    const payMsg = buildPaymentSelectMessage(orderId, orderData);
+    await ticketChannel.send(payMsg);
 
     // ── Notifier dans le salon log admin ─────────────────────────────────────
     try {
@@ -1417,19 +1448,43 @@ async function handleAdminValidate(interaction, orderId) {
     const warnings = [];
     const playerInv = getPlayerInventory(userId);
 
-    if (paymentChoice.id !== 'direct') {
-      // ── Paiement par item inventaire ────────────────────────────────────────
+    if (paymentChoice.id === 'multi') {
+      // ── Retraits inventaire multiples (roulette) + reste en diamants ─────────
+      for (const ded of (paymentChoice.selectedDeductions || [])) {
+        const invStock = playerInv[ded.inventoryId] || 0;
+        if (invStock < ded.usedQty) {
+          warnings.push(`⚠️ Stock **${ded.inventoryId}** insuffisant : joueur a ${invStock} mais on essaie d'en retirer ${ded.usedQty}.`);
+        }
+        await removeFromInventory(userId, ded.inventoryId, ded.usedQty, interaction.user.id, `Commande shop #${orderId}`);
+        paymentDesc += `> ${ded.label.split(' (')[0]} : −${ded.usedQty}\n`;
+      }
+      const remD = paymentChoice.remainingDiamonds || 0;
+      const remS = paymentChoice.remainingStrawberries || 0;
+      if (remD > 0) {
+        const playerDiamonds = playerInv['diamants'] || 0;
+        if (playerDiamonds < remD) {
+          warnings.push(`⚠️ Solde insuffisant : joueur a **${playerDiamonds.toLocaleString('fr-FR')} 💎** mais doit payer **${remD.toLocaleString('fr-FR')} 💎** (manque **${(remD - playerDiamonds).toLocaleString('fr-FR')} 💎**).`);
+        }
+        await removeFromInventory(userId, 'diamants', remD, interaction.user.id, `Commande shop #${orderId}`);
+        paymentDesc += `> 💎 ${remD.toLocaleString('fr-FR')} diamants\n`;
+      }
+      if (remS > 0) {
+        const playerFraises = playerInv['fraises'] || 0;
+        if (playerFraises < remS) {
+          warnings.push(`⚠️ Solde insuffisant : joueur a **${playerFraises.toLocaleString('fr-FR')} 🍓** mais doit payer **${remS.toLocaleString('fr-FR')} 🍓** (manque **${(remS - playerFraises).toLocaleString('fr-FR')} 🍓**).`);
+        }
+        await removeFromInventory(userId, 'fraises', remS, interaction.user.id, `Commande shop #${orderId}`);
+        paymentDesc += `> 🍓 ${remS.toLocaleString('fr-FR')} fraises\n`;
+      }
+    } else if (paymentChoice.id !== 'direct') {
+      // ── Paiement par item inventaire (legacy — un seul retrait) ────────────
       const invStock = playerInv[paymentChoice.inventoryId] || 0;
       if (invStock < paymentChoice.usedQty) {
         warnings.push(`⚠️ Stock **${paymentChoice.inventoryId}** insuffisant : joueur a ${invStock} mais on essaie d'en retirer ${paymentChoice.usedQty}.`);
       }
-      await removeFromInventory(
-        userId, paymentChoice.inventoryId, paymentChoice.usedQty,
-        interaction.user.id, `Commande shop #${orderId}`
-      );
+      await removeFromInventory(userId, paymentChoice.inventoryId, paymentChoice.usedQty, interaction.user.id, `Commande shop #${orderId}`);
       paymentDesc += `> ${paymentChoice.label.split(' (')[0]} : −${paymentChoice.usedQty}\n`;
 
-      // Calculer le reste à payer (items NON couverts par l'inventaire)
       const coveredIds = new Set(paymentChoice.coveredItemIds || []);
       const remainingItems = cart.items.filter(i => !coveredIds.has(i.id));
       const { totalDiamonds: remD, totalStrawberries: remS } = calcCartTotal(remainingItems, discount);
@@ -1502,6 +1557,87 @@ async function handleAdminValidate(interaction, orderId) {
     console.error('[ShopTicket] Erreur encaissement:', err);
     return interaction.reply({ content: `❌ Erreur lors de l'encaissement : ${err.message}`, ephemeral: true });
   }
+}
+
+// ── Joueur : roulette inventaire — sélectionne un retrait ────────────────────
+async function handleInvPick(interaction, orderId) {
+  let order = activeOrders.get(orderId);
+  if (!order) {
+    for (const [, o] of activeOrders) {
+      if (o.channelId === interaction.channelId) { order = o; break; }
+    }
+  }
+  if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
+  if (order.status !== 'pending') return interaction.reply({ content: '⚠️ Cette commande a déjà été traitée.', ephemeral: true });
+
+  const optIdx = parseInt(interaction.values[0], 10);
+  const opt = (order.paymentOptions || [])[optIdx];
+  if (!opt) return interaction.reply({ content: '❌ Option invalide.', ephemeral: true });
+
+  if (!order.selectedDeductions) order.selectedDeductions = [];
+
+  // Ne pas ajouter deux fois le même inventoryId
+  const alreadySelected = order.selectedDeductions.some(d => d.inventoryId === opt.inventoryId);
+  if (!alreadySelected) {
+    order.selectedDeductions.push(opt);
+  }
+
+  // Mettre à jour le message avec le nouveau menu (prix mis à jour)
+  const msg = buildPaymentSelectMessage(orderId, order);
+  await interaction.update(msg);
+}
+
+// ── Joueur : roulette inventaire — payer le reste (ou confirmer tout couvert) ─
+async function handleInvDirect(interaction, orderId) {
+  let order = activeOrders.get(orderId);
+  if (!order) {
+    for (const [, o] of activeOrders) {
+      if (o.channelId === interaction.channelId) { order = o; break; }
+    }
+  }
+  if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
+  if (order.status !== 'pending') return interaction.reply({ content: '⚠️ Cette commande a déjà été traitée.', ephemeral: true });
+
+  const selectedDeductions = order.selectedDeductions || [];
+  const allCovered = new Set(selectedDeductions.flatMap(d => d.coveredItemIds || []));
+  const remainingItems = order.cart.items.filter(i => !allCovered.has(i.id));
+  const { totalDiamonds: remD, totalStrawberries: remS } = calcCartTotal(remainingItems, order.discount || 0);
+
+  order.paymentChoice = {
+    id: 'multi',
+    selectedDeductions,
+    coveredItemIds: [...allCovered],
+    remainingDiamonds: remD,
+    remainingStrawberries: remS,
+  };
+
+  // Désactiver le menu
+  try { await interaction.message.edit({ components: [] }); } catch (e) {}
+
+  // Construire le récap du paiement confirmé
+  let summary = '';
+  for (const d of selectedDeductions) {
+    summary += `• ${d.label.split(' (')[0]}\n`;
+  }
+  const nothingRemains = remD === 0 && remS === 0;
+  if (!nothingRemains) {
+    summary += `\n💎 Reste à payer après livraison : **${formatPrice(remD, remS)}**`;
+    if (order.discount > 0 && order.discountRoleName) summary += ` *(${order.discountRoleName} −${order.discount}%)*`;
+  } else if (selectedDeductions.length === 0) {
+    const { totalDiamonds, totalStrawberries } = calcCartTotal(order.cart.items, order.discount || 0);
+    summary = `💎 Paiement direct : **${formatPrice(totalDiamonds, totalStrawberries)}**`;
+    if (order.discount > 0 && order.discountRoleName) summary += ` *(${order.discountRoleName} −${order.discount}%)*`;
+  } else {
+    summary += '\n✅ Toute la commande est couverte par tes retraits inventaire.';
+  }
+
+  await interaction.reply({
+    embeds: [new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle('✅ Mode de paiement enregistré')
+      .setDescription(`${summary}\n\nL'admin va valider ta commande et encaisser **après livraison**.`)
+      .setTimestamp()],
+  });
 }
 
 // ── Joueur : sélectionne son mode de paiement ─────────────────────────────────
@@ -1578,9 +1714,18 @@ async function handleViewOrder(interaction, orderId) {
 
   const embed = buildOrderRecapEmbed(order.cart, order.discount, order.discountRoleName, [], order.userId);
   if (order.paymentChoice) {
-    const payLabel = order.paymentChoice.id === 'direct'
-      ? '💎 Paiement direct'
-      : order.paymentChoice.label.split(' (')[0];
+    let payLabel = '';
+    if (order.paymentChoice.id === 'multi') {
+      const deds = (order.paymentChoice.selectedDeductions || []).map(d => d.label.split(' (')[0]).join(', ');
+      const remD = order.paymentChoice.remainingDiamonds || 0;
+      const remS = order.paymentChoice.remainingStrawberries || 0;
+      payLabel = (deds ? `${deds}\n` : '') + (remD > 0 || remS > 0 ? `💎 Reste : ${formatPrice(remD, remS)}` : '✅ Tout couvert par inventaire');
+    } else if (order.paymentChoice.id === 'direct') {
+      const { totalDiamonds, totalStrawberries } = calcCartTotal(order.cart.items, order.discount || 0);
+      payLabel = `💎 Paiement direct : ${formatPrice(totalDiamonds, totalStrawberries)}`;
+    } else {
+      payLabel = order.paymentChoice.label?.split(' (')[0] || '?';
+    }
     embed.addFields({ name: '💳 Mode de paiement choisi', value: payLabel, inline: false });
   } else {
     embed.addFields({ name: '💳 Mode de paiement', value: '⏳ En attente du choix du joueur', inline: false });
