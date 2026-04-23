@@ -561,7 +561,12 @@ function buildOrderRecapEmbed(cart, discount, discountRoleName, deductionsChosen
   }
 
   embed.addFields({ name: '👤 Joueur', value: `<@${userId}>`, inline: true });
-  embed.setFooter({ text: '⏳ En attente de validation admin' });
+
+  if (discount > 0 && discountRoleName) {
+    embed.addFields({ name: '🏷️ Réduction appliquée', value: `−${discount}% (${discountRoleName})`, inline: true });
+  }
+
+  embed.setFooter({ text: '⏳ En attente : joueur doit choisir son mode de paiement' });
   embed.setTimestamp();
 
   return embed;
@@ -980,6 +985,16 @@ async function handleShopTicketInteraction(interaction) {
     return handleAdminValidate(interaction, orderId);
   }
 
+  // ── Bouton admin : forcer paiement direct (sans choix joueur) ───────────────
+  if (id.startsWith('st_admin_force_validate::')) {
+    const orderId = id.split('::')[1];
+    const order = activeOrders.get(orderId);
+    if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
+    // Injecter un paymentChoice "direct" puis valider
+    order.paymentChoice = { id: 'direct', label: 'Paiement direct (forcé par admin)', coveredItemIds: [] };
+    return handleAdminValidate(interaction, orderId);
+  }
+
   // ── Bouton admin : annuler ──────────────────────────────────────────────────
   if (id.startsWith('st_admin_cancel::')) {
     const orderId = id.split('::')[1];
@@ -1375,11 +1390,39 @@ async function handleAdminValidate(interaction, orderId) {
   const { cart, discount, discountRoleName, paymentChoice, userId } = order;
   const adminName = interaction.member?.displayName || interaction.user.username;
 
+  // ── Bloquer si le joueur n'a pas encore choisi son mode de paiement ──────────
+  if (!paymentChoice) {
+    const { totalDiamonds, totalStrawberries } = calcCartTotal(cart.items, discount);
+    return interaction.reply({
+      embeds: [new EmbedBuilder()
+        .setColor(0xe67e22)
+        .setTitle('⏳ Paiement non sélectionné')
+        .setDescription(
+          `Le joueur <@${userId}> n'a **pas encore choisi** son mode de paiement.\n\n` +
+          `Si tu valides maintenant, tout sera débité directement en diamants/fraises (**${formatPrice(totalDiamonds, totalStrawberries)}**).\n\n` +
+          `➡ Attends que le joueur clique sur un bouton de paiement, ou utilise le bouton ci-dessous pour forcer le paiement direct.`
+        )],
+      components: [new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`st_admin_force_validate::${orderId}`)
+          .setLabel('💎 Forcer paiement direct')
+          .setStyle(ButtonStyle.Danger),
+      )],
+      ephemeral: true,
+    });
+  }
+
   try {
     let paymentDesc = '';
+    const warnings = [];
+    const playerInv = getPlayerInventory(userId);
 
-    if (paymentChoice && paymentChoice.id !== 'direct') {
+    if (paymentChoice.id !== 'direct') {
       // ── Paiement par item inventaire ────────────────────────────────────────
+      const invStock = playerInv[paymentChoice.inventoryId] || 0;
+      if (invStock < paymentChoice.usedQty) {
+        warnings.push(`⚠️ Stock **${paymentChoice.inventoryId}** insuffisant : joueur a ${invStock} mais on essaie d'en retirer ${paymentChoice.usedQty}.`);
+      }
       await removeFromInventory(
         userId, paymentChoice.inventoryId, paymentChoice.usedQty,
         interaction.user.id, `Commande shop #${orderId}`
@@ -1390,11 +1433,20 @@ async function handleAdminValidate(interaction, orderId) {
       const coveredIds = new Set(paymentChoice.coveredItemIds || []);
       const remainingItems = cart.items.filter(i => !coveredIds.has(i.id));
       const { totalDiamonds: remD, totalStrawberries: remS } = calcCartTotal(remainingItems, discount);
+
       if (remD > 0) {
+        const playerDiamonds = playerInv['diamants'] || 0;
+        if (playerDiamonds < remD) {
+          warnings.push(`⚠️ Solde insuffisant pour les diamants : joueur a **${playerDiamonds.toLocaleString('fr-FR')} 💎** mais doit payer **${remD.toLocaleString('fr-FR')} 💎** (manque **${(remD - playerDiamonds).toLocaleString('fr-FR')} 💎**).`);
+        }
         await removeFromInventory(userId, 'diamants', remD, interaction.user.id, `Commande shop #${orderId}`);
         paymentDesc += `> 💎 ${remD.toLocaleString('fr-FR')} diamants\n`;
       }
       if (remS > 0) {
+        const playerFraises = playerInv['fraises'] || 0;
+        if (playerFraises < remS) {
+          warnings.push(`⚠️ Solde insuffisant pour les fraises : joueur a **${playerFraises.toLocaleString('fr-FR')} 🍓** mais doit payer **${remS.toLocaleString('fr-FR')} 🍓** (manque **${(remS - playerFraises).toLocaleString('fr-FR')} 🍓**).`);
+        }
         await removeFromInventory(userId, 'fraises', remS, interaction.user.id, `Commande shop #${orderId}`);
         paymentDesc += `> 🍓 ${remS.toLocaleString('fr-FR')} fraises\n`;
       }
@@ -1402,10 +1454,18 @@ async function handleAdminValidate(interaction, orderId) {
       // ── Paiement direct diamants + fraises ──────────────────────────────────
       const { totalDiamonds, totalStrawberries } = calcCartTotal(cart.items, discount);
       if (totalDiamonds > 0) {
+        const playerDiamonds = playerInv['diamants'] || 0;
+        if (playerDiamonds < totalDiamonds) {
+          warnings.push(`⚠️ Solde insuffisant : joueur a **${playerDiamonds.toLocaleString('fr-FR')} 💎** mais doit payer **${totalDiamonds.toLocaleString('fr-FR')} 💎** (manque **${(totalDiamonds - playerDiamonds).toLocaleString('fr-FR')} 💎**).`);
+        }
         await removeFromInventory(userId, 'diamants', totalDiamonds, interaction.user.id, `Commande shop #${orderId}`);
         paymentDesc += `> 💎 ${totalDiamonds.toLocaleString('fr-FR')} diamants\n`;
       }
       if (totalStrawberries > 0) {
+        const playerFraises = playerInv['fraises'] || 0;
+        if (playerFraises < totalStrawberries) {
+          warnings.push(`⚠️ Solde insuffisant : joueur a **${playerFraises.toLocaleString('fr-FR')} 🍓** mais doit payer **${totalStrawberries.toLocaleString('fr-FR')} 🍓** (manque **${(totalStrawberries - playerFraises).toLocaleString('fr-FR')} 🍓**).`);
+        }
         await removeFromInventory(userId, 'fraises', totalStrawberries, interaction.user.id, `Commande shop #${orderId}`);
         paymentDesc += `> 🍓 ${totalStrawberries.toLocaleString('fr-FR')} fraises\n`;
       }
@@ -1419,11 +1479,12 @@ async function handleAdminValidate(interaction, orderId) {
     try { await interaction.message.edit({ components: [] }); } catch (e) {}
 
     const paidEmbed = new EmbedBuilder()
-      .setColor(0x2ecc71)
-      .setTitle('✅ Commande validée & Paiement encaissé !')
+      .setColor(warnings.length > 0 ? 0xe67e22 : 0x2ecc71)
+      .setTitle(warnings.length > 0 ? '⚠️ Commande validée — Solde insuffisant !' : '✅ Commande validée & Paiement encaissé !')
       .setDescription(
         `**Admin :** ${adminName}\n` +
         `**Paiement débité :**\n${paymentDesc}\n` +
+        (warnings.length > 0 ? `\n**Avertissements :**\n${warnings.join('\n')}\n\n*Le solde a été ramené à 0. Gérer manuellement via UnbelievaBoat si nécessaire.*\n\n` : '') +
         `*Merci pour ta commande <@${userId}> !* 🎉`
       )
       .setTimestamp();
