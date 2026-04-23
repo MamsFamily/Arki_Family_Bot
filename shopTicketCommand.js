@@ -1167,7 +1167,7 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
 
     // ── Nom du salon ─────────────────────────────────────────────────────────
     const safeName = username.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '-').slice(0, 20);
-    const channelName = `🛒-ticket-${safeName}`;
+    const channelName = `shop-${safeName}`;
 
     // ── Créer le salon privé ─────────────────────────────────────────────────
     const ticketChannel = await interaction.guild.channels.create({
