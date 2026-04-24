@@ -1052,31 +1052,22 @@ client.on('interactionCreate', async interaction => {
     const targetChannelId = parts[0] || interaction.channelId;
     const pingEveryone = parts[1] === '1';
     const selectedItemId = parts[2] || '';
+    // Quantité encodée dans l'ID du modal (sélectionnée à l'étape 2)
+    const quantity = Math.max(1, parseInt(parts[3]) || 1);
 
     const titre = interaction.fields.getTextInputValue('gw_titre').trim();
-    // gw_gain : champ libre commun aux deux branches (Nom du lot pour libre, Gain pour item inventaire)
+
+    // Nom du lot (branche libre uniquement)
     let gainRaw = '';
     try { gainRaw = interaction.fields.getTextInputValue('gw_gain').trim(); } catch {}
 
-    // Parser la quantité depuis le champ gw_quantite (branche libre) ou depuis gainRaw (branche item)
-    let quantity = 1;
+    // Nombre de gagnants depuis le champ du modal
+    let gagnants = 1;
     try {
-      const qtyStr = interaction.fields.getTextInputValue('gw_quantite').trim();
-      const parsed = parseInt(qtyStr, 10);
-      if (!isNaN(parsed) && parsed >= 1) quantity = parsed;
-    } catch {
-      // Branche item inventaire : quantité encodée dans gainRaw ("× N" ou "N item")
-    }
-    // Extraire quantité depuis gainRaw si pas encore trouvée
-    if (quantity === 1 && gainRaw) {
-      const qtyMatch = gainRaw.match(/[×x]\s*(\d+)\s*$/i) || gainRaw.match(/^(\d+)\s+/);
-      if (qtyMatch) quantity = Math.max(1, parseInt(qtyMatch[1]));
-    }
-    // Texte du gain sans la partie quantité
-    let gainText = gainRaw
-      .replace(/\s*[×x]\s*\d+\s*$/i, '')
-      .replace(/^\d+\s+/, '')
-      .trim();
+      const gStr = interaction.fields.getTextInputValue('gw_gagnants').trim();
+      const parsed = parseInt(gStr, 10);
+      if (!isNaN(parsed) && parsed >= 1) gagnants = parsed;
+    } catch {}
 
     const heureRaw = interaction.fields.getTextInputValue('gw_heure').trim();
     let description = '';
@@ -1099,7 +1090,6 @@ client.on('interactionCreate', async interaction => {
     const utcOffset = new Date() - nowParis;
     const endDateTime = new Date(endParis.getTime() + utcOffset);
 
-    const gagnants = 1;
     const endTime = endDateTime.toISOString();
 
     await interaction.deferReply({ ephemeral: true });
@@ -1107,14 +1097,15 @@ client.on('interactionCreate', async interaction => {
     // Construire la prize selon le type sélectionné
     let prize;
     if (selectedItemId && selectedItemId !== '__libre__') {
-      // Item inventaire : utiliser le texte libre du champ Gain (gainText), fallback sur le nom de l'item
+      // Item inventaire : nom calculé depuis le type d'item
       const itemTypes = getItemTypes();
       const found = itemTypes.find(i => i.id === selectedItemId);
       const isCustom = found && /^<a?:\w+:\d+>$/.test(found.emoji);
-      const fallbackName = found ? (isCustom ? found.name : `${found.emoji} ${found.name}`) : selectedItemId;
-      prize = { type: 'item', itemId: selectedItemId, name: gainText || fallbackName, quantity };
+      const itemName = found ? (isCustom ? found.name : `${found.emoji} ${found.name}`) : selectedItemId;
+      prize = { type: 'item', itemId: selectedItemId, name: itemName, quantity };
     } else {
-      prize = { type: 'libre', name: gainText || gainRaw, quantity };
+      // Item libre : nom saisi dans le champ "Nom du lot"
+      prize = { type: 'libre', name: gainRaw, quantity };
     }
 
     const gwSettings = getSettings();
@@ -1391,12 +1382,37 @@ client.on('interactionCreate', async interaction => {
       const pingEveryone = parts[1] || '0';
       const selectedItemId = interaction.values[0];
 
+      // Étape 2 : sélection de la quantité
+      const qtys = [1, 2, 3, 5, 10, 20, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
+      const qtySelect = new StringSelectMenuBuilder()
+        .setCustomId(`giveaway_qty_select_${channelId}|${pingEveryone}|${selectedItemId}`)
+        .setPlaceholder('🔢 Choisir la quantité du lot...')
+        .addOptions(qtys.map(q => ({
+          label: `× ${q.toLocaleString('fr-FR')}`,
+          value: String(q),
+        })));
+
+      const row = new ActionRowBuilder().addComponents(qtySelect);
+      return interaction.update({
+        content: '## 🎉 Créer un Giveaway\n**Étape 2/3 — Quelle est la quantité du lot ?**',
+        components: [row],
+      });
+    }
+
+    // Étape 3 : quantité sélectionnée → afficher le modal
+    if (interaction.customId.startsWith('giveaway_qty_select_')) {
+      const parts = interaction.customId.replace('giveaway_qty_select_', '').split('|');
+      const channelId = parts[0];
+      const pingEveryone = parts[1] || '0';
+      const selectedItemId = parts[2] || '__libre__';
+      const selectedQty = interaction.values[0];
+
       const modal = new ModalBuilder()
-        .setCustomId(`giveway_create_modal_${channelId}|${pingEveryone}|${selectedItemId}`)
+        .setCustomId(`giveway_create_modal_${channelId}|${pingEveryone}|${selectedItemId}|${selectedQty}`)
         .setTitle('🎉 Créer un Giveaway');
 
       if (selectedItemId === '__libre__') {
-        // Item libre : Titre / Nom du lot / Quantité / Heure / Description
+        // Item libre : Titre / Nom du lot / Nb gagnants / Heure / Description
         modal.addComponents(
           new ActionRowBuilder().addComponents(
             new TextInputBuilder().setCustomId('gw_titre').setLabel('Titre du giveaway').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setPlaceholder('Ex: Giveaway Pack Légendaire')
@@ -1405,7 +1421,7 @@ client.on('interactionCreate', async interaction => {
             new TextInputBuilder().setCustomId('gw_gain').setLabel('Nom du lot').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(120).setPlaceholder('Ex: Pack Légendaire')
           ),
           new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId('gw_quantite').setLabel('Quantité').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(6).setPlaceholder('Ex: 5').setValue('1')
+            new TextInputBuilder().setCustomId('gw_gagnants').setLabel('Nombre de gagnants').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(3).setPlaceholder('Ex: 1').setValue('1')
           ),
           new ActionRowBuilder().addComponents(
             new TextInputBuilder().setCustomId('gw_heure').setLabel('Heure de fin (format 00:00, fuseau Paris)').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(5).setPlaceholder('Ex: 21:00')
@@ -1415,13 +1431,13 @@ client.on('interactionCreate', async interaction => {
           ),
         );
       } else {
-        // Item inventaire : Titre / Gain (libre) / Heure / Description / Conditions
+        // Item inventaire : Titre / Nb gagnants / Heure / Description / Conditions
         modal.addComponents(
           new ActionRowBuilder().addComponents(
             new TextInputBuilder().setCustomId('gw_titre').setLabel('Titre du giveaway').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setPlaceholder('Ex: Giveaway Pack Légendaire')
           ),
           new ActionRowBuilder().addComponents(
-            new TextInputBuilder().setCustomId('gw_gain').setLabel('Quantité').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(150).setPlaceholder('Ex: 5 Diamants, Pack Légendaire ×3...')
+            new TextInputBuilder().setCustomId('gw_gagnants').setLabel('Nombre de gagnants').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(3).setPlaceholder('Ex: 1').setValue('1')
           ),
           new ActionRowBuilder().addComponents(
             new TextInputBuilder().setCustomId('gw_heure').setLabel('Heure de fin (format 00:00, fuseau Paris)').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(5).setPlaceholder('Ex: 21:00')
