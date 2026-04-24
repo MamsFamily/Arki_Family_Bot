@@ -172,6 +172,9 @@
           <div class="gw-actions">
             <button class="btn btn-sm btn-secondary" onclick="openParticipants('<%=g.id%>')">👥 Participants</button>
             <% if (role === 'admin') { %>
+            <% if (g.winners && g.winners.length > 0) { %>
+            <button class="btn btn-sm btn-primary" onclick="announceGiveaway('<%=g.id%>','<%=g.title.replace(/'/g,\"\\\\'\" )%>')">📢 Ré-annoncer</button>
+            <% } %>
             <button class="btn btn-sm btn-danger" onclick="deleteGiveaway('<%=g.id%>','<%=g.title%>')">🗑️ Supprimer</button>
             <% } %>
           </div>
@@ -665,6 +668,17 @@
     }
 
     /* ── Supprimer un giveaway ── */
+    async function announceGiveaway(id, title) {
+      if (!confirm('Ré-annoncer les résultats du giveaway "' + title + '" dans Discord ?\n\nLes gagnants déjà tirés seront mentionnés sans nouveau tirage.')) return;
+      var btn = event.target;
+      btn.disabled = true; btn.textContent = '⏳ Envoi...';
+      var r = await fetch('/giveaways/' + id + '/announce', { method: 'POST' });
+      var d = await r.json();
+      btn.disabled = false; btn.textContent = '📢 Ré-annoncer';
+      if (d.success) alert('✅ Annonce envoyée dans Discord !');
+      else alert('❌ Erreur : ' + (d.error || 'inconnue'));
+    }
+
     async function deleteGiveaway(id, title) {
       if (!confirm('Supprimer définitivement le giveaway "' + title + '" ?')) return;
       var r = await fetch('/giveaways/' + id + '/delete', { method: 'POST' });

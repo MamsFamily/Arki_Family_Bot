@@ -552,18 +552,19 @@ client.once('clientReady', async () => {
   await restartScheduler.init().catch(e => console.error('[RestartSched] init error:', e.message));
   restartScheduler.startPolling(60000);
 
-  // Nettoyer silencieusement les giveaways expirés bloqués en 'active' dans PG
-  // (ne pas envoyer de message Discord, juste mettre à jour le statut en base)
+  // Rattraper les giveaways expirés pendant l'absence du bot
+  // → Annoncer les résultats + distribuer les gains comme si c'était la fin normale
   try {
     await giveawayManager.initGiveaways();
     const stuckGiveaways = giveawayManager.getActiveGiveaways().filter(g => new Date(g.endTime).getTime() <= Date.now());
     for (const g of stuckGiveaways) {
-      locallyEndedGiveaways.add(g.id); // Bloquer tout re-scheduling
-      await giveawayManager.drawWinners(g.id).catch(() => {}); // Marquer 'ended' en DB silencieusement
-      console.log(`[Giveaway] Giveaway expiré nettoyé silencieusement : "${g.title}" (${g.id})`);
+      console.log(`[Giveaway] Giveaway expiré détecté au démarrage : "${g.title}" (${g.id}) — annonce des résultats…`);
+      await endGiveawayNow(g.id, client).catch(e => {
+        console.error(`[Giveaway] Erreur rattrapage "${g.title}" :`, e.message);
+      });
     }
   } catch (e) {
-    console.error('[Giveaway] Erreur nettoyage giveaways expirés:', e.message);
+    console.error('[Giveaway] Erreur rattrapage giveaways expirés:', e.message);
   }
 
   // Publier les giveaways sans messageId + programmer les timers

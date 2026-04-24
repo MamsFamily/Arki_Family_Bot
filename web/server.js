@@ -2494,6 +2494,34 @@ function createWebServer(discordClient) {
     res.json({ success: true });
   });
 
+  // ── Ré-annoncer les gagnants existants sans re-tirer ─────────────────────────
+  app.post('/giveaways/:id/announce', requireAdmin, async (req, res) => {
+    const { id } = req.params;
+    const g = giveawayManager.getGiveaway(id);
+    if (!g) return res.json({ error: 'Giveaway introuvable.' });
+    if (!discordClient) return res.json({ error: 'Bot Discord non connecté.' });
+    if (!g.winners || g.winners.length === 0) return res.json({ error: 'Aucun gagnant enregistré pour ce giveaway.' });
+
+    try {
+      const channel = await discordClient.channels.fetch(g.channelId);
+      const prizeLabel = buildPrizeLabelServer(g.prize);
+      const winnerMentions = g.winners.map(uid => `<@${uid}>`).join(', ');
+      await channel.send(`🎉 **Résultats du Giveaway "${g.title}" !**\n\n🏆 Félicitations ${winnerMentions} ! Vous remportez **${prizeLabel}** !\n\n> *(Annonce re-publiée depuis le dashboard)*`);
+
+      // DM gagnants
+      for (const uid of g.winners) {
+        try {
+          const user = await discordClient.users.fetch(uid);
+          await user.send(`🎉 Félicitations ! Tu as gagné le giveaway **${g.title}** sur Arki Family !\nTu remportes : **${prizeLabel}**\nContacte un administrateur pour recevoir ton gain.`);
+        } catch (e) {}
+      }
+      res.json({ success: true });
+    } catch (e) {
+      console.error('[Giveaway] Erreur ré-annonce:', e);
+      res.json({ error: e.message });
+    }
+  });
+
   function buildPrizeLabelServer(prize) {
     const cleanName = (str) => (str || '').replace(/^[🎁📦🎀🎊🎉\s]+/, '').trim() || (str || '');
     if (prize.itemId && prize.itemId !== '__libre__') {
