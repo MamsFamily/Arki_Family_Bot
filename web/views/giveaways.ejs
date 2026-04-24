@@ -133,11 +133,17 @@
           <div class="gw-progress">
             <div class="gw-progress-fill" style="width:<%=Math.min(100,Math.max(4,((Date.now()-new Date(g.createdAt).getTime())/(new Date(g.endTime).getTime()-new Date(g.createdAt).getTime()))*100))%>%"></div>
           </div>
+          <% const isExpiredActive = new Date(g.endTime).getTime() <= Date.now(); %>
+          <% if (isExpiredActive) { %>
+          <div style="font-size:12px;font-weight:600;color:#e67e22;background:rgba(230,126,34,.1);border:1px solid rgba(230,126,34,.3);border-radius:8px;padding:6px 10px;margin-bottom:10px;">⚠️ Giveaway expiré — en attente de traitement</div>
+          <% } %>
           <div class="gw-actions">
             <button class="btn btn-sm btn-secondary" onclick="openParticipants('<%=g.id%>')">👥 Participants</button>
             <% if (role === 'admin') { %>
+            <% if (!isExpiredActive) { %>
             <button class="btn btn-sm btn-primary" onclick="openUpdateImage('<%=g.id%>','<%=g.imageUrl%>')">🖼️ Image</button>
-            <button class="btn btn-sm" style="background:#e67e22;color:#fff;" onclick="endGiveaway('<%=g.id%>','<%=g.title%>')">⏩ Terminer</button>
+            <% } %>
+            <button class="btn btn-sm" style="background:#e67e22;color:#fff;" onclick="endGiveaway('<%=g.id%>','<%=g.title%>')"><%- isExpiredActive ? '📣 Annoncer les résultats' : '⏩ Terminer' %></button>
             <button class="btn btn-sm btn-danger" onclick="deleteGiveaway('<%=g.id%>','<%=g.title%>')">🗑️</button>
             <% } %>
           </div>
@@ -172,9 +178,7 @@
           <div class="gw-actions">
             <button class="btn btn-sm btn-secondary" onclick="openParticipants('<%=g.id%>')">👥 Participants</button>
             <% if (role === 'admin') { %>
-            <% if (g.winners && g.winners.length > 0) { %>
-            <button class="btn btn-sm btn-primary" data-gid="<%=g.id%>" data-gtitle="<%=encodeURIComponent(g.title)%>" onclick="announceGiveaway(this)">📢 Ré-annoncer</button>
-            <% } %>
+            <button class="btn btn-sm btn-primary" data-gid="<%=g.id%>" data-gtitle="<%=encodeURIComponent(g.title)%>" onclick="announceGiveaway(this)" <%- (!g.winners || g.winners.length === 0) ? 'title="Aucun gagnant enregistré" style="opacity:.5;cursor:not-allowed;" disabled' : '' %>>📢 Ré-annoncer</button>
             <button class="btn btn-sm btn-danger" onclick="deleteGiveaway('<%=g.id%>','<%=g.title%>')">🗑️ Supprimer</button>
             <% } %>
           </div>
