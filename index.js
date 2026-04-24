@@ -3585,6 +3585,76 @@ client.on('interactionCreate', async interaction => {
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
+  // ── /giveaway-republier ──────────────────────────────────────────────────
+  if (commandName === 'giveaway-republier') {
+    if (!hasRoulettePermission(interaction.member)) {
+      return interaction.reply({ content: '❌ Seuls les administrateurs et les Modos peuvent ré-annoncer un giveaway.', ephemeral: true });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    const gid = interaction.options.getString('id');
+    let g;
+
+    if (gid) {
+      g = giveawayManager.getGiveaway(gid);
+      if (!g) return interaction.editReply({ content: `❌ Aucun giveaway avec l'ID \`${gid}\`.` });
+    } else {
+      // Dernier giveaway terminé avec gagnants
+      const all = giveawayManager.getAllGiveaways();
+      const candidats = all.filter(x => x.status === 'ended' && x.winners && x.winners.length > 0);
+      if (candidats.length === 0) {
+        return interaction.editReply({ content: '❌ Aucun giveaway terminé avec des gagnants trouvé.' });
+      }
+      // getAllGiveaways() retourne déjà en ordre inverse (plus récent en premier)
+      g = candidats[0];
+    }
+
+    if (!g.winners || g.winners.length === 0) {
+      return interaction.editReply({ content: `❌ Le giveaway **${g.title}** (\`${g.id}\`) n'a aucun gagnant enregistré.` });
+    }
+
+    try {
+      const channel = await client.channels.fetch(g.channelId);
+      const prizeLabel = buildPrizeLabel(g.prize);
+      const winnerMentions = g.winners.map(uid => `<@${uid}>`).join(', ');
+
+      const announceEmbed = new EmbedBuilder()
+        .setColor('#f39c12')
+        .setTitle(`🎉 Résultats du Giveaway — ${g.title}`)
+        .setDescription(`🏆 **Félicitations ${winnerMentions} !**\n\nVous remportez **${prizeLabel}** !`)
+        .addFields({ name: '📢 Note', value: '*(Annonce re-publiée par un administrateur)*' })
+        .setFooter({ text: `ID : ${g.id}` })
+        .setTimestamp();
+
+      if (g.imageUrl) announceEmbed.setImage(g.imageUrl);
+
+      await channel.send({ embeds: [announceEmbed] });
+
+      // DM aux gagnants
+      let dmOk = 0, dmFail = 0;
+      for (const uid of g.winners) {
+        try {
+          const user = await client.users.fetch(uid);
+          await user.send(`🎉 Rappel : tu as gagné le giveaway **${g.title}** sur Arki Family !\nTu remportes : **${prizeLabel}**\nContacte un administrateur si tu n'as pas encore reçu ton gain.`);
+          dmOk++;
+        } catch (e) { dmFail++; }
+      }
+
+      const memberWhoRan = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+      const adminName = memberWhoRan ? memberWhoRan.displayName : interaction.user.username;
+
+      return interaction.editReply({
+        content: `✅ Résultats de **${g.title}** ré-annoncés dans <#${g.channelId}> !\n`
+               + `🏆 Gagnants mentionnés : ${winnerMentions}\n`
+               + `📩 DMs : ${dmOk} envoyé(s)${dmFail > 0 ? `, ${dmFail} échoué(s) (DMs fermés)` : ''}`,
+      });
+    } catch (e) {
+      console.error('[Giveaway] Erreur /giveaway-republier:', e);
+      return interaction.editReply({ content: `❌ Erreur lors de l'annonce : ${e.message}` });
+    }
+  }
+
   if (commandName === 'giveway-retirer') {
     if (!hasRoulettePermission(interaction.member)) {
       return interaction.reply({ content: '❌ Permission refusée.', ephemeral: true });

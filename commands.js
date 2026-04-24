@@ -313,6 +313,18 @@ const commands = [
     name: 'casino',
     description: '🎰 Ouvre le menu du casino (Slots, Blackjack, Roulette, Roulette Russe, Poker)',
   },
+  {
+    name: 'giveaway-republier',
+    description: '📢 Ré-annonce les résultats du dernier giveaway terminé (Admin et Modo)',
+    options: [
+      {
+        name: 'id',
+        type: 3,
+        description: 'ID du giveaway (laisser vide = dernier giveaway terminé avec gagnants)',
+        required: false,
+      },
+    ],
+  },
 ];
 
 module.exports = commands;
