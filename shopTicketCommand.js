@@ -482,9 +482,21 @@ function buildSexeMenu(dinoId, variantLabel) {
     .setCustomId(`st_dino_sexe::${dinoId}::${variantLabel}`)
     .setPlaceholder('Sexe souhaité...')
     .addOptions([
-      { label: '♂️ Mâle', value: 'Mâle', emoji: '♂️' },
+      { label: '♂️ Mâle',    value: 'Mâle',   emoji: '♂️' },
       { label: '♀️ Femelle', value: 'Femelle', emoji: '♀️' },
+      { label: '💑 Couple',  value: 'Couple',  emoji: '💑' },
     ]);
+}
+
+// ── Menu stat forte pour couple (customId distinct) ───────────────────────────
+function buildCoupleStatMenu(dinoId, variantLabel, forSexe, maleStat = '') {
+  const cid = forSexe === 'Mâle'
+    ? `st_couple_m_stat::${dinoId}::${variantLabel}`
+    : `st_couple_f_stat::${dinoId}::${variantLabel}::${maleStat}`;
+  return new StringSelectMenuBuilder()
+    .setCustomId(cid)
+    .setPlaceholder(`Stat forte — ${forSexe}...`)
+    .addOptions(STATS.map(s => ({ label: `${STAT_EMOJIS[s]} ${s}`, value: s })));
 }
 
 // ── Menu stat forte ───────────────────────────────────────────────────────────
@@ -822,6 +834,23 @@ async function handleShopTicketInteraction(interaction) {
     const dino = getDino(dinoId);
     if (!dino) return;
 
+    if (sexe === 'Couple') {
+      // Couple : d'abord stat forte du mâle
+      const maleStatMenu = buildCoupleStatMenu(dinoId, variantLabel, 'Mâle');
+      return interaction.update({
+        embeds: [new EmbedBuilder()
+          .setTitle(`🦕 ${dino.name.trim()} — Couple`)
+          .setDescription('💑 **Couple sélectionné** (= 2 dinos)\n\n**1/2 — Choisis la stat forte du ♂️ mâle.**')
+          .setColor(0x9b59b6)],
+        components: [
+          new ActionRowBuilder().addComponents(maleStatMenu),
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('st_back_home').setLabel('⌂ Accueil').setStyle(ButtonStyle.Secondary)
+          ),
+        ],
+      });
+    }
+
     const statMenu = buildStatMenu(dinoId, variantLabel, sexe);
     return interaction.update({
       embeds: [new EmbedBuilder()
@@ -834,6 +863,76 @@ async function handleShopTicketInteraction(interaction) {
           new ButtonBuilder().setCustomId('st_back_home').setLabel('⌂ Accueil').setStyle(ButtonStyle.Secondary)
         ),
       ],
+    });
+  }
+
+  // ── Couple : stat forte du mâle sélectionnée → demander celle de la femelle ──
+  if (id.startsWith('st_couple_m_stat::')) {
+    const [, dinoId, variantLabel] = id.split('::');
+    const maleStat = interaction.values[0];
+    const dino = getDino(dinoId);
+    if (!dino) return;
+
+    const femaleStatMenu = buildCoupleStatMenu(dinoId, variantLabel, 'Femelle', maleStat);
+    return interaction.update({
+      embeds: [new EmbedBuilder()
+        .setTitle(`🦕 ${dino.name.trim()} — Couple`)
+        .setDescription(`♂️ Mâle → **${STAT_EMOJIS[maleStat] || ''}${maleStat}** ✅\n\n**2/2 — Choisis la stat forte de la ♀️ femelle.**`)
+        .setColor(0x9b59b6)],
+      components: [
+        new ActionRowBuilder().addComponents(femaleStatMenu),
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('st_back_home').setLabel('⌂ Accueil').setStyle(ButtonStyle.Secondary)
+        ),
+      ],
+    });
+  }
+
+  // ── Couple : stat forte de la femelle → ajouter les 2 dinos au panier ────────
+  if (id.startsWith('st_couple_f_stat::')) {
+    const parts = id.split('::');
+    const dinoId = parts[1];
+    const variantLabel = parts[2];
+    const maleStat = parts[3];
+    const femaleStat = interaction.values[0];
+    const dino = getDino(dinoId);
+    if (!dino) return;
+
+    let priceDiamonds = dino.priceDiamonds;
+    let priceStrawberries = dino.priceStrawberries;
+    let displayName = dino.name.trim();
+
+    if (variantLabel !== 'base') {
+      const v = (dino.variants || []).find(x => x.label === variantLabel);
+      if (v) {
+        priceDiamonds = v.priceDiamonds;
+        priceStrawberries = v.priceStrawberries;
+        displayName += ` (${variantLabel})`;
+      }
+    }
+
+    const baseItem = { type: 'dino', dinoId: dino.id, name: displayName, variant: variantLabel,
+      priceDiamonds, priceStrawberries, noReduction: dino.noReduction || false,
+      notAvailableDona: dino.notAvailableDona || false, isShoulder: dino.isShoulder || false };
+
+    cart.items.push({ ...baseItem, id: genId(), sexe: 'Mâle',   stat: maleStat });
+    cart.items.push({ ...baseItem, id: genId(), sexe: 'Femelle', stat: femaleStat });
+
+    return interaction.update({
+      embeds: [new EmbedBuilder()
+        .setColor(0x9b59b6)
+        .setTitle('✅ Couple ajouté au panier !')
+        .setDescription(
+          `**${displayName}**\n` +
+          `♂️ Mâle · ${STAT_EMOJIS[maleStat] || ''}${maleStat}\n` +
+          `♀️ Femelle · ${STAT_EMOJIS[femaleStat] || ''}${femaleStat}\n` +
+          `💰 ${formatPrice(priceDiamonds * 2, priceStrawberries * 2)} *(×2)*`
+        )
+        .setFooter({ text: `${cart.items.length} article(s) dans ton panier` })],
+      components: [new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('st_back_home').setLabel('🛍️ Continuer mes achats').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('st_view_cart_btn').setLabel('🛒 Voir mon panier').setStyle(ButtonStyle.Success),
+      )],
     });
   }
 
@@ -885,9 +984,8 @@ async function handleShopTicketInteraction(interaction) {
         .setFooter({ text: `${cart.items.length} article(s) dans ton panier` })],
       components: [
         new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId('st_main_menu_dinos').setLabel('🦕 Ajouter un autre dino').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId('st_back_home').setLabel('🛍️ Continuer mes achats').setStyle(ButtonStyle.Primary),
           new ButtonBuilder().setCustomId('st_view_cart_btn').setLabel('🛒 Voir mon panier').setStyle(ButtonStyle.Success),
-          new ButtonBuilder().setCustomId('st_back_home').setLabel('⌂ Accueil').setStyle(ButtonStyle.Secondary),
         ),
       ],
     });
@@ -950,9 +1048,8 @@ async function handleShopTicketInteraction(interaction) {
         .setDescription(`**${pack.name}**\n💰 ${formatPrice(pack.priceDiamonds, pack.priceStrawberries)}`)
         .setFooter({ text: `${cart.items.length} article(s) dans ton panier` })],
       components: [new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('st_back_packs').setLabel('📦 Continuer les achats').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('st_back_home').setLabel('🛍️ Continuer mes achats').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('st_view_cart_btn').setLabel('🛒 Voir mon panier').setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId('st_back_home').setLabel('⌂ Accueil').setStyle(ButtonStyle.Secondary),
       )],
     });
   }
@@ -975,9 +1072,8 @@ async function handleShopTicketInteraction(interaction) {
         .setDescription(`**${pack.name}** — *${optionName}*\n💰 ${formatPrice(option.priceDiamonds || 0, option.priceStrawberries || 0)}`)
         .setFooter({ text: `${cart.items.length} article(s) dans ton panier` })],
       components: [new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('st_back_packs').setLabel('📦 Continuer les achats').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('st_back_home').setLabel('🛍️ Continuer mes achats').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('st_view_cart_btn').setLabel('🛒 Voir mon panier').setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId('st_back_home').setLabel('⌂ Accueil').setStyle(ButtonStyle.Secondary),
       )],
     });
   }
