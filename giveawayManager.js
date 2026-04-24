@@ -29,13 +29,15 @@ function saveToFile(data) {
 
 async function loadData() {
   try {
-    const pg = await pgStore.read(PG_KEY);
+    const pg = await pgStore.getData(PG_KEY);
     if (pg) {
       cachedData = pg;
       saveToFile(pg);
       return pg;
     }
-  } catch (e) {}
+  } catch (e) {
+    console.error('[Giveaway] Erreur lecture PostgreSQL:', e.message);
+  }
   const file = loadFromFile();
   cachedData = file;
   return file;
@@ -44,7 +46,9 @@ async function loadData() {
 async function saveData(data) {
   cachedData = data;
   saveToFile(data);
-  try { await pgStore.write(PG_KEY, data); } catch (e) {}
+  try { await pgStore.setData(PG_KEY, data); } catch (e) {
+    console.error('[Giveaway] Erreur écriture PostgreSQL:', e.message);
+  }
 }
 
 function getData() {
