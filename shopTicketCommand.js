@@ -1352,18 +1352,6 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
     const payMsg = buildPaymentSelectMessage(orderId, orderData);
     await ticketChannel.send(payMsg);
 
-    // ── Notifier dans le salon log admin ─────────────────────────────────────
-    try {
-      const logChannelId = settings.guild?.inventoryLogChannelId || shop.shopTicketChannelId;
-      if (logChannelId) {
-        const logChannel = await interaction.guild.channels.fetch(logChannelId).catch(() => null);
-        if (logChannel) {
-          const { totalDiamonds, totalStrawberries } = calcCartTotal(cart.items, discount);
-          await logChannel.send(`🛒 **Nouveau ticket shop** de <@${interaction.user.id}> : <#${ticketChannel.id}>\n> ${cart.items.length} article(s) — Total estimé : ${formatPrice(totalDiamonds, totalStrawberries)}`);
-        }
-      }
-    } catch (e) {}
-
     // ── Nettoyer le panier de navigation ─────────────────────────────────────
     activeCarts.delete(interaction.user.id);
 
@@ -1552,6 +1540,49 @@ async function handleAdminValidate(interaction, orderId) {
     );
 
     await interaction.reply({ embeds: [paidEmbed], components: [newOrderRow] });
+
+    // ── Rapport d'achat dans le salon log ─────────────────────────────────────
+    try {
+      const settings = getSettings();
+      const shop = settings.shop || {};
+      const logChannelId = settings.guild?.inventoryLogChannelId || shop.shopTicketChannelId;
+      if (logChannelId) {
+        const logChannel = await interaction.guild.channels.fetch(logChannelId).catch(() => null);
+        if (logChannel) {
+          const itemLines = cart.items.map(item => {
+            const variantLabel = item.variantLabel ? ` — ${item.variantLabel}` : '';
+            const qty = item.quantity > 1 ? ` ×${item.quantity}` : '';
+            return `• ${item.name}${variantLabel}${qty}`;
+          }).join('\n');
+
+          const discountLine = discount > 0
+            ? `\n🏷️ Réduction appliquée : **−${discount}%** *(${discountRoleName || 'rôle'})*`
+            : '';
+
+          const rapportEmbed = new EmbedBuilder()
+            .setColor(warnings.length > 0 ? 0xe67e22 : 0x2ecc71)
+            .setTitle('🧾 Rapport d\'achat')
+            .setDescription(
+              `**Client :** <@${userId}>\n` +
+              `**Admin :** ${adminName}` +
+              discountLine +
+              `\n\n**Articles :**\n${itemLines}` +
+              (cart.comment ? `\n\n**Commentaire :** ${cart.comment}` : '') +
+              `\n\n**Paiement débité :**\n${paymentDesc}` +
+              (warnings.length > 0 ? `\n⚠️ *Solde insuffisant — à vérifier manuellement.*` : '')
+            )
+            .setFooter({ text: `Ticket #${orderId}` })
+            .setTimestamp();
+
+          const threadLink = order.channelId
+            ? ` · <#${order.channelId}>`
+            : '';
+          await logChannel.send({ content: `✅ Vente validée${threadLink}`, embeds: [rapportEmbed] });
+        }
+      }
+    } catch (e) {
+      console.error('[ShopTicket] Erreur rapport achat:', e);
+    }
 
   } catch (err) {
     console.error('[ShopTicket] Erreur encaissement:', err);
