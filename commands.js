@@ -314,6 +314,17 @@ const commands = [
     description: '🎰 Ouvre le menu du casino (Slots, Blackjack, Roulette, Roulette Russe, Poker)',
   },
   {
+    name: 'giveaway-forcer-resultat',
+    description: '🔧 Force l\'annonce d\'un résultat de giveaway manuellement (Admin uniquement)',
+    options: [
+      { name: 'titre',    type: 3, description: 'Titre du giveaway',                                         required: true  },
+      { name: 'gain',     type: 3, description: 'Gain (ex: Fraises ×5000)',                                  required: true  },
+      { name: 'gagnant',  type: 6, description: 'Le membre gagnant',                                         required: true  },
+      { name: 'salon',    type: 7, description: 'Salon où envoyer l\'annonce',                                required: true  },
+      { name: 'participants', type: 4, description: 'Nombre de participants (affiché uniquement)',            required: false },
+    ],
+  },
+  {
     name: 'giveaway-republier',
     description: '📢 Ré-annonce les résultats du dernier giveaway terminé (Admin et Modo)',
     options: [

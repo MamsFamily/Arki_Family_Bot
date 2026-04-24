@@ -3585,6 +3585,56 @@ client.on('interactionCreate', async interaction => {
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
+  // ── /giveaway-forcer-resultat ────────────────────────────────────────────
+  if (commandName === 'giveaway-forcer-resultat') {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({ content: '❌ Seuls les administrateurs peuvent forcer un résultat.', ephemeral: true });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    const titre        = interaction.options.getString('titre');
+    const gain         = interaction.options.getString('gain');
+    const gagnant      = interaction.options.getUser('gagnant');
+    const salon        = interaction.options.getChannel('salon');
+    const nbParticip   = interaction.options.getInteger('participants');
+
+    try {
+      const announceEmbed = new EmbedBuilder()
+        .setColor('#f39c12')
+        .setTitle(`🎉 Résultats du Giveaway — ${titre}`)
+        .setDescription(`🏆 **Félicitations <@${gagnant.id}> !**\n\nTu remportes **${gain}** !`)
+        .addFields(
+          ...(nbParticip ? [{ name: '👥 Participants', value: `${nbParticip}`, inline: true }] : []),
+          { name: '📢 Note', value: '*(Résultat confirmé par un administrateur)*' }
+        )
+        .setTimestamp();
+
+      const targetChannel = await client.channels.fetch(salon.id);
+      await targetChannel.send({ embeds: [announceEmbed] });
+
+      // DM au gagnant
+      let dmSent = false;
+      try {
+        await gagnant.send(`🎉 Félicitations ! Tu as gagné le giveaway **${titre}** sur Arki Family !\nTu remportes : **${gain}**\nContacte un administrateur pour recevoir ton gain.`);
+        dmSent = true;
+      } catch (e) {}
+
+      const memberWhoRan = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+      const adminName = memberWhoRan ? memberWhoRan.displayName : interaction.user.username;
+
+      return interaction.editReply({
+        content: `✅ Résultat forcé et annoncé dans <#${salon.id}> !\n`
+               + `🏆 Gagnant : <@${gagnant.id}>\n`
+               + `🎁 Gain : ${gain}\n`
+               + `📩 DM au gagnant : ${dmSent ? 'envoyé ✅' : 'échoué (DMs fermés) ⚠️'}`,
+      });
+    } catch (e) {
+      console.error('[Giveaway] Erreur /giveaway-forcer-resultat:', e);
+      return interaction.editReply({ content: `❌ Erreur : ${e.message}` });
+    }
+  }
+
   // ── /giveaway-republier ──────────────────────────────────────────────────
   if (commandName === 'giveaway-republier') {
     if (!hasRoulettePermission(interaction.member)) {
