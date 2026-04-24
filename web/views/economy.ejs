@@ -29,6 +29,13 @@
     .summary-card .sc-val { font-size: 22px; font-weight: 800; color: #fff; }
     .btn-delete-role { background: none; border: none; color: #f44336; cursor: pointer; font-size: 16px; padding: 4px 8px; border-radius: 6px; transition: background 0.15s; }
     .btn-delete-role:hover { background: rgba(244,67,54,0.15); }
+    .btn-edit-role { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 15px; padding: 4px 8px; border-radius: 6px; transition: background 0.15s; }
+    .btn-edit-role:hover { background: rgba(124,92,252,0.15); color: var(--accent-light); }
+    .btn-save-role { background: #4caf50; color: #fff; border: none; cursor: pointer; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 6px; transition: background 0.15s; }
+    .btn-save-role:hover { background: #388e3c; }
+    .btn-cancel-role { background: none; border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; font-size: 12px; padding: 4px 10px; border-radius: 6px; transition: background 0.15s; }
+    .btn-cancel-role:hover { background: var(--bg-input); }
+    .inline-input { width: 80px; padding: 3px 7px; border-radius: 5px; border: 1px solid var(--border); background: var(--bg-input); color: var(--text-primary); font-size: 13px; }
     .tag-role { display: inline-block; background: rgba(124,92,252,0.18); border: 1px solid rgba(124,92,252,0.3); border-radius: 20px; padding: 2px 10px; font-size: 12px; font-weight: 600; color: var(--accent-light); }
     select.form-control { appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237c5cfc' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 10px center; background-size: 16px; padding-right: 34px; }
   </style>
@@ -128,17 +135,22 @@
                     </tr>
                   <% } else { %>
                     <% roleEntries.forEach(function([rid, cfg]) { %>
-                      <tr id="row-<%= rid %>">
+                      <tr id="row-<%= rid %>"
+                          data-rid="<%= rid %>"
+                          data-name="<%= (cfg.name || rid).replace(/"/g,'&quot;') %>"
+                          data-income="<%= cfg.income || 0 %>"
+                          data-discount="<%= cfg.shopDiscount || 0 %>">
                         <td><span class="tag-role"><%= cfg.name || rid %></span></td>
-                        <td><span class="role-income"><%= (cfg.income || 0).toLocaleString('fr-FR') %> 💎</span></td>
-                        <td>
+                        <td class="cell-income"><span class="role-income"><%= (cfg.income || 0).toLocaleString('fr-FR') %> 💎</span></td>
+                        <td class="cell-discount">
                           <% if (cfg.shopDiscount > 0) { %>
-                            <span class="role-discount">-<%= cfg.shopDiscount %>%</span>
+                            <span class="role-discount">−<%= cfg.shopDiscount %>%</span>
                           <% } else { %>
                             <span class="role-none">—</span>
                           <% } %>
                         </td>
-                        <td>
+                        <td style="white-space:nowrap;">
+                          <button class="btn-edit-role" onclick="startEdit('<%= rid %>')" title="Modifier">✏️</button>
                           <button class="btn-delete-role" onclick="deleteRole('<%= rid %>')" title="Supprimer">🗑</button>
                         </td>
                       </tr>
@@ -173,6 +185,75 @@
   </div>
 
   <script>
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]);
+    }
+
+    function renderRowHtml(roleId, roleName, income, shopDiscount) {
+      const discountHtml = shopDiscount > 0
+        ? `<span class="role-discount">−${shopDiscount}%</span>`
+        : `<span class="role-none">—</span>`;
+      return `
+        <td><span class="tag-role">${escapeHtml(roleName)}</span></td>
+        <td class="cell-income"><span class="role-income">${Number(income).toLocaleString('fr-FR')} 💎</span></td>
+        <td class="cell-discount">${discountHtml}</td>
+        <td style="white-space:nowrap;">
+          <button class="btn-edit-role" onclick="startEdit('${roleId}')" title="Modifier">✏️</button>
+          <button class="btn-delete-role" onclick="deleteRole('${roleId}')" title="Supprimer">🗑</button>
+        </td>`;
+    }
+
+    function startEdit(roleId) {
+      const row = document.getElementById('row-' + roleId);
+      if (!row) return;
+      const income = row.dataset.income || '0';
+      const discount = row.dataset.discount || '0';
+      const name = row.dataset.name || roleId;
+
+      row.querySelector('.cell-income').innerHTML =
+        `<input class="inline-input" id="edit-income-${roleId}" type="number" min="0" value="${income}" placeholder="0">`;
+      row.querySelector('.cell-discount').innerHTML =
+        `<input class="inline-input" id="edit-discount-${roleId}" type="number" min="0" max="100" step="1" value="${discount}" placeholder="0"> %`;
+
+      const actionCell = row.querySelector('td:last-child');
+      actionCell.innerHTML = `
+        <button class="btn-save-role" onclick="saveEdit('${roleId}')">💾 Sauvegarder</button>
+        <button class="btn-cancel-role" onclick="cancelEdit('${roleId}')">✖</button>`;
+    }
+
+    function cancelEdit(roleId) {
+      const row = document.getElementById('row-' + roleId);
+      if (!row) return;
+      const income = Number(row.dataset.income) || 0;
+      const discount = Number(row.dataset.discount) || 0;
+      const name = row.dataset.name || roleId;
+      row.innerHTML = renderRowHtml(roleId, name, income, discount);
+    }
+
+    async function saveEdit(roleId) {
+      const row = document.getElementById('row-' + roleId);
+      if (!row) return;
+      const income = parseInt(document.getElementById('edit-income-' + roleId)?.value) || 0;
+      const shopDiscount = parseFloat(document.getElementById('edit-discount-' + roleId)?.value) || 0;
+      const roleName = row.dataset.name || roleId;
+
+      const btn = row.querySelector('.btn-save-role');
+      if (btn) { btn.disabled = true; btn.textContent = '...'; }
+
+      const res = await fetch('/economy/roles/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roleId, roleName, income, shopDiscount }),
+      });
+      const data = await res.json();
+      if (data.error) { alert('❌ ' + data.error); cancelEdit(roleId); return; }
+
+      // Mettre à jour les data-attributes
+      row.dataset.income = income;
+      row.dataset.discount = shopDiscount;
+      row.innerHTML = renderRowHtml(roleId, roleName, income, shopDiscount);
+    }
+
     async function addRole() {
       const select = document.getElementById('selRole');
       const roleId = select.value;
@@ -190,7 +271,6 @@
       const data = await res.json();
       if (data.error) return alert('❌ ' + data.error);
 
-      // Mise à jour de la table sans rechargement
       const tbody = document.getElementById('roleBody');
       const emptyRow = document.getElementById('emptyRow');
       if (emptyRow) emptyRow.remove();
@@ -201,25 +281,17 @@
         row.id = 'row-' + roleId;
         tbody.appendChild(row);
       }
+      row.dataset.rid = roleId;
+      row.dataset.name = roleName;
+      row.dataset.income = income;
+      row.dataset.discount = shopDiscount;
+      row.innerHTML = renderRowHtml(roleId, roleName, income, shopDiscount);
 
-      const discountHtml = shopDiscount > 0
-        ? `<span class="role-discount">-${shopDiscount}%</span>`
-        : `<span class="role-none">—</span>`;
-
-      row.innerHTML = `
-        <td><span class="tag-role">${escapeHtml(roleName)}</span></td>
-        <td><span class="role-income">${income.toLocaleString('fr-FR')} 💎</span></td>
-        <td>${discountHtml}</td>
-        <td><button class="btn-delete-role" onclick="deleteRole('${roleId}')" title="Supprimer">🗑</button></td>
-      `;
-
-      // Reset form
       document.getElementById('selRole').value = '';
       document.getElementById('inpIncome').value = '0';
       document.getElementById('inpDiscount').value = '0';
-
-      // Mettre à jour le compteur
-      document.getElementById('rolesCount').textContent = tbody.querySelectorAll('tr').length;
+      document.getElementById('rolesCount').textContent =
+        tbody.querySelectorAll('tr:not(#emptyRow)').length;
     }
 
     async function deleteRole(roleId) {
@@ -236,17 +308,14 @@
       if (row) row.remove();
 
       const tbody = document.getElementById('roleBody');
-      if (tbody.querySelectorAll('tr').length === 0) {
+      if (tbody.querySelectorAll('tr:not(#emptyRow)').length === 0) {
         const emptyRow = document.createElement('tr');
         emptyRow.id = 'emptyRow';
         emptyRow.innerHTML = '<td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px;">Aucun rôle configuré.</td>';
         tbody.appendChild(emptyRow);
       }
-      document.getElementById('rolesCount').textContent = tbody.querySelectorAll('tr:not(#emptyRow)').length;
-    }
-
-    function escapeHtml(str) {
-      return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]);
+      document.getElementById('rolesCount').textContent =
+        tbody.querySelectorAll('tr:not(#emptyRow)').length;
     }
   </script>
 </body>
