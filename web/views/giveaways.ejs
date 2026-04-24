@@ -173,7 +173,7 @@
             <button class="btn btn-sm btn-secondary" onclick="openParticipants('<%=g.id%>')">👥 Participants</button>
             <% if (role === 'admin') { %>
             <% if (g.winners && g.winners.length > 0) { %>
-            <button class="btn btn-sm btn-primary" onclick="announceGiveaway('<%=g.id%>','<%=g.title.replace(/'/g,\"\\\\'\" )%>')">📢 Ré-annoncer</button>
+            <button class="btn btn-sm btn-primary" data-gid="<%=g.id%>" data-gtitle="<%=encodeURIComponent(g.title)%>" onclick="announceGiveaway(this)">📢 Ré-annoncer</button>
             <% } %>
             <button class="btn btn-sm btn-danger" onclick="deleteGiveaway('<%=g.id%>','<%=g.title%>')">🗑️ Supprimer</button>
             <% } %>
@@ -668,9 +668,10 @@
     }
 
     /* ── Supprimer un giveaway ── */
-    async function announceGiveaway(id, title) {
+    async function announceGiveaway(btn) {
+      var id = btn.dataset.gid;
+      var title = decodeURIComponent(btn.dataset.gtitle || '');
       if (!confirm('Ré-annoncer les résultats du giveaway "' + title + '" dans Discord ?\n\nLes gagnants déjà tirés seront mentionnés sans nouveau tirage.')) return;
-      var btn = event.target;
       btn.disabled = true; btn.textContent = '⏳ Envoi...';
       var r = await fetch('/giveaways/' + id + '/announce', { method: 'POST' });
       var d = await r.json();
