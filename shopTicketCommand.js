@@ -1020,7 +1020,7 @@ async function handleShopTicketInteraction(interaction) {
   if (id === 'st_cart_comment') {
     const textInput = new TextInputBuilder()
       .setCustomId('comment_text')
-      .setLabel('Ton commentaire (infos spéciales, questions...)')
+      .setLabel('Commentaire (infos, questions...)')
       .setStyle(TextInputStyle.Paragraph)
       .setPlaceholder('Ex: Je voudrais un dino avec les couleurs bleues...')
       .setRequired(false)
