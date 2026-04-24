@@ -25,7 +25,7 @@ const {
 
 const { getDinoData, getDino } = require('./dinoManager');
 const { getShop, getCategories } = require('./shopManager');
-const { getPlayerInventory, addToInventory, removeFromInventory } = require('./inventoryManager');
+const { getPlayerInventory, addToInventory, removeFromInventory, getItemTypes } = require('./inventoryManager');
 const { getRoleIncomes } = require('./economyManager');
 const { getSettings } = require('./settingsManager');
 
@@ -118,6 +118,20 @@ function calcCartTotal(cartItems, discount = 0) {
   return { totalDiamonds, totalStrawberries };
 }
 
+// ── Helper : emoji pour un inventoryId (depuis les types d'items) ─────────────
+function getInvEmoji(inventoryId) {
+  const types = getItemTypes();
+  const found = types.find(t => t.id === inventoryId);
+  return found?.emoji || '📦';
+}
+
+// ── Helper : nom lisible pour un inventoryId ──────────────────────────────────
+function getInvName(inventoryId) {
+  const types = getItemTypes();
+  const found = types.find(t => t.id === inventoryId);
+  return found?.name || inventoryId.replace(/_/g, ' ');
+}
+
 // ── Construire les options de paiement depuis l'inventaire ────────────────────
 // Retourne un tableau d'options proposables au joueur
 // discount : pourcentage de réduction à appliquer sur les articles sans noReduction
@@ -153,7 +167,7 @@ function getPaymentOptions(cartItems, playerInventory, discount = 0) {
     options.push({
       id: 'dino_dona',
       inventoryId: 'dino_dona',
-      label: `🦕 Dino Dona (${usable}/${dinoDona} stock)`,
+      label: `${getInvEmoji('dino_dona')} ${getInvName('dino_dona')} (${usable}/${dinoDona} stock)`,
       usedQty: usable,
       coveredItemIds: covered,
       remainingDiamonds: remD,
@@ -170,7 +184,7 @@ function getPaymentOptions(cartItems, playerInventory, discount = 0) {
     options.push({
       id: 'dino_epaule_shop',
       inventoryId: 'dino_epaule_shop',
-      label: `🦎 Dino d'épaule Shop (${usable}/${dinoEpauleShop} stock)`,
+      label: `${getInvEmoji('dino_epaule_shop')} ${getInvName('dino_epaule_shop')} (${usable}/${dinoEpauleShop} stock)`,
       usedQty: usable,
       coveredItemIds: covered,
       remainingDiamonds: remD,
@@ -187,7 +201,7 @@ function getPaymentOptions(cartItems, playerInventory, discount = 0) {
     options.push({
       id: 'dino_epaule',
       inventoryId: 'dino_epaule',
-      label: `🦎 Dino d'épaule (${usable}/${dinoEpaule} stock)`,
+      label: `${getInvEmoji('dino_epaule')} ${getInvName('dino_epaule')} (${usable}/${dinoEpaule} stock)`,
       usedQty: usable,
       coveredItemIds: covered,
       remainingDiamonds: remD,
@@ -204,7 +218,7 @@ function getPaymentOptions(cartItems, playerInventory, discount = 0) {
     options.push({
       id: 'pack',
       inventoryId: 'pack',
-      label: `📦 Pack inventaire (${usable}/${packQty} stock)`,
+      label: `${getInvEmoji('pack')} ${getInvName('pack')} (${usable}/${packQty} stock)`,
       usedQty: usable,
       coveredItemIds: covered,
       remainingDiamonds: remD,
@@ -232,7 +246,7 @@ function getPaymentOptions(cartItems, playerInventory, discount = 0) {
       options.push({
         id: `inv_${invItemId}`,
         inventoryId: invItemId,
-        label: `🎒 ${invItemId.replace(/_/g, ' ')} (${usable}/${stock} stock)`,
+        label: `${getInvEmoji(invItemId)} ${getInvName(invItemId)} (${usable}/${stock} stock)`,
         usedQty: usable,
         coveredItemIds: covered,
         remainingDiamonds: remD,
@@ -1022,12 +1036,20 @@ async function handleShopTicketInteraction(interaction) {
 
   // ── Modal commentaire soumis ────────────────────────────────────────────────
   if (id === 'st_comment_modal') {
+    if (!cart) {
+      return interaction.reply({ content: '❌ Ton panier a expiré. Utilise `/shop-ticket` pour recommencer.', ephemeral: true });
+    }
     cart.comment = interaction.fields.getTextInputValue('comment_text') || '';
     const memberRoleIds = await getMemberRoleIds(interaction);
     const { discount: disc, roleName: rn } = await getMaxDiscount(memberRoleIds);
     const updatedEmbed = buildCartEmbed(cart, disc, rn);
     const rows = buildCartButtons(cart.items.length === 0);
-    await interaction.reply({ content: '✅ Commentaire enregistré !', embeds: [updatedEmbed], components: rows, ephemeral: true });
+    // Le modal a été ouvert depuis un bouton de message : on met à jour ce message
+    if (interaction.message) {
+      await interaction.update({ embeds: [updatedEmbed], components: rows });
+    } else {
+      await interaction.reply({ content: '✅ Commentaire enregistré !', embeds: [updatedEmbed], components: rows, ephemeral: true });
+    }
     return;
   }
 
