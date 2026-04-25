@@ -45,6 +45,16 @@ function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
+// ── Vérification admin ticket ─────────────────────────────────────────────────
+// Autorisé si : Administrator Discord OU l'un des rôles définis dans shopTicketAdminRoleIds du dashboard
+function isTicketAdmin(member) {
+  if (!member) return false;
+  if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
+  const shop = getShop();
+  const adminRoleIds = Array.isArray(shop?.shopTicketAdminRoleIds) ? shop.shopTicketAdminRoleIds : [];
+  return adminRoleIds.some(roleId => member.roles.cache.has(roleId));
+}
+
 // ── Helpers formatage ─────────────────────────────────────────────────────────
 function formatPrice(diamonds, strawberries) {
   const parts = [];
@@ -1159,6 +1169,18 @@ async function handleShopTicketInteraction(interaction) {
     return handleShopTicketCommand(interaction);
   }
 
+  // ── Actions admin : guard unique ─────────────────────────────────────────────
+  const isAdminAction = id.startsWith('st_admin_validate::') || id.startsWith('st_admin_force_validate::') ||
+    id.startsWith('st_admin_cancel::') || id.startsWith('st_admin_modify::') || id.startsWith('st_admin_close::') ||
+    id.startsWith('st_close_confirm::') || id.startsWith('st_close_cancel::');
+
+  if (isAdminAction && !isTicketAdmin(interaction.member)) {
+    return interaction.reply({
+      content: '🔒 Tu n\'as pas la permission d\'effectuer cette action.\nSeuls les administrateurs ou les rôles autorisés dans le dashboard peuvent gérer les tickets.',
+      ephemeral: true,
+    });
+  }
+
   // ── Bouton admin : valider & encaisser ──────────────────────────────────────
   if (id.startsWith('st_admin_validate::')) {
     const orderId = id.split('::')[1];
@@ -1407,11 +1429,9 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
       },
     ];
 
-    // Rôles admin configurés dans le shop
+    // Rôles admin configurés dans le shop (uniquement ceux définis dans le dashboard)
     const adminRoleIds = Array.isArray(shop.shopTicketAdminRoleIds) ? shop.shopTicketAdminRoleIds : [];
-    // Fallback : modoRoleId depuis les paramètres globaux
-    const modoRoleId = settings.guild?.modoRoleId;
-    const allAdminRoles = [...new Set([...adminRoleIds, modoRoleId].filter(Boolean))];
+    const allAdminRoles = adminRoleIds.filter(Boolean);
 
     for (const roleId of allAdminRoles) {
       permOverwrites.push({
