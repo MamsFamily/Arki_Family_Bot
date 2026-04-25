@@ -1176,7 +1176,7 @@ async function handleShopTicketInteraction(interaction) {
 
   if (isAdminAction && !isTicketAdmin(interaction.member)) {
     return interaction.reply({
-      content: '🔒 Tu n\'as pas la permission d\'effectuer cette action.\nSeuls les administrateurs ou les rôles autorisés dans le dashboard peuvent gérer les tickets.',
+      content: '🔒 Tu n\'as pas la permission d\'effectuer cette action. Seuls les administrateurs ou les rôles autorisés peuvent gérer les tickets.',
       ephemeral: true,
     });
   }
