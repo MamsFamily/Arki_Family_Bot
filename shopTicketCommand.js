@@ -1909,6 +1909,24 @@ async function handleAdminCancel(interaction, orderId) {
 
 // ── Admin : demander confirmation avant de fermer le ticket ──────────────────
 async function handleAdminClose(interaction, orderId) {
+  const order = activeOrders.get(orderId);
+
+  // Bloquer si la commande est toujours en cours (paiement non confirmé ni annulé)
+  if (order && order.status === 'pending') {
+    return interaction.reply({
+      embeds: [new EmbedBuilder()
+        .setColor(0xe74c3c)
+        .setTitle('🔒 Fermeture impossible')
+        .setDescription(
+          '❌ Ce ticket ne peut pas être fermé car la commande est **toujours en attente**.\n\n' +
+          'Pour pouvoir fermer le ticket, l\'une des conditions suivantes doit être remplie :\n' +
+          '> ✅ Le paiement a été **validé & encaissé**\n' +
+          '> ❌ La commande a été **annulée**'
+        )],
+      ephemeral: true,
+    });
+  }
+
   await interaction.reply({
     embeds: [new EmbedBuilder()
       .setColor(0xe67e22)
