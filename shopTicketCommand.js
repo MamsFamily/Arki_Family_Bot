@@ -169,17 +169,26 @@ function getPaymentOptions(cartItems, playerInventory, discount = 0) {
   );
 
   // dino_dona + dino (générique/shop) → couvrent les dinos classiques
+  // Les dinos avec coupleInventaire=true coûtent 2 slots d'inventaire chacun
   for (const invId of ['dino_dona', 'dino']) {
     const stock = inv[invId] || 0;
     if (stock > 0 && regularDinos.length > 0) {
-      const usable = Math.min(stock, regularDinos.length);
-      const covered = regularDinos.slice(0, usable).map(i => i.id);
+      let slotsUsed = 0;
+      const covered = [];
+      for (const item of regularDinos) {
+        const cost = item.coupleInventaire ? 2 : 1;
+        if (slotsUsed + cost <= stock) {
+          slotsUsed += cost;
+          covered.push(item.id);
+        }
+      }
+      if (covered.length === 0) continue;
       const { totalDiamonds: remD, totalStrawberries: remS } = calcRemaining(new Set(covered));
       options.push({
         id: invId,
         inventoryId: invId,
-        label: `${getInvEmoji(invId)} ${getInvName(invId)} (${usable}/${stock} stock)`,
-        usedQty: usable,
+        label: `${getInvEmoji(invId)} ${getInvName(invId)} (${slotsUsed}/${stock} stock)`,
+        usedQty: slotsUsed,
         coveredItemIds: covered,
         remainingDiamonds: remD,
         remainingStrawberries: remS,
@@ -320,7 +329,10 @@ function buildPaymentSelectMessage(orderId, order) {
       const globalIdx = order.paymentOptions.indexOf(opt);
       // Calculer la couverture effective (hors items déjà couverts) pour l'affichage
       const effectiveCovered = (opt.coveredItemIds || []).filter(id => !allCovered.has(id));
-      const effectiveQty = effectiveCovered.length;
+      const effectiveQty = effectiveCovered.reduce((acc, id) => {
+        const item = order.cart.items.find(i => i.id === id);
+        return acc + (item?.coupleInventaire ? 2 : 1);
+      }, 0);
       const adjustedLabel = opt.label.replace(/\(\d+\//, `(${effectiveQty}/`);
       const coveredNames = effectiveCovered
         .map(id => order.cart.items.find(i => i.id === id)?.name)
@@ -937,7 +949,8 @@ async function handleShopTicketInteraction(interaction) {
 
     const baseItem = { type: 'dino', dinoId: dino.id, name: displayName, variant: variantLabel,
       priceDiamonds, priceStrawberries, noReduction: dino.noReduction || false,
-      notAvailableDona: dino.notAvailableDona || false, isShoulder: dino.isShoulder || false };
+      notAvailableDona: dino.notAvailableDona || false, isShoulder: dino.isShoulder || false,
+      coupleInventaire: dino.coupleInventaire || false };
 
     cart.items.push({ ...baseItem, id: genId(), sexe: 'Mâle',   stat: maleStat });
     cart.items.push({ ...baseItem, id: genId(), sexe: 'Femelle', stat: femaleStat });
@@ -996,6 +1009,7 @@ async function handleShopTicketInteraction(interaction) {
       noReduction: dino.noReduction || false,
       notAvailableDona: dino.notAvailableDona || false,
       isShoulder: dino.isShoulder || false,
+      coupleInventaire: dino.coupleInventaire || false,
     };
 
     cart.items.push(cartItem);
@@ -1765,7 +1779,11 @@ async function handleInvPick(interaction, orderId) {
     // Calculer la couverture effective : seulement les items pas encore couverts
     const alreadyCoveredSet = new Set(order.selectedDeductions.flatMap(d => d.coveredItemIds || []));
     const effectiveCovered = (opt.coveredItemIds || []).filter(id => !alreadyCoveredSet.has(id));
-    const effectiveQty = effectiveCovered.length;
+    // Calculer les slots réellement consommés (coupleInventaire = 2 slots par item)
+    const effectiveQty = effectiveCovered.reduce((acc, id) => {
+      const item = order.cart.items.find(i => i.id === id);
+      return acc + (item?.coupleInventaire ? 2 : 1);
+    }, 0);
     // Ajuster le label pour refléter la quantité réelle retirée
     const adjustedLabel = opt.label.replace(/\(\d+\//, `(${effectiveQty}/`);
     order.selectedDeductions.push({
