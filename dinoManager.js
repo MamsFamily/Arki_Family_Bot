@@ -106,6 +106,21 @@ function getDino(dinoId) {
   return data.dinos.find(d => d.id === dinoId) || null;
 }
 
+// ── Rafraîchissement du cache depuis PostgreSQL ───────────────────────────────
+// À appeler périodiquement dans le bot pour éviter les données périmées
+// quand le dashboard (processus séparé) met à jour la base.
+async function refreshDinoCache() {
+  if (!pgStore.isPostgres()) return;
+  try {
+    const pgData = await pgStore.getData(PG_KEY);
+    if (pgData) {
+      cachedData = pgData;
+    }
+  } catch (err) {
+    console.error('[DinoCache] Erreur rafraîchissement cache:', err);
+  }
+}
+
 async function updateDinoChannel(channelId) {
   const data = getDinoData();
   data.dinoChannelId = channelId;
@@ -773,5 +788,6 @@ module.exports = {
   saveDinos,
   formatNumber,
   initDinos,
+  refreshDinoCache,
   DEFAULT_LETTER_COLORS,
 };

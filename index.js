@@ -29,7 +29,7 @@ const { getDinosByLetter, getModdedDinos, getShoulderDinos, getPaidDLCDinos, bui
 const pgStore = require('./pgStore');
 const { getConfig, saveConfig: saveRouletteConfig, initConfig } = require('./configManager');
 const { initSettings, getSettings } = require('./settingsManager');
-const { initDinos } = require('./dinoManager');
+const { initDinos, refreshDinoCache } = require('./dinoManager');
 const { initShop } = require('./shopManager');
 const { initInventory, getItemTypes, getItemTypeById, getPlayerInventory, getAllInventories, addToInventory, removeFromInventory, resetPlayerInventory, getPlayerTransactions, getCategories } = require('./inventoryManager');
 const giveawayManager = require('./giveawayManager');
@@ -571,6 +571,10 @@ client.once('clientReady', async () => {
   await publishAndScheduleGiveaways(client);
   // Polling toutes les 60s pour détecter les nouveaux giveaways créés depuis le dashboard
   setInterval(() => publishAndScheduleGiveaways(client), 60 * 1000);
+
+  // Rafraîchissement du cache dinos depuis PostgreSQL toutes les 5 minutes
+  // (le dashboard et le bot tournent dans des processus séparés)
+  setInterval(() => refreshDinoCache(), 5 * 60 * 1000);
 
   // Enregistrer les handlers du casino
   registerCasinoHandlers(client, { pgStore, getPlayerInventory, addToInventory, removeFromInventory });
