@@ -600,7 +600,7 @@ function buildCartEmbed(cart, discount = 0, discountRoleName = null) {
   if (cart.comment) {
     embed.addFields({
       name: '┌── 💬 Commentaire ──',
-      value: `> ***${cart.comment}***`,
+      value: cart.comment.split('\n').map(l => l.trim() ? `***${l}***` : '').join('\n'),
       inline: false,
     });
   }
@@ -681,7 +681,7 @@ function buildOrderRecapEmbed(cart, discount, discountRoleName, deductionsChosen
   if (cart.comment) {
     embed.addFields({
       name: '┌── 💬 Commentaire du joueur ──',
-      value: `> ***${cart.comment}***`,
+      value: cart.comment.split('\n').map(l => l.trim() ? `***${l}***` : '').join('\n'),
       inline: false,
     });
   }

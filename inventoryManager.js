@@ -58,6 +58,18 @@ function saveToFile(data) {
   }
 }
 
+async function refreshInventoryCache() {
+  if (!pgStore.isPostgres()) return;
+  try {
+    cachedInventories  = await pgStore.getData(PG_KEY_INVENTORIES)  || cachedInventories  || {};
+    cachedItemTypes    = await pgStore.getData(PG_KEY_ITEM_TYPES)    || cachedItemTypes    || DEFAULT_ITEM_TYPES;
+    cachedTransactions = await pgStore.getData(PG_KEY_TRANSACTIONS)  || cachedTransactions || [];
+    cachedCategories   = await pgStore.getData(PG_KEY_CATEGORIES)    || cachedCategories   || DEFAULT_CATEGORIES;
+  } catch (err) {
+    console.error('[InventoryManager] Erreur refresh cache inventaire:', err);
+  }
+}
+
 async function initInventory() {
   if (pgStore.isPostgres()) {
     let pgItemTypes = await pgStore.getData(PG_KEY_ITEM_TYPES);
@@ -385,4 +397,5 @@ module.exports = {
   deleteCategory,
   DEFAULT_CATEGORIES,
   DEFAULT_ITEM_TYPES,
+  refreshInventoryCache,
 };

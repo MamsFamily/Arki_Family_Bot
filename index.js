@@ -31,7 +31,7 @@ const { getConfig, saveConfig: saveRouletteConfig, initConfig } = require('./con
 const { initSettings, getSettings } = require('./settingsManager');
 const { initDinos, refreshDinoCache } = require('./dinoManager');
 const { initShop } = require('./shopManager');
-const { initInventory, getItemTypes, getItemTypeById, getPlayerInventory, getAllInventories, addToInventory, removeFromInventory, resetPlayerInventory, getPlayerTransactions, getCategories } = require('./inventoryManager');
+const { initInventory, getItemTypes, getItemTypeById, getPlayerInventory, getAllInventories, addToInventory, removeFromInventory, resetPlayerInventory, getPlayerTransactions, getCategories, refreshInventoryCache } = require('./inventoryManager');
 const giveawayManager = require('./giveawayManager');
 const { initSpecialPacks, getSpecialPacks, getSpecialPack } = require('./specialPacksManager');
 const economyManager = require('./economyManager');
@@ -575,6 +575,7 @@ client.once('clientReady', async () => {
   // Rafraîchissement du cache dinos depuis PostgreSQL toutes les 5 minutes
   // (le dashboard et le bot tournent dans des processus séparés)
   setInterval(() => refreshDinoCache(), 5 * 60 * 1000);
+  setInterval(() => refreshInventoryCache(), 5 * 60 * 1000);
 
   // Enregistrer les handlers du casino
   registerCasinoHandlers(client, { pgStore, getPlayerInventory, addToInventory, removeFromInventory });
