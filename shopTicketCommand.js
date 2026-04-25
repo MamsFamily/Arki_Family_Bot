@@ -168,21 +168,23 @@ function getPaymentOptions(cartItems, playerInventory, discount = 0) {
     !(i.inventoryItemIds?.length || i.inventoryItemId)
   );
 
-  // dino_dona → couvre les dinos normaux
-  const dinoDona = inv['dino_dona'] || 0;
-  if (dinoDona > 0 && regularDinos.length > 0) {
-    const usable = Math.min(dinoDona, regularDinos.length);
-    const covered = regularDinos.slice(0, usable).map(i => i.id);
-    const { totalDiamonds: remD, totalStrawberries: remS } = calcRemaining(new Set(covered));
-    options.push({
-      id: 'dino_dona',
-      inventoryId: 'dino_dona',
-      label: `${getInvEmoji('dino_dona')} ${getInvName('dino_dona')} (${usable}/${dinoDona} stock)`,
-      usedQty: usable,
-      coveredItemIds: covered,
-      remainingDiamonds: remD,
-      remainingStrawberries: remS,
-    });
+  // dino_dona + dino (générique/shop) → couvrent les dinos classiques
+  for (const invId of ['dino_dona', 'dino']) {
+    const stock = inv[invId] || 0;
+    if (stock > 0 && regularDinos.length > 0) {
+      const usable = Math.min(stock, regularDinos.length);
+      const covered = regularDinos.slice(0, usable).map(i => i.id);
+      const { totalDiamonds: remD, totalStrawberries: remS } = calcRemaining(new Set(covered));
+      options.push({
+        id: invId,
+        inventoryId: invId,
+        label: `${getInvEmoji(invId)} ${getInvName(invId)} (${usable}/${stock} stock)`,
+        usedQty: usable,
+        coveredItemIds: covered,
+        remainingDiamonds: remD,
+        remainingStrawberries: remS,
+      });
+    }
   }
 
   // dino_epaule_shop → option indépendante pour les dinos d'épaule
@@ -316,11 +318,15 @@ function buildPaymentSelectMessage(orderId, order) {
   if (remainingOpts.length > 0) {
     const selectOptions = remainingOpts.map(opt => {
       const globalIdx = order.paymentOptions.indexOf(opt);
-      const coveredNames = (opt.coveredItemIds || [])
+      // Calculer la couverture effective (hors items déjà couverts) pour l'affichage
+      const effectiveCovered = (opt.coveredItemIds || []).filter(id => !allCovered.has(id));
+      const effectiveQty = effectiveCovered.length;
+      const adjustedLabel = opt.label.replace(/\(\d+\//, `(${effectiveQty}/`);
+      const coveredNames = effectiveCovered
         .map(id => order.cart.items.find(i => i.id === id)?.name)
         .filter(Boolean).join(', ');
       return {
-        label: opt.label.slice(0, 100),
+        label: adjustedLabel.slice(0, 100),
         description: coveredNames ? `Couvre : ${coveredNames}`.slice(0, 100) : 'Retrait inventaire',
         value: globalIdx.toString(),
       };
@@ -1756,7 +1762,18 @@ async function handleInvPick(interaction, orderId) {
   // Ne pas ajouter deux fois le même inventoryId
   const alreadySelected = order.selectedDeductions.some(d => d.inventoryId === opt.inventoryId);
   if (!alreadySelected) {
-    order.selectedDeductions.push(opt);
+    // Calculer la couverture effective : seulement les items pas encore couverts
+    const alreadyCoveredSet = new Set(order.selectedDeductions.flatMap(d => d.coveredItemIds || []));
+    const effectiveCovered = (opt.coveredItemIds || []).filter(id => !alreadyCoveredSet.has(id));
+    const effectiveQty = effectiveCovered.length;
+    // Ajuster le label pour refléter la quantité réelle retirée
+    const adjustedLabel = opt.label.replace(/\(\d+\//, `(${effectiveQty}/`);
+    order.selectedDeductions.push({
+      ...opt,
+      coveredItemIds: effectiveCovered,
+      usedQty: effectiveQty,
+      label: adjustedLabel,
+    });
   }
 
   // Mettre à jour le message avec le nouveau menu (prix mis à jour)
