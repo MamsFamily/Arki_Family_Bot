@@ -168,11 +168,19 @@ function getPaymentOptions(cartItems, playerInventory, discount = 0) {
     !(i.inventoryItemIds?.length || i.inventoryItemId)
   );
 
-  // dino_dona + dino (générique/shop) → couvrent les dinos classiques
+  // Tous les types d'items "dino classique" (catégorie dino OU id contenant 'dino', sans 'epaule')
+  // → peuvent couvrir les dinos normaux du panier
   // Les dinos avec coupleInventaire=true coûtent 2 slots d'inventaire chacun
-  for (const invId of ['dino_dona', 'dino']) {
-    const stock = inv[invId] || 0;
-    if (stock > 0 && regularDinos.length > 0) {
+  if (regularDinos.length > 0) {
+    const allItemTypes = getItemTypes();
+    const classicDinoTypes = allItemTypes.filter(t => {
+      const isDino = t.category === 'dino' || t.id === 'dino' || t.id.startsWith('dino');
+      const isShoulder = t.id.includes('epaule');
+      return isDino && !isShoulder;
+    });
+    for (const itemType of classicDinoTypes) {
+      const stock = inv[itemType.id] || 0;
+      if (stock <= 0) continue;
       let slotsUsed = 0;
       const covered = [];
       for (const item of regularDinos) {
@@ -185,9 +193,9 @@ function getPaymentOptions(cartItems, playerInventory, discount = 0) {
       if (covered.length === 0) continue;
       const { totalDiamonds: remD, totalStrawberries: remS } = calcRemaining(new Set(covered));
       options.push({
-        id: invId,
-        inventoryId: invId,
-        label: `${getInvEmoji(invId)} ${getInvName(invId)} (${slotsUsed}/${stock} stock)`,
+        id: itemType.id,
+        inventoryId: itemType.id,
+        label: `${getInvEmoji(itemType.id)} ${getInvName(itemType.id)} (${slotsUsed}/${stock} stock)`,
         usedQty: slotsUsed,
         coveredItemIds: covered,
         remainingDiamonds: remD,
@@ -196,38 +204,29 @@ function getPaymentOptions(cartItems, playerInventory, discount = 0) {
     }
   }
 
-  // dino_epaule_shop → option indépendante pour les dinos d'épaule
-  const dinoEpauleShop = inv['dino_epaule_shop'] || 0;
-  if (dinoEpauleShop > 0 && shoulderDinos.length > 0) {
-    const usable = Math.min(dinoEpauleShop, shoulderDinos.length);
-    const covered = shoulderDinos.slice(0, usable).map(i => i.id);
-    const { totalDiamonds: remD, totalStrawberries: remS } = calcRemaining(new Set(covered));
-    options.push({
-      id: 'dino_epaule_shop',
-      inventoryId: 'dino_epaule_shop',
-      label: `${getInvEmoji('dino_epaule_shop')} ${getInvName('dino_epaule_shop')} (${usable}/${dinoEpauleShop} stock)`,
-      usedQty: usable,
-      coveredItemIds: covered,
-      remainingDiamonds: remD,
-      remainingStrawberries: remS,
-    });
-  }
-
-  // dino_epaule (générique) → option indépendante
-  const dinoEpaule = inv['dino_epaule'] || 0;
-  if (dinoEpaule > 0 && shoulderDinos.length > 0) {
-    const usable = Math.min(dinoEpaule, shoulderDinos.length);
-    const covered = shoulderDinos.slice(0, usable).map(i => i.id);
-    const { totalDiamonds: remD, totalStrawberries: remS } = calcRemaining(new Set(covered));
-    options.push({
-      id: 'dino_epaule',
-      inventoryId: 'dino_epaule',
-      label: `${getInvEmoji('dino_epaule')} ${getInvName('dino_epaule')} (${usable}/${dinoEpaule} stock)`,
-      usedQty: usable,
-      coveredItemIds: covered,
-      remainingDiamonds: remD,
-      remainingStrawberries: remS,
-    });
+  // Tous les types d'items "dino d'épaule" (id contenant 'epaule')
+  // → peuvent couvrir les dinos d'épaule du panier
+  if (shoulderDinos.length > 0) {
+    const allItemTypes = getItemTypes();
+    const shoulderDinoTypes = allItemTypes.filter(t =>
+      (t.category === 'dino' || t.id.startsWith('dino')) && t.id.includes('epaule')
+    );
+    for (const itemType of shoulderDinoTypes) {
+      const stock = inv[itemType.id] || 0;
+      if (stock <= 0) continue;
+      const usable = Math.min(stock, shoulderDinos.length);
+      const covered = shoulderDinos.slice(0, usable).map(i => i.id);
+      const { totalDiamonds: remD, totalStrawberries: remS } = calcRemaining(new Set(covered));
+      options.push({
+        id: itemType.id,
+        inventoryId: itemType.id,
+        label: `${getInvEmoji(itemType.id)} ${getInvName(itemType.id)} (${usable}/${stock} stock)`,
+        usedQty: usable,
+        coveredItemIds: covered,
+        remainingDiamonds: remD,
+        remainingStrawberries: remS,
+      });
+    }
   }
 
   // pack → couvre les items compatibles (donationAvailable)
