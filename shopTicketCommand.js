@@ -1531,11 +1531,6 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
     const recapEmbed = buildOrderRecapEmbed(cart, discount, discountRoleName, [], interaction.user.id);
     const adminBtns = buildAdminButtons(orderId);
 
-    // ── Message debug temporaire (à supprimer une fois nom confirmé) ─────────
-    await ticketChannel.send({
-      content: `🔍 **Debug nom** :\nusername Discord=\`${_username}\`\n→ **safeName : \`${safeName}\`**\n→ **salon réel : \`${ticketChannel.name}\`**`,
-    });
-
     // ── Message admin (recap + boutons admin) ─────────────────────────────────
     await ticketChannel.send({
       content: `Bonjour <@${interaction.user.id}> ! 👋\n\nTa commande a bien été enregistrée. Un admin va la prendre en charge et valider le paiement une fois la livraison effectuée.\n\n*Tu peux ajouter des précisions directement ici.*`,
@@ -2043,13 +2038,6 @@ async function handleAdminClose(interaction, orderId) {
     embeds: [new EmbedBuilder()
       .setColor(0xe67e22)
       .setTitle('⚠️ Fermer ce ticket ?')
-      .setDescription(
-        'Le ticket sera **fermé** :\n' +
-        '> 🔒 Le salon sera renommé `ferme-...`\n' +
-        '> 👁️ Le joueur ne pourra plus le voir\n' +
-        '> 💬 Le staff pourra toujours écrire dedans\n' +
-        '> 🗑️ Un bouton permettra de le supprimer définitivement'
-      )
     ],
     components: [new ActionRowBuilder().addComponents(
       new ButtonBuilder()
