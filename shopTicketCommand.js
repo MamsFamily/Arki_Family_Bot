@@ -1203,7 +1203,8 @@ async function handleShopTicketInteraction(interaction) {
   // ── Actions admin : guard unique ─────────────────────────────────────────────
   const isAdminAction = id.startsWith('st_admin_validate::') || id.startsWith('st_admin_force_validate::') ||
     id.startsWith('st_admin_cancel::') || id.startsWith('st_admin_modify::') || id.startsWith('st_admin_close::') ||
-    id.startsWith('st_close_confirm::') || id.startsWith('st_close_cancel::') || id.startsWith('st_admin_repost::');
+    id.startsWith('st_close_confirm::') || id.startsWith('st_close_cancel::') || id.startsWith('st_admin_repost::') ||
+    id.startsWith('st_delete_ticket::');
 
   if (isAdminAction && !isTicketAdmin(interaction.member)) {
     return interaction.reply({
@@ -1261,6 +1262,11 @@ async function handleShopTicketInteraction(interaction) {
   if (id.startsWith('st_close_confirm::')) {
     const orderId = id.split('::')[1];
     return handleCloseConfirm(interaction, orderId);
+  }
+
+  // ── Suppression définitive du ticket fermé ───────────────────────────────
+  if (id.startsWith('st_delete_ticket::')) {
+    return handleDeleteTicket(interaction);
   }
 
   // ── Annuler fermeture ─────────────────────────────────────────────────────
@@ -2034,7 +2040,13 @@ async function handleAdminClose(interaction, orderId) {
     embeds: [new EmbedBuilder()
       .setColor(0xe67e22)
       .setTitle('⚠️ Fermer ce ticket ?')
-      .setDescription('Cette action va **supprimer définitivement** ce salon.\nEs-tu sûr(e) de vouloir fermer le ticket ?')
+      .setDescription(
+        'Le ticket sera **fermé** :\n' +
+        '> 🔒 Le salon sera renommé `ferme-...`\n' +
+        '> 👁️ Le joueur ne pourra plus le voir\n' +
+        '> 💬 Le staff pourra toujours écrire dedans\n' +
+        '> 🗑️ Un bouton permettra de le supprimer définitivement'
+      )
     ],
     components: [new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -2053,37 +2065,89 @@ async function handleAdminClose(interaction, orderId) {
 // ── Admin : confirme la fermeture ─────────────────────────────────────────────
 async function handleCloseConfirm(interaction, orderId) {
   const adminName = interaction.member?.displayName || interaction.user.username;
+  const order = activeOrders.get(orderId);
+  const userId = order?.userId;
   activeOrders.delete(orderId);
 
+  // Retirer l'accès visuel du joueur
+  if (userId) {
+    try {
+      await interaction.channel.permissionOverwrites.edit(userId, {
+        ViewChannel: false,
+        SendMessages: false,
+      });
+    } catch (e) {
+      console.error('[ShopTicket] Impossible de modifier les permissions du joueur:', e.message);
+    }
+  }
+
+  // Renommer le salon avec le préfixe ferme-
+  try {
+    const currentName = interaction.channel.name;
+    const newName = `ferme-${currentName}`.slice(0, 100);
+    await interaction.channel.edit({ name: newName, reason: `Ticket fermé par ${adminName}` });
+  } catch (e) {
+    console.error('[ShopTicket] Impossible de renommer le salon ticket:', e.message);
+  }
+
+  // Mettre à jour l'embed de confirmation
   try {
     await interaction.update({
       embeds: [new EmbedBuilder()
         .setColor(0x95a5a6)
         .setTitle('🔒 Ticket fermé')
-        .setDescription(`Fermeture par **${adminName}** — salon supprimé dans 5 secondes.`)
+        .setDescription(`Fermé par **${adminName}**.\nLe joueur ne voit plus ce salon.`)
       ],
       components: [],
     });
   } catch (e) {}
 
-  // Envoyer un message public dans le salon avant de le supprimer
+  // Message public dans le salon avec bouton de suppression
   try {
     await interaction.channel.send({
       embeds: [new EmbedBuilder()
         .setColor(0x95a5a6)
         .setTitle('🔒 Ticket fermé')
-        .setDescription(`Ce ticket a été fermé par **${adminName}**.\nSuppression dans 5 secondes.`)
+        .setDescription(
+          `Ce ticket a été fermé par **${adminName}**.\n` +
+          `Le joueur n'a plus accès à ce salon.\n\n` +
+          `Le staff peut continuer à écrire ici. Supprime le ticket quand tu es prêt(e).`
+        )
         .setTimestamp()],
+      components: [new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`st_delete_ticket::${orderId}`)
+          .setLabel('🗑️ Supprimer le ticket')
+          .setStyle(ButtonStyle.Danger),
+      )],
+    });
+  } catch (e) {
+    console.error('[ShopTicket] Impossible d\'envoyer le message de fermeture:', e.message);
+  }
+}
+
+// ── Admin : suppression définitive du ticket fermé ───────────────────────────
+async function handleDeleteTicket(interaction) {
+  const adminName = interaction.member?.displayName || interaction.user.username;
+
+  try {
+    await interaction.update({
+      embeds: [new EmbedBuilder()
+        .setColor(0xe74c3c)
+        .setTitle('🗑️ Suppression en cours...')
+        .setDescription('Ce salon sera supprimé dans 3 secondes.')
+      ],
+      components: [],
     });
   } catch (e) {}
 
   setTimeout(async () => {
     try {
-      await interaction.channel.delete(`Ticket fermé par ${adminName}`);
+      await interaction.channel.delete(`Ticket supprimé par ${adminName}`);
     } catch (e) {
       console.error('[ShopTicket] Impossible de supprimer le salon ticket:', e.message);
     }
-  }, 5000);
+  }, 3000);
 }
 
 // ── Admin : annule la fermeture ───────────────────────────────────────────────
