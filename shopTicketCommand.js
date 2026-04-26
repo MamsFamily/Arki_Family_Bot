@@ -598,9 +598,9 @@ function buildCartEmbed(cart, discount = 0, discountRoleName = null) {
 
   if (cart.comment) {
     embed.addFields(
-      { name: '\u200b', value: '\u200b', inline: false },
+      { name: '\u200b', value: '───────────────────────', inline: false },
       { name: '💬 Commentaire', value: cart.comment.split('\n').map(l => l.trim() ? `***${l}***` : '\u200b').join('\n'), inline: false },
-      { name: '\u200b', value: '\u200b', inline: false },
+      { name: '\u200b', value: '───────────────────────', inline: false },
     );
   }
 
@@ -679,9 +679,9 @@ function buildOrderRecapEmbed(cart, discount, discountRoleName, deductionsChosen
 
   if (cart.comment) {
     embed.addFields(
-      { name: '\u200b', value: '\u200b', inline: false },
+      { name: '\u200b', value: '───────────────────────', inline: false },
       { name: '💬 Commentaire du joueur', value: cart.comment.split('\n').map(l => l.trim() ? `***${l}***` : '\u200b').join('\n'), inline: false },
-      { name: '\u200b', value: '\u200b', inline: false },
+      { name: '\u200b', value: '───────────────────────', inline: false },
     );
   }
 
@@ -1450,15 +1450,12 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
   const shop = require('./shopManager').getShop();
 
   try {
-    const guildMember = await interaction.guild.members.fetch({ user: interaction.user.id, force: true }).catch(() => null);
-    const username = guildMember?.nickname
-      || guildMember?.displayName
-      || interaction.member?.nickname
-      || interaction.member?.displayName
-      || interaction.user.globalName
-      || interaction.user.username
-      || 'joueur';
-    console.log(`[ShopTicket] Résolution nom ticket — nickname:${guildMember?.nickname} | displayName:${guildMember?.displayName} | memberDisplay:${interaction.member?.displayName} | globalName:${interaction.user.globalName} | username:${interaction.user.username} → utilisé: ${username}`);
+    const _nick        = interaction.member?.nickname       || null;
+    const _globalName  = interaction.user.globalName         || null;
+    const _memberDisp  = interaction.member?.displayName     || null;
+    const _username    = interaction.user.username           || null;
+    const username = _nick || _globalName || _memberDisp || _username || 'joueur';
+    console.log(`[ShopTicket] Nom: nick=${_nick} | globalName=${_globalName} | memberDisp=${_memberDisp} | username=${_username} → ${username}`);
 
     // ── Construire les overwrites de permissions ─────────────────────────────
     const permOverwrites = [
@@ -1533,6 +1530,11 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
 
     const recapEmbed = buildOrderRecapEmbed(cart, discount, discountRoleName, [], interaction.user.id);
     const adminBtns = buildAdminButtons(orderId);
+
+    // ── Message debug temporaire (à supprimer une fois nom confirmé) ─────────
+    await ticketChannel.send({
+      content: `🔍 **Debug nom** : nick=\`${_nick}\` | globalName=\`${_globalName}\` | memberDisp=\`${_memberDisp}\` | username=\`${_username}\` → **utilisé : \`${username}\`**`,
+    });
 
     // ── Message admin (recap + boutons admin) ─────────────────────────────────
     await ticketChannel.send({
