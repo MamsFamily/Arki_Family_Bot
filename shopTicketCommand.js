@@ -1533,7 +1533,7 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
 
     // ── Message debug temporaire (à supprimer une fois nom confirmé) ─────────
     await ticketChannel.send({
-      content: `🔍 **Debug nom** : nick=\`${_nick}\` | globalName=\`${_globalName}\` | memberDisp=\`${_memberDisp}\` | username=\`${_username}\` → **utilisé : \`${username}\`**`,
+      content: `🔍 **Debug nom** :\nnick=\`${_nick}\`\nglobalName=\`${_globalName}\`\nmemberDisp=\`${_memberDisp}\`\nusername=\`${_username}\`\n→ **utilisé : \`${username}\`**\n→ **safeName : \`${safeName}\`**\n→ **channelName : \`${channelName}\`**\n→ **salon réel : \`${ticketChannel.name}\`**`,
     });
 
     // ── Message admin (recap + boutons admin) ─────────────────────────────────
