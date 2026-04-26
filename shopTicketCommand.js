@@ -1450,7 +1450,7 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
   const shop = require('./shopManager').getShop();
 
   try {
-    const guildMember = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+    const guildMember = await interaction.guild.members.fetch({ user: interaction.user.id, force: true }).catch(() => null);
     const username = guildMember?.nickname
       || guildMember?.displayName
       || interaction.member?.nickname
@@ -1458,6 +1458,7 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
       || interaction.user.globalName
       || interaction.user.username
       || 'joueur';
+    console.log(`[ShopTicket] Résolution nom ticket — nickname:${guildMember?.nickname} | displayName:${guildMember?.displayName} | memberDisplay:${interaction.member?.displayName} | globalName:${interaction.user.globalName} | username:${interaction.user.username} → utilisé: ${username}`);
 
     // ── Construire les overwrites de permissions ─────────────────────────────
     const permOverwrites = [
