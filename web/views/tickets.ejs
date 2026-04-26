@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tickets — Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .tk-accordion {
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      overflow: hidden;
+      margin-bottom: 18px;
+      background: var(--bg-card);
+    }
+    .tk-header {
+      padding: 16px 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      user-select: none;
+      transition: background .15s;
+    }
+    .tk-header:hover { background: var(--bg-hover, rgba(255,255,255,.04)); }
+    .tk-icon { font-size: 20px; flex-shrink: 0; }
+    .tk-title { flex: 1; font-size: 15px; font-weight: 700; }
+    .tk-subtitle { font-size: 12px; color: var(--text-muted); font-weight: 400; margin-top: 2px; }
+    .tk-badge {
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .tk-badge-active  { background: rgba(46,204,113,.15); color: #2ecc71; border: 1px solid rgba(46,204,113,.3); }
+    .tk-badge-soon    { background: rgba(149,165,166,.12); color: #95a5a6; border: 1px solid rgba(149,165,166,.25); }
+    .tk-chevron { font-size: 12px; color: var(--text-muted); transition: transform .2s; flex-shrink: 0; }
+    .tk-accordion.open .tk-chevron { transform: rotate(180deg); }
+    .tk-body {
+      display: none;
+      padding: 22px 24px;
+      border-top: 1px solid var(--border-color);
+      background: var(--bg-main, var(--bg-card));
+    }
+    .tk-accordion.open .tk-body { display: block; }
+    .tk-section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      color: var(--text-muted);
+      margin: 0 0 14px 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tk-section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border-color);
+    }
+    .tk-form-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+    .tk-form-row .form-group { flex: 1; min-width: 220px; }
+    .tk-soon-banner {
+      padding: 28px 24px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+    .tk-soon-banner span { font-size: 32px; display: block; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>🎫 Tickets</h1>
+        <p>Configuration des syst&egrave;mes de tickets du serveur</p>
+      </div>
+
+      <% if (success) { %>
+        <div class="alert alert-success">&#x2705; <%= success %></div>
+      <% } %>
+      <% if (error) { %>
+        <div class="alert alert-error">&#x274C; <%= error %></div>
+      <% } %>
+
+      <!-- ══ Tickets Shop ══════════════════════════════════════════════════════ -->
+      <div class="tk-accordion open" id="tk-shop">
+        <div class="tk-header" onclick="tkToggle('tk-shop')">
+          <span class="tk-icon">🛒</span>
+          <div style="flex:1">
+            <div class="tk-title">Tickets Shop</div>
+            <div class="tk-subtitle">Commandes via le système de tickets privés</div>
+          </div>
+          <span class="tk-badge tk-badge-active">Actif</span>
+          <span class="tk-chevron">▼</span>
+        </div>
+        <div class="tk-body">
+          <form method="POST" action="/tickets/shop">
+
+            <p class="tk-section-title">🔧 Configuration Discord</p>
+            <div class="tk-form-row">
+              <div class="form-group">
+                <label for="shopTicketChannelId">🎫 Salon de log tickets</label>
+                <select id="shopTicketChannelId" name="shopTicketChannelId" class="form-control">
+                  <option value="">-- Sélectionner --</option>
+                  <% channels.forEach(ch => { %>
+                    <option value="<%= ch.id %>" <%= shop.shopTicketChannelId === ch.id ? 'selected' : '' %>>
+                      <% if (ch.category) { %>[<%= ch.category %>] <% } %># <%= ch.name %>
+                    </option>
+                  <% }); %>
+                </select>
+                <p class="help-text">Salon admin où apparaissent les nouveaux tickets</p>
+              </div>
+              <div class="form-group">
+                <label for="shopTicketCategoryId">📂 Catégorie Discord des tickets</label>
+                <select id="shopTicketCategoryId" name="shopTicketCategoryId" class="form-control">
+                  <option value="">-- Aucune (racine du serveur) --</option>
+                  <% (discordCategories || []).forEach(cat => { %>
+                    <option value="<%= cat.id %>" <%= shop.shopTicketCategoryId === cat.id ? 'selected' : '' %>>
+                      📁 <%= cat.name %>
+                    </option>
+                  <% }); %>
+                </select>
+                <p class="help-text">Catégorie où sont créés les salons tickets</p>
+              </div>
+            </div>
+
+            <p class="tk-section-title" style="margin-top:8px">🛡️ Permissions</p>
+            <div class="tk-form-row">
+              <div class="form-group" style="max-width:520px">
+                <label for="shopTicketAdminRoleIds">Rôles admins tickets (IDs séparés par des virgules)</label>
+                <input type="text" id="shopTicketAdminRoleIds" name="shopTicketAdminRoleIds"
+                  class="form-control"
+                  value="<%= (shop.shopTicketAdminRoleIds || []).join(', ') %>"
+                  placeholder="ex : 123456789012345678, 987654321098765432">
+                <p class="help-text">Ces rôles peuvent voir et gérer tous les tickets shop. Le rôle Modo (paramètres globaux) est toujours inclus.</p>
+              </div>
+            </div>
+
+            <div style="margin-top:4px">
+              <button type="submit" class="btn btn-primary">💾 Sauvegarder</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- ══ Futurs types de tickets ══════════════════════════════════════════ -->
+      <div class="tk-accordion" id="tk-support">
+        <div class="tk-header" onclick="tkToggle('tk-support')">
+          <span class="tk-icon">🆘</span>
+          <div style="flex:1">
+            <div class="tk-title">Tickets Support</div>
+            <div class="tk-subtitle">Demandes d'aide et signalements</div>
+          </div>
+          <span class="tk-badge tk-badge-soon">À venir</span>
+          <span class="tk-chevron">▼</span>
+        </div>
+        <div class="tk-body">
+          <div class="tk-soon-banner">
+            <span>🚧</span>
+            Ce type de ticket sera configuré ici prochainement.
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    function tkToggle(id) {
+      document.getElementById(id).classList.toggle('open');
+    }
+  </script>
+</body>
+</html>

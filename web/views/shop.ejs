@@ -60,41 +60,15 @@
                 </select>
                 <p class="help-text">Salon où publier le message index</p>
               </div>
-              <div class="form-group" style="flex:1;min-width:200px">
-                <label for="shopTicketChannelId">🎫 Salon log tickets</label>
-                <select id="shopTicketChannelId" name="shopTicketChannelId" class="form-control">
-                  <option value="">-- Sélectionner --</option>
-                  <% channels.forEach(ch => { %>
-                    <option value="<%= ch.id %>" <%= shop.shopTicketChannelId === ch.id ? 'selected' : '' %>><% if(ch.category) { %>[<%= ch.category %>] <% } %># <%= ch.name %></option>
-                  <% }); %>
-                </select>
-                <p class="help-text">Salon de log admin pour les nouveaux tickets</p>
-              </div>
-              <div class="form-group" style="flex:1;min-width:200px">
-                <label for="shopTicketCategoryId">📂 Catégorie tickets shop</label>
-                <select id="shopTicketCategoryId" name="shopTicketCategoryId" class="form-control">
-                  <option value="">-- Aucune (racine du serveur) --</option>
-                  <% (discordCategories || []).forEach(cat => { %>
-                    <option value="<%= cat.id %>" <%= shop.shopTicketCategoryId === cat.id ? 'selected' : '' %>>📁 <%= cat.name %></option>
-                  <% }); %>
-                </select>
-                <p class="help-text">Catégorie Discord où les salons ticket seront créés</p>
-              </div>
-            </div>
-            <div class="form-row" style="gap:16px;flex-wrap:wrap;margin-top:12px">
-              <div class="form-group" style="flex:1;min-width:300px">
-                <label for="shopTicketAdminRoleIds">🛡️ Rôles admins tickets (IDs séparés par des virgules)</label>
-                <input type="text" id="shopTicketAdminRoleIds" name="shopTicketAdminRoleIds"
-                  class="form-control"
-                  value="<%= (shop.shopTicketAdminRoleIds || []).join(', ') %>"
-                  placeholder="ex: 123456789012345678, 987654321098765432">
-                <p class="help-text">Rôles qui peuvent voir et gérer tous les tickets shop. Le rôle Modo (paramètres globaux) est toujours inclus.</p>
-              </div>
             </div>
             <div style="display:flex;gap:12px;align-items:center;margin-top:8px">
               <button type="submit" class="btn btn-primary">💾 Sauvegarder</button>
             </div>
           </form>
+          <div style="margin-top:12px;padding:12px 16px;background:rgba(114,137,218,.08);border:1px solid rgba(114,137,218,.2);border-radius:10px;font-size:13px;color:var(--text-secondary)">
+            🎫 La configuration des tickets shop (salon log, catégorie Discord, rôles admins) a été déplacée dans
+            <a href="/tickets" style="color:var(--accent);font-weight:600">Tickets</a>.
+          </div>
           <form method="POST" action="/shop/publish-index" style="margin-top:10px">
             <button type="submit" class="btn btn-secondary" onclick="return confirm('Publier / mettre à jour le message index dans le salon accueil shop ?')">🏠 Publier le message index</button>
           </form>

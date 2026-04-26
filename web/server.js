@@ -800,20 +800,66 @@ function createWebServer(discordClient) {
   });
 
   app.post('/shop/settings', requireAuth, async (req, res) => {
-    const { shopChannelId, shopUnitaireChannelId, shopIndexChannelId, shopTicketChannelId, shopTicketCategoryId, shopTicketAdminRoleIds } = req.body;
-    // shopTicketAdminRoleIds est une chaîne d'IDs séparés par des virgules
-    const adminRoleIdsRaw = shopTicketAdminRoleIds
-      ? shopTicketAdminRoleIds.split(',').map(s => s.trim()).filter(s => /^\d+$/.test(s))
-      : [];
+    const { shopChannelId, shopUnitaireChannelId, shopIndexChannelId } = req.body;
+    const existing = getShop();
     await updateShopChannels({
       shopChannelId: shopChannelId || '',
       shopUnitaireChannelId: shopUnitaireChannelId || '',
       shopIndexChannelId: shopIndexChannelId || '',
+      shopTicketChannelId: existing.shopTicketChannelId || '',
+      shopTicketCategoryId: existing.shopTicketCategoryId || '',
+      shopTicketAdminRoleIds: existing.shopTicketAdminRoleIds || [],
+    });
+    res.redirect('/shop?success=Param%C3%A8tres+sauvegard%C3%A9s+!');
+  });
+
+  // ── Tickets ────────────────────────────────────────────────────────────────
+  app.get('/tickets', requireAdmin, (req, res) => {
+    const shop = getShop();
+    const settings = getSettings();
+    const configuredGuildId = settings.guild.guildId;
+    const guild = discordClient ? (configuredGuildId ? discordClient.guilds.cache.get(configuredGuildId) : discordClient.guilds.cache.first()) : null;
+    let channels = [];
+    if (guild) {
+      const categories = guild.channels.cache
+        .filter(ch => ch.type === 4)
+        .sort((a, b) => a.position - b.position);
+      const textChannels = guild.channels.cache
+        .filter(ch => ch.type === 0)
+        .sort((a, b) => {
+          const catA = a.parentId ? (categories.get(a.parentId)?.position ?? 999) : -1;
+          const catB = b.parentId ? (categories.get(b.parentId)?.position ?? 999) : -1;
+          if (catA !== catB) return catA - catB;
+          return a.position - b.position;
+        });
+      channels = textChannels.map(ch => ({
+        id: ch.id,
+        name: ch.name,
+        category: ch.parentId ? (categories.get(ch.parentId)?.name || '') : '',
+      }));
+    }
+    const discordCategories = guild ? [...guild.channels.cache.values()]
+      .filter(ch => ch.type === 4)
+      .sort((a, b) => a.position - b.position)
+      .map(ch => ({ id: ch.id, name: ch.name })) : [];
+    res.render('tickets', { shop, channels, discordCategories, success: req.query.success || null, error: req.query.error || null });
+  });
+
+  app.post('/tickets/shop', requireAdmin, async (req, res) => {
+    const { shopTicketChannelId, shopTicketCategoryId, shopTicketAdminRoleIds } = req.body;
+    const adminRoleIdsRaw = shopTicketAdminRoleIds
+      ? shopTicketAdminRoleIds.split(',').map(s => s.trim()).filter(s => /^\d+$/.test(s))
+      : [];
+    const shop = getShop();
+    await updateShopChannels({
+      shopChannelId: shop.shopChannelId || '',
+      shopUnitaireChannelId: shop.shopUnitaireChannelId || '',
+      shopIndexChannelId: shop.shopIndexChannelId || '',
       shopTicketChannelId: shopTicketChannelId || '',
       shopTicketCategoryId: shopTicketCategoryId || '',
       shopTicketAdminRoleIds: adminRoleIdsRaw.filter(Boolean),
     });
-    res.redirect('/shop?success=Param%C3%A8tres+sauvegard%C3%A9s+!');
+    res.redirect('/tickets?success=Param%C3%A8tres+tickets+shop+sauvegard%C3%A9s+!');
   });
 
   app.post('/shop/categories', requireAuth, async (req, res) => {
