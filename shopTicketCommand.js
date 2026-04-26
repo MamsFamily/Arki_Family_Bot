@@ -599,7 +599,7 @@ function buildCartEmbed(cart, discount = 0, discountRoleName = null) {
   if (cart.comment) {
     embed.addFields({
       name: '┌── 💬 Commentaire ──',
-      value: cart.comment.split('\n').map(l => l.trim() ? `***${l}***` : '').join('\n'),
+      value: '\u200b\n' + cart.comment.split('\n').map(l => l.trim() ? `***${l}***` : '').join('\n') + '\n\u200b',
       inline: false,
     });
   }
@@ -680,7 +680,7 @@ function buildOrderRecapEmbed(cart, discount, discountRoleName, deductionsChosen
   if (cart.comment) {
     embed.addFields({
       name: '┌── 💬 Commentaire du joueur ──',
-      value: cart.comment.split('\n').map(l => l.trim() ? `***${l}***` : '').join('\n'),
+      value: '\u200b\n' + cart.comment.split('\n').map(l => l.trim() ? `***${l}***` : '').join('\n') + '\n\u200b',
       inline: false,
     });
   }
@@ -717,6 +717,10 @@ function buildAdminButtons(orderId) {
     new ButtonBuilder()
       .setCustomId(`st_admin_close::${orderId}`)
       .setLabel('🔒 Fermer le ticket')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`st_admin_repost::${orderId}`)
+      .setLabel('📋 Republier le récap')
       .setStyle(ButtonStyle.Secondary),
   );
   return [row1, row2];
@@ -1199,7 +1203,7 @@ async function handleShopTicketInteraction(interaction) {
   // ── Actions admin : guard unique ─────────────────────────────────────────────
   const isAdminAction = id.startsWith('st_admin_validate::') || id.startsWith('st_admin_force_validate::') ||
     id.startsWith('st_admin_cancel::') || id.startsWith('st_admin_modify::') || id.startsWith('st_admin_close::') ||
-    id.startsWith('st_close_confirm::') || id.startsWith('st_close_cancel::');
+    id.startsWith('st_close_confirm::') || id.startsWith('st_close_cancel::') || id.startsWith('st_admin_repost::');
 
   if (isAdminAction && !isTicketAdmin(interaction.member)) {
     return interaction.reply({
@@ -1245,6 +1249,12 @@ async function handleShopTicketInteraction(interaction) {
   if (id.startsWith('st_admin_close::')) {
     const orderId = id.split('::')[1];
     return handleAdminClose(interaction, orderId);
+  }
+
+  // ── Bouton admin : republier le récap ────────────────────────────────────────
+  if (id.startsWith('st_admin_repost::')) {
+    const orderId = id.split('::')[1];
+    return handleAdminRepost(interaction, orderId);
   }
 
   // ── Confirmation fermeture ────────────────────────────────────────────────
@@ -1473,7 +1483,12 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
     }
 
     // ── Nom du salon ─────────────────────────────────────────────────────────
-    const safeName = username.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '-').slice(0, 20);
+    const safeName = username.toLowerCase().normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 25);
     const channelName = `shop-${safeName}`;
 
     // ── Créer le salon privé ─────────────────────────────────────────────────
@@ -1964,9 +1979,29 @@ async function handleAdminCancel(interaction, orderId) {
     embeds: [new EmbedBuilder()
       .setColor(0xe74c3c)
       .setTitle('❌ Commande annulée')
-      .setDescription(`La commande de <@${order.userId}> a été annulée par **${adminName}**.\n\nAucun paiement n'a été effectué.\n\n*Utilise 🔒 Fermer le ticket pour supprimer ce salon.*`)
+      .setDescription(`La commande de <@${order.userId}> a été annulée par **${adminName}**.\n\nAucun paiement n'a été effectué.`)
       .setTimestamp()],
+    components: [new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`st_admin_close::${orderId}`)
+        .setLabel('🔒 Fermer le ticket')
+        .setStyle(ButtonStyle.Danger),
+    )],
   });
+}
+
+// ── Admin : republier l'embed récap dans le ticket ───────────────────────────
+async function handleAdminRepost(interaction, orderId) {
+  const order = activeOrders.get(orderId);
+  if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
+
+  const recapEmbed = buildOrderRecapEmbed(
+    order.cart, order.discount, order.discountRoleName,
+    order.selectedDeductions || [], order.userId,
+  );
+  const adminButtons = buildAdminButtons(orderId);
+  await interaction.channel.send({ embeds: [recapEmbed], components: adminButtons });
+  await interaction.reply({ content: '📋 Récap republié dans le ticket.', ephemeral: true });
 }
 
 // ── Admin : demander confirmation avant de fermer le ticket ──────────────────
