@@ -1,36 +1,31 @@
 const { chargerInventaire, sauvegarderInventaire } = require("./inventaire");
 const { getMonnaie } = require("./money");
 const config = require("../config");
-const symboles = ["🍒", "🍋", "💎", "🔔", "7️⃣"];
+const symboles = ["\uD83C\uDF52", "\uD83C\uDF40", "\uD83C\uDF4B", "\uD83D\uDC8E", "\uD83D\uDD14", "7\uFE0F\u20E3"];
 const gains = {
-  "🍒🍒🍒": 5,
-  "🍋🍋🍋": 10,
-  "💎💎💎": 20,
-  "🔔🔔🔔": 50,
-  "7️⃣7️⃣7️⃣": 100
+  "\uD83C\uDF52\uD83C\uDF52\uD83C\uDF52": 2,
+  "\uD83C\uDF40\uD83C\uDF40\uD83C\uDF40": 3,
+  "\uD83C\uDF4B\uD83C\uDF4B\uD83C\uDF4B": 5,
+  "\uD83D\uDC8E\uD83D\uDC8E\uD83D\uDC8E": 10,
+  "\uD83D\uDD14\uD83D\uDD14\uD83D\uDD14": 25,
+  "7\uFE0F\u20E37\uFE0F\u20E37\uFE0F\u20E3": 65,
 };
 
 function tirerSymbole() {
   return symboles[Math.floor(Math.random() * symboles.length)];
-  
 }
 
 function jouerSlotsProgressif(userId, mise) {
-  // Tirage des 3 rouleaux
   const rouleaux = [
     tirerSymbole(),
     tirerSymbole(),
     tirerSymbole()
   ];
 
-  // Combinaison brute pour affichage
   const combinaison = rouleaux.join("");
 
-  // On ne paye que si les 3 symboles sont identiques
   let multiplicateur = 0;
-  if (
-    rouleaux[0] === rouleaux[1] && rouleaux[1] === rouleaux[2]
-  ) {
+  if (rouleaux[0] === rouleaux[1] && rouleaux[1] === rouleaux[2]) {
     multiplicateur = gains[combinaison] || 0;
   }
 
@@ -57,8 +52,6 @@ function jouerSlotsProgressif(userId, mise) {
   }
 
   return { rouleaux, gain, combinaison, multiplicateur };
-
-
 }
 
 module.exports = {

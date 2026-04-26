@@ -226,7 +226,7 @@ async function handleCasinoRRButton(interaction) {
 
 // ─── MODALS ───────────────────────────────────────────────────────────────────
 
-const SLOT_SYMBOLS = ['🍒', '🍋', '💎', '🔔', '7️⃣'];
+const SLOT_SYMBOLS = ['🍒', '🍀', '🍋', '💎', '🔔', '7️⃣'];
 const slotRand = () => SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
