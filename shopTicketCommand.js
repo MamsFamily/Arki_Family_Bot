@@ -597,11 +597,11 @@ function buildCartEmbed(cart, discount = 0, discountRoleName = null) {
   });
 
   if (cart.comment) {
-    embed.addFields({
-      name: '┌── 💬 Commentaire ──',
-      value: '\u200b\n' + cart.comment.split('\n').map(l => l.trim() ? `***${l}***` : '').join('\n') + '\n\u200b',
-      inline: false,
-    });
+    embed.addFields(
+      { name: '\u200b', value: '\u200b', inline: false },
+      { name: '💬 Commentaire', value: cart.comment.split('\n').map(l => l.trim() ? `***${l}***` : '\u200b').join('\n'), inline: false },
+      { name: '\u200b', value: '\u200b', inline: false },
+    );
   }
 
   if (discount > 0 && discountRoleName) {
@@ -678,11 +678,11 @@ function buildOrderRecapEmbed(cart, discount, discountRoleName, deductionsChosen
   }
 
   if (cart.comment) {
-    embed.addFields({
-      name: '┌── 💬 Commentaire du joueur ──',
-      value: '\u200b\n' + cart.comment.split('\n').map(l => l.trim() ? `***${l}***` : '').join('\n') + '\n\u200b',
-      inline: false,
-    });
+    embed.addFields(
+      { name: '\u200b', value: '\u200b', inline: false },
+      { name: '💬 Commentaire du joueur', value: cart.comment.split('\n').map(l => l.trim() ? `***${l}***` : '\u200b').join('\n'), inline: false },
+      { name: '\u200b', value: '\u200b', inline: false },
+    );
   }
 
   embed.addFields({ name: '👤 Joueur', value: `<@${userId}>`, inline: true });
