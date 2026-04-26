@@ -1492,13 +1492,13 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
       });
     }
 
-    // ── Nom du salon ─────────────────────────────────────────────────────────
-    const safeName = username.toLowerCase().normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
+    // ── Nom du salon (basé sur le username Discord, toujours ASCII) ──────────
+    const safeName = (_username || 'joueur')
+      .toLowerCase()
       .replace(/[^a-z0-9]/g, '-')
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '')
-      .slice(0, 25);
+      .slice(0, 25) || 'joueur';
     const channelName = `shop-${safeName}`;
 
     // ── Créer le salon privé ─────────────────────────────────────────────────
@@ -1533,7 +1533,7 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
 
     // ── Message debug temporaire (à supprimer une fois nom confirmé) ─────────
     await ticketChannel.send({
-      content: `🔍 **Debug nom** :\nnick=\`${_nick}\`\nglobalName=\`${_globalName}\`\nmemberDisp=\`${_memberDisp}\`\nusername=\`${_username}\`\n→ **utilisé : \`${username}\`**\n→ **safeName : \`${safeName}\`**\n→ **channelName : \`${channelName}\`**\n→ **salon réel : \`${ticketChannel.name}\`**`,
+      content: `🔍 **Debug nom** :\nusername Discord=\`${_username}\`\n→ **safeName : \`${safeName}\`**\n→ **salon réel : \`${ticketChannel.name}\`**`,
     });
 
     // ── Message admin (recap + boutons admin) ─────────────────────────────────
