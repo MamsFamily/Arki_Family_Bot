@@ -820,6 +820,8 @@ function createWebServer(discordClient) {
     const configuredGuildId = settings.guild.guildId;
     const guild = discordClient ? (configuredGuildId ? discordClient.guilds.cache.get(configuredGuildId) : discordClient.guilds.cache.first()) : null;
     let channels = [];
+    let discordCategories = [];
+    let discordRoles = [];
     if (guild) {
       const categories = guild.channels.cache
         .filter(ch => ch.type === 4)
@@ -837,19 +839,22 @@ function createWebServer(discordClient) {
         name: ch.name,
         category: ch.parentId ? (categories.get(ch.parentId)?.name || '') : '',
       }));
+      discordCategories = [...guild.channels.cache.values()]
+        .filter(ch => ch.type === 4)
+        .sort((a, b) => a.position - b.position)
+        .map(ch => ({ id: ch.id, name: ch.name }));
+      discordRoles = [...guild.roles.cache.values()]
+        .filter(r => r.name !== '@everyone')
+        .sort((a, b) => b.position - a.position)
+        .map(r => ({ id: r.id, name: r.name, color: r.color ? '#' + r.color.toString(16).padStart(6, '0') : null }));
     }
-    const discordCategories = guild ? [...guild.channels.cache.values()]
-      .filter(ch => ch.type === 4)
-      .sort((a, b) => a.position - b.position)
-      .map(ch => ({ id: ch.id, name: ch.name })) : [];
-    res.render('tickets', { shop, channels, discordCategories, success: req.query.success || null, error: req.query.error || null });
+    res.render('tickets', { shop, channels, discordCategories, discordRoles, success: req.query.success || null, error: req.query.error || null });
   });
 
   app.post('/tickets/shop', requireAdmin, async (req, res) => {
     const { shopTicketChannelId, shopTicketCategoryId, shopTicketAdminRoleIds } = req.body;
-    const adminRoleIdsRaw = shopTicketAdminRoleIds
-      ? shopTicketAdminRoleIds.split(',').map(s => s.trim()).filter(s => /^\d+$/.test(s))
-      : [];
+    const raw = shopTicketAdminRoleIds || [];
+    const adminRoleIdsRaw = (Array.isArray(raw) ? raw : [raw]).filter(s => /^\d+$/.test(s));
     const shop = getShop();
     await updateShopChannels({
       shopChannelId: shop.shopChannelId || '',

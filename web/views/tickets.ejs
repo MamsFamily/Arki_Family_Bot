@@ -70,6 +70,59 @@
       font-size: 14px;
     }
     .tk-soon-banner span { font-size: 32px; display: block; margin-bottom: 8px; }
+
+    /* ── Sélecteur de rôles ── */
+    .role-picker { position: relative; }
+    .role-picker-trigger {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      min-height: 42px; padding: 6px 12px;
+      background: var(--bg-input); border: 1px solid var(--border-color);
+      border-radius: 8px; cursor: pointer; transition: border-color .15s;
+    }
+    .role-picker-trigger:hover, .role-picker.open .role-picker-trigger {
+      border-color: var(--accent);
+    }
+    .role-picker-placeholder { color: var(--text-muted); font-size: 14px; }
+    .role-tag {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 8px; border-radius: 20px; font-size: 12px; font-weight: 600;
+      background: rgba(114,137,218,.18); color: #7289da;
+      border: 1px solid rgba(114,137,218,.3);
+    }
+    .role-tag-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .role-tag-remove {
+      cursor: pointer; opacity: .7; font-size: 13px; line-height: 1;
+      background: none; border: none; color: inherit; padding: 0;
+    }
+    .role-tag-remove:hover { opacity: 1; }
+    .role-picker-chevron { margin-left: auto; color: var(--text-muted); font-size: 12px; flex-shrink: 0; transition: transform .2s; }
+    .role-picker.open .role-picker-chevron { transform: rotate(180deg); }
+    .role-picker-dropdown {
+      display: none; position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+      background: var(--bg-card); border: 1px solid var(--border-color);
+      border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.25);
+      z-index: 200; max-height: 260px; overflow-y: auto;
+    }
+    .role-picker.open .role-picker-dropdown { display: block; }
+    .role-picker-search {
+      padding: 10px 12px; border-bottom: 1px solid var(--border-color);
+    }
+    .role-picker-search input {
+      width: 100%; background: var(--bg-input); border: 1px solid var(--border-color);
+      border-radius: 6px; padding: 6px 10px; color: var(--text-primary); font-size: 13px;
+      outline: none;
+    }
+    .role-option {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 14px; cursor: pointer; transition: background .1s;
+    }
+    .role-option:hover { background: var(--bg-hover, rgba(255,255,255,.04)); }
+    .role-option input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--accent); flex-shrink: 0; cursor: pointer; }
+    .role-option-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .role-option-name { font-size: 13px; flex: 1; }
+    .role-option.checked { background: rgba(114,137,218,.07); }
   </style>
 </head>
 <body>
@@ -133,11 +186,31 @@
             <p class="tk-section-title" style="margin-top:8px">🛡️ Permissions</p>
             <div class="tk-form-row">
               <div class="form-group" style="max-width:520px">
-                <label for="shopTicketAdminRoleIds">Rôles admins tickets (IDs séparés par des virgules)</label>
-                <input type="text" id="shopTicketAdminRoleIds" name="shopTicketAdminRoleIds"
-                  class="form-control"
-                  value="<%= (shop.shopTicketAdminRoleIds || []).join(', ') %>"
-                  placeholder="ex : 123456789012345678, 987654321098765432">
+                <label>Rôles autorisés à voir et gérer les tickets shop</label>
+                <div class="role-picker" id="rolePickerShop">
+                  <div class="role-picker-trigger" onclick="rpToggle('rolePickerShop')">
+                    <span class="role-picker-placeholder" id="rpPlaceholderShop" style="display:<%= (shop.shopTicketAdminRoleIds||[]).length ? 'none' : 'inline' %>">Sélectionner des rôles…</span>
+                    <span id="rpTagsShop" style="display:contents"></span>
+                    <span class="role-picker-chevron">▼</span>
+                  </div>
+                  <div class="role-picker-dropdown">
+                    <div class="role-picker-search">
+                      <input type="text" placeholder="Rechercher un rôle…" oninput="rpFilter(this,'rolePickerShop')">
+                    </div>
+                    <% (discordRoles || []).forEach(r => {
+                      const selected = (shop.shopTicketAdminRoleIds || []).includes(r.id);
+                    %>
+                    <label class="role-option <%= selected ? 'checked' : '' %>" data-role-id="<%= r.id %>" data-role-name="<%= r.name %>" data-role-color="<%= r.color || '#7289da' %>">
+                      <input type="checkbox" name="shopTicketAdminRoleIds" value="<%= r.id %>" <%= selected ? 'checked' : '' %> onchange="rpUpdate('rolePickerShop')">
+                      <span class="role-option-dot" style="background:<%= r.color || '#7289da' %>"></span>
+                      <span class="role-option-name"><%= r.name %></span>
+                    </label>
+                    <% }); %>
+                    <% if (!discordRoles || discordRoles.length === 0) { %>
+                    <div style="padding:14px;text-align:center;color:var(--text-muted);font-size:13px">Aucun rôle disponible (bot hors ligne ?)</div>
+                    <% } %>
+                  </div>
+                </div>
                 <p class="help-text">Ces rôles peuvent voir et gérer tous les tickets shop. Le rôle Modo (paramètres globaux) est toujours inclus.</p>
               </div>
             </div>
@@ -172,9 +245,68 @@
   </div>
 
   <script>
+    // ── Accordéons ────────────────────────────────────────────────────────────
     function tkToggle(id) {
       document.getElementById(id).classList.toggle('open');
     }
+
+    // ── Sélecteur de rôles ────────────────────────────────────────────────────
+    function rpToggle(pickerId) {
+      const el = document.getElementById(pickerId);
+      el.classList.toggle('open');
+    }
+
+    function rpUpdate(pickerId) {
+      const picker = document.getElementById(pickerId);
+      const tagsContainer = picker.querySelector('[id^="rpTags"]');
+      const placeholder = picker.querySelector('[id^="rpPlaceholder"]');
+      const checked = [...picker.querySelectorAll('input[type=checkbox]:checked')];
+
+      tagsContainer.innerHTML = '';
+      checked.forEach(cb => {
+        const label = cb.closest('.role-option');
+        const name  = label.dataset.roleName;
+        const color = label.dataset.roleColor || '#7289da';
+        const id    = cb.value;
+        const tag   = document.createElement('span');
+        tag.className = 'role-tag';
+        tag.innerHTML = `<span class="role-tag-dot" style="background:${color}"></span>${name}<button type="button" class="role-tag-remove" onclick="rpRemove('${pickerId}','${id}')">✕</button>`;
+        tagsContainer.appendChild(tag);
+      });
+
+      placeholder.style.display = checked.length ? 'none' : 'inline';
+
+      picker.querySelectorAll('.role-option').forEach(opt => {
+        opt.classList.toggle('checked', opt.querySelector('input').checked);
+      });
+    }
+
+    function rpRemove(pickerId, roleId) {
+      const picker = document.getElementById(pickerId);
+      const cb = picker.querySelector(`input[value="${roleId}"]`);
+      if (cb) { cb.checked = false; rpUpdate(pickerId); }
+    }
+
+    function rpFilter(input, pickerId) {
+      const q = input.value.toLowerCase();
+      document.getElementById(pickerId).querySelectorAll('.role-option').forEach(opt => {
+        opt.style.display = opt.dataset.roleName.toLowerCase().includes(q) ? '' : 'none';
+      });
+    }
+
+    // Fermer les dropdowns en cliquant en dehors
+    document.addEventListener('click', function(e) {
+      document.querySelectorAll('.role-picker.open').forEach(picker => {
+        if (!picker.contains(e.target)) picker.classList.remove('open');
+      });
+    });
+
+    // Init : afficher les tags des rôles déjà sélectionnés
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('.role-picker').forEach(picker => {
+        rpUpdate(picker.id);
+      });
+    });
   </script>
 </body>
 </html>
