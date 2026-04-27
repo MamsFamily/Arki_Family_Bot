@@ -110,6 +110,14 @@ const DEFAULTS = {
       "**{mention}** est de retour ! L'aventure reprend ! ⚡",
     ],
   },
+  spawnTicket: {
+    ticketCategoryId: '',
+    adminRoleIds: [],
+    memberRoleId: '',
+    welcomeChannelId: '',
+    logChannelId: '',
+    mapPassword: '',
+  },
   aliases: {},
 };
 

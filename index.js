@@ -38,6 +38,7 @@ const economyManager = require('./economyManager');
 const xpManager = require('./xpManager');
 const { handleShopCommand, handleShopInteraction } = require('./shopCommand');
 const { handleShopTicketCommand, handleShopTicketInteraction, publishShopTicketPanel } = require('./shopTicketCommand');
+const { handleSpawnTicketCommand, handleSpawnTicketInteraction } = require('./spawnTicketCommand');
 const restartScheduler = require('./nitradoRestartScheduler');
 const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
 const { registerCasinoHandlers } = require('./casino/casinoHandler');
@@ -1053,6 +1054,30 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
+  // ── Spawn Ticket interactions (boutons + modal) ──
+  if (
+    (interaction.isButton() && (
+      interaction.customId === 'spwn_open' ||
+      interaction.customId.startsWith('spwn_check::') ||
+      interaction.customId.startsWith('spwn_password::') ||
+      interaction.customId.startsWith('spwn_finalize::') ||
+      interaction.customId.startsWith('spwn_delete::')
+    )) ||
+    (interaction.isModalSubmit() && interaction.customId === 'spwn_modal')
+  ) {
+    try {
+      await handleSpawnTicketInteraction(interaction);
+    } catch (err) {
+      console.error('[SpawnTicket] Erreur interaction:', err);
+      try {
+        const reply = { content: '❌ Une erreur est survenue dans le ticket spawn.', ephemeral: true };
+        if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
+        else await interaction.reply(reply);
+      } catch (e) {}
+    }
+    return;
+  }
+
   // ── Giveaway: soumission modal création ──
   if (interaction.isModalSubmit() && interaction.customId.startsWith('giveway_create_modal_')) {
     const raw = interaction.customId.replace('giveway_create_modal_', '');
@@ -1836,6 +1861,20 @@ client.on('interactionCreate', async interaction => {
       console.error('[ShopTicket] Erreur commande /ticket-shop-panel:', err);
       try {
         const reply = { content: '❌ Impossible de publier le panneau shop. Réessaie.', ephemeral: true };
+        if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
+        else await interaction.reply(reply);
+      } catch (e) {}
+    }
+    return;
+  }
+
+  if (commandName === 'spawn-panel') {
+    try {
+      await handleSpawnTicketCommand(interaction);
+    } catch (err) {
+      console.error('[SpawnTicket] Erreur commande /spawn-panel:', err);
+      try {
+        const reply = { content: '❌ Impossible de publier le panneau spawn. Réessaie.', ephemeral: true };
         if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
         else await interaction.reply(reply);
       } catch (e) {}

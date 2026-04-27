@@ -136,6 +136,10 @@ const commands = [
     description: 'Publie l\'embed shop avec le bouton d\'ouverture de ticket dans le salon courant (Admin)',
   },
   {
+    name: 'spawn-panel',
+    description: 'Publie le panneau d\'admission Spawn Joueur dans le salon courant (Admin)',
+  },
+  {
     name: 'creer-giveway',
     description: 'Crée et publie un giveaway dans le salon courant (Admin et Modo)',
     options: [

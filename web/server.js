@@ -848,7 +848,24 @@ function createWebServer(discordClient) {
         .sort((a, b) => b.position - a.position)
         .map(r => ({ id: r.id, name: r.name, color: r.color ? '#' + r.color.toString(16).padStart(6, '0') : null }));
     }
-    res.render('tickets', { shop, channels, discordCategories, discordRoles, success: req.query.success || null, error: req.query.error || null });
+    const spawnTicket = settings.spawnTicket || {};
+    res.render('tickets', { shop, channels, discordCategories, discordRoles, spawnTicket, success: req.query.success || null, error: req.query.error || null });
+  });
+
+  app.post('/tickets/spawn', requireAdmin, async (req, res) => {
+    const { spawnTicketCategoryId, spawnWelcomeChannelId, spawnLogChannelId, spawnMemberRoleId, spawnMapPassword, spawnAdminRoleIds } = req.body;
+    const rawRoles = spawnAdminRoleIds || [];
+    const adminRoleIds = (Array.isArray(rawRoles) ? rawRoles : [rawRoles]).filter(s => /^\d+$/.test(s));
+    const { updateSection } = require('./settingsManager');
+    updateSection('spawnTicket', {
+      ticketCategoryId: spawnTicketCategoryId || '',
+      adminRoleIds,
+      memberRoleId: spawnMemberRoleId || '',
+      welcomeChannelId: spawnWelcomeChannelId || '',
+      logChannelId: spawnLogChannelId || '',
+      mapPassword: spawnMapPassword || '',
+    });
+    res.redirect('/tickets?success=Param%C3%A8tres+Spawn+Joueur+sauvegard%C3%A9s+!');
   });
 
   app.post('/tickets/shop', requireAdmin, async (req, res) => {

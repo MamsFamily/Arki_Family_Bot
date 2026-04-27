@@ -35,6 +35,7 @@ The bot is built on Node.js using Discord.js for Discord API interactions. A web
 - **Permissions System:** Role-based access control for bot commands and dashboard features.
 - **Giveaway System:** Comprehensive CRUD for giveaways, participant tracking, manual/automatic drawing, and direct item distribution to winners.
 - **Welcome System:** Configurable welcome messages and banners with historical visit tracking.
+- **Spawn Ticket System:** Full admission flow for new players — modal form (age, platform, gamertag), private ticket channel `spawn-joueur-username`, staff checklist (vocal/registration/starter), in-game password sent via DM, automatic role grant on finalization, welcome & log channel messages. Configurable via Dashboard → Tickets → Spawn Joueur. Slash command: `/spawn-panel`.
 
 ## External Dependencies
 - **Discord.js:** For interacting with the Discord API.
