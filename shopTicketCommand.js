@@ -1564,7 +1564,7 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
 
 // ── Publication du panneau shop (embed + bouton) ──────────────────────────────
 async function publishShopTicketPanel(interaction) {
-  const bannerPath = path.join(__dirname, 'web', 'public', 'images', 'shop-ticket-banner.jpeg');
+  const bannerPath = path.join(__dirname, 'web', 'public', 'images', 'shop-ticket-banner.png');
 
   const embed = new EmbedBuilder()
     .setColor(0x2ecc71)
@@ -1576,7 +1576,7 @@ async function publishShopTicketPanel(interaction) {
       '🦕 Dinos (variantes, sexe, stat forte)\n' +
       '📦 Packs & articles unitaires'
     )
-    .setThumbnail('attachment://shop-ticket-banner.jpeg')
+    .setThumbnail('attachment://shop-ticket-banner.png')
     .setFooter({ text: 'Le paiement est encaissé après livraison.' });
 
   const btn = new ButtonBuilder()
@@ -1589,7 +1589,7 @@ async function publishShopTicketPanel(interaction) {
   await interaction.channel.send({
     embeds: [embed],
     components: [row],
-    files: [{ attachment: bannerPath, name: 'shop-ticket-banner.jpeg' }],
+    files: [{ attachment: bannerPath, name: 'shop-ticket-banner.png' }],
   });
   return interaction.reply({ content: '✅ Panneau shop publié dans ce salon !', ephemeral: true });
 }
