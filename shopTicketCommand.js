@@ -23,6 +23,7 @@ const {
   PermissionFlagsBits,
 } = require('discord.js');
 
+const path = require('path');
 const { getDinoData, getDino } = require('./dinoManager');
 const { getShop, getCategories } = require('./shopManager');
 const { getPlayerInventory, addToInventory, removeFromInventory, getItemTypes } = require('./inventoryManager');
@@ -1563,6 +1564,8 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
 
 // ── Publication du panneau shop (embed + bouton) ──────────────────────────────
 async function publishShopTicketPanel(interaction) {
+  const bannerPath = path.join(__dirname, 'web', 'public', 'images', 'shop-ticket-banner.jpeg');
+
   const embed = new EmbedBuilder()
     .setColor(0x2ecc71)
     .setTitle('🛒 Shop Arki Family')
@@ -1573,6 +1576,7 @@ async function publishShopTicketPanel(interaction) {
       '🦕 Dinos (variantes, sexe, stat forte)\n' +
       '📦 Packs & articles unitaires'
     )
+    .setThumbnail('attachment://shop-ticket-banner.jpeg')
     .setFooter({ text: 'Le paiement est encaissé après livraison.' });
 
   const btn = new ButtonBuilder()
@@ -1582,7 +1586,11 @@ async function publishShopTicketPanel(interaction) {
 
   const row = new ActionRowBuilder().addComponents(btn);
 
-  await interaction.channel.send({ embeds: [embed], components: [row] });
+  await interaction.channel.send({
+    embeds: [embed],
+    components: [row],
+    files: [{ attachment: bannerPath, name: 'shop-ticket-banner.jpeg' }],
+  });
   return interaction.reply({ content: '✅ Panneau shop publié dans ce salon !', ephemeral: true });
 }
 
