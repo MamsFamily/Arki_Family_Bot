@@ -4488,19 +4488,8 @@ client.on('guildMemberAdd', async (member) => {
 
     const { embed, attachment, isNew } = await buildWelcomeEmbed(member, member.guild, client);
     const files = attachment ? [attachment] : [];
-    await channel.send({ embeds: [embed], files });
 
-    // Attribution automatique des rôles
-    const rolesToAdd = isNew ? (ws.autoRolesNew || []) : (ws.autoRolesReturn || []);
-    for (const roleData of rolesToAdd) {
-      try {
-        await member.roles.add(roleData.id, 'Rôle bienvenue automatique');
-      } catch (e) {
-        console.warn(`[Welcome] Impossible d'ajouter le rôle ${roleData.name} (${roleData.id}):`, e.message);
-      }
-    }
-
-    // Message de bienvenue + bouton "Souhaiter la bienvenue"
+    // Boutons intégrés au message de l'embed
     const displayName = member.displayName || member.user.username;
     const arrivalPhrase = getRandomArrivalPhrase(displayName, isNew);
     const btnLabel = isNew ? '🎉 Souhaiter la bienvenue' : '🤗 Souhaiter un bon retour';
@@ -4519,7 +4508,17 @@ client.on('guildMemberAdd', async (member) => {
       );
     }
     const greetRow = new ActionRowBuilder().addComponents(...greetComponents);
-    await channel.send({ content: arrivalPhrase, components: [greetRow] });
+    await channel.send({ content: arrivalPhrase, embeds: [embed], files, components: [greetRow] });
+
+    // Attribution automatique des rôles
+    const rolesToAdd = isNew ? (ws.autoRolesNew || []) : (ws.autoRolesReturn || []);
+    for (const roleData of rolesToAdd) {
+      try {
+        await member.roles.add(roleData.id, 'Rôle bienvenue automatique');
+      } catch (e) {
+        console.warn(`[Welcome] Impossible d'ajouter le rôle ${roleData.name} (${roleData.id}):`, e.message);
+      }
+    }
 
     await sendWelcomeDM(member, member.guild);
 

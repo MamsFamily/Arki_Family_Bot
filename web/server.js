@@ -469,9 +469,8 @@ function createWebServer(discordClient) {
         const { embed, attachment } = await buildWelcomeEmbed(member, guild, discordClient, forceIsNew);
         const files = attachment ? [attachment] : [];
         const label = type === 'return' ? 'revenant' : 'nouveau membre';
-        await channel.send({ embeds: [embed], files, content: `🧪 **Test** (${label})` });
 
-        // Message d'arrivée + bouton
+        // Boutons intégrés au même message que l'embed
         const isNew = forceIsNew !== false;
         const displayName = member.displayName || member.user.username;
         const arrivalPhrase = getRandomArrivalPhrase(displayName, isNew);
@@ -491,7 +490,12 @@ function createWebServer(discordClient) {
           );
         }
         const greetRow = new ActionRowBuilder().addComponents(...greetComponents);
-        await channel.send({ content: arrivalPhrase, components: [greetRow] });
+        await channel.send({
+          content: `🧪 **Test** (${label})\n${arrivalPhrase}`,
+          embeds: [embed],
+          files,
+          components: [greetRow],
+        });
 
         // Ping auto-supprimé après 5s
         const delay = Math.max(0, parseInt(ws.pingDelay) || 5) * 1000;
