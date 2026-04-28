@@ -4507,7 +4507,17 @@ client.on('guildMemberAdd', async (member) => {
       .setCustomId(`welcome_greet:${member.id}:${isNew ? 'new' : 'return'}`)
       .setLabel(btnLabel)
       .setStyle(ButtonStyle.Primary);
-    const greetRow = new ActionRowBuilder().addComponents(greetBtn);
+    const spawnSettings = getSettings().spawnTicket || {};
+    const greetComponents = [greetBtn];
+    if (spawnSettings.ticketCategoryId || spawnSettings.adminRoleIds?.length) {
+      greetComponents.push(
+        new ButtonBuilder()
+          .setCustomId('spwn_open')
+          .setLabel('🐣 Commencer l\'admission')
+          .setStyle(ButtonStyle.Success)
+      );
+    }
+    const greetRow = new ActionRowBuilder().addComponents(...greetComponents);
     await channel.send({ content: arrivalPhrase, components: [greetRow] });
 
     await sendWelcomeDM(member, member.guild);
