@@ -4489,28 +4489,32 @@ client.on('guildMemberAdd', async (member) => {
     const { embed, attachment, isNew } = await buildWelcomeEmbed(member, member.guild, client);
     const files = attachment ? [attachment] : [];
 
-    // Phrase d'arrivée en footer de l'embed → boutons directement collés en dessous
-    const displayName = member.displayName || member.user.username;
-    const arrivalPhrase = getRandomArrivalPhrase(displayName, isNew);
-    embed.setFooter({ text: arrivalPhrase });
-
-    const btnLabel = isNew ? '🎉 Souhaiter la bienvenue' : '🤗 Souhaiter un bon retour';
-    const greetBtn = new ButtonBuilder()
-      .setCustomId(`welcome_greet:${member.id}:${isNew ? 'new' : 'return'}`)
-      .setLabel(btnLabel)
-      .setStyle(ButtonStyle.Primary);
+    // Message 1 : embed + bouton admission spawn (si configuré)
     const spawnSettings = getSettings().spawnTicket || {};
-    const greetComponents = [greetBtn];
+    const embedComponents = [];
     if (spawnSettings.ticketCategoryId || spawnSettings.adminRoleIds?.length) {
-      greetComponents.push(
-        new ButtonBuilder()
-          .setCustomId('spwn_open')
-          .setLabel('🐣 Commencer l\'admission')
-          .setStyle(ButtonStyle.Success)
+      embedComponents.push(
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId('spwn_open')
+            .setLabel('🐣 Commencer l\'admission')
+            .setStyle(ButtonStyle.Success)
+        )
       );
     }
-    const greetRow = new ActionRowBuilder().addComponents(...greetComponents);
-    await channel.send({ embeds: [embed], files, components: [greetRow] });
+    await channel.send({ embeds: [embed], files, components: embedComponents });
+
+    // Message 2 : phrase aléatoire avec ping + bouton "Souhaiter la bienvenue"
+    const displayName = member.displayName || member.user.username;
+    const arrivalPhrase = getRandomArrivalPhrase(displayName, isNew);
+    const btnLabel = isNew ? '🎉 Souhaiter la bienvenue' : '🤗 Souhaiter un bon retour';
+    const greetRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`welcome_greet:${member.id}:${isNew ? 'new' : 'return'}`)
+        .setLabel(btnLabel)
+        .setStyle(ButtonStyle.Primary)
+    );
+    await channel.send({ content: arrivalPhrase, components: [greetRow] });
 
     // Attribution automatique des rôles
     const rolesToAdd = isNew ? (ws.autoRolesNew || []) : (ws.autoRolesReturn || []);

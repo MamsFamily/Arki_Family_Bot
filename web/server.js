@@ -469,30 +469,34 @@ function createWebServer(discordClient) {
         const { embed, attachment } = await buildWelcomeEmbed(member, guild, discordClient, forceIsNew);
         const files = attachment ? [attachment] : [];
         const label = type === 'return' ? 'revenant' : 'nouveau membre';
-
-        // Phrase d'arrivée en footer de l'embed → boutons directement collés en dessous
         const isNew = forceIsNew !== false;
-        const displayName = member.displayName || member.user.username;
-        const arrivalPhrase = getRandomArrivalPhrase(displayName, isNew);
-        embed.setFooter({ text: `🧪 Test (${label}) · ${arrivalPhrase}` });
 
-        const btnLabel = isNew ? '🎉 Souhaiter la bienvenue' : '🤗 Souhaiter un bon retour';
-        const greetBtn = new ButtonBuilder()
-          .setCustomId(`welcome_greet:${member.id}:${isNew ? 'new' : 'return'}`)
-          .setLabel(btnLabel)
-          .setStyle(ButtonStyle.Primary);
-        const greetComponents = [greetBtn];
+        // Message 1 : embed (original) + bouton admission spawn (si configuré)
         const spawnSettings = getSettings().spawnTicket || {};
+        const embedComponents = [];
         if (spawnSettings.ticketCategoryId || spawnSettings.adminRoleIds?.length) {
-          greetComponents.push(
-            new ButtonBuilder()
-              .setCustomId('spwn_open')
-              .setLabel('🐣 Commencer l\'admission')
-              .setStyle(ButtonStyle.Success)
+          embedComponents.push(
+            new ActionRowBuilder().addComponents(
+              new ButtonBuilder()
+                .setCustomId('spwn_open')
+                .setLabel('🐣 Commencer l\'admission')
+                .setStyle(ButtonStyle.Success)
+            )
           );
         }
-        const greetRow = new ActionRowBuilder().addComponents(...greetComponents);
-        await channel.send({ embeds: [embed], files, components: [greetRow] });
+        await channel.send({ content: `🧪 **Test** (${label})`, embeds: [embed], files, components: embedComponents });
+
+        // Message 2 : phrase aléatoire avec ping + bouton "Souhaiter la bienvenue"
+        const displayName = member.displayName || member.user.username;
+        const arrivalPhrase = getRandomArrivalPhrase(displayName, isNew);
+        const btnLabel = isNew ? '🎉 Souhaiter la bienvenue' : '🤗 Souhaiter un bon retour';
+        const greetRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`welcome_greet:${member.id}:${isNew ? 'new' : 'return'}`)
+            .setLabel(btnLabel)
+            .setStyle(ButtonStyle.Primary)
+        );
+        await channel.send({ content: arrivalPhrase, components: [greetRow] });
 
         // Ping auto-supprimé après 5s
         const delay = Math.max(0, parseInt(ws.pingDelay) || 5) * 1000;
