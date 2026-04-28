@@ -470,10 +470,12 @@ function createWebServer(discordClient) {
         const files = attachment ? [attachment] : [];
         const label = type === 'return' ? 'revenant' : 'nouveau membre';
 
-        // Boutons intégrés au même message que l'embed
+        // Phrase d'arrivée en footer de l'embed → boutons directement collés en dessous
         const isNew = forceIsNew !== false;
         const displayName = member.displayName || member.user.username;
         const arrivalPhrase = getRandomArrivalPhrase(displayName, isNew);
+        embed.setFooter({ text: `🧪 Test (${label}) · ${arrivalPhrase}` });
+
         const btnLabel = isNew ? '🎉 Souhaiter la bienvenue' : '🤗 Souhaiter un bon retour';
         const greetBtn = new ButtonBuilder()
           .setCustomId(`welcome_greet:${member.id}:${isNew ? 'new' : 'return'}`)
@@ -490,12 +492,7 @@ function createWebServer(discordClient) {
           );
         }
         const greetRow = new ActionRowBuilder().addComponents(...greetComponents);
-        await channel.send({
-          content: `🧪 **Test** (${label})\n${arrivalPhrase}`,
-          embeds: [embed],
-          files,
-          components: [greetRow],
-        });
+        await channel.send({ embeds: [embed], files, components: [greetRow] });
 
         // Ping auto-supprimé après 5s
         const delay = Math.max(0, parseInt(ws.pingDelay) || 5) * 1000;

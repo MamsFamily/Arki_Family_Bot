@@ -4489,9 +4489,11 @@ client.on('guildMemberAdd', async (member) => {
     const { embed, attachment, isNew } = await buildWelcomeEmbed(member, member.guild, client);
     const files = attachment ? [attachment] : [];
 
-    // Boutons intégrés au message de l'embed
+    // Phrase d'arrivée en footer de l'embed → boutons directement collés en dessous
     const displayName = member.displayName || member.user.username;
     const arrivalPhrase = getRandomArrivalPhrase(displayName, isNew);
+    embed.setFooter({ text: arrivalPhrase });
+
     const btnLabel = isNew ? '🎉 Souhaiter la bienvenue' : '🤗 Souhaiter un bon retour';
     const greetBtn = new ButtonBuilder()
       .setCustomId(`welcome_greet:${member.id}:${isNew ? 'new' : 'return'}`)
@@ -4508,7 +4510,7 @@ client.on('guildMemberAdd', async (member) => {
       );
     }
     const greetRow = new ActionRowBuilder().addComponents(...greetComponents);
-    await channel.send({ content: arrivalPhrase, embeds: [embed], files, components: [greetRow] });
+    await channel.send({ embeds: [embed], files, components: [greetRow] });
 
     // Attribution automatique des rôles
     const rolesToAdd = isNew ? (ws.autoRolesNew || []) : (ws.autoRolesReturn || []);
