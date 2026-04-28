@@ -316,11 +316,26 @@ async function handleModalSubmit(interaction) {
     const msgPayload = { embeds: [autoEmbed] };
 
     if (autoImg) {
-      // Si c'est un chemin local /uploads/..., on attache le fichier directement
-      if (autoImg.startsWith('/uploads/')) {
+      if (autoImg === 'pgstore') {
+        // Image stockée en base64 dans pgStore — résistante aux redéploiements
+        try {
+          const pgStore = require('./pgStore');
+          const stored = await pgStore.getData('spawn_ticket_image', null);
+          if (stored && stored.data) {
+            const buf = Buffer.from(stored.data, 'base64');
+            const ext = (stored.mime || 'image/png').split('/')[1] || 'png';
+            const fileName = `auto_message.${ext}`;
+            const attachment = new AttachmentBuilder(buf, { name: fileName });
+            autoEmbed.setImage(`attachment://${fileName}`);
+            msgPayload.files = [attachment];
+          }
+        } catch (e) {
+          console.error('[SpawnTicket] Erreur lecture image pgStore:', e.message);
+        }
+      } else if (autoImg.startsWith('/uploads/')) {
+        // Ancien format (fichier local) — compatibilité ascendante
         const filePath = path.join(__dirname, 'web', 'public', autoImg);
         if (fs.existsSync(filePath)) {
-          const { AttachmentBuilder } = require('discord.js');
           const fileName = path.basename(filePath);
           const attachment = new AttachmentBuilder(filePath, { name: fileName });
           autoEmbed.setImage(`attachment://${fileName}`);

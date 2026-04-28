@@ -853,18 +853,26 @@ function createWebServer(discordClient) {
   });
 
   const spawnImageUpload = multer({
-    storage: multer.diskStorage({
-      destination: path.join(__dirname, 'public/uploads'),
-      filename: (req, file, cb) => {
-        const ext = path.extname(file.originalname).toLowerCase() || '.png';
-        cb(null, `spawn_${Date.now()}${ext}`);
-      },
-    }),
+    storage: multer.memoryStorage(),
     limits: { fileSize: 8 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
       if (file.mimetype.startsWith('image/')) cb(null, true);
       else cb(new Error('Fichier non supporté'));
     },
+  });
+
+  // Sert l'image du message automatique stockée dans pgStore (persistante entre redéploiements)
+  app.get('/tickets/spawn/image', requireAdmin, async (req, res) => {
+    try {
+      const stored = await pgStore.getData('spawn_ticket_image', null);
+      if (!stored || !stored.data) return res.status(404).send('Aucune image');
+      const buf = Buffer.from(stored.data, 'base64');
+      res.set('Content-Type', stored.mime || 'image/png');
+      res.set('Cache-Control', 'no-store');
+      res.send(buf);
+    } catch (err) {
+      res.status(500).send('Erreur');
+    }
   });
 
   app.post('/tickets/spawn', requireAdmin, spawnImageUpload.single('spawnAutoMessageImage'), async (req, res) => {
@@ -877,10 +885,15 @@ function createWebServer(discordClient) {
       const rawRoles = spawnAdminRoleIds || [];
       const adminRoleIds = (Array.isArray(rawRoles) ? rawRoles : [rawRoles]).filter(s => /^\d+$/.test(s));
 
-      // Image : utilise le fichier uploadé, sinon garde l'existant
+      // Image : si un fichier est uploadé, on le stocke en base64 dans pgStore (résiste aux redéploiements)
       let autoMessageImageUrl = getSettings().spawnTicket?.autoMessageImageUrl || '';
       if (req.file) {
-        autoMessageImageUrl = `/uploads/${req.file.filename}`;
+        await pgStore.setData('spawn_ticket_image', {
+          data: req.file.buffer.toString('base64'),
+          mime: req.file.mimetype,
+          name: req.file.originalname,
+        });
+        autoMessageImageUrl = 'pgstore';
       }
 
       await updateSection('spawnTicket', {

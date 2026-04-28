@@ -363,7 +363,8 @@
                 <label>🖼️ Image du message automatique</label>
                 <% if (spawnTicket.autoMessageImageUrl) { %>
                 <div style="margin-bottom:10px">
-                  <img src="<%= spawnTicket.autoMessageImageUrl %>" alt="Image actuelle"
+                  <img src="<%= spawnTicket.autoMessageImageUrl === 'pgstore' ? '/tickets/spawn/image' : spawnTicket.autoMessageImageUrl %>"
+                    alt="Image actuelle"
                     style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid var(--border);display:block">
                   <p class="help-text" style="margin-top:6px">Image actuellement configurée — uploade une nouvelle image pour la remplacer</p>
                 </div>
