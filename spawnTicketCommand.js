@@ -508,33 +508,145 @@ async function handleFinalize(interaction, ticketId) {
 
   data.status = 'finalized';
 
-  // Message final dans le ticket
+  // Message final dans le ticket — bouton fermeture (pas suppression directe)
   await interaction.channel.send({
     embeds: [new EmbedBuilder()
       .setColor(0x2ecc71)
       .setTitle('✅ Admission finalisée !')
       .setDescription(
         `Félicitations <@${data.userId}> ! Tu fais maintenant partie d'**Arki' Family** 🎉\n\n` +
-        `Ce ticket peut maintenant être supprimé.`
+        `Le ticket peut maintenant être fermé. Il restera visible par le staff jusqu'à sa suppression.`
       )
     ],
     components: [new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId(`spwn_delete::${ticketId}`)
-        .setLabel('🗑️ Supprimer le ticket')
-        .setStyle(ButtonStyle.Danger),
+        .setCustomId(`spwn_close::${ticketId}`)
+        .setLabel('🔒 Fermer le ticket')
+        .setStyle(ButtonStyle.Secondary),
     )],
   });
 
   await interaction.editReply({ content: '✅ Admission finalisée avec succès !' });
 }
 
-// ── Supprimer le ticket ───────────────────────────────────────────────────────
+// ── Demander confirmation de fermeture ────────────────────────────────────────
+async function handleClose(interaction, ticketId) {
+  await interaction.reply({
+    embeds: [new EmbedBuilder()
+      .setColor(0xe67e22)
+      .setTitle('⚠️ Fermer ce ticket ?')
+      .setDescription(
+        'Le joueur n\'aura plus accès à ce salon.\n' +
+        'Le staff pourra encore le consulter et le supprimer quand il le souhaite.'
+      )
+    ],
+    components: [new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`spwn_close_confirm::${ticketId}`)
+        .setLabel('✅ Oui, fermer le ticket')
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId(`spwn_close_cancel::${ticketId}`)
+        .setLabel('❌ Annuler')
+        .setStyle(ButtonStyle.Secondary),
+    )],
+    ephemeral: true,
+  });
+}
+
+// ── Confirmer la fermeture ────────────────────────────────────────────────────
+async function handleCloseConfirm(interaction, ticketId) {
+  const data = activeSpawnTickets.get(ticketId);
+  const adminName = interaction.member?.displayName || interaction.user.username;
+  const userId = data?.userId;
+
+  // Retirer l'accès visuel du joueur
+  if (userId) {
+    try {
+      await interaction.channel.permissionOverwrites.edit(userId, {
+        ViewChannel: false,
+        SendMessages: false,
+      });
+    } catch (e) {
+      console.error('[SpawnTicket] Impossible de modifier les permissions du joueur:', e.message);
+    }
+  }
+
+  // Renommer le salon avec le préfixe ferme-
+  try {
+    const currentName = interaction.channel.name;
+    const newName = `ferme-${currentName}`.slice(0, 100);
+    await interaction.channel.edit({ name: newName, reason: `Ticket fermé par ${adminName}` });
+  } catch (e) {
+    console.error('[SpawnTicket] Impossible de renommer le salon ticket:', e.message);
+  }
+
+  // Mettre à jour le message éphémère de confirmation
+  try {
+    await interaction.update({
+      embeds: [new EmbedBuilder()
+        .setColor(0x95a5a6)
+        .setTitle('🔒 Ticket fermé')
+        .setDescription(`Fermé par **${adminName}**.\nLe joueur ne voit plus ce salon.`)
+      ],
+      components: [],
+    });
+  } catch (e) {}
+
+  // Message public dans le salon avec bouton de suppression
+  try {
+    await interaction.channel.send({
+      embeds: [new EmbedBuilder()
+        .setColor(0x95a5a6)
+        .setTitle('🔒 Ticket fermé')
+        .setDescription(
+          `Ce ticket a été fermé par **${adminName}**.\n` +
+          `Le joueur n'a plus accès à ce salon.\n\n` +
+          `Le staff peut continuer à écrire ici. Supprime le ticket quand tu es prêt(e).`
+        )
+        .setTimestamp()
+      ],
+      components: [new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`spwn_delete::${ticketId}`)
+          .setLabel('🗑️ Supprimer le ticket')
+          .setStyle(ButtonStyle.Danger),
+      )],
+    });
+  } catch (e) {
+    console.error('[SpawnTicket] Impossible d\'envoyer le message de fermeture:', e.message);
+  }
+}
+
+// ── Annuler la fermeture ──────────────────────────────────────────────────────
+async function handleCloseCancel(interaction) {
+  await interaction.update({
+    embeds: [new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setDescription('✅ Fermeture annulée.')
+    ],
+    components: [],
+  });
+}
+
+// ── Supprimer le ticket (définitif) ──────────────────────────────────────────
 async function handleDeleteTicket(interaction, ticketId) {
-  await interaction.deferUpdate();
+  const adminName = interaction.member?.displayName || interaction.user.username;
+
+  try {
+    await interaction.update({
+      embeds: [new EmbedBuilder()
+        .setColor(0xe74c3c)
+        .setTitle('🗑️ Suppression en cours…')
+        .setDescription('Ce salon sera supprimé dans 3 secondes.')
+      ],
+      components: [],
+    });
+  } catch (e) {}
+
   setTimeout(async () => {
     try {
-      await interaction.channel.delete();
+      await interaction.channel.delete(`Ticket supprimé par ${adminName}`);
       activeSpawnTickets.delete(ticketId);
     } catch (err) {
       console.error('[SpawnTicket] Erreur suppression salon:', err);
@@ -570,6 +682,18 @@ async function handleSpawnTicketInteraction(interaction) {
 
   if (id.startsWith('spwn_finalize::')) {
     return handleFinalize(interaction, id.split('::')[1]);
+  }
+
+  if (id.startsWith('spwn_close::')) {
+    return handleClose(interaction, id.split('::')[1]);
+  }
+
+  if (id.startsWith('spwn_close_confirm::')) {
+    return handleCloseConfirm(interaction, id.split('::')[1]);
+  }
+
+  if (id.startsWith('spwn_close_cancel::')) {
+    return handleCloseCancel(interaction);
   }
 
   if (id.startsWith('spwn_delete::')) {
