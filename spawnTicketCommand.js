@@ -195,6 +195,15 @@ async function handleOpenSpawn(interaction) {
         .setRequired(false)
         .setMaxLength(100),
     ),
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('spwn_intro')
+        .setLabel('Un petit bonjour fera toujours plaisir à ton staff 🙂')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Dis bonjour ou présente-toi en quelques mots…')
+        .setRequired(false)
+        .setMaxLength(150),
+    ),
   );
 
   await interaction.showModal(modal);
@@ -209,6 +218,7 @@ async function handleModalSubmit(interaction) {
   const platform = interaction.fields.getTextInputValue('spwn_platform').trim();
   const gamertag = interaction.fields.getTextInputValue('spwn_gamertag').trim();
   const source   = interaction.fields.getTextInputValue('spwn_source').trim();
+  const intro    = interaction.fields.getTextInputValue('spwn_intro').trim();
   const guild    = interaction.guild;
 
   const discordUsername = interaction.user.username;
@@ -287,11 +297,12 @@ async function handleModalSubmit(interaction) {
   };
   activeSpawnTickets.set(ticketId, data);
 
-  // Message de bienvenue joueur + note italique bienveillante
+  // Message de bienvenue joueur + intro si renseignée
+  const welcomeContent = intro
+    ? `👋 Bienvenue <@${interaction.user.id}> ! Un membre du staff va te prendre en charge rapidement. 🌿\n\n💬 *"${intro}"*`
+    : `👋 Bienvenue <@${interaction.user.id}> ! Un membre du staff va te prendre en charge rapidement. 🌿\n-# *Un petit bonjour ou quelques mots dans le ticket, c'est toujours bien plus agréable qu'un ticket silencieux — l'équipe sera ravie de te lire !* 😊`;
   await ticketChannel.send({
-    content:
-      `👋 Bienvenue <@${interaction.user.id}> ! Un membre du staff va te prendre en charge rapidement. 🌿\n` +
-      `-# *Un petit bonjour ou quelques mots dans le ticket, c'est toujours bien plus agréable qu'un ticket silencieux — l'équipe sera ravie de te lire !* 😊`,
+    content: welcomeContent,
     embeds: [buildInfoEmbed(data)],
   });
 
