@@ -853,27 +853,31 @@ function createWebServer(discordClient) {
   });
 
   app.post('/tickets/spawn', requireAdmin, async (req, res) => {
-    const {
-      spawnTicketCategoryId, spawnWelcomeChannelId, spawnLogChannelId,
-      spawnMemberRoleId, spawnMapPassword, spawnAdminRoleIds,
-      spawnNotifChannelId, spawnNotifText, spawnAutoMessageText, spawnAutoMessageImageUrl,
-    } = req.body;
-    const rawRoles = spawnAdminRoleIds || [];
-    const adminRoleIds = (Array.isArray(rawRoles) ? rawRoles : [rawRoles]).filter(s => /^\d+$/.test(s));
-    const { updateSection } = require('./settingsManager');
-    updateSection('spawnTicket', {
-      ticketCategoryId: spawnTicketCategoryId || '',
-      adminRoleIds,
-      memberRoleId: spawnMemberRoleId || '',
-      welcomeChannelId: spawnWelcomeChannelId || '',
-      logChannelId: spawnLogChannelId || '',
-      notifChannelId: spawnNotifChannelId || '',
-      notifText: spawnNotifText || '',
-      autoMessageText: spawnAutoMessageText || '',
-      autoMessageImageUrl: spawnAutoMessageImageUrl || '',
-      mapPassword: spawnMapPassword || '',
-    });
-    res.redirect('/tickets?success=Param%C3%A8tres+Spawn+Joueur+sauvegard%C3%A9s+!');
+    try {
+      const {
+        spawnTicketCategoryId, spawnWelcomeChannelId, spawnLogChannelId,
+        spawnMemberRoleId, spawnMapPassword, spawnAdminRoleIds,
+        spawnNotifChannelId, spawnNotifText, spawnAutoMessageText, spawnAutoMessageImageUrl,
+      } = req.body;
+      const rawRoles = spawnAdminRoleIds || [];
+      const adminRoleIds = (Array.isArray(rawRoles) ? rawRoles : [rawRoles]).filter(s => /^\d+$/.test(s));
+      await updateSection('spawnTicket', {
+        ticketCategoryId: spawnTicketCategoryId || '',
+        adminRoleIds,
+        memberRoleId: spawnMemberRoleId || '',
+        welcomeChannelId: spawnWelcomeChannelId || '',
+        logChannelId: spawnLogChannelId || '',
+        notifChannelId: spawnNotifChannelId || '',
+        notifText: spawnNotifText || '',
+        autoMessageText: spawnAutoMessageText || '',
+        autoMessageImageUrl: spawnAutoMessageImageUrl || '',
+        mapPassword: spawnMapPassword || '',
+      });
+      res.redirect('/tickets?success=Param%C3%A8tres+Spawn+Joueur+sauvegard%C3%A9s+!');
+    } catch (err) {
+      console.error('[SpawnTicket] Erreur sauvegarde settings:', err);
+      res.redirect('/tickets?error=Erreur+lors+de+la+sauvegarde+des+r%C3%A9glages');
+    }
   });
 
   app.post('/tickets/shop', requireAdmin, async (req, res) => {
