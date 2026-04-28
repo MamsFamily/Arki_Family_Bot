@@ -19,6 +19,7 @@ const {
   TextInputStyle,
   ChannelType,
   PermissionFlagsBits,
+  AttachmentBuilder,
 } = require('discord.js');
 
 const path = require('path');
