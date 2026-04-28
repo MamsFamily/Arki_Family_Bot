@@ -480,7 +480,7 @@ function createWebServer(discordClient) {
               new ButtonBuilder()
                 .setCustomId('spwn_open')
                 .setLabel('🐣 Commencer l\'admission')
-                .setStyle(ButtonStyle.Success)
+                .setStyle(ButtonStyle.Secondary)
             )
           );
         }

@@ -4498,7 +4498,7 @@ client.on('guildMemberAdd', async (member) => {
           new ButtonBuilder()
             .setCustomId('spwn_open')
             .setLabel('🐣 Commencer l\'admission')
-            .setStyle(ButtonStyle.Success)
+            .setStyle(ButtonStyle.Secondary)
         )
       );
     }
