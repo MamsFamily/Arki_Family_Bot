@@ -1061,6 +1061,7 @@ client.on('interactionCreate', async interaction => {
       interaction.customId.startsWith('spwn_check::') ||
       interaction.customId.startsWith('spwn_password::') ||
       interaction.customId.startsWith('spwn_finalize::') ||
+      interaction.customId.startsWith('spwn_unlock::') ||
       interaction.customId.startsWith('spwn_close::') ||
       interaction.customId.startsWith('spwn_close_confirm::') ||
       interaction.customId.startsWith('spwn_close_cancel::') ||

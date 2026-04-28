@@ -315,7 +315,7 @@
                 <p class="help-text">Ces rôles voient et gèrent tous les tickets spawn</p>
               </div>
               <div class="form-group">
-                <label for="spawnMemberRoleId">🎮 Rôle à donner lors de la finalisation</label>
+                <label for="spawnMemberRoleId">🔓 Rôle à retirer pour débloquer les salons</label>
                 <select id="spawnMemberRoleId" name="spawnMemberRoleId" class="form-control">
                   <option value="">-- Aucun --</option>
                   <% (discordRoles || []).forEach(r => { %>
@@ -324,7 +324,7 @@
                     </option>
                   <% }); %>
                 </select>
-                <p class="help-text">Rôle automatiquement attribué au joueur quand l'admission est finalisée (débloque les salons)</p>
+                <p class="help-text">Rôle retiré au joueur via le bouton "🔓 Débloquer les salons" dans le ticket (et automatiquement lors de la finalisation)</p>
               </div>
             </div>
 

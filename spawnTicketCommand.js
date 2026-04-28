@@ -110,6 +110,10 @@ function buildChecklistComponents(data) {
       .setLabel('🔑 Envoyer le mot de passe')
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
+      .setCustomId(`spwn_unlock::${id}`)
+      .setLabel('🔓 Débloquer les salons')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
       .setCustomId(`spwn_finalize::${id}`)
       .setLabel('🎉 Finaliser l\'admission')
       .setStyle(ButtonStyle.Success)
@@ -430,6 +434,39 @@ async function handleSendPassword(interaction, ticketId) {
   }
 }
 
+// ── Débloquer les salons Discord ─────────────────────────────────────────────
+async function handleUnlock(interaction, ticketId) {
+  const data = activeSpawnTickets.get(ticketId);
+  if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
+
+  const settings = getSpawnSettings();
+  if (!settings.memberRoleId) {
+    return interaction.reply({
+      content: '⚠️ Aucun rôle configuré. Va dans le Dashboard → Tickets → Spawn Joueur → "Rôle à retirer pour débloquer les salons".',
+      ephemeral: true,
+    });
+  }
+
+  try {
+    const member = await interaction.guild.members.fetch(data.userId);
+    await member.roles.remove(settings.memberRoleId);
+
+    await interaction.channel.send({
+      embeds: [new EmbedBuilder()
+        .setColor(0x2ecc71)
+        .setDescription(`🔓 Les salons Discord ont été débloqués pour <@${data.userId}> !`)
+      ],
+    });
+
+    await interaction.reply({ content: '✅ Rôle retiré — salons débloqués.', ephemeral: true });
+  } catch (err) {
+    await interaction.reply({
+      content: `❌ Impossible de retirer le rôle : \`${err.message}\``,
+      ephemeral: true,
+    });
+  }
+}
+
 // ── Finaliser l'admission ─────────────────────────────────────────────────────
 async function handleFinalize(interaction, ticketId) {
   const data = activeSpawnTickets.get(ticketId);
@@ -453,13 +490,13 @@ async function handleFinalize(interaction, ticketId) {
   const guild    = interaction.guild;
   const staffName = interaction.member?.displayName || interaction.user.username;
 
-  // Donner le rôle membre si configuré
+  // Retirer le rôle bloquant si configuré (double sécurité avec le bouton dédié)
   if (settings.memberRoleId) {
     try {
       const member = await guild.members.fetch(data.userId);
-      await member.roles.add(settings.memberRoleId);
+      await member.roles.remove(settings.memberRoleId);
     } catch (err) {
-      console.error('[SpawnTicket] Erreur attribution rôle membre:', err);
+      console.error('[SpawnTicket] Erreur retrait rôle bloquant:', err);
     }
   }
 
@@ -682,6 +719,10 @@ async function handleSpawnTicketInteraction(interaction) {
 
   if (id.startsWith('spwn_finalize::')) {
     return handleFinalize(interaction, id.split('::')[1]);
+  }
+
+  if (id.startsWith('spwn_unlock::')) {
+    return handleUnlock(interaction, id.split('::')[1]);
   }
 
   if (id.startsWith('spwn_close::')) {
