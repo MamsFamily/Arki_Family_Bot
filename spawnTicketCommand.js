@@ -198,7 +198,7 @@ async function handleOpenSpawn(interaction) {
     new ActionRowBuilder().addComponents(
       new TextInputBuilder()
         .setCustomId('spwn_intro')
-        .setLabel('Un petit bonjour fera toujours plaisir à ton staff 🙂')
+        .setLabel('Un bonjour fera toujours plaisir au staff 🙂')
         .setStyle(TextInputStyle.Short)
         .setPlaceholder('Dis bonjour ou présente-toi en quelques mots…')
         .setRequired(false)
