@@ -852,15 +852,37 @@ function createWebServer(discordClient) {
     res.render('tickets', { shop, channels, discordCategories, discordRoles, spawnTicket, success: req.query.success || null, error: req.query.error || null });
   });
 
-  app.post('/tickets/spawn', requireAdmin, async (req, res) => {
+  const spawnImageUpload = multer({
+    storage: multer.diskStorage({
+      destination: path.join(__dirname, 'public/uploads'),
+      filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname).toLowerCase() || '.png';
+        cb(null, `spawn_${Date.now()}${ext}`);
+      },
+    }),
+    limits: { fileSize: 8 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype.startsWith('image/')) cb(null, true);
+      else cb(new Error('Fichier non supporté'));
+    },
+  });
+
+  app.post('/tickets/spawn', requireAdmin, spawnImageUpload.single('spawnAutoMessageImage'), async (req, res) => {
     try {
       const {
         spawnTicketCategoryId, spawnWelcomeChannelId, spawnLogChannelId,
         spawnMemberRoleId, spawnMapPassword, spawnAdminRoleIds,
-        spawnNotifChannelId, spawnNotifText, spawnAutoMessageText, spawnAutoMessageImageUrl,
+        spawnNotifChannelId, spawnNotifText, spawnAutoMessageText,
       } = req.body;
       const rawRoles = spawnAdminRoleIds || [];
       const adminRoleIds = (Array.isArray(rawRoles) ? rawRoles : [rawRoles]).filter(s => /^\d+$/.test(s));
+
+      // Image : utilise le fichier uploadé, sinon garde l'existant
+      let autoMessageImageUrl = getSettings().spawnTicket?.autoMessageImageUrl || '';
+      if (req.file) {
+        autoMessageImageUrl = `/uploads/${req.file.filename}`;
+      }
+
       await updateSection('spawnTicket', {
         ticketCategoryId: spawnTicketCategoryId || '',
         adminRoleIds,
@@ -870,7 +892,7 @@ function createWebServer(discordClient) {
         notifChannelId: spawnNotifChannelId || '',
         notifText: spawnNotifText || '',
         autoMessageText: spawnAutoMessageText || '',
-        autoMessageImageUrl: spawnAutoMessageImageUrl || '',
+        autoMessageImageUrl,
         mapPassword: spawnMapPassword || '',
       });
       res.redirect('/tickets?success=Param%C3%A8tres+Spawn+Joueur+sauvegard%C3%A9s+!');

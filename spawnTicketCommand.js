@@ -4,7 +4,7 @@
  * - Panneau publié dans le salon d'arrivée
  * - Formulaire modal (âge, plateforme, gamertag, source)
  * - Ticket privé spawn-joueur-username
- * - Checklist staff (voc, enregistrement, starter)
+ * - Checklist staff (voc, enregistrement, mot de passe envoyé)
  * - Envoi du mot de passe in-game en MP
  * - Finalisation : rôle + message bienvenue + log
  */
@@ -21,6 +21,8 @@ const {
   PermissionFlagsBits,
 } = require('discord.js');
 
+const path = require('path');
+const fs   = require('fs');
 const { getSettings } = require('./settingsManager');
 
 // ── Stockage en mémoire ───────────────────────────────────────────────────────
@@ -62,9 +64,9 @@ function buildInfoEmbed(data) {
 
 // ── Embed checklist ───────────────────────────────────────────────────────────
 function buildChecklistEmbed(data) {
-  const { voc, enreg, starter } = data.checks;
+  const { voc, enreg, password } = data.checks;
   const icon = (v) => v ? '✅' : '⏳';
-  const all3 = voc && enreg && starter;
+  const all3 = voc && enreg && password;
 
   return new EmbedBuilder()
     .setColor(all3 ? 0x2ecc71 : 0xe67e22)
@@ -72,7 +74,7 @@ function buildChecklistEmbed(data) {
     .setDescription(
       `${icon(voc)} **Vocal fait**\n` +
       `${icon(enreg)} **Enregistrement**\n` +
-      `${icon(starter)} **Starter débloquée**`
+      `${icon(password)} **Mot de passe envoyé**`
     )
     .setFooter({
       text: all3
@@ -83,9 +85,9 @@ function buildChecklistEmbed(data) {
 
 // ── Boutons checklist + actions ───────────────────────────────────────────────
 function buildChecklistComponents(data) {
-  const { voc, enreg, starter } = data.checks;
+  const { voc, enreg, password } = data.checks;
   const id = data.ticketId;
-  const all3 = voc && enreg && starter;
+  const all3 = voc && enreg && password;
 
   const row1 = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -97,9 +99,9 @@ function buildChecklistComponents(data) {
       .setLabel(enreg ? '✅ Enregistrement' : '⏳ Enregistrement')
       .setStyle(enreg ? ButtonStyle.Success : ButtonStyle.Secondary),
     new ButtonBuilder()
-      .setCustomId(`spwn_check::${id}::starter`)
-      .setLabel(starter ? '✅ Starter débloquée' : '⏳ Starter débloquée')
-      .setStyle(starter ? ButtonStyle.Success : ButtonStyle.Secondary),
+      .setCustomId(`spwn_check::${id}::password`)
+      .setLabel(password ? '✅ Mot de passe envoyé' : '⏳ Mot de passe envoyé')
+      .setStyle(password ? ButtonStyle.Success : ButtonStyle.Secondary),
   );
 
   const row2 = new ActionRowBuilder().addComponents(
@@ -129,7 +131,8 @@ async function publishSpawnPanel(interaction) {
       '> 🎙️ Un **vocal obligatoire** est requis pour accéder au serveur\n' +
       '> 📋 Tour rapide des règles du serveur\n' +
       '> 🔑 Obtention du mot de passe in-game\n' +
-      '> 🎁 Récupération de ton kit de départ'
+      '> 🎒 Récupération de ton kit de départ\n' +
+      '> 🔓 Ouverture des salons discord'
     )
     .setFooter({ text: 'Clique sur le bouton pour commencer 👇' });
 
@@ -273,46 +276,71 @@ async function handleModalSubmit(interaction) {
     platform,
     gamertag,
     source: source || null,
-    checks: { voc: false, enreg: false, starter: false },
+    checks: { voc: false, enreg: false, password: false },
     status: 'open',
     createdAt: Date.now(),
     checklistMessageId: null,
   };
   activeSpawnTickets.set(ticketId, data);
 
-  // Message de bienvenue joueur + note italique
+  // Message de bienvenue joueur + note italique bienveillante
   await ticketChannel.send({
     content:
       `👋 Bienvenue <@${interaction.user.id}> ! Un membre du staff va te prendre en charge rapidement. 🌿\n` +
-      `-# *Un petit bonjour ou quelques mots d'intro dans le ticket, c'est toujours bien plus agréable pour le staff qui s'occupe de toi* 😊`,
+      `-# *Un petit bonjour ou quelques mots dans le ticket, c'est toujours bien plus agréable qu'un ticket silencieux — l'équipe sera ravie de te lire !* 😊`,
     embeds: [buildInfoEmbed(data)],
   });
 
-  // Checklist staff
+  // Message automatique configurable (texte + image) — publié avant la checklist
+  const autoText = (settings.autoMessageText || '').trim();
+  const autoImg  = (settings.autoMessageImageUrl || '').trim();
+  if (autoText || autoImg) {
+    const autoEmbed = new EmbedBuilder().setColor(0x5865f2);
+    if (autoText) autoEmbed.setDescription(autoText);
+
+    const msgPayload = { embeds: [autoEmbed] };
+
+    if (autoImg) {
+      // Si c'est un chemin local /uploads/..., on attache le fichier directement
+      if (autoImg.startsWith('/uploads/')) {
+        const filePath = path.join(__dirname, 'web', 'public', autoImg);
+        if (fs.existsSync(filePath)) {
+          const { AttachmentBuilder } = require('discord.js');
+          const fileName = path.basename(filePath);
+          const attachment = new AttachmentBuilder(filePath, { name: fileName });
+          autoEmbed.setImage(`attachment://${fileName}`);
+          msgPayload.files = [attachment];
+        }
+      } else {
+        // URL externe
+        autoEmbed.setImage(autoImg);
+      }
+    }
+
+    await ticketChannel.send(msgPayload).catch((e) => {
+      console.error('[SpawnTicket] Erreur auto-message:', e.message);
+    });
+  }
+
+  // Checklist staff — tout en bas pour un accès facile
   const checklistMsg = await ticketChannel.send({
     embeds: [buildChecklistEmbed(data)],
     components: buildChecklistComponents(data),
   });
   data.checklistMessageId = checklistMsg.id;
 
-  // Message automatique configurable (texte + image)
-  const autoText = (settings.autoMessageText || '').trim();
-  const autoImg  = (settings.autoMessageImageUrl || '').trim();
-  if (autoText || autoImg) {
-    const autoEmbed = new EmbedBuilder().setColor(0x5865f2);
-    if (autoText) autoEmbed.setDescription(autoText);
-    if (autoImg)  autoEmbed.setImage(autoImg);
-    await ticketChannel.send({ embeds: [autoEmbed] }).catch(() => {});
-  }
-
-  // Notification admin (canal dédié)
+  // Notification admin (canal dédié) — avec lien direct du ticket
   if (settings.notifChannelId) {
     const notifCh = guild.channels.cache.get(settings.notifChannelId);
     if (notifCh) {
       const notifText = (settings.notifText || '🐣 Un nouveau joueur vient d\'ouvrir un ticket de spawn !').trim();
       notifCh.send({
         content: `${notifText}\n> 📬 **Ticket :** <#${ticketChannel.id}>`,
-      }).catch(() => {});
+      }).catch((e) => {
+        console.error('[SpawnTicket] Erreur notification admin:', e.message);
+      });
+    } else {
+      console.warn('[SpawnTicket] Salon de notification introuvable (ID:', settings.notifChannelId, ')');
     }
   }
 
@@ -406,8 +434,8 @@ async function handleFinalize(interaction, ticketId) {
   const data = activeSpawnTickets.get(ticketId);
   if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
 
-  const { voc, enreg, starter } = data.checks;
-  if (!voc || !enreg || !starter) {
+  const { voc, enreg, password } = data.checks;
+  if (!voc || !enreg || !password) {
     return interaction.reply({
       content: '⚠️ Toutes les étapes de la checklist doivent être cochées avant de finaliser.',
       ephemeral: true,

@@ -63,6 +63,14 @@
     }
     .tk-form-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
     .tk-form-row .form-group { flex: 1; min-width: 220px; }
+    .file-upload-label {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 9px 16px; border-radius: 8px; cursor: pointer;
+      background: var(--input-bg, #1e1f22); border: 1.5px dashed var(--border-color, #3a3c40);
+      color: var(--text-muted); font-size: 13px; transition: border-color .2s, color .2s;
+    }
+    .file-upload-label:hover { border-color: var(--accent, #5865f2); color: var(--accent, #5865f2); }
+    .file-upload-icon { font-size: 16px; }
     .tk-soon-banner {
       padding: 28px 24px;
       text-align: center;
@@ -234,7 +242,7 @@
           <span class="tk-chevron">▼</span>
         </div>
         <div class="tk-body">
-          <form method="POST" action="/tickets/spawn">
+          <form method="POST" action="/tickets/spawn" enctype="multipart/form-data">
 
             <p class="tk-section-title">🔧 Configuration Discord</p>
             <div class="tk-form-row">
@@ -352,17 +360,22 @@
                 <p class="help-text">Publié dans le ticket dès sa création (laisse vide pour ne rien envoyer)</p>
               </div>
               <div class="form-group">
-                <label for="spawnAutoMessageImageUrl">🖼️ URL de l'image du message automatique</label>
-                <input type="url" id="spawnAutoMessageImageUrl" name="spawnAutoMessageImageUrl" class="form-control"
-                  value="<%= spawnTicket.autoMessageImageUrl || '' %>"
-                  placeholder="https://exemple.com/image.png">
-                <p class="help-text">Image affichée en bas de l'embed automatique (laisse vide pour ne pas en mettre)</p>
+                <label>🖼️ Image du message automatique</label>
                 <% if (spawnTicket.autoMessageImageUrl) { %>
-                <div style="margin-top:8px">
-                  <img src="<%= spawnTicket.autoMessageImageUrl %>" alt="Aperçu"
-                    style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid var(--border)">
+                <div style="margin-bottom:10px">
+                  <img src="<%= spawnTicket.autoMessageImageUrl %>" alt="Image actuelle"
+                    style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid var(--border);display:block">
+                  <p class="help-text" style="margin-top:6px">Image actuellement configurée — uploade une nouvelle image pour la remplacer</p>
                 </div>
                 <% } %>
+                <label for="spawnAutoMessageImage" class="file-upload-label">
+                  <span class="file-upload-icon">📁</span>
+                  <span id="spawnImageFileName"><%= spawnTicket.autoMessageImageUrl ? 'Changer l\'image…' : 'Choisir une image…' %></span>
+                </label>
+                <input type="file" id="spawnAutoMessageImage" name="spawnAutoMessageImage"
+                  accept="image/*" style="display:none"
+                  onchange="document.getElementById('spawnImageFileName').textContent = this.files[0]?.name || 'Choisir une image…'">
+                <p class="help-text">PNG, JPG, GIF… — affichée en bas de l'embed automatique dans le ticket</p>
               </div>
             </div>
 
