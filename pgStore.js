@@ -59,7 +59,11 @@ async function getData(key, fallback) {
   try {
     const res = await pool.query('SELECT value FROM app_data WHERE key = $1', [key]);
     if (res.rows.length > 0) {
-      return res.rows[0].value;
+      const raw = res.rows[0].value;
+      if (typeof raw === 'string') {
+        try { return JSON.parse(raw); } catch { return raw; }
+      }
+      return raw;
     }
     return null;
   } catch (err) {
