@@ -480,7 +480,17 @@ function createWebServer(discordClient) {
           .setCustomId(`welcome_greet:${member.id}:${isNew ? 'new' : 'return'}`)
           .setLabel(btnLabel)
           .setStyle(ButtonStyle.Primary);
-        const greetRow = new ActionRowBuilder().addComponents(greetBtn);
+        const greetComponents = [greetBtn];
+        const spawnSettings = getSettings().spawnTicket || {};
+        if (spawnSettings.ticketCategoryId || spawnSettings.adminRoleIds?.length) {
+          greetComponents.push(
+            new ButtonBuilder()
+              .setCustomId('spwn_open')
+              .setLabel('🐣 Commencer l\'admission')
+              .setStyle(ButtonStyle.Success)
+          );
+        }
+        const greetRow = new ActionRowBuilder().addComponents(...greetComponents);
         await channel.send({ content: arrivalPhrase, components: [greetRow] });
 
         // Ping auto-supprimé après 5s
