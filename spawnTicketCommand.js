@@ -406,7 +406,8 @@ async function handleSendPassword(interaction, ticketId) {
         .setTitle('🔑 Mot de passe in-game — Arki\' Family')
         .setDescription(
           `Voici le mot de passe pour accéder aux maps :\n\n` +
-          `## \`${password}\`\n\n` +
+          `## \`${password}\`\n` +
+          `-# *Tout en MAJUSCULE, sauf le « i » en minuscule*\n\n` +
           `*Ne partage ce mot de passe avec personne.*`
         )
         .setFooter({ text: 'Arki\' Family' })
