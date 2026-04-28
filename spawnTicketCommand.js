@@ -2,7 +2,7 @@
  * spawnTicketCommand.js
  * Système de ticket d'admission "Spawn Joueur"
  * - Panneau publié dans le salon d'arrivée
- * - Formulaire modal (âge, plateforme, gamertag)
+ * - Formulaire modal (âge, plateforme, gamertag, source)
  * - Ticket privé spawn-joueur-username
  * - Checklist staff (voc, enregistrement, starter)
  * - Envoi du mot de passe in-game en MP
@@ -54,6 +54,7 @@ function buildInfoEmbed(data) {
       { name: '🎂 Âge', value: data.age, inline: true },
       { name: `${platformEmoji(data.platform)} Plateforme`, value: data.platform, inline: true },
       { name: '🎮 Gamertag / ID', value: `\`${data.gamertag}\``, inline: false },
+      ...(data.source ? [{ name: '🔍 Découverte', value: data.source, inline: false }] : []),
     )
     .setTimestamp()
     .setFooter({ text: `Ticket ID : ${data.ticketId}` });
@@ -178,6 +179,15 @@ async function handleOpenSpawn(interaction) {
         .setRequired(true)
         .setMaxLength(64),
     ),
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('spwn_source')
+        .setLabel('Comment tu nous as trouvé ?')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Ex : Discord, un ami, réseaux sociaux…')
+        .setRequired(false)
+        .setMaxLength(100),
+    ),
   );
 
   await interaction.showModal(modal);
@@ -191,6 +201,7 @@ async function handleModalSubmit(interaction) {
   const age      = interaction.fields.getTextInputValue('spwn_age').trim();
   const platform = interaction.fields.getTextInputValue('spwn_platform').trim();
   const gamertag = interaction.fields.getTextInputValue('spwn_gamertag').trim();
+  const source   = interaction.fields.getTextInputValue('spwn_source').trim();
   const guild    = interaction.guild;
 
   const discordUsername = interaction.user.username;
@@ -261,6 +272,7 @@ async function handleModalSubmit(interaction) {
     age,
     platform,
     gamertag,
+    source: source || null,
     checks: { voc: false, enreg: false, starter: false },
     status: 'open',
     createdAt: Date.now(),
@@ -268,9 +280,11 @@ async function handleModalSubmit(interaction) {
   };
   activeSpawnTickets.set(ticketId, data);
 
-  // Message de bienvenue joueur
+  // Message de bienvenue joueur + note italique
   await ticketChannel.send({
-    content: `👋 Bienvenue <@${interaction.user.id}> ! Un membre du staff va te prendre en charge rapidement. 🌿`,
+    content:
+      `👋 Bienvenue <@${interaction.user.id}> ! Un membre du staff va te prendre en charge rapidement. 🌿\n` +
+      `-# *Un petit bonjour ou quelques mots d'intro dans le ticket, c'est toujours bien plus agréable pour le staff qui s'occupe de toi* 😊`,
     embeds: [buildInfoEmbed(data)],
   });
 
@@ -281,7 +295,28 @@ async function handleModalSubmit(interaction) {
   });
   data.checklistMessageId = checklistMsg.id;
 
-  // Log d'arrivée
+  // Message automatique configurable (texte + image)
+  const autoText = (settings.autoMessageText || '').trim();
+  const autoImg  = (settings.autoMessageImageUrl || '').trim();
+  if (autoText || autoImg) {
+    const autoEmbed = new EmbedBuilder().setColor(0x5865f2);
+    if (autoText) autoEmbed.setDescription(autoText);
+    if (autoImg)  autoEmbed.setImage(autoImg);
+    await ticketChannel.send({ embeds: [autoEmbed] }).catch(() => {});
+  }
+
+  // Notification admin (canal dédié)
+  if (settings.notifChannelId) {
+    const notifCh = guild.channels.cache.get(settings.notifChannelId);
+    if (notifCh) {
+      const notifText = (settings.notifText || '🐣 Un nouveau joueur vient d\'ouvrir un ticket de spawn !').trim();
+      notifCh.send({
+        content: `${notifText}\n> 📬 **Ticket :** <#${ticketChannel.id}>`,
+      }).catch(() => {});
+    }
+  }
+
+  // Log d'arrivée (salon log détaillé)
   if (settings.logChannelId) {
     const logCh = guild.channels.cache.get(settings.logChannelId);
     if (logCh) {

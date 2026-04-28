@@ -853,7 +853,11 @@ function createWebServer(discordClient) {
   });
 
   app.post('/tickets/spawn', requireAdmin, async (req, res) => {
-    const { spawnTicketCategoryId, spawnWelcomeChannelId, spawnLogChannelId, spawnMemberRoleId, spawnMapPassword, spawnAdminRoleIds } = req.body;
+    const {
+      spawnTicketCategoryId, spawnWelcomeChannelId, spawnLogChannelId,
+      spawnMemberRoleId, spawnMapPassword, spawnAdminRoleIds,
+      spawnNotifChannelId, spawnNotifText, spawnAutoMessageText, spawnAutoMessageImageUrl,
+    } = req.body;
     const rawRoles = spawnAdminRoleIds || [];
     const adminRoleIds = (Array.isArray(rawRoles) ? rawRoles : [rawRoles]).filter(s => /^\d+$/.test(s));
     const { updateSection } = require('./settingsManager');
@@ -863,6 +867,10 @@ function createWebServer(discordClient) {
       memberRoleId: spawnMemberRoleId || '',
       welcomeChannelId: spawnWelcomeChannelId || '',
       logChannelId: spawnLogChannelId || '',
+      notifChannelId: spawnNotifChannelId || '',
+      notifText: spawnNotifText || '',
+      autoMessageText: spawnAutoMessageText || '',
+      autoMessageImageUrl: spawnAutoMessageImageUrl || '',
       mapPassword: spawnMapPassword || '',
     });
     res.redirect('/tickets?success=Param%C3%A8tres+Spawn+Joueur+sauvegard%C3%A9s+!');

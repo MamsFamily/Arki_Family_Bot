@@ -320,6 +320,52 @@
               </div>
             </div>
 
+            <p class="tk-section-title" style="margin-top:8px">🔔 Notification admin à l'ouverture d'un ticket</p>
+            <div class="tk-form-row">
+              <div class="form-group">
+                <label for="spawnNotifChannelId">📣 Salon de notification admin</label>
+                <select id="spawnNotifChannelId" name="spawnNotifChannelId" class="form-control">
+                  <option value="">-- Aucun --</option>
+                  <% channels.forEach(ch => { %>
+                    <option value="<%= ch.id %>" <%= (spawnTicket.notifChannelId === ch.id) ? 'selected' : '' %>>
+                      <% if (ch.category) { %>[<%= ch.category %>] <% } %># <%= ch.name %>
+                    </option>
+                  <% }); %>
+                </select>
+                <p class="help-text">Salon où le bot envoie une alerte dès qu'un joueur ouvre un ticket spawn</p>
+              </div>
+              <div class="form-group">
+                <label for="spawnNotifText">💬 Texte de la notification</label>
+                <input type="text" id="spawnNotifText" name="spawnNotifText" class="form-control"
+                  value="<%= spawnTicket.notifText || '' %>"
+                  placeholder="🐣 Un nouveau joueur vient d'ouvrir un ticket de spawn !">
+                <p class="help-text">Le lien direct vers le ticket est ajouté automatiquement après ce texte</p>
+              </div>
+            </div>
+
+            <p class="tk-section-title" style="margin-top:8px">🖼️ Message automatique à la création du ticket</p>
+            <div class="tk-form-row">
+              <div class="form-group">
+                <label for="spawnAutoMessageText">📝 Texte du message automatique</label>
+                <textarea id="spawnAutoMessageText" name="spawnAutoMessageText" class="form-control" rows="4"
+                  placeholder="Ex : Bienvenue ! Voici quelques informations sur le serveur…"><%= spawnTicket.autoMessageText || '' %></textarea>
+                <p class="help-text">Publié dans le ticket dès sa création (laisse vide pour ne rien envoyer)</p>
+              </div>
+              <div class="form-group">
+                <label for="spawnAutoMessageImageUrl">🖼️ URL de l'image du message automatique</label>
+                <input type="url" id="spawnAutoMessageImageUrl" name="spawnAutoMessageImageUrl" class="form-control"
+                  value="<%= spawnTicket.autoMessageImageUrl || '' %>"
+                  placeholder="https://exemple.com/image.png">
+                <p class="help-text">Image affichée en bas de l'embed automatique (laisse vide pour ne pas en mettre)</p>
+                <% if (spawnTicket.autoMessageImageUrl) { %>
+                <div style="margin-top:8px">
+                  <img src="<%= spawnTicket.autoMessageImageUrl %>" alt="Aperçu"
+                    style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid var(--border)">
+                </div>
+                <% } %>
+              </div>
+            </div>
+
             <p class="tk-section-title" style="margin-top:8px">🔑 Mot de passe in-game</p>
             <div class="tk-form-row">
               <div class="form-group" style="max-width:400px">
