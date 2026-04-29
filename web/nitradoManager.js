@@ -65,9 +65,27 @@ async function getSettings(serviceId) {
 }
 
 async function updateSettings(serviceId, settingsObj) {
-  // settingsObj = { category: { key: value, ... }, ... }
+  // Nitrado attend les settings en application/x-www-form-urlencoded
+  // Format : category[key]=value (aplatissement du payload imbriqué)
+  const params = new URLSearchParams();
+  for (const [cat, catVal] of Object.entries(settingsObj)) {
+    if (typeof catVal === 'object' && catVal !== null) {
+      for (const [key, val] of Object.entries(catVal)) {
+        // Si val est lui-même un objet { value: "..." }, on extrait .value
+        const v = (typeof val === 'object' && val !== null && 'value' in val) ? val.value : val;
+        params.append(`${cat}[${key}]`, v);
+      }
+    }
+  }
+  const token = getToken();
+  if (!token) throw new Error('NITRADO_TOKEN non configuré');
+  console.log(`[Nitrado updateSettings] envoi pour ${serviceId}:`, params.toString());
   try {
-    const res = await client().post(`/services/${serviceId}/gameservers/settings`, settingsObj);
+    const res = await axios.post(
+      `${BASE_URL}/services/${serviceId}/gameservers/settings`,
+      params.toString(),
+      { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 15000 }
+    );
     return res.data;
   } catch (err) {
     const body = err.response?.data;
