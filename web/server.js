@@ -1065,6 +1065,38 @@ function createWebServer(discordClient) {
     return `${proto}://${host}${url.startsWith('/') ? '' : '/'}${url}`;
   }
 
+  // ── Helper : édite les messages existants, ajoute/supprime si le nombre change ──
+  async function editOrRepost(channel, oldIds, newEmbeds) {
+    const safeOld = Array.isArray(oldIds) ? oldIds.filter(Boolean) : [];
+    const min = Math.min(safeOld.length, newEmbeds.length);
+    const newIds = [];
+
+    // Tente d'éditer jusqu'au min(old, new)
+    for (let i = 0; i < min; i++) {
+      try {
+        const msg = await channel.messages.fetch(safeOld[i]);
+        await msg.edit({ embeds: [newEmbeds[i]] });
+        newIds.push(safeOld[i]);
+      } catch {
+        // Un message introuvable/éditable → bascule en delete+send complet
+        newIds.length = 0;
+        for (const oid of safeOld) { try { const m = await channel.messages.fetch(oid); await m.delete(); } catch {} }
+        for (const embed of newEmbeds) { const m = await channel.send({ embeds: [embed] }); newIds.push(m.id); }
+        return { ids: newIds, reposted: true };
+      }
+    }
+    // Envoie les embeds supplémentaires si new > old
+    for (let i = min; i < newEmbeds.length; i++) {
+      const m = await channel.send({ embeds: [newEmbeds[i]] });
+      newIds.push(m.id);
+    }
+    // Supprime les messages en surplus si old > new
+    for (let i = min; i < safeOld.length; i++) {
+      try { const m = await channel.messages.fetch(safeOld[i]); await m.delete(); } catch {}
+    }
+    return { ids: newIds, reposted: false };
+  }
+
   async function publishOrUpdatePack(pack, discordClient, shop, req) {
     const channelId = getPublishChannelId(shop, pack);
     if (!channelId) throw new Error('Aucun salon configuré pour ce type de produit');
@@ -1228,22 +1260,11 @@ function createWebServer(discordClient) {
         return e;
       });
 
-      // Supprime l'ancien message index s'il existe
-      if (shop.shopIndexMessageId) {
-        try {
-          const oldMsg = await channel.messages.fetch(shop.shopIndexMessageId);
-          await oldMsg.delete();
-        } catch (e) {}
-      }
-
-      // Envoie le ou les nouveaux embeds
-      let firstMsgId = null;
-      for (let i = 0; i < embeds.length; i++) {
-        const msg = await channel.send({ embeds: [embeds[i]] });
-        if (i === 0) firstMsgId = msg.id;
-      }
-      await saveShopIndexMessage(firstMsgId);
-      res.redirect('/shop?success=Message+index+publi%C3%A9+!');
+      // Édite les messages existants ou recrée si nécessaire
+      const oldIndexIds = shop.shopIndexMessageIds || (shop.shopIndexMessageId ? [shop.shopIndexMessageId] : []);
+      const { ids: newIndexIds, reposted } = await editOrRepost(channel, oldIndexIds, embeds);
+      await saveShopIndexMessage(newIndexIds[0] || null, newIndexIds);
+      res.redirect('/shop?success=' + encodeURIComponent(reposted ? 'Index republié !' : 'Index mis à jour !'));
     } catch (err) {
       console.error('Erreur publication index:', err);
       res.redirect('/shop?error=' + encodeURIComponent(err.message || 'Erreur de publication'));
@@ -1449,20 +1470,11 @@ function createWebServer(discordClient) {
         return e;
       });
 
-      // Supprime l'ancien message index
-      const { messageId: oldMsgId } = getDinoIndexInfo();
-      if (oldMsgId) {
-        try { const old = await channel.messages.fetch(oldMsgId); await old.delete(); } catch (e) {}
-      }
-
-      // Envoie le ou les nouveaux embeds
-      let firstMsgId = null;
-      for (let i = 0; i < embeds.length; i++) {
-        const msg = await channel.send({ embeds: [embeds[i]] });
-        if (i === 0) firstMsgId = msg.id;
-      }
-      await updateDinoIndexMessage(firstMsgId);
-      res.redirect('/dinos?success=Index+dinos+publi%C3%A9+!');
+      // Édite les messages existants ou recrée si nécessaire
+      const { messageIds: oldIndexIds } = getDinoIndexInfo();
+      const { ids: newIndexIds, reposted } = await editOrRepost(channel, oldIndexIds, embeds);
+      await updateDinoIndexMessage(newIndexIds[0] || null, newIndexIds);
+      res.redirect('/dinos?success=' + encodeURIComponent(reposted ? 'Index republié !' : 'Index mis à jour !'));
     } catch (err) {
       console.error('Erreur publication index dinos:', err);
       res.redirect('/dinos?error=' + encodeURIComponent(err.message || 'Erreur de publication'));
@@ -1715,61 +1727,46 @@ function createWebServer(discordClient) {
       for (const letter of letters) {
         const embeds = buildLetterEmbeds(letter, grouped[letter]);
         const storedIds = letterMsgs[letter]?.messageIds || (letterMsgs[letter]?.messageId ? [letterMsgs[letter].messageId] : []);
-        for (const oldId of storedIds) { try { const m = await channel.messages.fetch(oldId); await m.delete(); } catch {} }
-        const newIds = [];
-        for (const embed of embeds) { const m = await channel.send({ embeds: [embed] }); newIds.push(m.id); }
+        const { ids: newIds } = await editOrRepost(channel, storedIds, embeds);
         await updateLetterMessage(letter, newIds[0], channelId, newIds);
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 400));
       }
       if (moddedDinos.length > 0) {
         const storedIds = letterMsgs['MODDED']?.messageIds || (letterMsgs['MODDED']?.messageId ? [letterMsgs['MODDED'].messageId] : []);
-        for (const oldId of storedIds) { try { const m = await channel.messages.fetch(oldId); await m.delete(); } catch {} }
         const moddedEmbeds = buildModdedEmbeds(moddedDinos);
-        const newIds = [];
-        for (const embed of moddedEmbeds) { const m = await channel.send({ embeds: [embed] }); newIds.push(m.id); }
+        const { ids: newIds } = await editOrRepost(channel, storedIds, moddedEmbeds);
         await updateLetterMessage('MODDED', newIds[0], channelId, newIds);
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 400));
       }
       const shoulderDinosAll = getShoulderDinos();
       if (shoulderDinosAll.length > 0) {
         const storedIds = letterMsgs['SHOULDER']?.messageIds || (letterMsgs['SHOULDER']?.messageId ? [letterMsgs['SHOULDER'].messageId] : []);
-        for (const oldId of storedIds) { try { const m = await channel.messages.fetch(oldId); await m.delete(); } catch {} }
-        const shoulderEmbed = buildShoulderEmbed(shoulderDinosAll);
-        const m = await channel.send({ embeds: [shoulderEmbed] });
-        await updateLetterMessage('SHOULDER', m.id, channelId, [m.id]);
-        await new Promise(r => setTimeout(r, 500));
+        const { ids: newIds } = await editOrRepost(channel, storedIds, [buildShoulderEmbed(shoulderDinosAll)]);
+        await updateLetterMessage('SHOULDER', newIds[0], channelId, newIds);
+        await new Promise(r => setTimeout(r, 400));
       }
       const dlcDinos = getPaidDLCDinos();
       if (dlcDinos.length > 0) {
         const storedIds = letterMsgs['PAIDDLC']?.messageIds || (letterMsgs['PAIDDLC']?.messageId ? [letterMsgs['PAIDDLC'].messageId] : []);
-        for (const oldId of storedIds) { try { const m = await channel.messages.fetch(oldId); await m.delete(); } catch {} }
-        const dlcEmbeds = buildPaidDLCEmbeds(dlcDinos);
-        const newIds = [];
-        for (const embed of dlcEmbeds) { const m = await channel.send({ embeds: [embed] }); newIds.push(m.id); }
+        const { ids: newIds } = await editOrRepost(channel, storedIds, buildPaidDLCEmbeds(dlcDinos));
         await updateLetterMessage('PAIDDLC', newIds[0], channelId, newIds);
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 400));
       }
       // Variant Alpha (A)
       const alphaVariantDinos = getDinosByVariant('A');
       if (alphaVariantDinos.length > 0) {
         const storedIds = letterMsgs['VARIANT_A']?.messageIds || (letterMsgs['VARIANT_A']?.messageId ? [letterMsgs['VARIANT_A'].messageId] : []);
-        for (const oldId of storedIds) { try { const m = await channel.messages.fetch(oldId); await m.delete(); } catch {} }
-        const aEmbeds = buildVariantEmbeds('A', alphaVariantDinos);
-        const newIds = [];
-        for (const embed of aEmbeds) { const m = await channel.send({ embeds: [embed] }); newIds.push(m.id); }
+        const { ids: newIds } = await editOrRepost(channel, storedIds, buildVariantEmbeds('A', alphaVariantDinos));
         await updateLetterMessage('VARIANT_A', newIds[0], channelId, newIds);
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 400));
       }
       // Variant Tek
       const tekVariantDinos = getDinosByVariant('Tek');
       if (tekVariantDinos.length > 0) {
         const storedIds = letterMsgs['VARIANT_TEK']?.messageIds || (letterMsgs['VARIANT_TEK']?.messageId ? [letterMsgs['VARIANT_TEK'].messageId] : []);
-        for (const oldId of storedIds) { try { const m = await channel.messages.fetch(oldId); await m.delete(); } catch {} }
-        const tekEmbeds = buildVariantEmbeds('Tek', tekVariantDinos);
-        const newIds = [];
-        for (const embed of tekEmbeds) { const m = await channel.send({ embeds: [embed] }); newIds.push(m.id); }
+        const { ids: newIds } = await editOrRepost(channel, storedIds, buildVariantEmbeds('Tek', tekVariantDinos));
         await updateLetterMessage('VARIANT_TEK', newIds[0], channelId, newIds);
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 400));
       }
 
       // ── 2. Publier l'index avec les IDs frais ──
@@ -1860,16 +1857,10 @@ function createWebServer(discordClient) {
         return e;
       });
 
-      const { messageId: oldIndexId } = getDinoIndexInfo();
-      if (oldIndexId) { try { const old = await indexChannel.messages.fetch(oldIndexId); await old.delete(); } catch {} }
-
-      let firstIndexId = null;
-      for (let i = 0; i < indexEmbeds.length; i++) {
-        const m = await indexChannel.send({ embeds: [indexEmbeds[i]] });
-        if (i === 0) firstIndexId = m.id;
-      }
-      await updateDinoIndexMessage(firstIndexId);
-      console.log('✅ Publish-all-and-index terminé — index mis à jour avec les IDs frais');
+      const { messageIds: oldIndexIds2 } = getDinoIndexInfo();
+      const { ids: newIndexIds2 } = await editOrRepost(indexChannel, oldIndexIds2, indexEmbeds);
+      await updateDinoIndexMessage(newIndexIds2[0] || null, newIndexIds2);
+      console.log('✅ Publish-all-and-index terminé — embeds édités/mis à jour en place');
     } catch (err) {
       console.error('Erreur publish-all-and-index:', err);
     }

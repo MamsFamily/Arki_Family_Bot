@@ -139,9 +139,10 @@ async function updateShopChannel(channelId) {
   await updateShopChannels({ shopChannelId: channelId });
 }
 
-async function saveShopIndexMessage(messageId) {
+async function saveShopIndexMessage(messageId, allIds) {
   const shop = getShop();
   shop.shopIndexMessageId = messageId;
+  shop.shopIndexMessageIds = allIds || (messageId ? [messageId] : []);
   await saveShop(shop);
 }
 

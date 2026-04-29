@@ -713,15 +713,18 @@ async function updateDinoIndexChannel(channelId) {
   await saveDinos(data);
 }
 
-async function updateDinoIndexMessage(messageId) {
+async function updateDinoIndexMessage(messageId, allIds) {
   const data = getDinoData();
   data.dinoIndexMessageId = messageId;
+  data.dinoIndexMessageIds = allIds || (messageId ? [messageId] : []);
   await saveDinos(data);
 }
 
 function getDinoIndexInfo() {
   const data = getDinoData();
-  return { channelId: data.dinoIndexChannelId || '', messageId: data.dinoIndexMessageId || '' };
+  const messageId = data.dinoIndexMessageId || '';
+  const messageIds = data.dinoIndexMessageIds || (messageId ? [messageId] : []);
+  return { channelId: data.dinoIndexChannelId || '', messageId, messageIds };
 }
 
 function buildSaleEmbed(dino, percent) {
