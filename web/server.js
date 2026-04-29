@@ -3026,6 +3026,18 @@ function createWebServer(discordClient) {
     }
   });
 
+  // Liste les fichiers d'un répertoire Nitrado (diagnostic)
+  app.get('/nitrado/api/ini/list', requireAdmin, async (req, res) => {
+    try {
+      const { serviceId, dir } = req.query;
+      if (!serviceId) return res.json({ ok: false, error: 'serviceId requis' });
+      const entries = await nitrado.listFiles(serviceId, dir || '/');
+      res.json({ ok: true, entries, dir: dir || '/' });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
   // Met à jour une clé dans un .ini sur tous les serveurs sélectionnés (méthode directe)
   app.post('/nitrado/api/ini/update-all', requireAdmin, async (req, res) => {
     try {
@@ -3052,6 +3064,73 @@ function createWebServer(discordClient) {
       res.json({ ok: true, results, file: nitrado.ARK_PATHS[map.file], section: map.section });
     } catch (e) {
       res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // Applique des paramètres ini en stoppant le serveur, éditant les fichiers, et redémarrant
+  // POST { settings: [{key, value}], serviceIds?: [] }
+  app.post('/nitrado/api/ini/apply-with-restart', requireAdmin, async (req, res) => {
+    const { settings, serviceIds } = req.body;
+    if (!settings || !settings.length) return res.json({ ok: false, error: 'settings[] requis' });
+
+    let ids = serviceIds;
+    if (!ids || !ids.length) {
+      const services = await nitrado.getServices();
+      ids = services.map(s => s.id);
+    }
+
+    const log = [];
+    const addLog = (msg) => { log.push(msg); console.log('[INI apply-restart]', msg); };
+
+    try {
+      // 1. Stopper tous les serveurs en parallèle
+      addLog(`Arrêt de ${ids.length} serveur(s)…`);
+      await Promise.all(ids.map(id => nitrado.stopServer(id).catch(e => addLog(`  WARN stop ${id}: ${e.message}`))));
+
+      // 2. Attendre que chaque serveur soit vraiment stoppé (max 45s pour rester sous les timeouts HTTP)
+      addLog('Attente de l\'arrêt complet (max 45s)…');
+      const waitStop = async (id) => {
+        for (let i = 0; i < 15; i++) {
+          await new Promise(r => setTimeout(r, 3000));
+          try {
+            const d = await nitrado.getServerDetails(id);
+            const status = d?.status || d?.gameserver?.status;
+            if (status === 'stopped' || status === 'halted') return true;
+          } catch {}
+        }
+        addLog(`  WARN: ${id} pas confirmé stoppé après 45s — édition quand même`);
+        return false;
+      };
+      await Promise.all(ids.map(id => waitStop(id)));
+      addLog('Serveurs arrêtés.');
+
+      // 3. Éditer les fichiers ini sur chaque serveur
+      const editResults = {};
+      for (const { key, value } of settings) {
+        const normalized = String(value).replace(',', '.');
+        const results = await nitrado.updateIniKeyOnAll(ids, key, normalized);
+        editResults[key] = results;
+        const ok = results.filter(r => r.ok).length;
+        addLog(`  ${key}=${normalized} — ${ok}/${ids.length} OK`);
+      }
+
+      // 4. Redémarrer tous les serveurs en parallèle
+      addLog('Redémarrage des serveurs…');
+      const startResults = await Promise.all(ids.map(async id => {
+        try {
+          await nitrado.startServer(id);
+          return { id, ok: true };
+        } catch (e) {
+          addLog(`  WARN start ${id}: ${e.message}`);
+          return { id, ok: false, error: e.message };
+        }
+      }));
+      addLog('Redémarrage lancé.');
+
+      res.json({ ok: true, log, editResults, startResults });
+    } catch (e) {
+      addLog(`ERREUR: ${e.message}`);
+      res.json({ ok: false, error: e.message, log });
     }
   });
 
