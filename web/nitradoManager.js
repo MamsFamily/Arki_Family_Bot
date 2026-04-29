@@ -65,34 +65,32 @@ async function getSettings(serviceId) {
 }
 
 async function updateSettings(serviceId, settingsObj) {
-  // Nitrado attend les settings en application/x-www-form-urlencoded
-  // Format : category[key]=value (aplatissement du payload imbriqué)
-  const params = new URLSearchParams();
-  for (const [cat, catVal] of Object.entries(settingsObj)) {
-    if (typeof catVal === 'object' && catVal !== null) {
-      for (const [key, val] of Object.entries(catVal)) {
-        // Si val est lui-même un objet { value: "..." }, on extrait .value
-        const v = (typeof val === 'object' && val !== null && 'value' in val) ? val.value : val;
-        params.append(`${cat}[${key}]`, v);
+  // Nitrado attend category + key + value comme paramètres séparés (un appel par clé)
+  const token = getToken();
+  if (!token) throw new Error('NITRADO_TOKEN non configuré');
+  const results = [];
+  for (const [category, catVal] of Object.entries(settingsObj)) {
+    if (typeof catVal !== 'object' || catVal === null) continue;
+    for (const [key, val] of Object.entries(catVal)) {
+      const value = (typeof val === 'object' && val !== null && 'value' in val) ? val.value : val;
+      const params = new URLSearchParams({ category, key, value });
+      console.log(`[Nitrado updateSettings] ${serviceId} — ${params.toString()}`);
+      try {
+        const res = await axios.post(
+          `${BASE_URL}/services/${serviceId}/gameservers/settings`,
+          params.toString(),
+          { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 15000 }
+        );
+        results.push(res.data);
+      } catch (err) {
+        const body = err.response?.data;
+        const msg = (typeof body === 'object' ? JSON.stringify(body) : body) || err.message;
+        console.error(`[Nitrado updateSettings] Erreur ${err.response?.status} pour ${serviceId}/${category}/${key}:`, msg);
+        throw new Error(`Nitrado API ${err.response?.status || ''}: ${msg}`);
       }
     }
   }
-  const token = getToken();
-  if (!token) throw new Error('NITRADO_TOKEN non configuré');
-  console.log(`[Nitrado updateSettings] envoi pour ${serviceId}:`, params.toString());
-  try {
-    const res = await axios.post(
-      `${BASE_URL}/services/${serviceId}/gameservers/settings`,
-      params.toString(),
-      { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 15000 }
-    );
-    return res.data;
-  } catch (err) {
-    const body = err.response?.data;
-    const msg = (typeof body === 'object' ? JSON.stringify(body) : body) || err.message;
-    console.error(`[Nitrado updateSettings] Erreur ${err.response?.status} pour ${serviceId}:`, msg);
-    throw new Error(`Nitrado API ${err.response?.status || ''}: ${msg}`);
-  }
+  return results;
 }
 
 // ── Fichiers config ─────────────────────────────────────────────────────────
