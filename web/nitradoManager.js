@@ -66,8 +66,15 @@ async function getSettings(serviceId) {
 
 async function updateSettings(serviceId, settingsObj) {
   // settingsObj = { category: { key: value, ... }, ... }
-  const res = await client().post(`/services/${serviceId}/gameservers/settings`, settingsObj);
-  return res.data;
+  try {
+    const res = await client().post(`/services/${serviceId}/gameservers/settings`, settingsObj);
+    return res.data;
+  } catch (err) {
+    const body = err.response?.data;
+    const msg = (typeof body === 'object' ? JSON.stringify(body) : body) || err.message;
+    console.error(`[Nitrado updateSettings] Erreur ${err.response?.status} pour ${serviceId}:`, msg);
+    throw new Error(`Nitrado API ${err.response?.status || ''}: ${msg}`);
+  }
 }
 
 // ── Fichiers config ─────────────────────────────────────────────────────────
@@ -142,10 +149,11 @@ async function setMods(serviceId, modList) {
   if (found) {
     const { categoryName, keyName, entry } = found;
     const payload = { [categoryName]: {} };
-    // Respecte le format : { value: "..." } si c'est un objet, sinon chaîne directe
+    // Nitrado attend la valeur encapsulée dans { value: "..." } si l'entrée est un objet
     payload[categoryName][keyName] = (typeof entry === 'object' && entry !== null)
-      ? modList.join(',')
+      ? { value: modList.join(',') }
       : modList.join(',');
+    console.log(`[Nitrado setMods] payload envoyé pour ${serviceId}:`, JSON.stringify(payload));
     return updateSettings(serviceId, payload);
   }
 
