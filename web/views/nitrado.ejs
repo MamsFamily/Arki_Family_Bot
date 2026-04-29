@@ -450,6 +450,9 @@
             <button class="btn btn-danger" onclick="removeModSelected()">➖ Retirer</button>
           </div>
           <div id="mods-results" class="bulk-results"></div>
+          <div style="margin-top:10px;text-align:right">
+            <button class="btn" style="font-size:.75rem;opacity:.6;padding:4px 10px" onclick="debugSettings()">🔍 Debug clés settings</button>
+          </div>
         </div>
       </div>
 
@@ -950,6 +953,18 @@ function bulkMod(url, body, resultId, msg) {
     if (d.ok) { toast('✅ ' + msg + ' sur ' + d.results.filter(r => r.ok).length + '/' + d.results.length + ' maps'); showResults(resultId, d.results); }
     else toast('Erreur : ' + d.error, true);
   }).catch(() => toast('Erreur réseau', true));
+}
+function debugSettings() {
+  const ids = getSelIds();
+  const targetId = ids.length > 0 ? ids[0] : (SRV.length > 0 ? SRV[0].id : null);
+  if (!targetId) { toast('Aucun serveur disponible', true); return; }
+  fetch('/nitrado/api/settings-raw/' + targetId).then(r => r.json()).then(d => {
+    if (!d.ok) { alert('Erreur : ' + d.error); return; }
+    const lines = Object.entries(d.categories).map(([cat, keys]) =>
+      cat + ':\n  ' + (Array.isArray(keys) ? keys.join(', ') : keys)
+    ).join('\n\n');
+    alert('=== Settings Nitrado — serveur ' + targetId + ' ===\n\n' + lines + '\n\n(Cherche une clé comme "mods", "ActiveMods", "mod_ids"...)');
+  }).catch(() => alert('Erreur réseau'));
 }
 
 // ── Config ────────────────────────────────────────────────────────────────
