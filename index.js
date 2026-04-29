@@ -38,7 +38,7 @@ const economyManager = require('./economyManager');
 const xpManager = require('./xpManager');
 const { handleShopCommand, handleShopInteraction } = require('./shopCommand');
 const { handleShopTicketCommand, handleShopTicketInteraction, publishShopTicketPanel, handleRecapCommand } = require('./shopTicketCommand');
-const { handleSpawnTicketCommand, handleSpawnTicketInteraction } = require('./spawnTicketCommand');
+const { handleSpawnTicketCommand, handleSpawnTicketInteraction, initSpawnTickets } = require('./spawnTicketCommand');
 const restartScheduler = require('./nitradoRestartScheduler');
 const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
 const { registerCasinoHandlers } = require('./casino/casinoHandler');
@@ -536,6 +536,7 @@ client.once('clientReady', async () => {
   pgStore.initPool();
   if (pgStore.isPostgres()) {
     await pgStore.initTables();
+    await initSpawnTickets(client);
   }
   await initConfig();
   await initSettings();

@@ -25,9 +25,33 @@ const {
 const path = require('path');
 const fs   = require('fs');
 const { getSettings } = require('./settingsManager');
+const pgStore = require('./pgStore');
 
-// ── Stockage en mémoire ───────────────────────────────────────────────────────
+// ── Stockage en mémoire (écriture immédiate + persistance PostgreSQL) ─────────
 const activeSpawnTickets = new Map(); // ticketId → data
+
+// ── Initialisation au démarrage : chargement depuis PostgreSQL ────────────────
+async function initSpawnTickets(client) {
+  try {
+    const rows = await pgStore.loadAllOpenSpawnTickets();
+    let loaded = 0;
+    for (const data of rows) {
+      // Vérifier que le salon existe encore sur Discord avant de charger
+      if (client) {
+        const channel = client.channels.cache.get(data.channelId);
+        if (!channel) {
+          await pgStore.deleteSpawnTicket(data.ticketId);
+          continue;
+        }
+      }
+      activeSpawnTickets.set(data.ticketId, data);
+      loaded++;
+    }
+    if (loaded > 0) console.log(`✅ [SpawnTicket] ${loaded} ticket(s) rechargé(s) depuis PostgreSQL`);
+  } catch (err) {
+    console.error('[SpawnTicket] Erreur chargement tickets depuis DB:', err.message);
+  }
+}
 
 // ── Vérification staff ────────────────────────────────────────────────────────
 function isStaff(interaction) {
@@ -310,6 +334,7 @@ async function handleModalSubmit(interaction) {
     checklistMessageId: null,
   };
   activeSpawnTickets.set(ticketId, data);
+  await pgStore.saveSpawnTicket(data);
 
   // Message de bienvenue joueur + intro si renseignée
   const welcomeContent = intro
@@ -372,6 +397,7 @@ async function handleModalSubmit(interaction) {
     components: buildChecklistComponents(data),
   });
   data.checklistMessageId = checklistMsg.id;
+  await pgStore.saveSpawnTicket(data);
 
   // Notification admin (canal dédié) — avec lien direct du ticket
   if (settings.notifChannelId) {
@@ -414,6 +440,7 @@ async function handleCheck(interaction, ticketId, step) {
   if (!data) return interaction.reply({ content: '❌ Ce ticket est expiré (le bot a redémarré). Merci de contacter un Admin pour relancer la procédure si nécessaire.', ephemeral: true });
 
   data.checks[step] = !data.checks[step];
+  pgStore.saveSpawnTicket(data).catch(() => {});
 
   try {
     const msg = await interaction.channel.messages.fetch(data.checklistMessageId);
@@ -588,6 +615,7 @@ async function handleFinalize(interaction, ticketId) {
   }
 
   data.status = 'finalized';
+  pgStore.saveSpawnTicket(data).catch(() => {});
 
   // Message final dans le ticket — bouton fermeture (pas suppression directe)
   await interaction.channel.send({
@@ -735,7 +763,10 @@ async function handleReopen(interaction, ticketId) {
     console.error('[SpawnTicket] Impossible de renommer le salon:', e.message);
   }
 
-  if (data) data.status = 'open';
+  if (data) {
+    data.status = 'open';
+    pgStore.saveSpawnTicket(data).catch(() => {});
+  }
 
   await interaction.update({
     embeds: [new EmbedBuilder()
@@ -787,6 +818,7 @@ async function handleDeleteTicket(interaction, ticketId) {
     try {
       await interaction.channel.delete(`Ticket supprimé par ${adminName}`);
       activeSpawnTickets.delete(ticketId);
+      await pgStore.deleteSpawnTicket(ticketId);
     } catch (err) {
       console.error('[SpawnTicket] Erreur suppression salon:', err);
     }
@@ -852,4 +884,5 @@ module.exports = {
   handleSpawnTicketCommand,
   handleSpawnTicketInteraction,
   publishSpawnPanel,
+  initSpawnTickets,
 };

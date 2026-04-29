@@ -47,10 +47,83 @@ async function initTables() {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_mh_user_guild ON member_history (user_id, guild_id)
     `);
-    console.log('✅ Tables app_data + member_history prêtes');
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS spawn_tickets (
+        ticket_id VARCHAR PRIMARY KEY,
+        channel_id VARCHAR NOT NULL,
+        user_id VARCHAR NOT NULL,
+        username VARCHAR,
+        discord_username VARCHAR,
+        age VARCHAR,
+        platform VARCHAR,
+        gamertag VARCHAR,
+        source VARCHAR,
+        checks JSONB DEFAULT '{}',
+        status VARCHAR DEFAULT 'open',
+        created_at BIGINT,
+        checklist_message_id VARCHAR
+      )
+    `);
+    console.log('✅ Tables app_data + member_history + spawn_tickets prêtes');
   } catch (err) {
     console.error('❌ Erreur création tables:', err.message);
     usePostgres = false;
+  }
+}
+
+async function saveSpawnTicket(data) {
+  if (!usePostgres) return;
+  try {
+    await pool.query(`
+      INSERT INTO spawn_tickets
+        (ticket_id, channel_id, user_id, username, discord_username, age, platform, gamertag, source, checks, status, created_at, checklist_message_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      ON CONFLICT (ticket_id) DO UPDATE SET
+        channel_id = EXCLUDED.channel_id,
+        checks = EXCLUDED.checks,
+        status = EXCLUDED.status,
+        checklist_message_id = EXCLUDED.checklist_message_id
+    `, [
+      data.ticketId, data.channelId, data.userId, data.username, data.discordUsername,
+      data.age, data.platform, data.gamertag, data.source || null,
+      JSON.stringify(data.checks), data.status, data.createdAt, data.checklistMessageId || null,
+    ]);
+  } catch (err) {
+    console.error('❌ Erreur sauvegarde spawn ticket:', err.message);
+  }
+}
+
+async function loadAllOpenSpawnTickets() {
+  if (!usePostgres) return [];
+  try {
+    const result = await pool.query(`SELECT * FROM spawn_tickets WHERE status != 'deleted'`);
+    return result.rows.map(row => ({
+      ticketId: row.ticket_id,
+      channelId: row.channel_id,
+      userId: row.user_id,
+      username: row.username,
+      discordUsername: row.discord_username,
+      age: row.age,
+      platform: row.platform,
+      gamertag: row.gamertag,
+      source: row.source,
+      checks: typeof row.checks === 'string' ? JSON.parse(row.checks) : (row.checks || {}),
+      status: row.status,
+      createdAt: Number(row.created_at),
+      checklistMessageId: row.checklist_message_id,
+    }));
+  } catch (err) {
+    console.error('❌ Erreur chargement spawn tickets:', err.message);
+    return [];
+  }
+}
+
+async function deleteSpawnTicket(ticketId) {
+  if (!usePostgres) return;
+  try {
+    await pool.query(`DELETE FROM spawn_tickets WHERE ticket_id = $1`, [ticketId]);
+  } catch (err) {
+    console.error('❌ Erreur suppression spawn ticket:', err.message);
   }
 }
 
@@ -95,4 +168,4 @@ function getPool() {
   return pool;
 }
 
-module.exports = { initPool, initTables, getData, setData, isPostgres, getPool };
+module.exports = { initPool, initTables, getData, setData, isPostgres, getPool, saveSpawnTicket, loadAllOpenSpawnTickets, deleteSpawnTicket };
