@@ -727,7 +727,7 @@ function getDinoIndexInfo() {
   return { channelId: data.dinoIndexChannelId || '', messageId, messageIds };
 }
 
-function buildSaleEmbed(dino, percent) {
+function buildSaleEmbed(dino, percent, durationHours, expiresAt) {
   const diamonds = dino.priceDiamonds || 0;
   const strawberries = dino.priceStrawberries || 0;
   const newDiamonds = Math.round(diamonds * (1 - percent / 100));
@@ -743,7 +743,15 @@ function buildSaleEmbed(dino, percent) {
   lines.push(`> ~~${formatNumber(diamonds)}~~<a:SparklyCrystal:1366174439003263087> + ~~${formatNumber(strawberries)}~~<:fraises:1328148609585123379>`);
   lines.push(`> <a:animearrow:1157234686200922152> **${formatNumber(newDiamonds)}**<a:SparklyCrystal:1366174439003263087> + **${formatNumber(newStrawberries)}**<:fraises:1328148609585123379>`);
   lines.push('');
-  lines.push(`> *Offre limitée, profitez-en !*`);
+
+  if (durationHours && expiresAt) {
+    const totalLabel = durationHours === 1 ? '1 heure' : `${durationHours} heures`;
+    const unixSec = Math.floor(expiresAt / 1000);
+    lines.push(`> ⏱️ Durée totale : **${totalLabel}**`);
+    lines.push(`> ⌛ Se termine : <t:${unixSec}:R> *(le <t:${unixSec}:f>)*`);
+  } else {
+    lines.push(`> *Offre limitée, profitez-en !*`);
+  }
 
   return {
     description: lines.join('\n'),

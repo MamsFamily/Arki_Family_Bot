@@ -1987,7 +1987,8 @@ function createWebServer(discordClient) {
       const channel = await discordClient.channels.fetch(channelId);
       if (!channel) return res.redirect('/dinos?error=Salon+introuvable');
 
-      const embed = buildSaleEmbed(dino, percent);
+      const expiresAt = Date.now() + durationHours * 3600 * 1000;
+      const embed = buildSaleEmbed(dino, percent, durationHours, expiresAt);
       await channel.send({ embeds: [embed] });
 
       await setFlashSale(saleDinoId, percent, durationHours);
