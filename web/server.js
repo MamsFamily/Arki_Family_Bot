@@ -1,5 +1,6 @@
 const express = require('express');
 const session = require('express-session');
+const PgSession = require('connect-pg-simple')(session);
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
@@ -57,14 +58,19 @@ function createWebServer(discordClient) {
     };
   }
 
+  const pgPool = pgStore.getPool();
+  const isProduction = !!(process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL);
+  if (isProduction) app.set('trust proxy', 1);
   app.use(session({
+    store: pgPool ? new PgSession({ pool: pgPool, tableName: 'session', createTableIfMissing: false }) : undefined,
     secret: process.env.SESSION_SECRET || require('crypto').randomBytes(32).toString('hex'),
     resave: false,
     saveUninitialized: false,
     cookie: {
-      maxAge: 24 * 60 * 60 * 1000,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
       httpOnly: true,
       sameSite: 'lax',
+      secure: isProduction,
     }
   }));
 
@@ -73,10 +79,15 @@ function createWebServer(discordClient) {
     next();
   });
 
+  function isApiRequest(req) {
+    return req.path.startsWith('/api/') || req.path.startsWith('/nitrado/api/') || req.headers['content-type'] === 'application/json' || req.xhr;
+  }
+
   function requireAuth(req, res, next) {
     if (req.session && req.session.authenticated && req.session.discordUser) {
       return next();
     }
+    if (isApiRequest(req)) return res.status(401).json({ ok: false, error: 'Session expirée — recharge la page et reconnecte-toi.' });
     res.redirect('/login');
   }
 
@@ -84,15 +95,14 @@ function createWebServer(discordClient) {
     if (req.session && req.session.authenticated && req.session.discordUser && req.session.role === 'admin') {
       return next();
     }
+    if (isApiRequest(req)) {
+      if (req.session && req.session.authenticated && req.session.discordUser) {
+        return res.status(403).json({ ok: false, error: 'Accès réservé aux administrateurs.' });
+      }
+      return res.status(401).json({ ok: false, error: 'Session expirée — recharge la page et reconnecte-toi.' });
+    }
     if (req.session && req.session.authenticated && req.session.discordUser) {
       return res.redirect('/');
-    }
-    res.redirect('/login');
-  }
-
-  function requireAuth(req, res, next) {
-    if (req.session && req.session.authenticated && req.session.discordUser) {
-      return next();
     }
     res.redirect('/login');
   }

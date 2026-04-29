@@ -64,7 +64,18 @@ async function initTables() {
         checklist_message_id VARCHAR
       )
     `);
-    console.log('✅ Tables app_data + member_history + spawn_tickets prêtes');
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS session (
+        sid VARCHAR NOT NULL COLLATE "default",
+        sess JSON NOT NULL,
+        expire TIMESTAMP(6) NOT NULL,
+        CONSTRAINT session_pkey PRIMARY KEY (sid) NOT DEFERRABLE INITIALLY IMMEDIATE
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_session_expire ON session (expire)
+    `);
+    console.log('✅ Tables app_data + member_history + spawn_tickets + session prêtes');
   } catch (err) {
     console.error('❌ Erreur création tables:', err.message);
     usePostgres = false;
