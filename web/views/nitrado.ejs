@@ -572,21 +572,41 @@
             ✏️ <strong>Écriture directe dans le fichier .ini</strong> — Les valeurs sont écrites directement dans <code>Game.ini</code> ou <code>GameUserSettings.ini</code> via l'API fichiers Nitrado (méthode fiable). <strong>Redémarre la map</strong> après pour que les changements soient pris en compte par ARK.
           </div>
 
-          <!-- Diagnostic -->
+          <!-- Diagnostic INI direct -->
           <div style="margin-top:18px;padding:14px;background:var(--bg-secondary);border-radius:12px;border:1px solid var(--border)">
-            <div style="font-weight:700;font-size:.85rem;margin-bottom:10px">🔬 Diagnostic — vérifier si le changement est réellement appliqué</div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+            <div style="font-weight:700;font-size:.85rem;margin-bottom:4px">🔬 Diagnostic fichier .ini</div>
+            <div style="font-size:.78rem;color:var(--text-secondary);margin-bottom:12px">Lit le fichier .ini directement sur le serveur Nitrado pour vérifier si les changements sont bien écrits.</div>
+
+            <!-- Sélecteur fichier + chemin custom -->
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:flex-end">
+              <div>
+                <label style="font-size:.75rem;color:var(--text-muted);display:block;margin-bottom:4px">Fichier</label>
+                <select id="ini-file-sel" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:.82rem">
+                  <option value="gameIni">Game.ini</option>
+                  <option value="gameUserSettings">GameUserSettings.ini</option>
+                </select>
+              </div>
+              <div style="flex:1;min-width:200px">
+                <label style="font-size:.75rem;color:var(--text-muted);display:block;margin-bottom:4px">Chemin personnalisé (optionnel)</label>
+                <input type="text" id="ini-custom-path" placeholder="ex : /ShooterGame/Saved/Config/WindowsServer/Game.ini" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:.82rem">
+              </div>
+              <button onclick="readIniFile()" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:.82rem;white-space:nowrap">📄 Lire</button>
+            </div>
+
+            <!-- Test écriture d'une clé -->
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:flex-end">
               <div style="flex:1;min-width:160px">
-                <label style="font-size:.75rem;color:var(--text-muted);display:block;margin-bottom:4px">Clé à tester</label>
+                <label style="font-size:.75rem;color:var(--text-muted);display:block;margin-bottom:4px">Clé à tester (écriture)</label>
                 <input type="text" id="diag-key" placeholder="ex : MatingIntervalMultiplier" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:.82rem">
               </div>
               <div style="width:120px">
-                <label style="font-size:.75rem;color:var(--text-muted);display:block;margin-bottom:4px">Valeur</label>
+                <label style="font-size:.75rem;color:var(--text-muted);display:block;margin-bottom:4px">Valeur test</label>
                 <input type="text" id="diag-value" placeholder="ex : 0.25" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:.82rem">
               </div>
-              <button onclick="runDiagnose()" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:.82rem;white-space:nowrap">🔬 Tester</button>
+              <button onclick="runDiagnose()" style="padding:8px 16px;background:#7c3aed;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:.82rem;white-space:nowrap">🔬 Tester écriture</button>
             </div>
-            <div id="diag-result" style="margin-top:10px;font-size:.8rem;font-family:monospace;display:none;padding:10px;border-radius:8px;background:var(--bg-card);border:1px solid var(--border);white-space:pre-wrap;line-height:1.7"></div>
+
+            <div id="diag-result" style="margin-top:10px;font-size:.78rem;font-family:monospace;display:none;padding:10px;border-radius:8px;background:var(--bg-card);border:1px solid var(--border);white-space:pre-wrap;line-height:1.7;max-height:400px;overflow-y:auto"></div>
           </div>
 
         </div>
@@ -1045,47 +1065,140 @@ function applyConfig(cat, key, inputId) {
   }).catch(e => { toast('Erreur réseau', true); console.error('[Nitrado applyConfig] réseau:', e); });
 }
 
-// ── Diagnostic ───────────────────────────────────────────────────────────
-function runDiagnose() {
-  const key = document.getElementById('diag-key').value.trim();
-  const value = document.getElementById('diag-value').value.trim();
-  if (!key || !value) { toast('Entre une clé et une valeur', true); return; }
+// ── Diagnostic INI ────────────────────────────────────────────────────────
+
+// Lit un fichier .ini sur le premier serveur sélectionné et affiche son contenu
+async function readIniFile() {
   const ids = getSelIds();
   const serviceId = ids.length > 0 ? ids[0] : (SRV.length > 0 ? SRV[0].id : null);
   if (!serviceId) { toast('Aucun serveur sélectionné', true); return; }
+
+  const fileKey = document.getElementById('ini-file-sel').value;
+  const customPath = document.getElementById('ini-custom-path').value.trim();
   const box = document.getElementById('diag-result');
   box.style.display = 'block';
-  box.textContent = '⏳ Test en cours (lecture → écriture → relecture)…';
-  // Normalise la valeur (virgule → point) pour l'affichage et l'envoi
-  const normalizedVal = value.replace(',', '.');
-  post('/nitrado/api/settings/diagnose', { serviceId, key, value: normalizedVal }).then(d => {
+  box.style.color = 'var(--text-primary)';
+  box.textContent = `⏳ Lecture du fichier en cours (serveur ${serviceId})…`;
+
+  const params = new URLSearchParams({ serviceId, file: customPath || fileKey });
+  try {
+    const res = await fetch('/nitrado/api/ini/read?' + params);
+    const d = await res.json();
     if (!d.ok) {
-      if (d.availableKeys) {
-        box.textContent = `❌ Clé "${key}" introuvable dans les settings Nitrado.\n\nClés disponibles :\n` + d.availableKeys.join('\n');
-      } else {
-        box.textContent = '❌ Erreur : ' + d.error;
-      }
+      box.style.color = '#f87171';
+      box.textContent = `❌ ERREUR LECTURE\n\nServeur  : ${serviceId}\nFichier  : ${d.filePath || fileKey}\nErreur   : ${d.error}\n\n💡 Le fichier n'existe peut-être pas à ce chemin, ou l'API fichiers Nitrado n'est pas disponible.\n→ Essaie un chemin personnalisé différent.`;
+    } else {
+      const lineCount = (d.content || '').split('\n').length;
+      box.style.color = 'var(--text-primary)';
+      box.textContent = `✅ FICHIER LU (${lineCount} lignes)\nChemin   : ${d.filePath}\nServeur  : ${serviceId}\n\n${'─'.repeat(50)}\n${d.content || '(vide)'}`;
+    }
+  } catch (e) {
+    box.style.color = '#f87171';
+    box.textContent = '❌ Erreur réseau : ' + e.message;
+  }
+}
+
+// Teste l'écriture d'une clé dans le fichier .ini et relit pour confirmer
+async function runDiagnose() {
+  const key = document.getElementById('diag-key').value.trim();
+  const value = document.getElementById('diag-value').value.trim();
+  if (!key || !value) { toast('Entre une clé et une valeur', true); return; }
+
+  const ids = getSelIds();
+  const serviceId = ids.length > 0 ? ids[0] : (SRV.length > 0 ? SRV[0].id : null);
+  if (!serviceId) { toast('Aucun serveur sélectionné', true); return; }
+
+  const box = document.getElementById('diag-result');
+  box.style.display = 'block';
+  box.style.color = 'var(--text-primary)';
+  box.textContent = `⏳ Test écriture INI en cours…\n  Serveur : ${serviceId}\n  Clé     : ${key}\n  Valeur  : ${value.replace(',', '.')}`;
+
+  const normalizedVal = value.replace(',', '.');
+
+  try {
+    // 1. Écriture directe dans le .ini
+    const writeRes = await fetch('/nitrado/api/ini/update-all', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, value: normalizedVal, serviceIds: [serviceId] }),
+    });
+    const writeData = await writeRes.json();
+
+    if (!writeData.ok) {
+      box.style.color = '#f87171';
+      box.textContent = `❌ ÉCRITURE ÉCHOUÉE\n\nErreur : ${writeData.error}`;
       return;
     }
-    let status;
-    if (d.changed) {
-      status = '✅ CHANGEMENT CONFIRMÉ — la valeur a bien été modifiée dans Nitrado';
-    } else if (d.valueAfter === d.valueRequested && d.valueAfter === String(d.valueBefore).replace(',', '.')) {
-      status = '⚠️ Valeur déjà identique — aucun changement nécessaire';
-    } else {
-      status = '❌ AUCUN CHANGEMENT — Nitrado a accepté mais n\'a pas appliqué la valeur\n   → Problème probable : format de valeur invalide ou clé en lecture seule';
+    const writeResult = writeData.results?.[0];
+    if (writeResult && !writeResult.ok) {
+      box.style.color = '#f87171';
+      box.textContent = `❌ ÉCRITURE ÉCHOUÉE sur le serveur ${serviceId}\n\nErreur : ${writeResult.error}\n\nFichier visé : ${writeData.file || 'inconnu'}\nSection      : ${writeData.section || 'inconnue'}`;
+      return;
     }
-    const normalizedNote = d.valueRequested !== value ? `   (normalisé : "${value}" → "${d.valueRequested}")` : '';
-    box.textContent = [
-      status,
-      '',
-      `Catégorie : ${d.category}`,
-      `Clé       : ${d.key}`,
-      `Avant     : ${d.valueBefore}`,
-      `Demandé   : ${d.valueRequested}${normalizedNote}`,
-      `Après     : ${d.valueAfter}`,
-    ].join('\n');
-  }).catch(() => { box.textContent = '❌ Erreur réseau'; });
+
+    // 2. Relire le fichier pour confirmer
+    box.textContent += '\n✅ Écriture OK — Relecture du fichier…';
+    const fileKey = writeData.file?.includes('GameUserSettings') ? 'gameUserSettings' : 'gameIni';
+    const readParams = new URLSearchParams({ serviceId, file: fileKey });
+    const readRes = await fetch('/nitrado/api/ini/read?' + readParams);
+    const readData = await readRes.json();
+
+    if (!readData.ok) {
+      box.style.color = '#fbbf24';
+      box.textContent = [
+        `⚠️ Écriture envoyée mais impossible de relire le fichier`,
+        ``,
+        `Écriture  : OK (${writeData.file?.split('/').pop()})`,
+        `Section   : ${writeData.section}`,
+        `Clé       : ${key}=${normalizedVal}`,
+        ``,
+        `Erreur relecture : ${readData.error}`,
+      ].join('\n');
+      return;
+    }
+
+    // Cherche la clé dans le contenu relu
+    const lines = readData.content?.split('\n') || [];
+    const found = lines.find(l => l.trim().startsWith(key + '=') || l.trim().startsWith(key + ' ='));
+    const inFile = found ? found.trim() : null;
+
+    if (inFile && inFile.includes(normalizedVal)) {
+      box.style.color = '#4ade80';
+      box.textContent = [
+        `✅ CONFIRMÉ — La valeur est bien écrite dans le fichier !`,
+        ``,
+        `Fichier  : ${writeData.file?.split('/').pop()}`,
+        `Section  : ${writeData.section}`,
+        `Ligne    : ${inFile}`,
+        ``,
+        `→ Redémarre la map pour appliquer en jeu.`,
+      ].join('\n');
+    } else if (inFile) {
+      box.style.color = '#fbbf24';
+      box.textContent = [
+        `⚠️ Fichier modifié mais valeur différente`,
+        ``,
+        `Fichier  : ${writeData.file?.split('/').pop()}`,
+        `Ligne    : ${inFile}`,
+        `Attendu  : ${key}=${normalizedVal}`,
+      ].join('\n');
+    } else {
+      box.style.color = '#fbbf24';
+      box.textContent = [
+        `⚠️ Écriture OK mais clé non trouvée dans le fichier relu`,
+        ``,
+        `Fichier  : ${writeData.file?.split('/').pop()}`,
+        `Cherché  : ${key}`,
+        ``,
+        `Contenu du fichier :`,
+        `${'─'.repeat(40)}`,
+        readData.content || '(vide)',
+      ].join('\n');
+    }
+  } catch (e) {
+    box.style.color = '#f87171';
+    box.textContent = '❌ Erreur réseau : ' + e.message;
+  }
 }
 
 // ── Résultats ─────────────────────────────────────────────────────────────
