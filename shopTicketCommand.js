@@ -2426,16 +2426,21 @@ async function handleCloseConfirm(interaction, orderId) {
 
       // Paiement
       if (isPaid && order.paymentDesc) {
+        const pc = order.paymentChoice;
+        const isInventory = pc && pc.id !== 'direct';
+        const fieldName = isInventory
+          ? '📦 Retraits effectués (inventaire + monnaie)'
+          : '💳 Débit monnaie effectué';
         rapportEmbed.addFields({
-          name: '💰 Débit effectué',
+          name: fieldName,
           value: order.paymentDesc.trim().slice(0, 1024),
         });
         const hasWarning = (order.pendingDiamonds > 0) || (order.pendingStrawberries > 0);
         if (hasWarning) {
           const warns = [];
-          if (order.pendingDiamonds > 0) warns.push(`💎 ${order.pendingDiamonds.toLocaleString('fr-FR')} diamants à récupérer`);
-          if (order.pendingStrawberries > 0) warns.push(`🍓 ${order.pendingStrawberries.toLocaleString('fr-FR')} fraises à récupérer in game`);
-          rapportEmbed.addFields({ name: '⚠️ Solde insuffisant — Reste à récupérer', value: warns.join('\n') });
+          if (order.pendingDiamonds > 0) warns.push(`💎 ${order.pendingDiamonds.toLocaleString('fr-FR')} diamants — à gérer manuellement`);
+          if (order.pendingStrawberries > 0) warns.push(`🍓 ${order.pendingStrawberries.toLocaleString('fr-FR')} fraises — à récupérer in game`);
+          rapportEmbed.addFields({ name: '⚠️ Solde insuffisant — Reste dû', value: warns.join('\n') });
         }
       }
 
