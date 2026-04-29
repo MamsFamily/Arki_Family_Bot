@@ -568,8 +568,8 @@
 
           </div>
           <div id="cfg-results" class="bulk-results"></div>
-          <div style="margin-top:12px;padding:10px 14px;background:rgba(255,193,7,.1);border:1px solid rgba(255,193,7,.3);border-radius:10px;font-size:.8rem;color:#ffc107">
-            ⚠️ <strong>Redémarrage requis</strong> — Les paramètres sont bien envoyés à Nitrado, mais le serveur ARK doit être redémarré pour les appliquer en jeu. Utilise le bouton <strong>Restart</strong> sur la carte du serveur ci-dessus.
+          <div style="margin-top:12px;padding:10px 14px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:10px;font-size:.8rem;color:#4ade80">
+            ✏️ <strong>Écriture directe dans le fichier .ini</strong> — Les valeurs sont écrites directement dans <code>Game.ini</code> ou <code>GameUserSettings.ini</code> via l'API fichiers Nitrado (méthode fiable). <strong>Redémarre la map</strong> après pour que les changements soient pris en compte par ARK.
           </div>
 
           <!-- Diagnostic -->
@@ -1028,13 +1028,13 @@ function applyConfig(cat, key, inputId) {
   // Normalise la virgule décimale en point (ex: "0,0002" → "0.0002")
   const value = raw.replace(',', '.');
   const ids = getSelIds();
-  if (!confirm(key + ' = ' + value + '\nsur ' + (ids.length === 0 ? 'TOUTES les maps' : ids.length + ' map(s)') + ' ?')) return;
-  // cat est un hint — la catégorie réelle est détectée automatiquement côté serveur
-  post('/nitrado/api/settings/update-all', { category: cat, key, value, serviceIds: ids }).then(d => {
+  if (!confirm(key + ' = ' + value + '\nsur ' + (ids.length === 0 ? 'TOUTES les maps' : ids.length + ' map(s)') + ' ?\n\n⚠️ Le fichier .ini sera modifié directement — redémarre la map après.')) return;
+  // Écriture directe dans le fichier .ini — méthode fiable vs l'API Settings
+  post('/nitrado/api/ini/update-all', { key, value, serviceIds: ids }).then(d => {
     if (d.ok) {
       const ok = d.results.filter(r => r.ok).length;
       const fail = d.results.length - ok;
-      const cats = d.detectedCategories && d.detectedCategories.length ? ' [cat: ' + d.detectedCategories.join(', ') + ']' : '';
+      const cats = d.file ? ` [→ ${d.file.split('/').pop()}]` : '';
       const errMsg = fail > 0 ? ' — ' + fail + ' erreur(s)' : '';
       toast('✅ ' + key + ' = ' + value + ' — ' + ok + '/' + d.results.length + ' maps' + cats + errMsg, fail > 0);
       showResults('cfg-results', d.results);

@@ -107,38 +107,174 @@ async function updateSettings(serviceId, settingsObj) {
 
 // ── Fichiers config ─────────────────────────────────────────────────────────
 
-async function readFile(serviceId, filePath) {
-  const res = await client().get(`/services/${serviceId}/gameservers/file`, {
-    params: { file: filePath },
+// Chemins ARK SA dans le file server Nitrado (relatifs à la racine du serveur de jeu)
+const ARK_PATHS = {
+  gameIni: '/ShooterGame/Saved/Config/WindowsServer/Game.ini',
+  gameUserSettings: '/ShooterGame/Saved/Config/WindowsServer/GameUserSettings.ini',
+};
+
+// Mapping paramètre → { file, section }
+const INI_KEY_MAP = {
+  MatingIntervalMultiplier:           { file: 'gameIni',        section: '/Script/ShooterGame.ShooterGameMode' },
+  BabyMatureSpeedMultiplier:          { file: 'gameIni',        section: '/Script/ShooterGame.ShooterGameMode' },
+  BabyFoodConsumptionSpeedMultiplier: { file: 'gameIni',        section: '/Script/ShooterGame.ShooterGameMode' },
+  EggHatchSpeedMultiplier:            { file: 'gameIni',        section: '/Script/ShooterGame.ShooterGameMode' },
+  TamingSpeedMultiplier:              { file: 'gameUserSettings', section: 'ServerSettings' },
+  HarvestAmountMultiplier:            { file: 'gameUserSettings', section: 'ServerSettings' },
+  XPMultiplier:                       { file: 'gameUserSettings', section: 'ServerSettings' },
+  PlayerDamageMultiplier:             { file: 'gameUserSettings', section: 'ServerSettings' },
+  DinoDamageMultiplier:               { file: 'gameUserSettings', section: 'ServerSettings' },
+  DinoResistanceMultiplier:           { file: 'gameUserSettings', section: 'ServerSettings' },
+  PlayerResistanceMultiplier:         { file: 'gameUserSettings', section: 'ServerSettings' },
+  ResourcesRespawnPeriodMultiplier:   { file: 'gameUserSettings', section: 'ServerSettings' },
+  NightTimeSpeedScale:                { file: 'gameUserSettings', section: 'ServerSettings' },
+  DayTimeSpeedScale:                  { file: 'gameUserSettings', section: 'ServerSettings' },
+};
+
+async function listFiles(serviceId, dir) {
+  const res = await client().get(`/services/${serviceId}/gameservers/file_server/list`, {
+    params: { dir },
   });
-  return res.data?.data?.token ? await downloadFile(res.data.data.token) : (res.data?.data?.content || '');
+  return res.data?.data?.entries || [];
 }
 
-async function downloadFile(token) {
-  // Nitrado retourne un token de téléchargement pour les gros fichiers
-  const res = await axios.get(`${BASE_URL}/services/file_server/download`, {
-    params: { token },
-    responseType: 'text',
+async function readFile(serviceId, filePath) {
+  // 1. Demande un token de téléchargement
+  const res = await client().get(`/services/${serviceId}/gameservers/file_server/download`, {
+    params: { file: filePath },
   });
-  return res.data;
+  const url = res.data?.data?.url;
+  const token = res.data?.data?.token;
+  if (!url && !token) throw new Error(`Impossible d'obtenir un lien de téléchargement pour ${filePath}`);
+
+  // 2. Télécharge le contenu réel
+  const dlUrl = url || `${BASE_URL}/download?token=${token}`;
+  const dl = await axios.get(dlUrl, { responseType: 'text', timeout: 20000 });
+  return typeof dl.data === 'string' ? dl.data : JSON.stringify(dl.data);
 }
 
 async function writeFile(serviceId, filePath, content) {
-  // Upload via multipart form
   const FormData = require('form-data');
+  const path = require('path');
   const form = new FormData();
-  form.append('path', require('path').dirname(filePath));
-  form.append('file', Buffer.from(content, 'utf8'), { filename: require('path').basename(filePath) });
+  form.append('path', path.dirname(filePath));
+  form.append('file', Buffer.from(content, 'utf8'), { filename: path.basename(filePath) });
 
-  const token = getToken();
-  const res = await axios.post(`${BASE_URL}/services/${serviceId}/gameservers/file`, form, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...form.getHeaders(),
-    },
-    timeout: 20000,
-  });
+  const tok = getToken();
+  const res = await axios.post(
+    `${BASE_URL}/services/${serviceId}/gameservers/file_server/upload`,
+    form,
+    { headers: { Authorization: `Bearer ${tok}`, ...form.getHeaders() }, timeout: 30000 }
+  );
   return res.data;
+}
+
+// ── Éditeur INI ─────────────────────────────────────────────────────────────
+
+/**
+ * Parse un fichier INI ARK en tableau de lignes annotées.
+ * Retourne { sections: Map<string, string[]>, raw: string[] }
+ */
+function parseIni(content) {
+  const lines = content.split('\n');
+  const sections = new Map(); // sectionName → index de début dans lines
+  let currentSection = null;
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    const m = trimmed.match(/^\[(.+?)\]$/);
+    if (m) {
+      currentSection = m[1];
+      if (!sections.has(currentSection)) sections.set(currentSection, i);
+    }
+  }
+  return { sections, lines };
+}
+
+/**
+ * Met à jour ou ajoute une clé dans une section d'un fichier INI.
+ * Retourne le contenu INI modifié.
+ */
+function setIniKey(content, section, key, value) {
+  const { sections, lines } = parseIni(content);
+  const normalizedVal = normalizeValue(String(value));
+
+  if (sections.has(section)) {
+    const sectionStart = sections.get(section);
+    // Cherche la clé dans cette section
+    let found = false;
+    for (let i = sectionStart + 1; i < lines.length; i++) {
+      const trimmed = lines[i].trim();
+      // Fin de section
+      if (trimmed.startsWith('[') && trimmed.endsWith(']')) break;
+      // Clé trouvée
+      if (trimmed.startsWith(key + '=') || trimmed.startsWith(key + ' =')) {
+        lines[i] = `${key}=${normalizedVal}`;
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      // Ajouter la clé à la fin de la section (avant la prochaine section ou EOF)
+      let insertAt = sectionStart + 1;
+      for (let i = sectionStart + 1; i < lines.length; i++) {
+        const trimmed = lines[i].trim();
+        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+          insertAt = i;
+          break;
+        }
+        insertAt = i + 1;
+      }
+      lines.splice(insertAt, 0, `${key}=${normalizedVal}`);
+    }
+  } else {
+    // Crée la section à la fin du fichier
+    if (lines[lines.length - 1] !== '') lines.push('');
+    lines.push(`[${section}]`);
+    lines.push(`${key}=${normalizedVal}`);
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Lit un fichier INI, modifie une clé, réécrit le fichier.
+ */
+async function updateIniKey(serviceId, filePath, section, key, value) {
+  let content = '';
+  try {
+    content = await readFile(serviceId, filePath);
+  } catch (e) {
+    console.warn(`[Nitrado INI] Fichier introuvable (${filePath}), création: ${e.message}`);
+    content = '';
+  }
+  const updated = setIniKey(content, section, key, value);
+  await writeFile(serviceId, filePath, updated);
+  return { updated: true };
+}
+
+/**
+ * Met à jour une clé en utilisant le mapping INI_KEY_MAP.
+ * Si la clé n'est pas dans le mapping, lève une erreur.
+ */
+async function updateIniKeyMapped(serviceId, key, value) {
+  const map = INI_KEY_MAP[key];
+  if (!map) throw new Error(`Clé "${key}" non mappée — fichier et section inconnus`);
+  const filePath = ARK_PATHS[map.file];
+  return updateIniKey(serviceId, filePath, map.section, key, value);
+}
+
+async function updateIniKeyOnAll(serviceIds, key, value) {
+  const results = [];
+  for (const id of serviceIds) {
+    try {
+      await updateIniKeyMapped(id, key, value);
+      results.push({ id, ok: true });
+    } catch (e) {
+      console.error(`[Nitrado INI] Erreur ${id} — ${key}:`, e.message);
+      results.push({ id, ok: false, error: e.message });
+    }
+  }
+  return results;
 }
 
 // ── Mods ARK SA ──────────────────────────────────────────────────────────────
@@ -363,8 +499,14 @@ module.exports = {
   updateSettings,
   findCategory,
   smartUpdateSetting,
+  listFiles,
   readFile,
   writeFile,
+  updateIniKey,
+  updateIniKeyMapped,
+  updateIniKeyOnAll,
+  INI_KEY_MAP,
+  ARK_PATHS,
   getMods,
   setMods,
   addMod,

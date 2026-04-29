@@ -3011,6 +3011,50 @@ function createWebServer(discordClient) {
     }
   });
 
+  // ── Éditeur INI direct ───────────────────────────────────────────────────────
+
+  // Lit un fichier INI sur un serveur (pour debug)
+  app.get('/nitrado/api/ini/read', requireAdmin, async (req, res) => {
+    try {
+      const { serviceId, file } = req.query;
+      if (!serviceId || !file) return res.json({ ok: false, error: 'serviceId et file requis' });
+      const filePath = nitrado.ARK_PATHS[file] || file;
+      const content = await nitrado.readFile(serviceId, filePath);
+      res.json({ ok: true, content, filePath });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // Met à jour une clé dans un .ini sur tous les serveurs sélectionnés (méthode directe)
+  app.post('/nitrado/api/ini/update-all', requireAdmin, async (req, res) => {
+    try {
+      const { key, value } = req.body;
+      if (!key || value === undefined) return res.json({ ok: false, error: 'key et value requis' });
+      const normalizedValue = String(value).replace(',', '.');
+
+      // Vérifie que la clé est mappée
+      const map = nitrado.INI_KEY_MAP[key];
+      if (!map) {
+        return res.json({ ok: false, error: `Clé "${key}" non supportée en mode INI direct. Clés disponibles : ${Object.keys(nitrado.INI_KEY_MAP).join(', ')}` });
+      }
+
+      let ids = req.body.serviceIds;
+      if (!ids || !ids.length) {
+        const services = await nitrado.getServices();
+        ids = services.map(s => s.id);
+      }
+
+      const results = await nitrado.updateIniKeyOnAll(ids, key, normalizedValue);
+      const okCount = results.filter(r => r.ok).length;
+      const failCount = results.length - okCount;
+      console.log(`[INI update-all] ${key}=${normalizedValue} — ${okCount} OK, ${failCount} erreurs`);
+      res.json({ ok: true, results, file: nitrado.ARK_PATHS[map.file], section: map.section });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
   // ── RCON temps réel ──────────────────────────────────────────────────────────
 
   // Diagnostic : lit une valeur, l'écrit, la relit pour confirmer le changement réel
