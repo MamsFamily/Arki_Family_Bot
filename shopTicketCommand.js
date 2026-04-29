@@ -24,7 +24,7 @@ const {
 } = require('discord.js');
 
 const path = require('path');
-const { getDinoData, getDino } = require('./dinoManager');
+const { getDinoData, getDino, getActiveFlashSale } = require('./dinoManager');
 const { getShop, getCategories } = require('./shopManager');
 const { getPlayerInventory, addToInventory, removeFromInventory, getItemTypes } = require('./inventoryManager');
 const { getRoleIncomes } = require('./economyManager');
@@ -446,14 +446,34 @@ function buildHomeEmbed(cart) {
 
 // ── Menu navigation principal ─────────────────────────────────────────────────
 function buildMainMenu() {
+  const flashSale = getActiveFlashSale();
+  const options = [];
+  if (flashSale) {
+    options.push({
+      label: '🧮 Promo du moment',
+      description: `${flashSale.dinoName} — −${flashSale.discountPct}%`,
+      value: 'promo',
+    });
+  }
+  options.push(
+    { label: '🦕 Dinos', description: 'Sélectionner un ou plusieurs dinos', value: 'dinos' },
+    { label: '📦 Packs & Produits', description: 'Packs composés et produits unitaires', value: 'packs' },
+    { label: '🛒 Voir mon panier', description: 'Consulter et finaliser ta commande', value: 'cart' },
+  );
   return new StringSelectMenuBuilder()
     .setCustomId('st_main_menu')
     .setPlaceholder('Que veux-tu faire ?')
-    .addOptions([
-      { label: '🦕 Dinos', description: 'Sélectionner un ou plusieurs dinos', value: 'dinos' },
-      { label: '📦 Packs & Produits', description: 'Packs composés et produits unitaires', value: 'packs' },
-      { label: '🛒 Voir mon panier', description: 'Consulter et finaliser ta commande', value: 'cart' },
-    ]);
+    .addOptions(options);
+}
+
+// ── Calcul réduction effective promo flash ───────────────────────────────────
+function computeEffectiveFlashDiscount(roleDiscount, flashPct) {
+  if (roleDiscount < flashPct) {
+    return { discount: flashPct, label: `🔥 Promo du moment (−${flashPct}%)` };
+  } else {
+    const bonus = Math.min(roleDiscount + 10, 99);
+    return { discount: bonus, label: `🔥 Promo du moment +10% (−${bonus}%)` };
+  }
 }
 
 // ── Liste des dinos (paginée par lettre) ──────────────────────────────────────
@@ -765,6 +785,71 @@ function buildAdminButtons(orderId) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ── Promo du moment : accès direct au dino flash depuis le menu principal ──────
+async function handlePromoSelected(interaction) {
+  const flashSale = getActiveFlashSale();
+  if (!flashSale) {
+    return interaction.update({
+      embeds: [new EmbedBuilder().setColor(0xe74c3c).setDescription('❌ La promo du moment est expirée. Retourne au menu principal.')],
+      components: [new ActionRowBuilder().addComponents(buildMainMenu())],
+    });
+  }
+
+  const dino = getDino(flashSale.dinoId);
+  if (!dino || dino.notAvailableShop) {
+    return interaction.update({
+      embeds: [new EmbedBuilder().setColor(0xe74c3c).setDescription('❌ Le dino de la promo n\'est plus disponible au shop.')],
+      components: [new ActionRowBuilder().addComponents(buildMainMenu())],
+    });
+  }
+
+  // Calculer la réduction effective pour ce joueur
+  const memberRoleIds = await getMemberRoleIds(interaction);
+  const { discount: roleDiscount, roleName } = await getMaxDiscount(memberRoleIds);
+  const { discount: effectiveDiscount, label: flashLabel } = computeEffectiveFlashDiscount(roleDiscount, flashSale.discountPct);
+
+  // Mémoriser la réduction flash sur la commande en cours (si ticket ouvert)
+  const order = activeOrders.get(interaction.channelId);
+  if (order && order.status === 'pending') {
+    order.discount = effectiveDiscount;
+    order.discountRoleName = flashLabel;
+  }
+
+  // Afficher le dino flash avec son prix réduit
+  const baseD = dino.priceDiamonds || 0;
+  const baseS = dino.priceStrawberries || 0;
+  const redD = Math.floor(baseD * (1 - effectiveDiscount / 100));
+  const redS = Math.floor(baseS * (1 - effectiveDiscount / 100));
+
+  let desc = `**🔥 Prix promo :** ~~${formatPrice(baseD, baseS)}~~ → **${formatPrice(redD, redS)}** *(−${effectiveDiscount}%)*\n\n`;
+  if (roleDiscount >= flashSale.discountPct) {
+    desc += `*Ta réduction de rôle (${roleDiscount}%) est égale ou supérieure à la promo — tu bénéficies d'un bonus de **+10%** supplémentaire.*\n\n`;
+  }
+  desc += `Choisis maintenant la **variante** et le **sexe** souhaités.`;
+
+  if (dino.noReduction) {
+    desc = `⛔ *Ce dino ne supporte pas les réductions — il sera vendu au prix normal.*\n\n${formatPrice(baseD, baseS)}`;
+  }
+
+  const detailEmbed = new EmbedBuilder()
+    .setTitle(`🔥 Promo du moment — ${dino.name.trim()}`)
+    .setColor(0xe74c3c)
+    .setDescription(desc);
+
+  const rows = [];
+  const visibleVariants = (dino.variants || []).filter(v => !v.hidden && !v.notAvailableShop);
+  if (visibleVariants.length > 0) {
+    rows.push(new ActionRowBuilder().addComponents(buildVariantMenu(dino)));
+  } else {
+    rows.push(new ActionRowBuilder().addComponents(buildSexeMenu(dino.id, 'base')));
+  }
+  rows.push(new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('st_back_home').setLabel('← Retour').setStyle(ButtonStyle.Secondary)
+  ));
+
+  return interaction.update({ embeds: [detailEmbed], components: rows });
+}
+
 // HANDLERS PRINCIPAUX
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -804,6 +889,10 @@ async function handleShopTicketInteraction(interaction) {
 
     if (val === 'cart') {
       return showCart(interaction, cart);
+    }
+
+    if (val === 'promo') {
+      return handlePromoSelected(interaction);
     }
   }
 

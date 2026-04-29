@@ -22,7 +22,7 @@ const upload = multer({
 });
 const { getSettings, updateSection } = require('../settingsManager');
 const { getShop, addPack, updatePack, deletePack, reorderPacks, getPack, updateShopChannel, updateShopChannels, saveShopIndexMessage, addCategory, updateCategory, deleteCategory, getCategories, buildPackEmbed, DEFAULT_CATEGORIES } = require('../shopManager');
-const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, getPaidDLCDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildModdedEmbeds, buildShoulderEmbed, buildPaidDLCEmbeds, buildVariantEmbeds, buildSaleEmbed, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, getAllLetters, updateNavMessage, getNavMessage, updateDinoIndexChannel, updateDinoIndexMessage, getDinoIndexInfo, saveDinos, DEFAULT_LETTER_COLORS } = require('../dinoManager');
+const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, getPaidDLCDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildModdedEmbeds, buildShoulderEmbed, buildPaidDLCEmbeds, buildVariantEmbeds, buildSaleEmbed, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, getAllLetters, updateNavMessage, getNavMessage, updateDinoIndexChannel, updateDinoIndexMessage, getDinoIndexInfo, saveDinos, DEFAULT_LETTER_COLORS, getActiveFlashSale, setFlashSale, clearFlashSale } = require('../dinoManager');
 // Variantes publiables comme catégories dédiées dans l'index
 const VARIANT_KEYS = { VARIANT_A: 'A', VARIANT_TEK: 'Tek' };
 
@@ -1294,7 +1294,8 @@ function createWebServer(discordClient) {
     const paidDLCDinos = getPaidDLCDinos();
     const variantADinos = getDinosByVariant('A');
     const variantTekDinos = getDinosByVariant('Tek');
-    res.render('dinos', { dinoData, grouped, moddedDinos, shoulderDinos, paidDLCDinos, variantADinos, variantTekDinos, letterMessages, letterColors, defaultColors: DEFAULT_LETTER_COLORS, channels, variantLabels, hasAnyVariant, dinoIndexInfo, success: req.query.success || null, error: req.query.error || null });
+    const activeFlashSale = getActiveFlashSale();
+    res.render('dinos', { dinoData, grouped, moddedDinos, shoulderDinos, paidDLCDinos, variantADinos, variantTekDinos, letterMessages, letterColors, defaultColors: DEFAULT_LETTER_COLORS, channels, variantLabels, hasAnyVariant, dinoIndexInfo, activeFlashSale, success: req.query.success || null, error: req.query.error || null });
   });
 
   app.post('/dinos/settings', requireAuth, async (req, res) => {
@@ -2002,7 +2003,7 @@ function createWebServer(discordClient) {
 
 
   app.post('/dinos/publish-sale', requireAuth, async (req, res) => {
-    const { saleDinoId, salePercent, saleChannelId } = req.body;
+    const { saleDinoId, salePercent, saleChannelId, saleDurationHours } = req.body;
     if (!saleDinoId || !salePercent) return res.redirect('/dinos?error=Dino+et+pourcentage+requis');
 
     const dino = getDino(saleDinoId);
@@ -2011,6 +2012,7 @@ function createWebServer(discordClient) {
     const percent = parseInt(salePercent);
     if (percent <= 0 || percent >= 100) return res.redirect('/dinos?error=Pourcentage+invalide');
 
+    const durationHours = Math.max(1, parseInt(saleDurationHours) || 24);
     const dinoData = getDinoData();
     const channelId = saleChannelId || dinoData.dinoChannelId;
     if (!channelId) return res.redirect('/dinos?error=Aucun+salon+configur%C3%A9');
@@ -2021,10 +2023,23 @@ function createWebServer(discordClient) {
 
       const embed = buildSaleEmbed(dino, percent);
       await channel.send({ embeds: [embed] });
+
+      await setFlashSale(saleDinoId, percent, durationHours);
+
       res.redirect('/dinos?success=Promo+publi%C3%A9e+!');
     } catch (err) {
       console.error('Erreur publication promo dino:', err);
       res.redirect('/dinos?error=Erreur+de+publication');
+    }
+  });
+
+  app.post('/dinos/clear-sale', requireAuth, async (req, res) => {
+    try {
+      await clearFlashSale();
+      res.redirect('/dinos?success=Promo+stopp%C3%A9e');
+    } catch (err) {
+      console.error('Erreur arrêt promo:', err);
+      res.redirect('/dinos?error=Erreur+arr%C3%AAt+promo');
     }
   });
 

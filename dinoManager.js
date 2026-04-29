@@ -749,6 +749,43 @@ function buildSaleEmbed(dino, percent) {
   };
 }
 
+// ── Gestion de la promo flash active ─────────────────────────────────────────
+
+function getActiveFlashSale() {
+  const data = getDinoData();
+  const sale = data.activeFlashSale;
+  if (!sale) return null;
+  if (Date.now() > sale.expiresAt) {
+    // Expirée — nettoyage silencieux (async, best-effort)
+    clearFlashSale().catch(() => {});
+    return null;
+  }
+  return sale;
+}
+
+async function setFlashSale(dinoId, discountPct, durationHours) {
+  const data = getDinoData();
+  const dino = (data.dinos || []).find(d => d.id === dinoId);
+  if (!dino) return null;
+  const now = Date.now();
+  data.activeFlashSale = {
+    dinoId,
+    dinoName: dino.name.trim(),
+    discountPct,
+    durationHours,
+    startAt: now,
+    expiresAt: now + durationHours * 3600 * 1000,
+  };
+  await saveDinos(data);
+  return data.activeFlashSale;
+}
+
+async function clearFlashSale() {
+  const data = getDinoData();
+  data.activeFlashSale = null;
+  await saveDinos(data);
+}
+
 module.exports = {
   getDinoData,
   addDino,
@@ -790,4 +827,7 @@ module.exports = {
   initDinos,
   refreshDinoCache,
   DEFAULT_LETTER_COLORS,
+  getActiveFlashSale,
+  setFlashSale,
+  clearFlashSale,
 };

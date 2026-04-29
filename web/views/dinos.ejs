@@ -225,6 +225,24 @@
           <h2>&#x1F525; Dino Flash Sale</h2>
         </div>
         <div class="card-body">
+
+          <% if (activeFlashSale) {
+            const now = Date.now();
+            const remaining = activeFlashSale.expiresAt - now;
+            const remH = Math.floor(remaining / 3600000);
+            const remM = Math.floor((remaining % 3600000) / 60000);
+          %>
+          <div style="margin-bottom:16px;padding:14px 16px;background:#1e3a2f;border-radius:8px;border-left:4px solid #2ecc71;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+            <div>
+              <p style="margin:0;font-weight:700;color:#2ecc71;">🔥 Promo active : <%= activeFlashSale.dinoName %> — −<%= activeFlashSale.discountPct %>%</p>
+              <p style="margin:4px 0 0;color:#888;font-size:13px;">⏱ Temps restant : <strong style="color:#e0e0e0;"><%= remH %>h <%= remM %>min</strong> &nbsp;·&nbsp; Accessible via "Promo du moment" dans le ticket shop</p>
+            </div>
+            <form method="POST" action="/dinos/clear-sale" onsubmit="return confirm('Stopper la promo maintenant ?')">
+              <button type="submit" class="btn btn-danger" style="white-space:nowrap;">⏹ Stopper la promo</button>
+            </form>
+          </div>
+          <% } %>
+
           <form method="POST" action="/dinos/publish-sale" id="saleForm" onsubmit="return confirm('Publier cette promo dino sur Discord ?')">
             <div class="form-row">
               <div class="form-group" style="flex:2;">
@@ -239,6 +257,10 @@
               <div class="form-group" style="flex:1;">
                 <label for="salePercent">R&eacute;duction (%)</label>
                 <input type="number" id="salePercent" name="salePercent" min="1" max="99" placeholder="Ex: 25" onchange="updateSalePreview()" oninput="updateSalePreview()">
+              </div>
+              <div class="form-group" style="flex:1;">
+                <label for="saleDurationHours">Dur&eacute;e (heures)</label>
+                <input type="number" id="saleDurationHours" name="saleDurationHours" min="1" max="720" placeholder="Ex: 24" value="24">
               </div>
             </div>
             <div class="form-row">
