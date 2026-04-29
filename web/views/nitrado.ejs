@@ -1076,6 +1076,13 @@ function applyConfig(cat, key, inputId) {
   }).catch(e => { toast('Erreur réseau', true); console.error('[Nitrado applyConfig] réseau:', e); });
 }
 
+// Déclenche le redémarrage en utilisant les params stockés dans _restartPending
+function triggerPendingRestart() {
+  if (!window._restartPending) { toast('Aucun paramètre en attente', true); return; }
+  const { settings, serviceIds } = window._restartPending;
+  applyConfigWithRestart(settings, serviceIds);
+}
+
 // Applique des paramètres .ini en faisant stop → édition fichier → start
 async function applyConfigWithRestart(settings, serviceIds) {
   const box = document.getElementById('diag-result');
@@ -1202,9 +1209,8 @@ async function runDiagnose() {
       const isLocked = writeResult.error && writeResult.error.includes('500');
       box.style.color = '#f87171';
       if (isLocked) {
-        // Propose directement le mode redémarrage
-        const sids = JSON.stringify([serviceId]);
-        const settingsJson = JSON.stringify([{key, value: normalizedVal}]);
+        // Stocke les params dans une variable globale pour éviter les problèmes de guillemets dans onclick
+        window._restartPending = { settings: [{key, value: normalizedVal}], serviceIds: [serviceId] };
         box.style.whiteSpace = 'normal';
         box.innerHTML = [
           `<span style="color:#f87171;font-weight:700">❌ Fichier verrouillé — serveur en marche (erreur 500 Nitrado)</span>`,
@@ -1214,7 +1220,7 @@ async function runDiagnose() {
           `<br><br>`,
           `<span style="color:#fbbf24">Solution : arrêter le serveur, modifier le fichier, redémarrer (~2 min de downtime).</span>`,
           `<br><br>`,
-          `<button onclick="applyConfigWithRestart(${settingsJson},${sids})" style="padding:10px 20px;background:#dc2626;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:.85rem;width:100%">`,
+          `<button onclick="triggerPendingRestart()" style="padding:10px 20px;background:#dc2626;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:.85rem;width:100%">`,
           `🔄 Appliquer avec redémarrage automatique</button>`,
         ].join('');
       } else {
