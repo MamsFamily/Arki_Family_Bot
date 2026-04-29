@@ -2901,6 +2901,24 @@ function createWebServer(discordClient) {
     }
   });
 
+  // API debug : structure brute des settings Nitrado (pour identifier la clé mods)
+  app.get('/nitrado/api/settings-raw/:id', requireAdmin, async (req, res) => {
+    try {
+      const settings = await nitrado.getSettings(req.params.id);
+      const summary = {};
+      for (const [cat, val] of Object.entries(settings)) {
+        if (typeof val === 'object' && val !== null) {
+          summary[cat] = Object.keys(val);
+        } else {
+          summary[cat] = val;
+        }
+      }
+      res.json({ ok: true, categories: summary, raw: settings });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
   // API : liste des mods d'un serveur
   app.get('/nitrado/api/mods/:id', requireAdmin, async (req, res) => {
     try {

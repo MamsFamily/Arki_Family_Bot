@@ -108,47 +108,51 @@ async function writeFile(serviceId, filePath, content) {
 
 // ── Mods ARK SA ──────────────────────────────────────────────────────────────
 
-async function getMods(serviceId) {
-  // Sur Nitrado, les mods ARK SA sont dans les settings sous la clé 'mods' ou dans config
-  const settings = await getSettings(serviceId);
-  // Cherche dans toutes les catégories la clé 'mods' ou 'active_mods'
-  for (const [, cat] of Object.entries(settings)) {
-    if (typeof cat === 'object') {
-      const raw = cat.mods?.value || cat.active_mods?.value || cat.ActiveMods?.value || '';
-      if (raw !== undefined && raw !== '') {
-        return raw.toString().split(',').map(s => s.trim()).filter(Boolean);
-      }
+// Clés candidates pour la liste de mods selon les versions d'ARK sur Nitrado
+const MOD_KEY_CANDIDATES = [
+  'mods', 'active_mods', 'ActiveMods',
+  'ModIDs', 'mod_ids', 'ModIds', 'GameModIds',
+  'game_mod_ids', 'mod_list', 'modList',
+];
+
+function findModEntry(settings) {
+  for (const [cat, catVal] of Object.entries(settings)) {
+    if (typeof catVal !== 'object' || catVal === null) continue;
+    for (const key of MOD_KEY_CANDIDATES) {
+      if (catVal[key] !== undefined) return { categoryName: cat, keyName: key, entry: catVal[key] };
     }
+  }
+  return null;
+}
+
+async function getMods(serviceId) {
+  const settings = await getSettings(serviceId);
+  const found = findModEntry(settings);
+  if (found) {
+    const raw = found.entry?.value ?? found.entry ?? '';
+    return raw.toString().split(',').map(s => s.trim()).filter(Boolean);
   }
   return [];
 }
 
 async function setMods(serviceId, modList) {
-  // Met à jour la liste de mods dans les settings Nitrado
   const settings = await getSettings(serviceId);
-  let categoryName = null;
-  let keyName = null;
+  const found = findModEntry(settings);
 
-  for (const [cat, catVal] of Object.entries(settings)) {
-    if (typeof catVal === 'object') {
-      for (const key of ['mods', 'active_mods', 'ActiveMods']) {
-        if (catVal[key] !== undefined) {
-          categoryName = cat;
-          keyName = key;
-          break;
-        }
-      }
-      if (categoryName) break;
-    }
-  }
-
-  if (categoryName && keyName) {
-    const payload = {};
-    payload[categoryName] = {};
-    payload[categoryName][keyName] = modList.join(',');
+  if (found) {
+    const { categoryName, keyName, entry } = found;
+    const payload = { [categoryName]: {} };
+    // Respecte le format : { value: "..." } si c'est un objet, sinon chaîne directe
+    payload[categoryName][keyName] = (typeof entry === 'object' && entry !== null)
+      ? modList.join(',')
+      : modList.join(',');
     return updateSettings(serviceId, payload);
   }
 
+  // Log pour debug : affiche les clés disponibles dans la console Railway
+  console.warn(`[Nitrado] Clé mods introuvable pour ${serviceId}. Clés dispo :`,
+    Object.entries(settings).map(([c, v]) => `${c}: [${typeof v === 'object' ? Object.keys(v || {}).join(', ') : v}]`).join(' | ')
+  );
   throw new Error('Clé de mods introuvable dans les settings Nitrado pour ce serveur');
 }
 
