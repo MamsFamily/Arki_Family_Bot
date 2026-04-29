@@ -1596,19 +1596,10 @@ function createWebServer(discordClient) {
 
       const letterMsgs = getLetterMessages();
       const storedIds = letterMsgs[letter]?.messageIds || (letterMsgs[letter]?.messageId ? [letterMsgs[letter].messageId] : []);
-
-      for (const oldId of storedIds) {
-        try { const msg = await channel.messages.fetch(oldId); await msg.delete(); } catch {}
-      }
-
-      const newIds = [];
-      for (const embed of embeds) {
-        const msg = await channel.send({ embeds: [embed] });
-        newIds.push(msg.id);
-      }
-
+      const { ids: newIds, reposted } = await editOrRepost(channel, storedIds, embeds);
       await updateLetterMessage(letter, newIds[0], channelId, newIds);
-      res.redirect('/dinos?success=Lettre+' + letter + '+publi%C3%A9e+!+(' + embeds.length + '+message' + (embeds.length > 1 ? 's' : '') + ')');
+      const action = reposted ? 'republié' : 'mis à jour';
+      res.redirect('/dinos?success=' + encodeURIComponent(`Lettre ${letter} ${action} (${newIds.length} message${newIds.length > 1 ? 's' : ''}) !`));
     } catch (err) {
       console.error('Erreur publication dino:', err);
       res.redirect('/dinos?error=Erreur+de+publication:+' + encodeURIComponent(err.message));
@@ -1638,65 +1629,39 @@ function createWebServer(discordClient) {
       for (const letter of letters) {
         const embeds = buildLetterEmbeds(letter, grouped[letter]);
         const storedIds = letterMsgs[letter]?.messageIds || (letterMsgs[letter]?.messageId ? [letterMsgs[letter].messageId] : []);
-        for (const oldId of storedIds) {
-          try { const msg = await channel.messages.fetch(oldId); await msg.delete(); } catch {}
-        }
-        const newIds = [];
-        for (const embed of embeds) {
-          const msg = await channel.send({ embeds: [embed] });
-          newIds.push(msg.id);
-        }
+        const { ids: newIds } = await editOrRepost(channel, storedIds, embeds);
         await updateLetterMessage(letter, newIds[0], channelId, newIds);
         totalMessages += newIds.length;
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 400));
       }
 
       if (moddedDinos.length > 0) {
         const storedIds = letterMsgs['MODDED']?.messageIds || (letterMsgs['MODDED']?.messageId ? [letterMsgs['MODDED'].messageId] : []);
-        for (const oldId of storedIds) {
-          try { const msg = await channel.messages.fetch(oldId); await msg.delete(); } catch {}
-        }
-        const moddedEmbeds = buildModdedEmbeds(moddedDinos);
-        const newIds = [];
-        for (const embed of moddedEmbeds) {
-          const msg = await channel.send({ embeds: [embed] });
-          newIds.push(msg.id);
-        }
+        const { ids: newIds } = await editOrRepost(channel, storedIds, buildModdedEmbeds(moddedDinos));
         await updateLetterMessage('MODDED', newIds[0], channelId, newIds);
         totalMessages += newIds.length;
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 400));
       }
 
       const shoulderDinosAll = getShoulderDinos();
       if (shoulderDinosAll.length > 0) {
         const storedIds = letterMsgs['SHOULDER']?.messageIds || (letterMsgs['SHOULDER']?.messageId ? [letterMsgs['SHOULDER'].messageId] : []);
-        for (const oldId of storedIds) {
-          try { const msg = await channel.messages.fetch(oldId); await msg.delete(); } catch {}
-        }
-        const shoulderEmbed = buildShoulderEmbed(shoulderDinosAll);
-        const msg = await channel.send({ embeds: [shoulderEmbed] });
-        await updateLetterMessage('SHOULDER', msg.id, channelId, [msg.id]);
-        totalMessages += 1;
-        await new Promise(r => setTimeout(r, 500));
+        const { ids: newIds } = await editOrRepost(channel, storedIds, [buildShoulderEmbed(shoulderDinosAll)]);
+        await updateLetterMessage('SHOULDER', newIds[0], channelId, newIds);
+        totalMessages += newIds.length;
+        await new Promise(r => setTimeout(r, 400));
       }
 
       const dlcDinos = getPaidDLCDinos();
       if (dlcDinos.length > 0) {
         const storedIds = letterMsgs['PAIDDLC']?.messageIds || (letterMsgs['PAIDDLC']?.messageId ? [letterMsgs['PAIDDLC'].messageId] : []);
-        for (const oldId of storedIds) {
-          try { const msg = await channel.messages.fetch(oldId); await msg.delete(); } catch {}
-        }
-        const dlcEmbeds = buildPaidDLCEmbeds(dlcDinos);
-        const newIds = [];
-        for (const embed of dlcEmbeds) {
-          const msg = await channel.send({ embeds: [embed] });
-          newIds.push(msg.id);
-        }
+        const { ids: newIds } = await editOrRepost(channel, storedIds, buildPaidDLCEmbeds(dlcDinos));
         await updateLetterMessage('PAIDDLC', newIds[0], channelId, newIds);
         totalMessages += newIds.length;
+        await new Promise(r => setTimeout(r, 400));
       }
 
-      console.log(`✅ Publication complète terminée: ${totalMessages} messages envoyés`);
+      console.log(`✅ Publication complète terminée: ${totalMessages} messages mis à jour/publiés`);
     } catch (err) {
       console.error('Erreur publication tout dinos:', err);
     }
