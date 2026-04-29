@@ -1716,7 +1716,7 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
         const notifChannel = await interaction.guild.channels.fetch(notifChannelId).catch(() => null);
         if (notifChannel) {
           await notifChannel.send({
-            content: `🛍️ **Une nouvelle commande vient de POP !** → <#${ticketChannel.id}>`,
+            content: `🛍️ **Une nouvelle commande vient de POP !**\n👤 ${interaction.user} → <#${ticketChannel.id}>`,
           });
         }
       } catch (e) {
