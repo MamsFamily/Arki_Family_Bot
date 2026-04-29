@@ -1341,7 +1341,9 @@ async function handleShopTicketInteraction(interaction) {
   const isAdminAction = id.startsWith('st_admin_validate::') || id.startsWith('st_admin_force_validate::') ||
     id.startsWith('st_admin_cancel::') || id.startsWith('st_admin_modify::') || id.startsWith('st_admin_close::') ||
     id.startsWith('st_close_confirm::') || id.startsWith('st_close_cancel::') ||
-    id.startsWith('st_delete_ticket::') || id.startsWith('st_admin_straw_ok::');
+    id.startsWith('st_delete_ticket::') || id.startsWith('st_admin_straw_ok::') ||
+    id.startsWith('st_admin_remove_item::') || id.startsWith('st_admin_remove_select::') ||
+    id.startsWith('st_admin_edit_comment::') || id.startsWith('st_admin_comment_modal::');
 
   if (isAdminAction && !isTicketAdmin(interaction.member)) {
     return interaction.reply({
@@ -1377,8 +1379,96 @@ async function handleShopTicketInteraction(interaction) {
     const orderId = id.split('::')[1];
     const order = activeOrders.get(orderId);
     if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`st_admin_remove_item::${orderId}`)
+        .setLabel('➖ Retirer un article')
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(order.cart.items.length === 0),
+      new ButtonBuilder()
+        .setCustomId(`st_admin_edit_comment::${orderId}`)
+        .setLabel('💬 Modifier le commentaire')
+        .setStyle(ButtonStyle.Secondary),
+    );
     return interaction.reply({
-      content: `✏️ La commande reste ouverte et le paiement n'a pas encore été déclenché. Tu peux modifier les informations ici directement.`,
+      content: `✏️ **Modification de la commande de ${order.username}**\n${order.cart.items.length} article(s) · Que souhaitez-vous faire ?`,
+      components: [row],
+      ephemeral: true,
+    });
+  }
+
+  if (id.startsWith('st_admin_remove_item::')) {
+    const orderId = id.split('::')[1];
+    const order = activeOrders.get(orderId);
+    if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
+    if (order.cart.items.length === 0) return interaction.update({ content: '❌ La commande est vide.', components: [] });
+    const options = order.cart.items.slice(0, 25).map(item => {
+      const label = item.type === 'dino'
+        ? `🦕 ${item.name}${item.variant !== 'base' ? ` (${item.variant})` : ''} — ${item.sexe} — ${item.stat}`
+        : `📦 ${item.name}${item.selectedOption ? ` — ${item.selectedOption}` : ''}`;
+      return { label: label.slice(0, 100), value: item.id };
+    });
+    const select = new StringSelectMenuBuilder()
+      .setCustomId(`st_admin_remove_select::${orderId}`)
+      .setPlaceholder('Sélectionner l\'article à retirer')
+      .addOptions(options);
+    return interaction.update({
+      content: '➖ Quel article retirer de la commande ?',
+      components: [new ActionRowBuilder().addComponents(select)],
+    });
+  }
+
+  if (id.startsWith('st_admin_edit_comment::')) {
+    const orderId = id.split('::')[1];
+    const order = activeOrders.get(orderId);
+    if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
+    const modal = new ModalBuilder()
+      .setCustomId(`st_admin_comment_modal::${orderId}`)
+      .setTitle('💬 Modifier le commentaire');
+    modal.addComponents(new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('comment_text')
+        .setLabel('Commentaire de la commande')
+        .setStyle(TextInputStyle.Paragraph)
+        .setValue(order.cart.comment || '')
+        .setRequired(false)
+        .setMaxLength(500),
+    ));
+    return interaction.showModal(modal);
+  }
+
+  // ── Select menu admin : retirer un article de la commande ────────────────────
+  if (id.startsWith('st_admin_remove_select::')) {
+    const orderId = id.split('::')[1];
+    const order = activeOrders.get(orderId);
+    if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
+    const itemId = interaction.values[0];
+    const itemIdx = order.cart.items.findIndex(i => i.id === itemId);
+    if (itemIdx === -1) return interaction.update({ content: '❌ Article introuvable.', components: [] });
+    const removed = order.cart.items.splice(itemIdx, 1)[0];
+    const removedLabel = removed.type === 'dino'
+      ? `🦕 ${removed.name}${removed.variant !== 'base' ? ` (${removed.variant})` : ''} — ${removed.sexe} — ${removed.stat}`
+      : `📦 ${removed.name}${removed.selectedOption ? ` — ${removed.selectedOption}` : ''}`;
+    if (order.cart.items.length > 0) {
+      const embed = buildOrderRecapEmbed(order.cart, order.discount, order.discountRoleName, order.selectedDeductions || [], order.userId);
+      const adminBtns = buildAdminButtons(order.orderId);
+      await interaction.channel.send({ content: '📋 **Commande mise à jour :**', embeds: [embed], components: adminBtns });
+    }
+    return interaction.update({
+      content: `✅ **${removedLabel}** retiré de la commande.${order.cart.items.length === 0 ? '\n\n⚠️ La commande est maintenant vide.' : ''}`,
+      components: [],
+    });
+  }
+
+  // ── Modal admin : modifier le commentaire ────────────────────────────────────
+  if (id.startsWith('st_admin_comment_modal::')) {
+    const orderId = id.split('::')[1];
+    const order = activeOrders.get(orderId);
+    if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
+    const newComment = interaction.fields.getTextInputValue('comment_text').trim();
+    order.cart.comment = newComment || '';
+    return interaction.reply({
+      content: `✅ Commentaire ${newComment ? 'mis à jour' : 'supprimé'}.`,
       ephemeral: true,
     });
   }

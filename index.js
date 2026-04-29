@@ -1028,7 +1028,9 @@ client.on('interactionCreate', async interaction => {
       id.startsWith('st_delete_ticket::') ||
       id.startsWith('st_pay_method::') || id.startsWith('st_view_order::') ||
       id.startsWith('st_inv_pick::') || id.startsWith('st_inv_direct::') ||
-      id.startsWith('st_admin_straw_ok::')
+      id.startsWith('st_admin_straw_ok::') ||
+      id.startsWith('st_admin_remove_item::') || id.startsWith('st_admin_remove_select::') ||
+      id.startsWith('st_admin_edit_comment::')
     ) {
       try {
         await handleShopTicketInteraction(interaction);
@@ -1050,6 +1052,16 @@ client.on('interactionCreate', async interaction => {
       await handleShopTicketInteraction(interaction);
     } catch (err) {
       console.error('[ShopTicket] Erreur modal commentaire:', err);
+    }
+    return;
+  }
+
+  // ── Shop Ticket : modal commentaire admin ──
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('st_admin_comment_modal::')) {
+    try {
+      await handleShopTicketInteraction(interaction);
+    } catch (err) {
+      console.error('[ShopTicket] Erreur modal commentaire admin:', err);
     }
     return;
   }
