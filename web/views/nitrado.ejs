@@ -681,6 +681,16 @@
     </div>
   </div>
 
+  <!-- Modal debug settings -->
+  <div class="modal-bg" id="debug-modal">
+    <div class="modal-box" style="max-width:700px">
+      <button class="modal-close" onclick="document.getElementById('debug-modal').classList.remove('open')">✕</button>
+      <h3>🔍 Settings bruts — <span id="debug-modal-id"></span></h3>
+      <input type="text" id="debug-search" placeholder="Rechercher une clé…" oninput="filterDebugKeys()" style="width:100%;margin-bottom:12px;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text)">
+      <div id="debug-modal-body" style="max-height:60vh;overflow-y:auto;font-size:.8rem;font-family:monospace;white-space:pre-wrap;background:var(--bg-secondary);padding:12px;border-radius:8px;line-height:1.6"></div>
+    </div>
+  </div>
+
   <!-- Modal redémarrage automatique -->
   <div class="modal-bg" id="restart-modal">
     <div class="modal-box" style="max-width:500px">
@@ -954,18 +964,41 @@ function bulkMod(url, body, resultId, msg) {
     else toast('Erreur : ' + d.error, true);
   }).catch(() => toast('Erreur réseau', true));
 }
+let _debugRaw = null;
 function debugSettings() {
   const ids = getSelIds();
   const targetId = ids.length > 0 ? ids[0] : (SRV.length > 0 ? SRV[0].id : null);
   if (!targetId) { toast('Aucun serveur disponible', true); return; }
+  document.getElementById('debug-modal-id').textContent = targetId;
+  document.getElementById('debug-modal-body').textContent = 'Chargement…';
+  document.getElementById('debug-search').value = '';
+  document.getElementById('debug-modal').classList.add('open');
   fetch('/nitrado/api/settings-raw/' + targetId).then(r => r.json()).then(d => {
-    if (!d.ok) { alert('Erreur : ' + d.error); return; }
-    const lines = Object.entries(d.categories).map(([cat, keys]) =>
-      cat + ':\n  ' + (Array.isArray(keys) ? keys.join(', ') : keys)
-    ).join('\n\n');
-    alert('=== Settings Nitrado — serveur ' + targetId + ' ===\n\n' + lines + '\n\n(Cherche une clé comme "mods", "ActiveMods", "mod_ids"...)');
-  }).catch(() => alert('Erreur réseau'));
+    if (!d.ok) { document.getElementById('debug-modal-body').textContent = 'Erreur : ' + d.error; return; }
+    _debugRaw = d.raw;
+    renderDebugKeys('');
+  }).catch(() => { document.getElementById('debug-modal-body').textContent = 'Erreur réseau'; });
 }
+function renderDebugKeys(search) {
+  if (!_debugRaw) return;
+  const q = search.toLowerCase();
+  let out = '';
+  for (const [cat, catVal] of Object.entries(_debugRaw)) {
+    if (typeof catVal !== 'object' || catVal === null) continue;
+    const keys = Object.keys(catVal).filter(k => !q || k.toLowerCase().includes(q) || cat.toLowerCase().includes(q));
+    if (!keys.length) continue;
+    out += `\n[${cat}]\n`;
+    for (const k of keys) {
+      const v = catVal[k]?.value ?? catVal[k];
+      out += `  ${k} = ${v}\n`;
+    }
+  }
+  document.getElementById('debug-modal-body').textContent = out.trim() || 'Aucun résultat';
+}
+function filterDebugKeys() {
+  renderDebugKeys(document.getElementById('debug-search').value);
+}
+document.getElementById('debug-modal').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.classList.remove('open'); });
 
 // ── Config ────────────────────────────────────────────────────────────────
 function applyConfig(cat, key, inputId) {
