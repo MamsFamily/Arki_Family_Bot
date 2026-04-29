@@ -1984,6 +1984,7 @@ async function handleAdminValidate(interaction, orderId) {
     if (!paymentDesc.trim()) paymentDesc = '> *Aucun débit (commande gratuite ou gérée manuellement)*\n';
 
     order.status = 'paid';
+    order.paymentDesc = paymentDesc;
     if (pendingStrawberries > 0) order.pendingStrawberries = pendingStrawberries;
     if (pendingDiamonds > 0) order.pendingDiamonds = pendingDiamonds;
 
@@ -2395,6 +2396,55 @@ async function handleCloseConfirm(interaction, orderId) {
   const adminName = interaction.member?.displayName || interaction.user.username;
   const order = activeOrders.get(orderId);
   const userId = order?.userId;
+
+  // ── Rapport de clôture ────────────────────────────────────────────────────
+  if (order) {
+    try {
+      const isPaid = order.status === 'paid';
+      const rapportEmbed = new EmbedBuilder()
+        .setColor(isPaid ? 0x2ecc71 : 0x95a5a6)
+        .setTitle('📋 Rapport de clôture du ticket')
+        .setFooter({ text: `Fermé par ${adminName}` })
+        .setTimestamp();
+
+      // Joueur
+      rapportEmbed.addFields({ name: '👤 Joueur', value: `<@${userId}>`, inline: true });
+      rapportEmbed.addFields({ name: '📦 Statut', value: isPaid ? '✅ Encaissée' : '🚫 Fermé sans encaissement', inline: true });
+
+      // Articles commandés
+      const items = order.cart?.items || [];
+      if (items.length > 0) {
+        const articlesList = items.map(item => {
+          let line = `• **${item.name}**`;
+          if (item.qty > 1) line += ` ×${item.qty}`;
+          if (item.variant) line += ` — *${item.variant}*`;
+          if (item.comment) line += `\n  *"${item.comment}"*`;
+          return line;
+        }).join('\n');
+        rapportEmbed.addFields({ name: '🛒 Articles', value: articlesList.slice(0, 1024) });
+      }
+
+      // Paiement
+      if (isPaid && order.paymentDesc) {
+        rapportEmbed.addFields({
+          name: '💰 Débit effectué',
+          value: order.paymentDesc.trim().slice(0, 1024),
+        });
+        const hasWarning = (order.pendingDiamonds > 0) || (order.pendingStrawberries > 0);
+        if (hasWarning) {
+          const warns = [];
+          if (order.pendingDiamonds > 0) warns.push(`💎 ${order.pendingDiamonds.toLocaleString('fr-FR')} diamants à récupérer`);
+          if (order.pendingStrawberries > 0) warns.push(`🍓 ${order.pendingStrawberries.toLocaleString('fr-FR')} fraises à récupérer in game`);
+          rapportEmbed.addFields({ name: '⚠️ Solde insuffisant — Reste à récupérer', value: warns.join('\n') });
+        }
+      }
+
+      await interaction.channel.send({ embeds: [rapportEmbed] });
+    } catch (e) {
+      console.error('[ShopTicket] Erreur envoi rapport de clôture:', e.message);
+    }
+  }
+
   activeOrders.delete(orderId);
 
   // Retirer l'accès visuel du joueur
