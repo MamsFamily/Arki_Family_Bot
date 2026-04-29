@@ -81,6 +81,7 @@ async function updateSettings(serviceId, settingsObj) {
           params.toString(),
           { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 15000 }
         );
+        console.log(`[Nitrado updateSettings] Réponse HTTP ${res.status} pour ${category}/${key}:`, JSON.stringify(res.data));
         results.push(res.data);
       } catch (err) {
         const body = err.response?.data;

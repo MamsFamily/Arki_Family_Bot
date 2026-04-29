@@ -3013,6 +3013,48 @@ function createWebServer(discordClient) {
 
   // ── RCON temps réel ──────────────────────────────────────────────────────────
 
+  // Diagnostic : lit une valeur, l'écrit, la relit pour confirmer le changement réel
+  app.post('/nitrado/api/settings/diagnose', requireAdmin, async (req, res) => {
+    try {
+      const { serviceId, key, value } = req.body;
+      if (!serviceId || !key || value === undefined) return res.json({ ok: false, error: 'serviceId, key, value requis' });
+
+      // 1. Lire la valeur actuelle
+      const settingsBefore = await nitrado.getSettings(serviceId);
+      let foundCat = null, valueBefore = null;
+      for (const [cat, catVal] of Object.entries(settingsBefore)) {
+        if (typeof catVal === 'object' && catVal && key in catVal) {
+          foundCat = cat;
+          valueBefore = catVal[key]?.value ?? catVal[key];
+          break;
+        }
+      }
+
+      if (!foundCat) {
+        // Lister toutes les clés disponibles pour aider au debug
+        const allKeys = [];
+        for (const [cat, catVal] of Object.entries(settingsBefore)) {
+          if (typeof catVal === 'object' && catVal) Object.keys(catVal).forEach(k => allKeys.push(`${cat}/${k}`));
+        }
+        return res.json({ ok: false, error: `Clé "${key}" introuvable`, availableKeys: allKeys });
+      }
+
+      // 2. Appliquer la valeur
+      await nitrado.updateSettings(serviceId, { [foundCat]: { [key]: value } });
+
+      // 3. Relire après 1s
+      await new Promise(r => setTimeout(r, 1000));
+      const settingsAfter = await nitrado.getSettings(serviceId);
+      const valueAfter = settingsAfter[foundCat]?.[key]?.value ?? settingsAfter[foundCat]?.[key] ?? null;
+      const changed = String(valueAfter) === String(value);
+
+      console.log(`[Nitrado diagnose] ${serviceId} ${foundCat}/${key}: ${valueBefore} → ${valueAfter} (changé: ${changed})`);
+      res.json({ ok: true, category: foundCat, key, valueBefore, valueAfter, valueRequested: value, changed });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
   // Envoyer une commande RCON à un seul serveur
   app.post('/nitrado/api/rcon/:id', requireAdmin, async (req, res) => {
     try {
