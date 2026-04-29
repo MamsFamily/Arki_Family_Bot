@@ -56,6 +56,45 @@ function isTicketAdmin(member) {
   return adminRoleIds.some(roleId => member.roles.cache.has(roleId));
 }
 
+// ── Helper : détecte les wyverns (nécessitent un choix d'élément) ─────────────
+function isWyvern(dino) {
+  return dino.name.toLowerCase().includes('wyvern');
+}
+
+// ── Helper : envoie un avertissement si fraises ou diamants insuffisants ───────
+async function sendPaymentWarnings(channel, userId, needDiamonds, needStrawberries, playerInv) {
+  const fraisesDispo = playerInv['fraises'] || 0;
+  const diamantsDispo = playerInv['diamants'] || 0;
+  const fraisesMissing = needStrawberries > 0 && fraisesDispo < needStrawberries;
+  const diamondsMissing = needDiamonds > 0 && diamantsDispo < needDiamonds;
+  if (!fraisesMissing && !diamondsMissing) return;
+
+  const lines = [];
+  if (fraisesMissing) {
+    const manque = needStrawberries - fraisesDispo;
+    lines.push(
+      `🍓 **Fraises insuffisantes :** <@${userId}> possède **${fraisesDispo.toLocaleString('fr-FR')} 🍓** sur les **${needStrawberries.toLocaleString('fr-FR')} 🍓** nécessaires *(manque : ${manque.toLocaleString('fr-FR')} 🍓)*.\n` +
+      `> L'admin devra récupérer les fraises **in game** lors de la livraison.`
+    );
+  }
+  if (diamondsMissing) {
+    const manque = needDiamonds - diamantsDispo;
+    lines.push(
+      `💎 **Diamants insuffisants :** <@${userId}> possède **${diamantsDispo.toLocaleString('fr-FR')} 💎** sur les **${needDiamonds.toLocaleString('fr-FR')} 💎** nécessaires *(manque : ${manque.toLocaleString('fr-FR')} 💎)*.\n` +
+      `> ⚠️ Les diamants sont une **monnaie Discord** — impossible de les donner in game. Le joueur doit **annuler la commande** ou **demander à un membre de sa tribu** de lui en fournir.`
+    );
+  }
+
+  await channel.send({
+    embeds: [new EmbedBuilder()
+      .setColor(0xe74c3c)
+      .setTitle('⚠️ Solde insuffisant — Action requise avant livraison')
+      .setDescription(lines.join('\n\n'))
+      .setTimestamp()
+    ],
+  }).catch(() => {});
+}
+
 // ── Helpers formatage ─────────────────────────────────────────────────────────
 function formatPrice(diamonds, strawberries) {
   const parts = [];
@@ -555,6 +594,7 @@ function buildCartEmbed(cart, discount = 0, discountRoleName = null) {
       desc += `🦕 **${item.name}**`;
       if (item.variant !== 'base') desc += ` (${item.variant})`;
       desc += `\n> ♟️ ${item.sexe} · ${STAT_EMOJIS[item.stat] || ''} ${item.stat}`;
+      if (item.elementNote) desc += `\n> 🔥 Élément : **${item.elementNote}**`;
     } else {
       desc += `📦 **${item.name}**`;
       if (item.selectedOption) desc += ` — *${item.selectedOption}*`;
@@ -639,6 +679,7 @@ function buildOrderRecapEmbed(cart, discount, discountRoleName, deductionsChosen
       desc += `🦕 **${item.name}**`;
       if (item.variant !== 'base') desc += ` *(${item.variant})*`;
       desc += `\n> ${item.sexe} · ${STAT_EMOJIS[item.stat] || ''}${item.stat}`;
+      if (item.elementNote) desc += `\n> 🔥 Élément : **${item.elementNote}**`;
     } else {
       desc += `📦 **${item.name}**`;
       if (item.selectedOption) desc += ` *(${item.selectedOption})*`;
@@ -956,8 +997,29 @@ async function handleShopTicketInteraction(interaction) {
       notAvailableDona: dino.notAvailableDona || false, isShoulder: dino.isShoulder || false,
       coupleInventaire: dino.coupleInventaire || false };
 
-    cart.items.push({ ...baseItem, id: genId(), sexe: 'Mâle',   stat: maleStat });
-    cart.items.push({ ...baseItem, id: genId(), sexe: 'Femelle', stat: femaleStat });
+    const maleItem   = { ...baseItem, id: genId(), sexe: 'Mâle',    stat: maleStat };
+    const femaleItem = { ...baseItem, id: genId(), sexe: 'Femelle',  stat: femaleStat };
+
+    // Wyverns → demander l'élément avant d'ajouter au panier
+    if (isWyvern(dino)) {
+      cart.pendingWyvernItem = [maleItem, femaleItem];
+      const modal = new ModalBuilder()
+        .setCustomId('st_wyvern_element_modal')
+        .setTitle('🔥 Élément de la Wyvern');
+      modal.addComponents(new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('element_text')
+          .setLabel('Élément souhaité')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('Ex : Foudre, Glace, Poison, Feu, Vent...')
+          .setRequired(true)
+          .setMaxLength(50)
+      ));
+      return interaction.showModal(modal);
+    }
+
+    cart.items.push(maleItem);
+    cart.items.push(femaleItem);
 
     return interaction.update({
       embeds: [new EmbedBuilder()
@@ -1015,6 +1077,24 @@ async function handleShopTicketInteraction(interaction) {
       isShoulder: dino.isShoulder || false,
       coupleInventaire: dino.coupleInventaire || false,
     };
+
+    // Wyverns → demander l'élément avant d'ajouter au panier
+    if (isWyvern(dino)) {
+      cart.pendingWyvernItem = cartItem;
+      const modal = new ModalBuilder()
+        .setCustomId('st_wyvern_element_modal')
+        .setTitle('🔥 Élément de la Wyvern');
+      modal.addComponents(new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('element_text')
+          .setLabel('Élément souhaité')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('Ex : Foudre, Glace, Poison, Feu, Vent...')
+          .setRequired(true)
+          .setMaxLength(50)
+      ));
+      return interaction.showModal(modal);
+    }
 
     cart.items.push(cartItem);
 
@@ -1191,6 +1271,66 @@ async function handleShopTicketInteraction(interaction) {
     return;
   }
 
+  // ── Modal wyvern : élément saisi ────────────────────────────────────────────
+  if (id === 'st_wyvern_element_modal') {
+    if (!cart) {
+      return interaction.reply({ content: '❌ Ton panier a expiré. Utilise `/shop-ticket` pour recommencer.', ephemeral: true });
+    }
+    const pendingItem = cart.pendingWyvernItem;
+    if (!pendingItem) {
+      return interaction.reply({ content: '❌ Aucune wyvern en attente. Réessaie depuis le menu dinos.', ephemeral: true });
+    }
+    const element = interaction.fields.getTextInputValue('element_text').trim();
+    cart.pendingWyvernItem = null;
+
+    if (Array.isArray(pendingItem)) {
+      // Couple
+      const [maleItem, femaleItem] = pendingItem;
+      maleItem.elementNote = element;
+      femaleItem.elementNote = element;
+      cart.items.push(maleItem, femaleItem);
+      return interaction.reply({
+        embeds: [new EmbedBuilder()
+          .setColor(0x9b59b6)
+          .setTitle('✅ Couple ajouté au panier !')
+          .setDescription(
+            `**${maleItem.name}**\n` +
+            `♂️ Mâle · ${STAT_EMOJIS[maleItem.stat] || ''}${maleItem.stat}\n` +
+            `♀️ Femelle · ${STAT_EMOJIS[femaleItem.stat] || ''}${femaleItem.stat}\n` +
+            `🔥 Élément : **${element}**\n` +
+            `💰 ${formatPrice(maleItem.priceDiamonds * 2, maleItem.priceStrawberries * 2)} *(×2)*`
+          )
+          .setFooter({ text: `${cart.items.length} article(s) dans ton panier` })],
+        components: [new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('st_back_home').setLabel('🛍️ Continuer mes achats').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId('st_view_cart_btn').setLabel('🛒 Voir mon panier').setStyle(ButtonStyle.Success),
+        )],
+        ephemeral: true,
+      });
+    } else {
+      // Solo
+      pendingItem.elementNote = element;
+      cart.items.push(pendingItem);
+      return interaction.reply({
+        embeds: [new EmbedBuilder()
+          .setColor(0x2ecc71)
+          .setTitle('✅ Ajouté au panier !')
+          .setDescription(
+            `**${pendingItem.name}**\n` +
+            `${pendingItem.sexe} · ${STAT_EMOJIS[pendingItem.stat] || ''}${pendingItem.stat}\n` +
+            `🔥 Élément : **${element}**\n` +
+            `💰 ${formatPrice(pendingItem.priceDiamonds, pendingItem.priceStrawberries)}`
+          )
+          .setFooter({ text: `${cart.items.length} article(s) dans ton panier` })],
+        components: [new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('st_back_home').setLabel('🛍️ Continuer mes achats').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId('st_view_cart_btn').setLabel('🛒 Voir mon panier').setStyle(ButtonStyle.Success),
+        )],
+        ephemeral: true,
+      });
+    }
+  }
+
   // ── Valider commande ────────────────────────────────────────────────────────
   if (id === 'st_cart_validate') {
     return handleCartValidation(interaction, cart);
@@ -1205,7 +1345,7 @@ async function handleShopTicketInteraction(interaction) {
   const isAdminAction = id.startsWith('st_admin_validate::') || id.startsWith('st_admin_force_validate::') ||
     id.startsWith('st_admin_cancel::') || id.startsWith('st_admin_modify::') || id.startsWith('st_admin_close::') ||
     id.startsWith('st_close_confirm::') || id.startsWith('st_close_cancel::') || id.startsWith('st_admin_repost::') ||
-    id.startsWith('st_delete_ticket::');
+    id.startsWith('st_delete_ticket::') || id.startsWith('st_admin_straw_ok::');
 
   if (isAdminAction && !isTicketAdmin(interaction.member)) {
     return interaction.reply({
@@ -1257,6 +1397,32 @@ async function handleShopTicketInteraction(interaction) {
   if (id.startsWith('st_admin_repost::')) {
     const orderId = id.split('::')[1];
     return handleAdminRepost(interaction, orderId);
+  }
+
+  // ── Bouton admin : fraises récupérées in game ────────────────────────────────
+  if (id.startsWith('st_admin_straw_ok::')) {
+    const orderId = id.split('::')[1];
+    const order = activeOrders.get(orderId);
+    if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
+    order.pendingStrawberries = 0;
+    try { await interaction.message.edit({ components: [] }); } catch (e) {}
+    const adminName = interaction.member?.displayName || interaction.user.username;
+    return interaction.reply({
+      embeds: [new EmbedBuilder()
+        .setColor(0x2ecc71)
+        .setTitle('✅ Fraises récupérées — Confirmé !')
+        .setDescription(
+          `**${adminName}** confirme avoir récupéré les fraises in game.\n\n` +
+          `Le ticket peut maintenant être fermé.`
+        )
+        .setTimestamp()],
+      components: [new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`st_admin_close::${orderId}`)
+          .setLabel('🔒 Fermer le ticket')
+          .setStyle(ButtonStyle.Secondary),
+      )],
+    });
   }
 
   // ── Confirmation fermeture ────────────────────────────────────────────────
@@ -1632,6 +1798,8 @@ async function handleAdminValidate(interaction, orderId) {
   try {
     let paymentDesc = '';
     const warnings = [];
+    let pendingStrawberries = 0;
+    let pendingDiamonds = 0;
     const playerInv = getPlayerInventory(userId);
 
     if (paymentChoice.id === 'multi') {
@@ -1649,6 +1817,7 @@ async function handleAdminValidate(interaction, orderId) {
       if (remD > 0) {
         const playerDiamonds = playerInv['diamants'] || 0;
         if (playerDiamonds < remD) {
+          pendingDiamonds += (remD - playerDiamonds);
           warnings.push(`⚠️ Solde insuffisant : joueur a **${playerDiamonds.toLocaleString('fr-FR')} 💎** mais doit payer **${remD.toLocaleString('fr-FR')} 💎** (manque **${(remD - playerDiamonds).toLocaleString('fr-FR')} 💎**).`);
         }
         await removeFromInventory(userId, 'diamants', remD, interaction.user.id, `Commande shop #${orderId}`);
@@ -1657,6 +1826,7 @@ async function handleAdminValidate(interaction, orderId) {
       if (remS > 0) {
         const playerFraises = playerInv['fraises'] || 0;
         if (playerFraises < remS) {
+          pendingStrawberries += (remS - playerFraises);
           warnings.push(`⚠️ Solde insuffisant : joueur a **${playerFraises.toLocaleString('fr-FR')} 🍓** mais doit payer **${remS.toLocaleString('fr-FR')} 🍓** (manque **${(remS - playerFraises).toLocaleString('fr-FR')} 🍓**).`);
         }
         await removeFromInventory(userId, 'fraises', remS, interaction.user.id, `Commande shop #${orderId}`);
@@ -1678,6 +1848,7 @@ async function handleAdminValidate(interaction, orderId) {
       if (remD > 0) {
         const playerDiamonds = playerInv['diamants'] || 0;
         if (playerDiamonds < remD) {
+          pendingDiamonds += (remD - playerDiamonds);
           warnings.push(`⚠️ Solde insuffisant pour les diamants : joueur a **${playerDiamonds.toLocaleString('fr-FR')} 💎** mais doit payer **${remD.toLocaleString('fr-FR')} 💎** (manque **${(remD - playerDiamonds).toLocaleString('fr-FR')} 💎**).`);
         }
         await removeFromInventory(userId, 'diamants', remD, interaction.user.id, `Commande shop #${orderId}`);
@@ -1686,6 +1857,7 @@ async function handleAdminValidate(interaction, orderId) {
       if (remS > 0) {
         const playerFraises = playerInv['fraises'] || 0;
         if (playerFraises < remS) {
+          pendingStrawberries += (remS - playerFraises);
           warnings.push(`⚠️ Solde insuffisant pour les fraises : joueur a **${playerFraises.toLocaleString('fr-FR')} 🍓** mais doit payer **${remS.toLocaleString('fr-FR')} 🍓** (manque **${(remS - playerFraises).toLocaleString('fr-FR')} 🍓**).`);
         }
         await removeFromInventory(userId, 'fraises', remS, interaction.user.id, `Commande shop #${orderId}`);
@@ -1697,6 +1869,7 @@ async function handleAdminValidate(interaction, orderId) {
       if (totalDiamonds > 0) {
         const playerDiamonds = playerInv['diamants'] || 0;
         if (playerDiamonds < totalDiamonds) {
+          pendingDiamonds += (totalDiamonds - playerDiamonds);
           warnings.push(`⚠️ Solde insuffisant : joueur a **${playerDiamonds.toLocaleString('fr-FR')} 💎** mais doit payer **${totalDiamonds.toLocaleString('fr-FR')} 💎** (manque **${(totalDiamonds - playerDiamonds).toLocaleString('fr-FR')} 💎**).`);
         }
         await removeFromInventory(userId, 'diamants', totalDiamonds, interaction.user.id, `Commande shop #${orderId}`);
@@ -1705,6 +1878,7 @@ async function handleAdminValidate(interaction, orderId) {
       if (totalStrawberries > 0) {
         const playerFraises = playerInv['fraises'] || 0;
         if (playerFraises < totalStrawberries) {
+          pendingStrawberries += (totalStrawberries - playerFraises);
           warnings.push(`⚠️ Solde insuffisant : joueur a **${playerFraises.toLocaleString('fr-FR')} 🍓** mais doit payer **${totalStrawberries.toLocaleString('fr-FR')} 🍓** (manque **${(totalStrawberries - playerFraises).toLocaleString('fr-FR')} 🍓**).`);
         }
         await removeFromInventory(userId, 'fraises', totalStrawberries, interaction.user.id, `Commande shop #${orderId}`);
@@ -1715,6 +1889,8 @@ async function handleAdminValidate(interaction, orderId) {
     if (!paymentDesc.trim()) paymentDesc = '> *Aucun débit (commande gratuite ou gérée manuellement)*\n';
 
     order.status = 'paid';
+    if (pendingStrawberries > 0) order.pendingStrawberries = pendingStrawberries;
+    if (pendingDiamonds > 0) order.pendingDiamonds = pendingDiamonds;
 
     // Retirer les boutons du message admin
     try { await interaction.message.edit({ components: [] }); } catch (e) {}
@@ -1730,14 +1906,57 @@ async function handleAdminValidate(interaction, orderId) {
       )
       .setTimestamp();
 
-    const newOrderRow = new ActionRowBuilder().addComponents(
+    const postValidationRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('st_new_order')
         .setLabel('🛒 Passer une nouvelle commande')
-        .setStyle(ButtonStyle.Primary)
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(`st_admin_close::${orderId}`)
+        .setLabel('🔒 Fermer le ticket')
+        .setStyle(ButtonStyle.Secondary),
     );
 
-    await interaction.reply({ embeds: [paidEmbed], components: [newOrderRow] });
+    await interaction.reply({ embeds: [paidEmbed], components: [postValidationRow] });
+
+    // ── Messages post-validation si paiement incomplet ────────────────────────
+    if (pendingStrawberries > 0) {
+      await interaction.channel.send({
+        embeds: [new EmbedBuilder()
+          .setColor(0xe74c3c)
+          .setTitle('🍓 Fraises à récupérer In Game')
+          .setDescription(
+            `Le solde de <@${userId}> était insuffisant pour les fraises.\n` +
+            `**Montant à récupérer in game :** ${pendingStrawberries.toLocaleString('fr-FR')} 🍓\n\n` +
+            `➡️ L'admin doit récupérer les fraises **in game** lors ou après la livraison.\n` +
+            `Une fois les fraises récupérées, clique sur le bouton ci-dessous pour confirmer.`
+          )
+          .setTimestamp()],
+        components: [new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`st_admin_straw_ok::${orderId}`)
+            .setLabel('✅ Fraises récupérées In Game')
+            .setStyle(ButtonStyle.Success),
+        )],
+      }).catch(e => console.error('[ShopTicket] Erreur message fraises pending:', e));
+    }
+
+    if (pendingDiamonds > 0) {
+      await interaction.channel.send({
+        embeds: [new EmbedBuilder()
+          .setColor(0xe67e22)
+          .setTitle('💎 Diamants insuffisants — Action requise')
+          .setDescription(
+            `Le solde de <@${userId}> était insuffisant pour les diamants.\n` +
+            `**Montant manquant :** ${pendingDiamonds.toLocaleString('fr-FR')} 💎\n\n` +
+            `⚠️ Les diamants sont une **monnaie Discord** — impossible de les donner in game.\n\n` +
+            `Le joueur doit soit :\n` +
+            `> 🚫 **Annuler la commande** (contacter le staff)\n` +
+            `> 👥 **Demander à un membre de sa tribu** de lui fournir les diamants manquants`
+          )
+          .setTimestamp()],
+      }).catch(e => console.error('[ShopTicket] Erreur message diamonds pending:', e));
+    }
 
     // ── Rapport d'achat dans le salon log ─────────────────────────────────────
     try {
@@ -1882,6 +2101,10 @@ async function handleInvDirect(interaction, orderId) {
       .setDescription(`${summary}\n\nL'admin va valider ta commande et encaisser **après livraison**.`)
       .setTimestamp()],
   });
+
+  // Avertir si solde insuffisant (visible par l'admin dans le ticket)
+  const playerInvCheck = getPlayerInventory(order.userId);
+  await sendPaymentWarnings(interaction.channel, order.userId, remD, remS, playerInvCheck);
 }
 
 // ── Joueur : sélectionne son mode de paiement ─────────────────────────────────
@@ -1942,6 +2165,16 @@ async function handlePayMethod(interaction, orderId, methodKey) {
       .setDescription(`${summary}\n\nL'admin va maintenant valider ta commande et encaisser après livraison.`)
       .setTimestamp()],
   });
+
+  // Avertir si solde insuffisant (visible par l'admin dans le ticket)
+  const needD = choice.id === 'direct'
+    ? (calcCartTotal(order.cart.items, order.discount || 0).totalDiamonds)
+    : (choice.remainingDiamonds || 0);
+  const needS = choice.id === 'direct'
+    ? (calcCartTotal(order.cart.items, order.discount || 0).totalStrawberries)
+    : (choice.remainingStrawberries || 0);
+  const playerInvCheck = getPlayerInventory(order.userId);
+  await sendPaymentWarnings(interaction.channel, order.userId, needD, needS, playerInvCheck);
 }
 
 // ── Joueur/Admin : voir le récap de commande ──────────────────────────────────
@@ -2037,6 +2270,21 @@ async function handleAdminClose(interaction, orderId) {
           'Pour pouvoir fermer le ticket, l\'une des conditions suivantes doit être remplie :\n' +
           '> ✅ Le paiement a été **validé & encaissé**\n' +
           '> ❌ La commande a été **annulée**'
+        )],
+      ephemeral: true,
+    });
+  }
+
+  // Bloquer si les fraises n'ont pas encore été récupérées in game
+  if (order && order.pendingStrawberries > 0) {
+    return interaction.reply({
+      embeds: [new EmbedBuilder()
+        .setColor(0xe74c3c)
+        .setTitle('🔒 Fermeture impossible — Fraises non récupérées')
+        .setDescription(
+          `❌ Ce ticket ne peut pas être fermé tant que les fraises n'ont pas été récupérées in game.\n\n` +
+          `Montant restant à récupérer : **${order.pendingStrawberries.toLocaleString('fr-FR')} 🍓**\n\n` +
+          `Clique sur le bouton **"✅ Fraises récupérées In Game"** dans le message ci-dessus pour confirmer, puis ferme le ticket.`
         )],
       ephemeral: true,
     });
