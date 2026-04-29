@@ -110,7 +110,7 @@ async function writeFile(serviceId, filePath, content) {
 
 // Clés candidates pour la liste de mods selon les versions d'ARK sur Nitrado
 const MOD_KEY_CANDIDATES = [
-  'mods', 'active_mods', 'ActiveMods',
+  'active-mods', 'mods', 'active_mods', 'ActiveMods',
   'ModIDs', 'mod_ids', 'ModIds', 'GameModIds',
   'game_mod_ids', 'mod_list', 'modList',
 ];
