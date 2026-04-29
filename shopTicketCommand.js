@@ -2467,10 +2467,12 @@ async function handleRecapCommand(interaction) {
   }
 
   const embed = buildPublicRecapEmbed(order);
+  const adminBtns = buildAdminButtons(order.orderId);
 
   return interaction.reply({
     content: `📋 Récapitulatif posté par <@${interaction.user.id}>`,
     embeds: [embed],
+    components: adminBtns,
   });
 }
 

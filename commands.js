@@ -341,7 +341,7 @@ const commands = [
     ],
   },
   {
-    name: 'récap',
+    name: 'recap',
     description: 'Publie le récapitulatif de la commande dans le ticket (Admin uniquement)',
   },
 ];

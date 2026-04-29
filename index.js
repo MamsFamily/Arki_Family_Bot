@@ -1875,7 +1875,7 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  if (commandName === 'récap') {
+  if (commandName === 'recap') {
     try {
       await handleRecapCommand(interaction);
     } catch (err) {
