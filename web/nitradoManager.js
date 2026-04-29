@@ -232,15 +232,52 @@ async function removeModFromAll(serviceIds, modId) {
   return results;
 }
 
-async function updateSettingOnAll(serviceIds, category, key, value) {
+// Cherche la catégorie réelle d'une clé dans les settings Nitrado
+async function findCategory(serviceId, key) {
+  const settings = await getSettings(serviceId);
+  for (const [cat, catVal] of Object.entries(settings)) {
+    if (typeof catVal !== 'object' || catVal === null) continue;
+    if (key in catVal) return cat;
+  }
+  return null;
+}
+
+// Met à jour un paramètre en détectant automatiquement sa catégorie réelle
+async function smartUpdateSetting(serviceId, key, value, hintCategory) {
+  const settings = await getSettings(serviceId);
+
+  // 1. Essaie la catégorie indicée d'abord (rapide)
+  if (hintCategory && settings[hintCategory] && key in settings[hintCategory]) {
+    console.log(`[Nitrado smartUpdate] Hint OK: ${hintCategory}/${key} = ${value} (serveur ${serviceId})`);
+    await updateSettings(serviceId, { [hintCategory]: { [key]: value } });
+    return { category: hintCategory };
+  }
+
+  // 2. Recherche exhaustive dans toutes les catégories
+  let realCat = null;
+  for (const [cat, catVal] of Object.entries(settings)) {
+    if (typeof catVal !== 'object' || catVal === null) continue;
+    if (key in catVal) { realCat = cat; break; }
+  }
+  if (!realCat) {
+    const availableKeys = Object.entries(settings)
+      .filter(([, v]) => typeof v === 'object' && v)
+      .map(([c, v]) => `${c}: [${Object.keys(v).join(', ')}]`).join(' | ');
+    console.warn(`[Nitrado smartUpdate] Clé "${key}" introuvable. Disponibles: ${availableKeys}`);
+    throw new Error(`Clé "${key}" introuvable dans les settings Nitrado (serveur ${serviceId})`);
+  }
+
+  console.log(`[Nitrado smartUpdate] Catégorie détectée: ${realCat}/${key} = ${value} (serveur ${serviceId})`);
+  await updateSettings(serviceId, { [realCat]: { [key]: value } });
+  return { category: realCat };
+}
+
+async function updateSettingOnAll(serviceIds, key, value, hintCategory) {
   const results = [];
   for (const id of serviceIds) {
     try {
-      const payload = {};
-      payload[category] = {};
-      payload[category][key] = value;
-      await updateSettings(id, payload);
-      results.push({ id, ok: true });
+      const { category } = await smartUpdateSetting(id, key, value, hintCategory);
+      results.push({ id, ok: true, category });
     } catch (e) {
       results.push({ id, ok: false, error: e.message });
     }
@@ -312,6 +349,8 @@ module.exports = {
   startServer,
   getSettings,
   updateSettings,
+  findCategory,
+  smartUpdateSetting,
   readFile,
   writeFile,
   getMods,

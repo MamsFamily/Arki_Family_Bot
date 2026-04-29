@@ -2984,14 +2984,16 @@ function createWebServer(discordClient) {
   app.post('/nitrado/api/settings/update-all', requireAdmin, async (req, res) => {
     try {
       const { category, key, value } = req.body;
-      if (!category || !key || value === undefined) return res.json({ ok: false, error: 'Paramètres manquants' });
+      if (!key || value === undefined) return res.json({ ok: false, error: 'Paramètres manquants' });
       let ids = req.body.serviceIds;
       if (!ids || !ids.length) {
         const services = await nitrado.getServices();
         ids = services.map(s => s.id);
       }
-      const results = await nitrado.updateSettingOnAll(ids, category, key, value);
-      res.json({ ok: true, results });
+      // category est passé en hint — la catégorie réelle est détectée automatiquement si le hint est faux
+      const results = await nitrado.updateSettingOnAll(ids, key, value, category || null);
+      const detectedCats = results.filter(r => r.ok).map(r => r.category).filter(Boolean);
+      res.json({ ok: true, results, detectedCategories: [...new Set(detectedCats)] });
     } catch (e) {
       res.json({ ok: false, error: e.message });
     }
@@ -3001,11 +3003,8 @@ function createWebServer(discordClient) {
   app.post('/nitrado/api/settings/update/:id', requireAdmin, async (req, res) => {
     try {
       const { category, key, value } = req.body;
-      if (!category || !key || value === undefined) return res.json({ ok: false, error: 'Paramètres manquants' });
-      const payload = {};
-      payload[category] = {};
-      payload[category][key] = value;
-      await nitrado.updateSettings(req.params.id, payload);
+      if (!key || value === undefined) return res.json({ ok: false, error: 'Paramètres manquants' });
+      await nitrado.smartUpdateSetting(req.params.id, key, value, category || null);
       res.json({ ok: true });
     } catch (e) {
       res.json({ ok: false, error: e.message });

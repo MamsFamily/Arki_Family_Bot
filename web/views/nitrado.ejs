@@ -1006,10 +1006,20 @@ function applyConfig(cat, key, inputId) {
   if (!value) { toast('Entre une valeur', true); return; }
   const ids = getSelIds();
   if (!confirm(key + ' = ' + value + '\nsur ' + (ids.length === 0 ? 'TOUTES les maps' : ids.length + ' map(s)') + ' ?')) return;
+  // cat est un hint — la catégorie réelle est détectée automatiquement côté serveur
   post('/nitrado/api/settings/update-all', { category: cat, key, value, serviceIds: ids }).then(d => {
-    if (d.ok) { toast('✅ ' + key + ' = ' + value + ' — ' + d.results.filter(r => r.ok).length + '/' + d.results.length + ' maps'); showResults('cfg-results', d.results); }
-    else toast('Erreur : ' + d.error, true);
-  }).catch(() => toast('Erreur réseau', true));
+    if (d.ok) {
+      const ok = d.results.filter(r => r.ok).length;
+      const fail = d.results.length - ok;
+      const cats = d.detectedCategories && d.detectedCategories.length ? ' [cat: ' + d.detectedCategories.join(', ') + ']' : '';
+      const errMsg = fail > 0 ? ' — ' + fail + ' erreur(s)' : '';
+      toast('✅ ' + key + ' = ' + value + ' — ' + ok + '/' + d.results.length + ' maps' + cats + errMsg, fail > 0);
+      showResults('cfg-results', d.results);
+    } else {
+      toast('❌ ' + key + ' : ' + d.error, true);
+      console.error('[Nitrado applyConfig]', key, d.error);
+    }
+  }).catch(e => { toast('Erreur réseau', true); console.error('[Nitrado applyConfig] réseau:', e); });
 }
 
 // ── Résultats ─────────────────────────────────────────────────────────────
