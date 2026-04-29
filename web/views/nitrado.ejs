@@ -1081,6 +1081,7 @@ async function applyConfigWithRestart(settings, serviceIds) {
   const box = document.getElementById('diag-result');
   box.style.display = 'block';
   box.style.color = 'var(--text-primary)';
+  box.style.whiteSpace = 'pre-wrap';
   const ids = serviceIds && serviceIds.length ? serviceIds : getSelIds();
   const maps = ids.length === 0 ? 'toutes les maps' : ids.length + ' map(s)';
   box.textContent = `⏳ Arrêt des serveurs en cours (${maps})…\nCela peut prendre 2-3 minutes, ne ferme pas la page.`;
@@ -1198,8 +1199,27 @@ async function runDiagnose() {
     }
     const writeResult = writeData.results?.[0];
     if (writeResult && !writeResult.ok) {
+      const isLocked = writeResult.error && writeResult.error.includes('500');
       box.style.color = '#f87171';
-      box.textContent = `❌ ÉCRITURE ÉCHOUÉE sur le serveur ${serviceId}\n\nErreur : ${writeResult.error}\n\nFichier visé : ${writeData.file || 'inconnu'}\nSection      : ${writeData.section || 'inconnue'}`;
+      if (isLocked) {
+        // Propose directement le mode redémarrage
+        const sids = JSON.stringify([serviceId]);
+        const settingsJson = JSON.stringify([{key, value: normalizedVal}]);
+        box.style.whiteSpace = 'normal';
+        box.innerHTML = [
+          `<span style="color:#f87171;font-weight:700">❌ Fichier verrouillé — serveur en marche (erreur 500 Nitrado)</span>`,
+          `<br><br>`,
+          `Fichier visé : <code>${writeData.file || 'inconnu'}</code><br>`,
+          `Section      : <code>${writeData.section || 'inconnue'}</code>`,
+          `<br><br>`,
+          `<span style="color:#fbbf24">Solution : arrêter le serveur, modifier le fichier, redémarrer (~2 min de downtime).</span>`,
+          `<br><br>`,
+          `<button onclick="applyConfigWithRestart(${settingsJson},${sids})" style="padding:10px 20px;background:#dc2626;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:.85rem;width:100%">`,
+          `🔄 Appliquer avec redémarrage automatique</button>`,
+        ].join('');
+      } else {
+        box.textContent = `❌ ÉCRITURE ÉCHOUÉE sur le serveur ${serviceId}\n\nErreur : ${writeResult.error}\n\nFichier visé : ${writeData.file || 'inconnu'}\nSection      : ${writeData.section || 'inconnue'}`;
+      }
       return;
     }
 
