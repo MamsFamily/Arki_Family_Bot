@@ -340,6 +340,10 @@ const commands = [
       },
     ],
   },
+  {
+    name: 'récap',
+    description: 'Publie le récapitulatif de la commande dans le ticket (Admin uniquement)',
+  },
 ];
 
 module.exports = commands;

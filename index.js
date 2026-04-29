@@ -37,7 +37,7 @@ const { initSpecialPacks, getSpecialPacks, getSpecialPack } = require('./special
 const economyManager = require('./economyManager');
 const xpManager = require('./xpManager');
 const { handleShopCommand, handleShopInteraction } = require('./shopCommand');
-const { handleShopTicketCommand, handleShopTicketInteraction, publishShopTicketPanel } = require('./shopTicketCommand');
+const { handleShopTicketCommand, handleShopTicketInteraction, publishShopTicketPanel, handleRecapCommand } = require('./shopTicketCommand');
 const { handleSpawnTicketCommand, handleSpawnTicketInteraction } = require('./spawnTicketCommand');
 const restartScheduler = require('./nitradoRestartScheduler');
 const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
@@ -1868,6 +1868,20 @@ client.on('interactionCreate', async interaction => {
       console.error('[ShopTicket] Erreur commande /ticket-shop:', err);
       try {
         const reply = { content: '❌ Impossible d\'ouvrir le ticket shop. Réessaie.', ephemeral: true };
+        if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
+        else await interaction.reply(reply);
+      } catch (e) {}
+    }
+    return;
+  }
+
+  if (commandName === 'récap') {
+    try {
+      await handleRecapCommand(interaction);
+    } catch (err) {
+      console.error('[Récap] Erreur commande /récap:', err);
+      try {
+        const reply = { content: '❌ Impossible de publier le récapitulatif.', ephemeral: true };
         if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
         else await interaction.reply(reply);
       } catch (e) {}

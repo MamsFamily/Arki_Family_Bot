@@ -2423,9 +2423,85 @@ async function handleCloseCancel(interaction, orderId) {
   });
 }
 
+// ── Embed récap public (sans prix) ───────────────────────────────────────────
+function buildPublicRecapEmbed(order) {
+  const { cart, username, userId, createdAt } = order;
+  const items = cart.items || [];
+
+  let desc = '';
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    desc += `**${i + 1}.** `;
+    if (item.type === 'dino') {
+      desc += `🦕 **${item.name}**`;
+      if (item.variant && item.variant !== 'base') desc += ` *(${item.variant})*`;
+      desc += `\n> ${item.sexe === 'Femelle' ? '♀️' : '♂️'} ${item.sexe}`;
+      desc += ` · ${STAT_EMOJIS[item.stat] || ''}${item.stat}`;
+      if (item.elementNote) desc += `\n> 🔥 Élément : **${item.elementNote}**`;
+      if (item.isShoulder) desc += `\n> 👤 Dino d'épaule`;
+    } else {
+      desc += `📦 **${item.name}**`;
+      if (item.selectedOption) desc += ` — *${item.selectedOption}*`;
+    }
+    desc += '\n\n';
+  }
+
+  if (!desc.trim()) desc = '*Aucun article dans cette commande.*';
+
+  const embed = new EmbedBuilder()
+    .setTitle('📋 Récapitulatif de commande')
+    .setDescription(desc.trim())
+    .setColor(0x7c5cfc);
+
+  if (cart.comment) {
+    embed.addFields({
+      name: '💬 Commentaire',
+      value: cart.comment,
+      inline: false,
+    });
+  }
+
+  const date = createdAt ? new Date(createdAt).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' }) : 'Inconnue';
+  embed.setFooter({ text: `Commande de ${username} · ${items.length} article(s) · ${date}` });
+
+  return embed;
+}
+
+// ── Commande /récap ───────────────────────────────────────────────────────────
+async function handleRecapCommand(interaction) {
+  // Vérifier que l'utilisateur est admin ticket
+  if (!isTicketAdmin(interaction.member)) {
+    return interaction.reply({
+      content: '❌ Tu n\'as pas la permission d\'utiliser cette commande.',
+      ephemeral: true,
+    });
+  }
+
+  // Trouver la commande liée à ce salon
+  let order = null;
+  for (const [, o] of activeOrders) {
+    if (o.channelId === interaction.channelId) { order = o; break; }
+  }
+
+  if (!order) {
+    return interaction.reply({
+      content: '❌ Aucune commande active trouvée dans ce salon. Cette commande ne fonctionne que dans un ticket shop.',
+      ephemeral: true,
+    });
+  }
+
+  const embed = buildPublicRecapEmbed(order);
+
+  return interaction.reply({
+    content: `📋 Récapitulatif posté par <@${interaction.user.id}>`,
+    embeds: [embed],
+  });
+}
+
 module.exports = {
   handleShopTicketCommand,
   handleShopTicketInteraction,
   publishShopTicketPanel,
+  handleRecapCommand,
   activeOrders,
 };
