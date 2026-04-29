@@ -175,8 +175,22 @@
                     </option>
                   <% }); %>
                 </select>
-                <p class="help-text">Salon admin où apparaissent les nouveaux tickets</p>
+                <p class="help-text">Salon admin où apparaissent les rapports d'achat</p>
               </div>
+              <div class="form-group">
+                <label for="shopTicketNotifChannelId">🔔 Salon de notification de nouvelle commande</label>
+                <select id="shopTicketNotifChannelId" name="shopTicketNotifChannelId" class="form-control">
+                  <option value="">-- Aucun (désactivé) --</option>
+                  <% channels.forEach(ch => { %>
+                    <option value="<%= ch.id %>" <%= shop.shopTicketNotifChannelId === ch.id ? 'selected' : '' %>>
+                      <% if (ch.category) { %>[<%= ch.category %>] <% } %># <%= ch.name %>
+                    </option>
+                  <% }); %>
+                </select>
+                <p class="help-text">Salon où un message "Nouvelle commande" est envoyé à chaque ouverture de ticket</p>
+              </div>
+            </div>
+            <div class="tk-form-row">
               <div class="form-group">
                 <label for="shopTicketCategoryId">📂 Catégorie Discord des tickets</label>
                 <select id="shopTicketCategoryId" name="shopTicketCategoryId" class="form-control">

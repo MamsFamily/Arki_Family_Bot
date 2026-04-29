@@ -131,6 +131,7 @@ async function updateShopChannels(fields) {
   if ('shopTicketChannelId' in fields) shop.shopTicketChannelId = fields.shopTicketChannelId;
   if ('shopTicketCategoryId' in fields) shop.shopTicketCategoryId = fields.shopTicketCategoryId;
   if ('shopTicketAdminRoleIds' in fields) shop.shopTicketAdminRoleIds = fields.shopTicketAdminRoleIds;
+  if ('shopTicketNotifChannelId' in fields) shop.shopTicketNotifChannelId = fields.shopTicketNotifChannelId;
   await saveShop(shop);
 }
 

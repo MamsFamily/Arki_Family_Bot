@@ -1709,6 +1709,21 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
     const payMsg = buildPaymentSelectMessage(orderId, orderData);
     await ticketChannel.send(payMsg);
 
+    // ── Notification "nouvelle commande" dans le salon configuré ─────────────
+    const notifChannelId = shop.shopTicketNotifChannelId;
+    if (notifChannelId) {
+      try {
+        const notifChannel = await interaction.guild.channels.fetch(notifChannelId).catch(() => null);
+        if (notifChannel) {
+          await notifChannel.send({
+            content: `🛍️ **Une nouvelle commande vient de POP !** → <#${ticketChannel.id}>`,
+          });
+        }
+      } catch (e) {
+        console.error('[ShopTicket] Erreur notification nouvelle commande:', e);
+      }
+    }
+
     // ── Nettoyer le panier de navigation ─────────────────────────────────────
     activeCarts.delete(interaction.user.id);
 

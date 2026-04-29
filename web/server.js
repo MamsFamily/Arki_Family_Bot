@@ -931,7 +931,7 @@ function createWebServer(discordClient) {
   });
 
   app.post('/tickets/shop', requireAdmin, async (req, res) => {
-    const { shopTicketChannelId, shopTicketCategoryId, shopTicketAdminRoleIds } = req.body;
+    const { shopTicketChannelId, shopTicketCategoryId, shopTicketAdminRoleIds, shopTicketNotifChannelId } = req.body;
     const raw = shopTicketAdminRoleIds || [];
     const adminRoleIdsRaw = (Array.isArray(raw) ? raw : [raw]).filter(s => /^\d+$/.test(s));
     const shop = getShop();
@@ -942,6 +942,7 @@ function createWebServer(discordClient) {
       shopTicketChannelId: shopTicketChannelId || '',
       shopTicketCategoryId: shopTicketCategoryId || '',
       shopTicketAdminRoleIds: adminRoleIdsRaw.filter(Boolean),
+      shopTicketNotifChannelId: shopTicketNotifChannelId || '',
     });
     res.redirect('/tickets?success=Param%C3%A8tres+tickets+shop+sauvegard%C3%A9s+!');
   });
