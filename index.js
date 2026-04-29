@@ -1028,7 +1028,8 @@ client.on('interactionCreate', async interaction => {
       id.startsWith('st_close_confirm::') || id.startsWith('st_close_cancel::') ||
       id.startsWith('st_delete_ticket::') ||
       id.startsWith('st_pay_method::') || id.startsWith('st_view_order::') ||
-      id.startsWith('st_inv_pick::') || id.startsWith('st_inv_direct::')
+      id.startsWith('st_inv_pick::') || id.startsWith('st_inv_direct::') ||
+      id.startsWith('st_admin_straw_ok::')
     ) {
       try {
         await handleShopTicketInteraction(interaction);
@@ -1050,6 +1051,21 @@ client.on('interactionCreate', async interaction => {
       await handleShopTicketInteraction(interaction);
     } catch (err) {
       console.error('[ShopTicket] Erreur modal commentaire:', err);
+    }
+    return;
+  }
+
+  // ── Shop Ticket : modal élément wyvern ──
+  if (interaction.isModalSubmit() && interaction.customId === 'st_wyvern_element_modal') {
+    try {
+      await handleShopTicketInteraction(interaction);
+    } catch (err) {
+      console.error('[ShopTicket] Erreur modal wyvern:', err);
+      try {
+        const reply = { content: '❌ Une erreur est survenue lors de l\'enregistrement de l\'élément.', ephemeral: true };
+        if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
+        else await interaction.reply(reply);
+      } catch (e) {}
     }
     return;
   }
