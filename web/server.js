@@ -3039,17 +3039,23 @@ function createWebServer(discordClient) {
         return res.json({ ok: false, error: `Clé "${key}" introuvable`, availableKeys: allKeys });
       }
 
-      // 2. Appliquer la valeur
-      await nitrado.updateSettings(serviceId, { [foundCat]: { [key]: value } });
+      // 2. Appliquer la valeur (avec normalisation virgule→point)
+      const normalizedValue = String(value).replace(',', '.');
+      await nitrado.updateSettings(serviceId, { [foundCat]: { [key]: normalizedValue } });
 
       // 3. Relire après 1s
       await new Promise(r => setTimeout(r, 1000));
       const settingsAfter = await nitrado.getSettings(serviceId);
-      const valueAfter = settingsAfter[foundCat]?.[key]?.value ?? settingsAfter[foundCat]?.[key] ?? null;
-      const changed = String(valueAfter) === String(value);
+      const valueAfter = String(settingsAfter[foundCat]?.[key]?.value ?? settingsAfter[foundCat]?.[key] ?? '');
+      const valueBeforeNorm = String(valueBefore).replace(',', '.');
 
-      console.log(`[Nitrado diagnose] ${serviceId} ${foundCat}/${key}: ${valueBefore} → ${valueAfter} (changé: ${changed})`);
-      res.json({ ok: true, category: foundCat, key, valueBefore, valueAfter, valueRequested: value, changed });
+      // Vrai changement : la valeur après est différente de ce qu'il y avait avant
+      const apiChanged = valueAfter !== String(valueBefore) && valueAfter !== valueBeforeNorm;
+      // OU la valeur après correspond à ce qu'on a demandé (et c'était différent d'avant)
+      const appliedCorrectly = (valueAfter === normalizedValue || valueAfter === value) && normalizedValue !== valueBeforeNorm;
+
+      console.log(`[Nitrado diagnose] ${serviceId} ${foundCat}/${key}: "${valueBefore}" → "${valueAfter}" (demandé: "${normalizedValue}", changé: ${apiChanged}, appliqué: ${appliedCorrectly})`);
+      res.json({ ok: true, category: foundCat, key, valueBefore, valueAfter, valueRequested: normalizedValue, changed: appliedCorrectly, apiChanged });
     } catch (e) {
       res.json({ ok: false, error: e.message });
     }

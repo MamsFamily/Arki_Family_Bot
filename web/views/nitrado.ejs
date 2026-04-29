@@ -1020,8 +1020,10 @@ document.getElementById('debug-modal').addEventListener('click', e => { if (e.ta
 
 // ── Config ────────────────────────────────────────────────────────────────
 function applyConfig(cat, key, inputId) {
-  const value = document.getElementById(inputId).value.trim();
-  if (!value) { toast('Entre une valeur', true); return; }
+  const raw = document.getElementById(inputId).value.trim();
+  if (!raw) { toast('Entre une valeur', true); return; }
+  // Normalise la virgule décimale en point (ex: "0,0002" → "0.0002")
+  const value = raw.replace(',', '.');
   const ids = getSelIds();
   if (!confirm(key + ' = ' + value + '\nsur ' + (ids.length === 0 ? 'TOUTES les maps' : ids.length + ' map(s)') + ' ?')) return;
   // cat est un hint — la catégorie réelle est détectée automatiquement côté serveur
@@ -1051,7 +1053,9 @@ function runDiagnose() {
   const box = document.getElementById('diag-result');
   box.style.display = 'block';
   box.textContent = '⏳ Test en cours (lecture → écriture → relecture)…';
-  post('/nitrado/api/settings/diagnose', { serviceId, key, value }).then(d => {
+  // Normalise la valeur (virgule → point) pour l'affichage et l'envoi
+  const normalizedVal = value.replace(',', '.');
+  post('/nitrado/api/settings/diagnose', { serviceId, key, value: normalizedVal }).then(d => {
     if (!d.ok) {
       if (d.availableKeys) {
         box.textContent = `❌ Clé "${key}" introuvable dans les settings Nitrado.\n\nClés disponibles :\n` + d.availableKeys.join('\n');
@@ -1060,14 +1064,22 @@ function runDiagnose() {
       }
       return;
     }
-    const changed = d.changed ? '✅ CHANGEMENT CONFIRMÉ' : '❌ PAS DE CHANGEMENT (Nitrado a ignoré la valeur)';
+    let status;
+    if (d.changed) {
+      status = '✅ CHANGEMENT CONFIRMÉ — la valeur a bien été modifiée dans Nitrado';
+    } else if (d.valueAfter === d.valueRequested && d.valueAfter === String(d.valueBefore).replace(',', '.')) {
+      status = '⚠️ Valeur déjà identique — aucun changement nécessaire';
+    } else {
+      status = '❌ AUCUN CHANGEMENT — Nitrado a accepté mais n\'a pas appliqué la valeur\n   → Problème probable : format de valeur invalide ou clé en lecture seule';
+    }
+    const normalizedNote = d.valueRequested !== value ? `   (normalisé : "${value}" → "${d.valueRequested}")` : '';
     box.textContent = [
-      changed,
+      status,
       '',
       `Catégorie : ${d.category}`,
       `Clé       : ${d.key}`,
       `Avant     : ${d.valueBefore}`,
-      `Demandé   : ${d.valueRequested}`,
+      `Demandé   : ${d.valueRequested}${normalizedNote}`,
       `Après     : ${d.valueAfter}`,
     ].join('\n');
   }).catch(() => { box.textContent = '❌ Erreur réseau'; });

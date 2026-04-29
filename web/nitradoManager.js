@@ -64,6 +64,16 @@ async function getSettings(serviceId) {
   return res.data?.data?.settings || {};
 }
 
+// Normalise les séparateurs décimaux : remplace les virgules par des points
+// Nitrado n'accepte que le point comme séparateur décimal dans les valeurs numériques
+function normalizeValue(val) {
+  if (typeof val !== 'string') val = String(val);
+  // Remplace la virgule décimale par un point (format fr → international)
+  // Uniquement si le format ressemble à un nombre (ex: "0,0002" → "0.0002")
+  if (/^-?\d+,\d+$/.test(val.trim())) return val.trim().replace(',', '.');
+  return val.trim();
+}
+
 async function updateSettings(serviceId, settingsObj) {
   // Nitrado attend category + key + value comme paramètres séparés (un appel par clé)
   const token = getToken();
@@ -72,7 +82,8 @@ async function updateSettings(serviceId, settingsObj) {
   for (const [category, catVal] of Object.entries(settingsObj)) {
     if (typeof catVal !== 'object' || catVal === null) continue;
     for (const [key, val] of Object.entries(catVal)) {
-      const value = (typeof val === 'object' && val !== null && 'value' in val) ? val.value : val;
+      const rawValue = (typeof val === 'object' && val !== null && 'value' in val) ? val.value : val;
+      const value = normalizeValue(rawValue);
       const params = new URLSearchParams({ category, key, value });
       console.log(`[Nitrado updateSettings] ${serviceId} — ${params.toString()}`);
       try {
