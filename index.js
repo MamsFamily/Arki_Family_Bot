@@ -1024,7 +1024,6 @@ client.on('interactionCreate', async interaction => {
       id.startsWith('st_admin_validate::') || id.startsWith('st_admin_force_validate::') ||
       id.startsWith('st_admin_cancel::') ||
       id.startsWith('st_admin_modify::') || id.startsWith('st_admin_close::') ||
-      id.startsWith('st_admin_repost::') ||
       id.startsWith('st_close_confirm::') || id.startsWith('st_close_cancel::') ||
       id.startsWith('st_delete_ticket::') ||
       id.startsWith('st_pay_method::') || id.startsWith('st_view_order::') ||
