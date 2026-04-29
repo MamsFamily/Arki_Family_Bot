@@ -411,7 +411,7 @@ async function handleModalSubmit(interaction) {
 async function handleCheck(interaction, ticketId, step) {
   if (!isStaff(interaction)) return interaction.reply(STAFF_ONLY_REPLY);
   const data = activeSpawnTickets.get(ticketId);
-  if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
+  if (!data) return interaction.reply({ content: '❌ Ce ticket est expiré (le bot a redémarré). Merci de contacter un Admin pour relancer la procédure si nécessaire.', ephemeral: true });
 
   data.checks[step] = !data.checks[step];
 
@@ -432,7 +432,7 @@ async function handleCheck(interaction, ticketId, step) {
 async function handleSendPassword(interaction, ticketId) {
   if (!isStaff(interaction)) return interaction.reply(STAFF_ONLY_REPLY);
   const data = activeSpawnTickets.get(ticketId);
-  if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
+  if (!data) return interaction.reply({ content: '❌ Ce ticket est expiré (le bot a redémarré). Merci de contacter un Admin pour relancer la procédure si nécessaire.', ephemeral: true });
 
   const settings = getSpawnSettings();
   const password = settings.mapPassword || '';
@@ -480,7 +480,7 @@ async function handleSendPassword(interaction, ticketId) {
 async function handleUnlock(interaction, ticketId) {
   if (!isStaff(interaction)) return interaction.reply(STAFF_ONLY_REPLY);
   const data = activeSpawnTickets.get(ticketId);
-  if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
+  if (!data) return interaction.reply({ content: '❌ Ce ticket est expiré (le bot a redémarré). Merci de contacter un Admin pour relancer la procédure si nécessaire.', ephemeral: true });
 
   const settings = getSpawnSettings();
   if (!settings.memberRoleId) {
@@ -514,7 +514,7 @@ async function handleUnlock(interaction, ticketId) {
 async function handleFinalize(interaction, ticketId) {
   if (!isStaff(interaction)) return interaction.reply(STAFF_ONLY_REPLY);
   const data = activeSpawnTickets.get(ticketId);
-  if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
+  if (!data) return interaction.reply({ content: '❌ Ce ticket est expiré (le bot a redémarré). Merci de contacter un Admin pour relancer la procédure si nécessaire.', ephemeral: true });
 
   const { voc, enreg, password } = data.checks;
   if (!voc || !enreg || !password) {
