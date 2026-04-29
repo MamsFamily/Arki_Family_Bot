@@ -29,6 +29,19 @@ const { getSettings } = require('./settingsManager');
 // ── Stockage en mémoire ───────────────────────────────────────────────────────
 const activeSpawnTickets = new Map(); // ticketId → data
 
+// ── Vérification staff ────────────────────────────────────────────────────────
+function isStaff(interaction) {
+  const settings = getSpawnSettings();
+  const adminRoleIds = settings.adminRoleIds || [];
+  if (!adminRoleIds.length) {
+    // Si aucun rôle configuré, on vérifie la permission ManageChannels
+    return interaction.member?.permissions?.has('ManageChannels') ?? false;
+  }
+  return interaction.member?.roles?.cache?.some(r => adminRoleIds.includes(r.id)) ?? false;
+}
+
+const STAFF_ONLY_REPLY = { content: '🚫 Cette action est réservée au staff.', ephemeral: true };
+
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
@@ -396,6 +409,7 @@ async function handleModalSubmit(interaction) {
 
 // ── Toggle case checklist ─────────────────────────────────────────────────────
 async function handleCheck(interaction, ticketId, step) {
+  if (!isStaff(interaction)) return interaction.reply(STAFF_ONLY_REPLY);
   const data = activeSpawnTickets.get(ticketId);
   if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
 
@@ -416,6 +430,7 @@ async function handleCheck(interaction, ticketId, step) {
 
 // ── Envoyer le mot de passe in-game en MP ────────────────────────────────────
 async function handleSendPassword(interaction, ticketId) {
+  if (!isStaff(interaction)) return interaction.reply(STAFF_ONLY_REPLY);
   const data = activeSpawnTickets.get(ticketId);
   if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
 
@@ -463,6 +478,7 @@ async function handleSendPassword(interaction, ticketId) {
 
 // ── Débloquer les salons Discord ─────────────────────────────────────────────
 async function handleUnlock(interaction, ticketId) {
+  if (!isStaff(interaction)) return interaction.reply(STAFF_ONLY_REPLY);
   const data = activeSpawnTickets.get(ticketId);
   if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
 
@@ -496,6 +512,7 @@ async function handleUnlock(interaction, ticketId) {
 
 // ── Finaliser l'admission ─────────────────────────────────────────────────────
 async function handleFinalize(interaction, ticketId) {
+  if (!isStaff(interaction)) return interaction.reply(STAFF_ONLY_REPLY);
   const data = activeSpawnTickets.get(ticketId);
   if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
 
@@ -595,6 +612,7 @@ async function handleFinalize(interaction, ticketId) {
 
 // ── Demander confirmation de fermeture ────────────────────────────────────────
 async function handleClose(interaction, ticketId) {
+  if (!isStaff(interaction)) return interaction.reply(STAFF_ONLY_REPLY);
   await interaction.reply({
     embeds: [new EmbedBuilder()
       .setColor(0xe67e22)
@@ -620,6 +638,7 @@ async function handleClose(interaction, ticketId) {
 
 // ── Confirmer la fermeture ────────────────────────────────────────────────────
 async function handleCloseConfirm(interaction, ticketId) {
+  if (!isStaff(interaction)) return interaction.reply(STAFF_ONLY_REPLY);
   const data = activeSpawnTickets.get(ticketId);
   const adminName = interaction.member?.displayName || interaction.user.username;
   const userId = data?.userId;
@@ -657,7 +676,7 @@ async function handleCloseConfirm(interaction, ticketId) {
     });
   } catch (e) {}
 
-  // Message public dans le salon avec bouton de suppression
+  // Message public dans le salon avec boutons réouverture + suppression
   try {
     await interaction.channel.send({
       embeds: [new EmbedBuilder()
@@ -672,6 +691,10 @@ async function handleCloseConfirm(interaction, ticketId) {
       ],
       components: [new ActionRowBuilder().addComponents(
         new ButtonBuilder()
+          .setCustomId(`spwn_reopen::${ticketId}`)
+          .setLabel('🔓 Réouvrir le ticket')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
           .setCustomId(`spwn_delete::${ticketId}`)
           .setLabel('🗑️ Supprimer le ticket')
           .setStyle(ButtonStyle.Danger),
@@ -680,6 +703,57 @@ async function handleCloseConfirm(interaction, ticketId) {
   } catch (e) {
     console.error('[SpawnTicket] Impossible d\'envoyer le message de fermeture:', e.message);
   }
+}
+
+// ── Réouvrir le ticket (rendre visible au joueur) ─────────────────────────────
+async function handleReopen(interaction, ticketId) {
+  if (!isStaff(interaction)) return interaction.reply(STAFF_ONLY_REPLY);
+  const data = activeSpawnTickets.get(ticketId);
+  const adminName = interaction.member?.displayName || interaction.user.username;
+
+  // Restaurer l'accès du joueur
+  const userId = data?.userId;
+  if (userId) {
+    try {
+      await interaction.channel.permissionOverwrites.edit(userId, {
+        ViewChannel: true,
+        SendMessages: true,
+      });
+    } catch (e) {
+      console.error('[SpawnTicket] Impossible de restaurer les permissions:', e.message);
+    }
+  }
+
+  // Retirer le préfixe "ferme-" du nom du salon
+  try {
+    const currentName = interaction.channel.name;
+    const newName = currentName.replace(/^ferme-/, '');
+    if (newName !== currentName) {
+      await interaction.channel.edit({ name: newName, reason: `Ticket réouvert par ${adminName}` });
+    }
+  } catch (e) {
+    console.error('[SpawnTicket] Impossible de renommer le salon:', e.message);
+  }
+
+  if (data) data.status = 'open';
+
+  await interaction.update({
+    embeds: [new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle('🔓 Ticket réouvert')
+      .setDescription(
+        `Ticket réouvert par **${adminName}**.\n` +
+        `${userId ? `<@${userId}> a de nouveau accès à ce salon.` : ''}`
+      )
+      .setTimestamp()
+    ],
+    components: [new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`spwn_delete::${ticketId}`)
+        .setLabel('🗑️ Supprimer le ticket')
+        .setStyle(ButtonStyle.Danger),
+    )],
+  });
 }
 
 // ── Annuler la fermeture ──────────────────────────────────────────────────────
@@ -695,6 +769,7 @@ async function handleCloseCancel(interaction) {
 
 // ── Supprimer le ticket (définitif) ──────────────────────────────────────────
 async function handleDeleteTicket(interaction, ticketId) {
+  if (!isStaff(interaction)) return interaction.reply(STAFF_ONLY_REPLY);
   const adminName = interaction.member?.displayName || interaction.user.username;
 
   try {
@@ -762,6 +837,10 @@ async function handleSpawnTicketInteraction(interaction) {
 
   if (id.startsWith('spwn_close_cancel::')) {
     return handleCloseCancel(interaction);
+  }
+
+  if (id.startsWith('spwn_reopen::')) {
+    return handleReopen(interaction, id.split('::')[1]);
   }
 
   if (id.startsWith('spwn_delete::')) {

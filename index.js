@@ -1065,6 +1065,7 @@ client.on('interactionCreate', async interaction => {
       interaction.customId.startsWith('spwn_close::') ||
       interaction.customId.startsWith('spwn_close_confirm::') ||
       interaction.customId.startsWith('spwn_close_cancel::') ||
+      interaction.customId.startsWith('spwn_reopen::') ||
       interaction.customId.startsWith('spwn_delete::')
     )) ||
     (interaction.isModalSubmit() && interaction.customId === 'spwn_modal')
