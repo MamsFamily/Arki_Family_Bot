@@ -133,10 +133,25 @@ const INI_KEY_MAP = {
 };
 
 async function listFiles(serviceId, dir) {
+  // Nitrado utilise "dir" comme paramètre — on log la réponse complète pour debug
   const res = await client().get(`/services/${serviceId}/gameservers/file_server/list`, {
     params: { dir },
   });
-  return res.data?.data?.entries || [];
+  const raw = res.data;
+  console.log(`[Nitrado listFiles] ${serviceId} "${dir}": status=${raw?.status}, keys=${Object.keys(raw?.data || {}).join(',')}, entries=${raw?.data?.entries?.length ?? 'undefined'}`);
+  return raw?.data?.entries || [];
+}
+
+// Retourne la réponse brute complète de list pour debug
+async function listFilesRaw(serviceId, dir) {
+  try {
+    const res = await client().get(`/services/${serviceId}/gameservers/file_server/list`, {
+      params: { dir },
+    });
+    return { httpStatus: res.status, body: res.data };
+  } catch (err) {
+    return { httpStatus: err.response?.status, body: err.response?.data, error: err.message };
+  }
 }
 
 // mkdir(serviceId, fullPath) — Nitrado attend { path: parentDir, name: newDirName }
@@ -727,6 +742,7 @@ module.exports = {
   findCategory,
   smartUpdateSetting,
   listFiles,
+  listFilesRaw,
   mkdir,
   mkdirRecursive,
   discoverConfigDir,

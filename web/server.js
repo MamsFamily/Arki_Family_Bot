@@ -3067,6 +3067,34 @@ function createWebServer(discordClient) {
     }
   });
 
+  // Debug brut : retourne la réponse RAW de l'API Nitrado file_server/list
+  // Permet de voir si le problème vient du paramètre ou du parsing de la réponse
+  app.get('/nitrado/api/debug/raw-list', requireAdmin, async (req, res) => {
+    try {
+      const { serviceId, dir } = req.query;
+      if (!serviceId) return res.json({ ok: false, error: 'serviceId requis' });
+      const targetDir = dir || '/';
+      // Test avec les deux noms de paramètre possibles (dir et path)
+      const [withDir, withPath] = await Promise.all([
+        nitrado.listFilesRaw(serviceId, targetDir),
+        (async () => {
+          const axios = require('axios');
+          const tok = nitrado.getToken();
+          try {
+            const r = await axios.get(`https://api.nitrado.net/services/${serviceId}/gameservers/file_server/list`,
+              { params: { path: targetDir }, headers: { Authorization: `Bearer ${tok}` }, timeout: 15000 });
+            return { httpStatus: r.status, body: r.data };
+          } catch (e) {
+            return { httpStatus: e.response?.status, body: e.response?.data, error: e.message };
+          }
+        })(),
+      ]);
+      res.json({ ok: true, dir: targetDir, withDirParam: withDir, withPathParam: withPath });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
   // Scanne les répertoires parents pour confirmer si le chemin config existe réellement
   // Nitrado retourne [] pour les dirs inexistants ET les dirs vides — il faut lister le PARENT
   app.get('/nitrado/api/ini/scan-parents', requireAdmin, async (req, res) => {

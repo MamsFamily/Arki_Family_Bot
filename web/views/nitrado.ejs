@@ -595,6 +595,7 @@
               <button onclick="discoverIniPath()" style="padding:8px 14px;background:#065f46;color:#6ee7b7;border:1px solid #047857;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap;font-weight:700" title="Trouve automatiquement le bon chemin (serveur OFF)">🔍 Détecter</button>
               <button onclick="testMkdir()" style="padding:8px 14px;background:#1e1b4b;color:#a5b4fc;border:1px solid #4338ca;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap;font-weight:700" title="Teste la création du répertoire niveau par niveau">🔧 Test mkdir</button>
               <button onclick="scanParents()" style="padding:8px 14px;background:#431407;color:#fb923c;border:1px solid #9a3412;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap;font-weight:700" title="Liste chaque niveau du chemin pour confirmer l'arborescence réelle (serveur ON recommandé)">🌳 Scan arbre</button>
+              <button onclick="rawDebugList()" style="padding:8px 14px;background:#292524;color:#a8a29e;border:1px solid #57534e;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap;font-weight:700" title="Affiche la réponse brute de l'API Nitrado pour diagnostiquer le format">🔬 Debug brut</button>
             </div>
 
             <!-- Test écriture d'une clé -->
@@ -1184,6 +1185,26 @@ async function testMkdir() {
       ? `✅ Tous les répertoires créés avec succès !\n\nLe prochain "Apply" devrait fonctionner.`
       : `❌ Échec à un niveau — le répertoire n'a pas pu être créé.\n\nLis les erreurs ci-dessous pour comprendre pourquoi.`;
     box.textContent = `${summary}\n\nChemin testé : ${d.path}\n\nDétail niveau par niveau :\n${lines.join('\n') || '  (aucun)'}`;
+  } catch (e) { box.style.color = '#f87171'; box.textContent = '❌ Erreur réseau : ' + e.message; }
+}
+
+// Debug brut — affiche la réponse API Nitrado complète pour diagnostiquer
+async function rawDebugList() {
+  const ids = getSelIds();
+  const serviceId = ids.length > 0 ? ids[0] : (SRV.length > 0 ? SRV[0].id : null);
+  if (!serviceId) { toast('Aucun serveur sélectionné', true); return; }
+  const box = document.getElementById('diag-result');
+  box.style.display = 'block'; box.style.color = 'var(--text-primary)'; box.style.whiteSpace = 'pre-wrap';
+  box.textContent = `⏳ Debug brut API Nitrado (serveur ${serviceId}) — liste /…`;
+  try {
+    const r = await fetch(`/nitrado/api/debug/raw-list?${new URLSearchParams({ serviceId, dir: '/' })}`);
+    const d = await r.json();
+    const fmt = (label, info) => {
+      const body = JSON.stringify(info?.body, null, 2);
+      return `── ${label} (HTTP ${info?.httpStatus || '?'}) ──\n${info?.error ? '❌ ' + info.error + '\n' : ''}${body?.slice(0, 800) || '(vide)'}`;
+    };
+    box.style.color = 'var(--text-primary)';
+    box.textContent = `🔬 Réponse brute Nitrado pour "/" (serveur ${serviceId}) :\n\n${fmt('param=dir', d.withDirParam)}\n\n${fmt('param=path', d.withPathParam)}`;
   } catch (e) { box.style.color = '#f87171'; box.textContent = '❌ Erreur réseau : ' + e.message; }
 }
 
