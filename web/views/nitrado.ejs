@@ -599,7 +599,8 @@
               <button onclick="clearDirCache()" style="padding:8px 14px;background:#1c1917;color:#78716c;border:1px solid #44403c;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap" title="Vide le cache du chemin config détecté — force une re-détection au prochain Apply">🗑️ Vider cache</button>
               <button onclick="findGameIni()" style="padding:8px 14px;background:#172554;color:#93c5fd;border:1px solid #1d4ed8;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap;font-weight:700" title="Tente de télécharger Game.ini depuis plusieurs chemins — trouve le bon (serveur ON)">🔎 Find Game.ini</button>
               <button onclick="testMkdirPaths()" style="padding:8px 14px;background:#14532d;color:#86efac;border:1px solid #15803d;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap;font-weight:700" title="Teste mkdir avec différents formats de chemin pour trouver lequel fonctionne">📁 Test mkdir paths</button>
-              <button onclick="testUploadPaths()" style="padding:8px 14px;background:#4c1d95;color:#c4b5fd;border:1px solid #7c3aed;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap;font-weight:700" title="Teste l'upload d'un fichier dummy avec 3 formats de chemin — identifie lequel fonctionne">🧪 Test Upload</button>
+              <button onclick="testUploadPaths()" style="padding:8px 14px;background:#4c1d95;color:#c4b5fd;border:1px solid #7c3aed;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap;font-weight:700" title="Teste l'upload d'un fichier dummy avec 13 formats de chemin — identifie lequel fonctionne">🧪 Test Upload</button>
+              <button onclick="checkTokenScopes()" style="padding:8px 14px;background:#7f1d1d;color:#fca5a5;border:1px solid #dc2626;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap;font-weight:700" title="Vérifie si le token Nitrado a le scope Fileserver requis pour écrire les fichiers ini">🔑 Vérifier le token</button>
             </div>
 
             <!-- Test écriture d'une clé -->
@@ -1266,6 +1267,49 @@ async function testUploadPaths() {
       ? `\n\n🎯 UPLOAD FONCTIONNE : [${d.firstOk.label}] path="${d.firstOk.path}", format=${d.firstOk.format}`
       : `\n\n❌ Aucun format ne fonctionne (basePath=${d.basePath}, gameDir=${d.gameDir})`;
     box.textContent = `🧪 Test Upload étendu (serveur ${serviceId}) :\n\nMkdir WindowsServer : ${mkdirLine}\n\n${lines.join('\n')}${conclusion}`;
+  } catch (e) { box.style.color = '#f87171'; box.textContent = '❌ Erreur : ' + e.message; }
+}
+
+async function checkTokenScopes() {
+  const box = document.getElementById('diag-result');
+  box.style.display = 'block'; box.style.color = 'var(--text-primary)'; box.style.whiteSpace = 'pre-wrap';
+  box.textContent = '⏳ Vérification des permissions du token Nitrado…';
+  try {
+    const r = await fetch('/nitrado/api/debug/check-token-scopes');
+    const d = await r.json();
+    if (!d.ok) {
+      box.style.color = '#f87171';
+      box.textContent = `❌ Erreur vérification token : ${d.error || 'Réponse invalide'}`;
+      return;
+    }
+    const lines = [];
+    lines.push('🔑 Vérification token Nitrado');
+    lines.push('');
+    lines.push(d.hasFileserver ? '✅ Scope FILESERVER : présent' : '❌ Scope FILESERVER : MANQUANT');
+    lines.push(d.hasGameserver ? '✅ Scope GAMESERVER : présent' : '⚠️ Scope GAMESERVER : absent');
+    if (d.tokenExpiry) lines.push(`📅 Expiration : ${d.tokenExpiry}`);
+    if (d.serviceCount !== undefined) lines.push(`🖥️ Serveurs accessibles : ${d.serviceCount}`);
+    if (d.grants && d.grants.length > 0) {
+      lines.push('');
+      lines.push(`Scopes actifs (${d.grants.length}) : ${d.grants.join(', ')}`);
+    } else {
+      lines.push('');
+      lines.push('Aucun scope listé — token peut-être invalide ou expiré.');
+    }
+    if (!d.hasFileserver) {
+      lines.push('');
+      lines.push('───────────────────────────────────────────');
+      lines.push('⚠️  Le scope Fileserver est requis pour écrire Game.ini.');
+      lines.push('   → panel.nitrado.net → API-Tokens → créer un nouveau token');
+      lines.push('   → Cocher "Fileserver" (et "Gameserver" si absent)');
+      lines.push('   → Mettre à jour NITRADO_TOKEN dans les variables Railway');
+    }
+    if (d.hints && d.hints.length > 0) {
+      lines.push('');
+      d.hints.forEach(h => lines.push(`💡 ${h}`));
+    }
+    box.style.color = d.hasFileserver ? '#86efac' : '#f87171';
+    box.textContent = lines.join('\n');
   } catch (e) { box.style.color = '#f87171'; box.textContent = '❌ Erreur : ' + e.message; }
 }
 
