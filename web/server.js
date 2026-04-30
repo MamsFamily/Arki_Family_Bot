@@ -3098,12 +3098,38 @@ function createWebServer(discordClient) {
     const log = [];
     const addLog = (msg) => { log.push(msg); console.log('[INI apply-restart]', msg); };
 
+    // Helper : édite tous les settings sur tous les serveurs, retourne true si tout ok
+    const editAll = async (label) => {
+      let allOk = true;
+      const editResults = {};
+      for (const { key, value } of settings) {
+        const normalized = String(value).replace(',', '.');
+        const results = await nitrado.updateIniKeyOnAll(ids, key, normalized);
+        editResults[key] = results;
+        const ok = results.filter(r => r.ok).length;
+        addLog(`  [${label}] ${key}=${normalized} — ${ok}/${ids.length} OK`);
+        results.filter(r => !r.ok).forEach(r => addLog(`    ❌ Serveur ${r.id}: ${r.error}`));
+        if (ok < ids.length) allOk = false;
+      }
+      return { allOk, editResults };
+    };
+
     try {
-      // 1. Stopper tous les serveurs en parallèle
+      // ── PHASE 1 : Essai d'écriture serveur EN MARCHE ──────────────────────
+      // ARK SA crée le répertoire Saved/Config au premier démarrage. Si on peut
+      // écrire pendant que le serveur tourne, c'est la méthode la plus fiable.
+      addLog('Phase 1 : Tentative d\'écriture serveur en marche…');
+      const phase1 = await editAll('live');
+      if (phase1.allOk) {
+        addLog('✅ Écriture réussie sans downtime ! Redémarre simplement la map pour appliquer.');
+        return res.json({ ok: true, log, editResults: phase1.editResults, restartDone: false });
+      }
+      addLog('Phase 1 échouée — passage en mode stop→édition→démarrage…');
+
+      // ── PHASE 2 : Stop → édition → start ─────────────────────────────────
       addLog(`Arrêt de ${ids.length} serveur(s)…`);
       await Promise.all(ids.map(id => nitrado.stopServer(id).catch(e => addLog(`  WARN stop ${id}: ${e.message}`))));
 
-      // 2. Attendre que chaque serveur soit vraiment stoppé (max 45s pour rester sous les timeouts HTTP)
       addLog('Attente de l\'arrêt complet (max 45s)…');
       const waitStop = async (id) => {
         for (let i = 0; i < 15; i++) {
@@ -3120,22 +3146,13 @@ function createWebServer(discordClient) {
       await Promise.all(ids.map(id => waitStop(id)));
       addLog('Serveurs arrêtés.');
 
-      // Délai supplémentaire : le file server Nitrado peut rester verrouillé quelques secondes après l'arrêt du process
       addLog('Attente de 15s pour déverrouillage file system…');
       await new Promise(r => setTimeout(r, 15000));
 
-      // 3. Éditer les fichiers ini sur chaque serveur
-      const editResults = {};
-      for (const { key, value } of settings) {
-        const normalized = String(value).replace(',', '.');
-        const results = await nitrado.updateIniKeyOnAll(ids, key, normalized);
-        editResults[key] = results;
-        const ok = results.filter(r => r.ok).length;
-        addLog(`  ${key}=${normalized} — ${ok}/${ids.length} OK`);
-        results.filter(r => !r.ok).forEach(r => addLog(`    ❌ Serveur ${r.id}: ${r.error}`));
-      }
+      addLog('Phase 2 : Écriture des fichiers ini (serveur stoppé)…');
+      const phase2 = await editAll('stopped');
+      const editResults = phase2.editResults;
 
-      // 4. Redémarrer tous les serveurs en parallèle
       addLog('Redémarrage des serveurs…');
       const startResults = await Promise.all(ids.map(async id => {
         try {
@@ -3146,9 +3163,9 @@ function createWebServer(discordClient) {
           return { id, ok: false, error: e.message };
         }
       }));
-      addLog('Redémarrage lancé.');
+      addLog(phase2.allOk ? 'Redémarrage lancé.' : 'Redémarrage lancé (avec erreurs d\'écriture).');
 
-      res.json({ ok: true, log, editResults, startResults });
+      res.json({ ok: phase2.allOk, log, editResults, startResults, restartDone: true });
     } catch (e) {
       addLog(`ERREUR: ${e.message}`);
       res.json({ ok: false, error: e.message, log });

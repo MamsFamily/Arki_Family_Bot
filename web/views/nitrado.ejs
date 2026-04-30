@@ -1092,7 +1092,7 @@ async function applyConfigWithRestart(settings, serviceIds) {
   box.style.whiteSpace = 'pre-wrap';
   const ids = serviceIds && serviceIds.length ? serviceIds : getSelIds();
   const maps = ids.length === 0 ? 'toutes les maps' : ids.length + ' map(s)';
-  box.textContent = `⏳ Arrêt des serveurs en cours (${maps})…\nCela peut prendre 2-3 minutes, ne ferme pas la page.`;
+  box.textContent = `⏳ Application en cours (${maps})…\nEssai d'écriture directe, puis stop→edit→start si nécessaire.\nNe ferme pas la page.`;
 
   try {
     const res = await fetch('/nitrado/api/ini/apply-with-restart', {
@@ -1104,11 +1104,16 @@ async function applyConfigWithRestart(settings, serviceIds) {
     const logText = (d.log || []).join('\n');
     if (d.ok) {
       box.style.color = '#4ade80';
-      box.textContent = `✅ TERMINÉ — Paramètres appliqués + serveurs redémarrés\n\n${logText}`;
-      toast('✅ Paramètres appliqués avec redémarrage', false);
+      if (d.restartDone === false) {
+        box.textContent = `✅ TERMINÉ — Fichiers écrits sans downtime !\n\n${logText}\n\n→ Redémarre la map depuis le panel pour appliquer les changements.`;
+        toast('✅ Fichiers écrits (redémarre la map)', false);
+      } else {
+        box.textContent = `✅ TERMINÉ — Paramètres appliqués + serveurs redémarrés\n\n${logText}`;
+        toast('✅ Paramètres appliqués avec redémarrage', false);
+      }
     } else {
       box.style.color = '#f87171';
-      box.textContent = `❌ ERREUR\n${d.error}\n\nLog :\n${logText}`;
+      box.textContent = `❌ ERREUR lors de l'écriture\n${d.error || ''}\n\nLog détaillé :\n${logText}\n\n💡 Si l'erreur est "directory doesn't exist" → le serveur n'a peut-être jamais démarré.\n   Démarre-le une première fois depuis Nitrado, laisse-le 2 min, puis retente.`;
       toast('❌ Erreur lors de l\'application', true);
     }
   } catch (e) {

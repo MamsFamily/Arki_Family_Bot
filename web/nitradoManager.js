@@ -142,14 +142,29 @@ async function listFiles(serviceId, dir) {
 async function mkdir(serviceId, path) {
   try {
     const res = await client().post(`/services/${serviceId}/gameservers/file_server/mkdir`, { path });
-    console.log(`[Nitrado mkdir] ${serviceId} "${path}": HTTP ${res.status}`);
+    console.log(`[Nitrado mkdir] ${serviceId} "${path}": HTTP ${res.status} ✅`);
     return true;
   } catch (err) {
-    // 422 = déjà existant, pas une erreur
-    if (err.response?.status === 422) return true;
-    console.warn(`[Nitrado mkdir] Erreur ${serviceId} "${path}": HTTP ${err.response?.status} — ${err.message}`);
+    const status = err.response?.status;
+    const body = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    // 422 = déjà existant, c'est ok
+    if (status === 422) { console.log(`[Nitrado mkdir] ${serviceId} "${path}": déjà existant (422)`); return true; }
+    console.warn(`[Nitrado mkdir] ${serviceId} "${path}": HTTP ${status} — ${body}`);
     return false;
   }
+}
+
+// Crée récursivement tous les niveaux d'un chemin
+async function mkdirRecursive(serviceId, fullPath) {
+  const parts = fullPath.replace(/\/$/, '').split('/').filter(Boolean);
+  let current = '';
+  for (const part of parts) {
+    current += '/' + part;
+    const ok = await mkdir(serviceId, current);
+    console.log(`[Nitrado mkdirRecursive] ${serviceId} "${current}": ${ok ? 'ok' : 'échec'}`);
+    if (!ok) return false;
+  }
+  return true;
 }
 
 // Découvre automatiquement le répertoire Config ARK SA sur un serveur Nitrado
@@ -270,10 +285,11 @@ async function writeFile(serviceId, filePath, content) {
   const dir = nodePath.dirname(filePath);
   const filename = nodePath.basename(filePath);
 
-  // Toujours créer le répertoire avant l'upload (Nitrado ne le crée pas automatiquement)
-  // mkdir retourne true si créé ou déjà existant (422), false en cas d'erreur ignorable
-  const mkdirOk = await mkdir(serviceId, dir);
-  console.log(`[Nitrado writeFile] mkdir "${dir}": ${mkdirOk ? 'ok' : 'ignoré (sera tenté quand même)'}`);
+  // Créer récursivement tous les niveaux du répertoire avant l'upload
+  // ex: /ShooterGame → /ShooterGame/Saved → /ShooterGame/Saved/Config → /ShooterGame/Saved/Config/WindowsServer
+  console.log(`[Nitrado writeFile] mkdirRecursive "${dir}"…`);
+  const mkdirOk = await mkdirRecursive(serviceId, dir);
+  console.log(`[Nitrado writeFile] mkdirRecursive "${dir}": ${mkdirOk ? '✅ ok' : '⚠️ partiel (upload tenté quand même)'}`);
 
   // Retry 2× avec délai croissant (le file server peut prendre du temps à s'ouvrir après arrêt du serveur)
   let lastErr;
@@ -675,6 +691,7 @@ module.exports = {
   smartUpdateSetting,
   listFiles,
   mkdir,
+  mkdirRecursive,
   discoverConfigDir,
   discoverConfigDirVerbose,
   readFile,
