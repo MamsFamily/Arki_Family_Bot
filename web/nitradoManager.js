@@ -615,12 +615,22 @@ async function updateIniKeyMapped(serviceId, key, value) {
 
 /**
  * Prépare les contenus ini en mémoire pour plusieurs clés/valeurs sans écrire.
- * Retourne un tableau de { serviceId, filePath, content } prêts pour writeFileSysFullOnce.
- * Utilisé par le polling restart pour accumuler tous les changements avant d'écrire.
+ * Retourne { writes, skipped } où :
+ *   writes  = [{ serviceId, filePath, content }] prêts pour writeFileSysFullOnce
+ *   skipped = [{ serviceId?, key?, reason }] erreurs explicites (configDir manquant, clé non mappée, etc.)
+ * Ne retourne JAMAIS silencieusement un tableau vide sans raison dans skipped.
  */
 async function prepareIniWrites(serviceIds, keyValuePairs) {
   const nodePath = require('path');
   const pendingWrites = {}; // key: "${serviceId}::${filePath}", value: { serviceId, filePath, content }
+  const skipped = [];
+
+  // Vérifie d'abord que toutes les clés sont mappées
+  for (const { key } of keyValuePairs) {
+    if (!INI_KEY_MAP[key]) {
+      skipped.push({ key, reason: `Clé "${key}" absente de INI_KEY_MAP — fichier et section inconnus` });
+    }
+  }
 
   for (const id of serviceIds) {
     // Découverte (avec cache) du répertoire config
@@ -630,19 +640,27 @@ async function prepareIniWrites(serviceIds, keyValuePairs) {
     let gameDir   = cached?.gameDir   || null;
 
     if (!configDir) {
-      const disc = await discoverConfigDirFull(id);
-      configDir = disc.found;
-      basePath  = disc.basePath;
-      gameDir   = disc.gameDir;
-      if (configDir) _configDirCache[id] = { configDir, basePath, gameDir };
+      try {
+        const disc = await discoverConfigDirFull(id);
+        configDir = disc.found;
+        basePath  = disc.basePath;
+        gameDir   = disc.gameDir;
+        if (configDir) _configDirCache[id] = { configDir, basePath, gameDir };
+      } catch (e) {
+        skipped.push({ serviceId: id, reason: `Découverte répertoire config échouée: ${e.message}` });
+      }
     }
 
-    if (!configDir) continue;
+    if (!configDir) {
+      skipped.push({ serviceId: id, reason: 'Répertoire config introuvable (aucun chemin découvert)' });
+      continue;
+    }
 
     // Groupe les clés par fichier, puis lit et modifie le contenu
     for (const { key, value } of keyValuePairs) {
       const map = INI_KEY_MAP[key];
-      if (!map) continue;
+      if (!map) continue; // déjà enregistré dans skipped plus haut
+
       const filename = nodePath.basename(ARK_PATHS[map.file]);
       const filePath = `${configDir}/${filename}`;
       const cacheKey = `${id}::${filePath}`;
@@ -659,7 +677,7 @@ async function prepareIniWrites(serviceIds, keyValuePairs) {
     }
   }
 
-  return Object.values(pendingWrites);
+  return { writes: Object.values(pendingWrites), skipped };
 }
 
 async function updateIniKeyOnAll(serviceIds, key, value) {

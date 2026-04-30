@@ -3446,8 +3446,23 @@ function createWebServer(discordClient) {
       const kvPairs = settings.map(({ key, value }) => ({ key, value: String(value).replace(',', '.') }));
       let pendingWrites;
       try {
-        pendingWrites = await nitrado.prepareIniWrites(ids, kvPairs);
-        log(`  ${pendingWrites.length} fichier(s) : ${[...new Set(pendingWrites.map(w => w.filePath.split('/').pop()))].join(', ')}`);
+        const prep = await nitrado.prepareIniWrites(ids, kvPairs);
+        pendingWrites = prep.writes;
+        // Log des éléments ignorés (clé non mappée, configDir manquant, etc.)
+        if (prep.skipped.length > 0) {
+          log(`  ⚠️ ${prep.skipped.length} élément(s) ignoré(s) :`);
+          prep.skipped.forEach(s => log(`    - ${s.key ? `clé "${s.key}"` : `serveur ${s.serviceId}`}: ${s.reason}`));
+        }
+        // GARDE-FOU : si aucun fichier à écrire, échec immédiat avec diagnostic
+        if (pendingWrites.length === 0) {
+          log('❌ Aucun fichier ini à écrire — impossible de continuer.');
+          if (prep.skipped.length > 0) {
+            log('  Causes identifiées ci-dessus. Vérifier INI_KEY_MAP et la découverte du répertoire config.');
+          }
+          clearInterval(pingInterval);
+          return done(false, { error: 'prepareIniWrites: 0 fichier préparé', skipped: prep.skipped });
+        }
+        log(`  ${pendingWrites.length} fichier(s) à écrire : ${[...new Set(pendingWrites.map(w => w.filePath.split('/').pop()))].join(', ')}`);
       } catch (e) {
         log(`❌ Erreur préparation: ${e.message}`);
         clearInterval(pingInterval);
