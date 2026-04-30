@@ -1230,18 +1230,25 @@ async function scanParents() {
       return `✅ ${path} → ${info.count} entrée(s) : ${names}`;
     });
 
-    // Déduction : si le parent existe avec entrées mais l'enfant est absent → répertoire manquant
-    const configScan = d.scan['/ShooterGame/Saved/Config'];
-    const wsScan = d.scan['/ShooterGame/Saved/Config/WindowsServer'];
+    // Déduction dynamique avec le bon préfixe (ex: /arksa)
+    const gameRoot = (d.gameRoot || [])[0] || null;
+    const configKey = gameRoot ? `/${gameRoot}/ShooterGame/Saved/Config` : '/ShooterGame/Saved/Config';
+    const wsKey = gameRoot ? `/${gameRoot}/ShooterGame/Saved/Config/WindowsServer` : '/ShooterGame/Saved/Config/WindowsServer';
+    const configScan = d.scan[configKey];
     let conclusion = '';
+    if (gameRoot) {
+      conclusion += `\n📁 Dossier jeu détecté : /${gameRoot}/ShooterGame/…`;
+    }
     if (configScan?.ok && configScan.count > 0) {
       const hasWS = configScan.entries.some(e => e.name === 'WindowsServer');
-      if (hasWS) conclusion = '\n✅ CONCLUSION : WindowsServer existe dans Config → l\'écriture devrait fonctionner.';
-      else conclusion = '\n❌ CONCLUSION : WindowsServer ABSENT de Config → dossier manquant, ARK doit le créer en démarrant.';
+      if (hasWS) conclusion += '\n✅ CONCLUSION : WindowsServer existe → l\'écriture devrait fonctionner. Lance Apply !';
+      else conclusion += `\n❌ CONCLUSION : WindowsServer ABSENT de Config (${configScan.entries.map(e=>e.name).join(', ') || 'vide'}) → ARK doit démarrer pour le créer.`;
     } else if (configScan?.ok && configScan.count === 0) {
-      conclusion = '\n⚠️  CONCLUSION : Config vide ou inexistant (ambiguïté). Démarre le serveur et relance ce scan.';
+      conclusion += '\n⚠️  CONCLUSION : Config vide/inexistant. Si serveur ON → relance depuis le panel Nitrado et attends 3 min.';
+    } else if (!d.scan['/']?.count) {
+      conclusion += '\n❌ CONCLUSION : Serveur probablement OFF — filesystem démonté.';
     } else {
-      conclusion = '\n❌ CONCLUSION : Impossible de lire /ShooterGame/Saved/Config — serveur probablement OFF.';
+      conclusion += '\n⚠️  CONCLUSION : Dossier Config introuvable. Vérifie que le serveur a démarré au moins une fois.';
     }
 
     box.style.color = 'var(--text-primary)';

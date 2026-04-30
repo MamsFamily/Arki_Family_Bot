@@ -3096,14 +3096,28 @@ function createWebServer(discordClient) {
   });
 
   // Scanne les répertoires parents pour confirmer si le chemin config existe réellement
-  // Nitrado retourne [] pour les dirs inexistants ET les dirs vides — il faut lister le PARENT
+  // Découvre d'abord le dossier racine du jeu (ex: /arksa) puis scanne en profondeur
   app.get('/nitrado/api/ini/scan-parents', requireAdmin, async (req, res) => {
     try {
       const { serviceId } = req.query;
       if (!serviceId) return res.json({ ok: false, error: 'serviceId requis' });
 
       const scanResults = {};
-      const pathsToScan = ['/', '/ShooterGame', '/ShooterGame/Saved', '/ShooterGame/Saved/Config', '/ShooterGame/Saved/Config/WindowsServer'];
+      // Commence toujours par lister la racine pour trouver le dossier jeu
+      const rootEntries = await nitrado.listFiles(serviceId, '/').catch(() => []);
+      scanResults['/'] = { ok: true, count: rootEntries.length, entries: rootEntries.map(e => ({ name: e.name, type: e.type })) };
+
+      // Cherche le dossier racine du jeu (ex: arksa, ark-survival-ascended…)
+      const gameDirs = rootEntries.filter(e => e.type === 'dir');
+      const pathsToScan = gameDirs.length > 0
+        ? gameDirs.flatMap(d => [
+            `/${d.name}`,
+            `/${d.name}/ShooterGame/Saved`,
+            `/${d.name}/ShooterGame/Saved/Config`,
+            `/${d.name}/ShooterGame/Saved/Config/WindowsServer`,
+          ])
+        : ['/ShooterGame', '/ShooterGame/Saved', '/ShooterGame/Saved/Config', '/ShooterGame/Saved/Config/WindowsServer'];
+
       for (const p of pathsToScan) {
         try {
           const entries = await nitrado.listFiles(serviceId, p);
@@ -3114,7 +3128,7 @@ function createWebServer(discordClient) {
           scanResults[p] = { ok: false, status, error: msg };
         }
       }
-      res.json({ ok: true, scan: scanResults });
+      res.json({ ok: true, scan: scanResults, gameRoot: gameDirs.map(d => d.name) });
     } catch (e) {
       res.json({ ok: false, error: e.message });
     }
