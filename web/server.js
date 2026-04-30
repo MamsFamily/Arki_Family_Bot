@@ -3067,6 +3067,71 @@ function createWebServer(discordClient) {
     }
   });
 
+  // Diagnostic download : tente de télécharger Game.ini depuis plusieurs chemins possibles
+  app.get('/nitrado/api/debug/find-gameini', requireAdmin, async (req, res) => {
+    try {
+      const { serviceId } = req.query;
+      if (!serviceId) return res.json({ ok: false, error: 'serviceId requis' });
+      const axios = require('axios');
+      const tok = nitrado.getToken();
+      const candidatePaths = [
+        '/ShooterGame/Saved/Config/WindowsServer/Game.ini',
+        '/ShooterGame/Saved/Config/LinuxServer/Game.ini',
+        '/ShooterGame/Saved/Config/WinServer/Game.ini',
+        '/ShooterGame/Saved/Config/WindowsNoEditor/Game.ini',
+        '/ShooterGame/Saved/Config/WindowsServer/GameUserSettings.ini',
+        '/Game.ini',
+        '/Config/Game.ini',
+      ];
+      const results = [];
+      for (const filePath of candidatePaths) {
+        try {
+          const r = await axios.get(
+            `https://api.nitrado.net/services/${serviceId}/gameservers/file_server/download`,
+            { params: { file: filePath }, headers: { Authorization: `Bearer ${tok}` }, timeout: 10000, responseType: 'text' }
+          );
+          results.push({ path: filePath, status: 'found', httpStatus: r.status, size: r.data?.length, preview: String(r.data).slice(0, 200) });
+        } catch (e) {
+          results.push({ path: filePath, status: 'error', httpStatus: e.response?.status, error: e.response?.data ? JSON.stringify(e.response.data) : e.message });
+        }
+      }
+      res.json({ ok: true, results });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // Diagnostic mkdir : tente de créer WindowsServer à différents endroits
+  app.get('/nitrado/api/debug/test-mkdir-paths', requireAdmin, async (req, res) => {
+    try {
+      const { serviceId } = req.query;
+      if (!serviceId) return res.json({ ok: false, error: 'serviceId requis' });
+      const axios = require('axios');
+      const tok = nitrado.getToken();
+      const parentCandidates = [
+        '/ShooterGame/Saved/Config',
+        '/arksa/ShooterGame/Saved/Config',
+        '/games/ni9697515_2/ftproot/arksa/ShooterGame/Saved/Config',
+      ];
+      const results = [];
+      for (const parent of parentCandidates) {
+        try {
+          const r = await axios.post(
+            `https://api.nitrado.net/services/${serviceId}/gameservers/file_server/mkdir`,
+            { path: parent, name: 'TestDir_DELETE_ME' },
+            { headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' }, timeout: 10000 }
+          );
+          results.push({ parent, status: 'mkdir_ok', httpStatus: r.status, body: r.data });
+        } catch (e) {
+          results.push({ parent, status: 'mkdir_error', httpStatus: e.response?.status, error: e.response?.data ? JSON.stringify(e.response.data) : e.message });
+        }
+      }
+      res.json({ ok: true, results });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
   // Debug brut : retourne la réponse RAW de l'API Nitrado file_server/list
   // Permet de voir si le problème vient du paramètre ou du parsing de la réponse
   app.get('/nitrado/api/debug/raw-list', requireAdmin, async (req, res) => {

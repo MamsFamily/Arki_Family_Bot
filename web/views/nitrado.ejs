@@ -597,6 +597,8 @@
               <button onclick="scanParents()" style="padding:8px 14px;background:#431407;color:#fb923c;border:1px solid #9a3412;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap;font-weight:700" title="Liste chaque niveau du chemin pour confirmer l'arborescence réelle (serveur ON recommandé)">🌳 Scan arbre</button>
               <button onclick="rawDebugList()" style="padding:8px 14px;background:#292524;color:#a8a29e;border:1px solid #57534e;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap;font-weight:700" title="Affiche la réponse brute de l'API Nitrado pour diagnostiquer le format">🔬 Debug brut</button>
               <button onclick="clearDirCache()" style="padding:8px 14px;background:#1c1917;color:#78716c;border:1px solid #44403c;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap" title="Vide le cache du chemin config détecté — force une re-détection au prochain Apply">🗑️ Vider cache</button>
+              <button onclick="findGameIni()" style="padding:8px 14px;background:#172554;color:#93c5fd;border:1px solid #1d4ed8;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap;font-weight:700" title="Tente de télécharger Game.ini depuis plusieurs chemins — trouve le bon (serveur ON)">🔎 Find Game.ini</button>
+              <button onclick="testMkdirPaths()" style="padding:8px 14px;background:#14532d;color:#86efac;border:1px solid #15803d;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap;font-weight:700" title="Teste mkdir avec différents formats de chemin pour trouver lequel fonctionne">📁 Test mkdir paths</button>
             </div>
 
             <!-- Test écriture d'une clé -->
@@ -1190,6 +1192,52 @@ async function testMkdir() {
 }
 
 // Debug brut — affiche la réponse API Nitrado complète pour diagnostiquer
+async function findGameIni() {
+  const ids = getSelIds();
+  const serviceId = ids.length > 0 ? ids[0] : (SRV.length > 0 ? SRV[0].id : null);
+  if (!serviceId) { toast('Aucun serveur sélectionné', true); return; }
+  const box = document.getElementById('diag-result');
+  box.style.display = 'block'; box.style.color = 'var(--text-primary)'; box.style.whiteSpace = 'pre-wrap';
+  box.textContent = '⏳ Recherche Game.ini (tentative download multi-chemins)…';
+  try {
+    const r = await fetch(`/nitrado/api/debug/find-gameini?${new URLSearchParams({ serviceId })}`);
+    const d = await r.json();
+    const lines = (d.results || []).map(x => {
+      if (x.status === 'found') return `✅ TROUVÉ  ${x.path} (${x.size} octets)\n   → ${x.preview?.replace(/\n/g,' ').slice(0,120)}`;
+      const errMsg = x.error || '?';
+      return `❌ ${x.httpStatus || '?'}  ${x.path} → ${errMsg.slice(0,80)}`;
+    });
+    const found = (d.results || []).filter(x => x.status === 'found');
+    let conclusion = found.length > 0
+      ? `\n\n🎯 Chemin correct : ${found[0].path}\n   → Copie ce chemin dans "Chemin personnalisé" et relance Apply!`
+      : '\n\n❌ Aucun chemin ne fonctionne. Vérifier que le serveur est bien ON.';
+    box.textContent = `🔎 Find Game.ini (serveur ${serviceId}) :\n\n${lines.join('\n')}${conclusion}`;
+  } catch (e) { box.style.color = '#f87171'; box.textContent = '❌ Erreur : ' + e.message; }
+}
+
+async function testMkdirPaths() {
+  const ids = getSelIds();
+  const serviceId = ids.length > 0 ? ids[0] : (SRV.length > 0 ? SRV[0].id : null);
+  if (!serviceId) { toast('Aucun serveur sélectionné', true); return; }
+  const box = document.getElementById('diag-result');
+  box.style.display = 'block'; box.style.color = 'var(--text-primary)'; box.style.whiteSpace = 'pre-wrap';
+  box.textContent = '⏳ Test mkdir multi-chemins (serveur doit être OFF idéalement)…';
+  try {
+    const r = await fetch(`/nitrado/api/debug/test-mkdir-paths?${new URLSearchParams({ serviceId })}`);
+    const d = await r.json();
+    const lines = (d.results || []).map(x =>
+      x.status === 'mkdir_ok'
+        ? `✅ mkdir OK  parent="${x.parent}" → ${JSON.stringify(x.body)}`
+        : `❌ ${x.httpStatus || '?'}  parent="${x.parent}" → ${x.error?.slice(0,80)}`
+    );
+    const ok = (d.results || []).filter(x => x.status === 'mkdir_ok');
+    const conclusion = ok.length > 0
+      ? `\n\n🎯 mkdir fonctionne avec parent="${ok[0].parent}"`
+      : '\n\n❌ Aucun mkdir ne fonctionne. Essaye avec serveur OFF.';
+    box.textContent = `📁 Test mkdir paths (serveur ${serviceId}) :\n\n${lines.join('\n')}${conclusion}`;
+  } catch (e) { box.style.color = '#f87171'; box.textContent = '❌ Erreur : ' + e.message; }
+}
+
 async function clearDirCache() {
   const ids = getSelIds();
   const serviceId = ids.length > 0 ? ids[0] : null;
