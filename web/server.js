@@ -3191,32 +3191,50 @@ function createWebServer(discordClient) {
       if (!serviceId) return res.json({ ok: false, error: 'serviceId requis' });
 
       const scanResults = {};
-      // Commence toujours par lister la racine pour trouver le dossier jeu
+      // Liste la racine pour obtenir le basePath système (ex: /games/ni9697515_2/ftproot)
       const rootEntries = await nitrado.listFiles(serviceId, '/').catch(() => []);
       scanResults['/'] = { ok: true, count: rootEntries.length, entries: rootEntries.map(e => ({ name: e.name, type: e.type })) };
 
-      // Cherche le dossier racine du jeu (ex: arksa, ark-survival-ascended…)
+      // Extrait le basePath depuis les .path des entrées
+      let basePath = null;
+      for (const e of rootEntries) {
+        if (e.path && e.name) {
+          const idx = e.path.lastIndexOf('/' + e.name);
+          if (idx >= 0) { basePath = e.path.slice(0, idx) || '/'; break; }
+        }
+      }
+
       const gameDirs = rootEntries.filter(e => e.type === 'dir');
-      const pathsToScan = gameDirs.length > 0
-        ? gameDirs.flatMap(d => [
-            `/${d.name}`,
-            `/${d.name}/ShooterGame/Saved`,
-            `/${d.name}/ShooterGame/Saved/Config`,
-            `/${d.name}/ShooterGame/Saved/Config/WindowsServer`,
-          ])
-        : ['/ShooterGame', '/ShooterGame/Saved', '/ShooterGame/Saved/Config', '/ShooterGame/Saved/Config/WindowsServer'];
+      let gameRoot = gameDirs.map(d => d.name);
+
+      // Construit les chemins SYSTÈME COMPLETS pour la navigation (pas des chemins relatifs)
+      const pathsToScan = gameDirs.length > 0 && basePath
+        ? gameDirs.flatMap(d => {
+            const base = d.path || `${basePath}/${d.name}`;
+            return [
+              base,
+              `${base}/ShooterGame`,
+              `${base}/ShooterGame/Saved`,
+              `${base}/ShooterGame/Saved/Config`,
+              `${base}/ShooterGame/Saved/Config/WindowsServer`,
+            ];
+          })
+        : [];
 
       for (const p of pathsToScan) {
         try {
           const entries = await nitrado.listFiles(serviceId, p);
-          scanResults[p] = { ok: true, count: entries.length, entries: entries.map(e => ({ name: e.name, type: e.type })) };
+          // Détecte si le résultat est un faux-positif (même que root → navigation ignorée)
+          const isFake = entries.length === rootEntries.length &&
+            entries.every((e, i) => rootEntries[i] && e.name === rootEntries[i].name);
+          scanResults[p] = { ok: true, count: entries.length, isFake, entries: entries.map(e => ({ name: e.name, type: e.type })) };
         } catch (e) {
           const status = e.response?.status;
           const msg = e.response?.data ? JSON.stringify(e.response.data) : e.message;
           scanResults[p] = { ok: false, status, error: msg };
         }
       }
-      res.json({ ok: true, scan: scanResults, gameRoot: gameDirs.map(d => d.name) });
+      res.json({ ok: true, scan: scanResults, gameRoot, basePath });
     } catch (e) {
       res.json({ ok: false, error: e.message });
     }

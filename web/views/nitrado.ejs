@@ -1300,30 +1300,34 @@ async function scanParents() {
 
     const lines = Object.entries(d.scan).map(([path, info]) => {
       if (!info.ok) return `❌ ${path} → HTTP ${info.status || '?'} — ${info.error}`;
-      if (info.count === 0) return `⚠️  ${path} → [] (vide OU inexistant — ambiguïté Nitrado)`;
+      if (info.count === 0) return `⚠️  ${path} → [] (vide ou inexistant)`;
       const names = info.entries.map(e => `${e.type === 'dir' ? '📁' : '📄'} ${e.name}`).join(', ');
+      if (info.isFake) return `🔁 ${path}\n   └─ FAUX POSITIF (retourne root) — listing navigation indisponible`;
       return `✅ ${path} → ${info.count} entrée(s) : ${names}`;
     });
 
-    // Déduction dynamique avec le bon préfixe (ex: /arksa)
+    // Déduction avec les chemins système complets (basePath)
+    const basePath = d.basePath || '';
     const gameRoot = (d.gameRoot || [])[0] || null;
-    const configKey = gameRoot ? `/${gameRoot}/ShooterGame/Saved/Config` : '/ShooterGame/Saved/Config';
-    const wsKey = gameRoot ? `/${gameRoot}/ShooterGame/Saved/Config/WindowsServer` : '/ShooterGame/Saved/Config/WindowsServer';
-    const configScan = d.scan[configKey];
+    const gameSysPath = basePath && gameRoot ? `${basePath}/${gameRoot}` : null;
+    const configKey = gameSysPath ? `${gameSysPath}/ShooterGame/Saved/Config` : null;
+    const wsKey = gameSysPath ? `${gameSysPath}/ShooterGame/Saved/Config/WindowsServer` : null;
+    const configScan = configKey ? d.scan[configKey] : null;
+    const wsScan = wsKey ? d.scan[wsKey] : null;
     let conclusion = '';
-    if (gameRoot) {
-      conclusion += `\n📁 Dossier jeu détecté : /${gameRoot}/ShooterGame/…`;
+    if (gameSysPath) {
+      conclusion += `\n🖥️  Chemin système : ${gameSysPath}/ShooterGame/Saved/Config/WindowsServer`;
     }
-    if (configScan?.ok && configScan.count > 0) {
+    if (wsScan && !wsScan.isFake && wsScan.count > 0) {
+      const hasIni = wsScan.entries.some(e => e.name?.endsWith('.ini'));
+      conclusion += hasIni ? '\n✅ CONCLUSION : WindowsServer avec .ini → Lance Apply directement!' : '\n✅ CONCLUSION : WindowsServer existe (vide) → Lance Apply, il créera le Game.ini.';
+    } else if (configScan && !configScan.isFake && configScan.count > 0) {
       const hasWS = configScan.entries.some(e => e.name === 'WindowsServer');
-      if (hasWS) conclusion += '\n✅ CONCLUSION : WindowsServer existe → l\'écriture devrait fonctionner. Lance Apply !';
-      else conclusion += `\n❌ CONCLUSION : WindowsServer ABSENT de Config (${configScan.entries.map(e=>e.name).join(', ') || 'vide'}) → ARK doit démarrer pour le créer.`;
-    } else if (configScan?.ok && configScan.count === 0) {
-      conclusion += '\n⚠️  CONCLUSION : Config vide/inexistant. Si serveur ON → relance depuis le panel Nitrado et attends 3 min.';
+      conclusion += hasWS ? '\n✅ WindowsServer existe dans Config → Lance Apply!' : `\n⚠️  Config existe mais sans WindowsServer (${configScan.entries.map(e=>e.name).join(', ')}) → Apply le créera via mkdir.`;
     } else if (!d.scan['/']?.count) {
-      conclusion += '\n❌ CONCLUSION : Serveur probablement OFF — filesystem démonté.';
+      conclusion += '\n❌ CONCLUSION : Serveur OFF — filesystem démonté. Démarre le serveur d\'abord.';
     } else {
-      conclusion += '\n⚠️  CONCLUSION : Dossier Config introuvable. Vérifie que le serveur a démarré au moins une fois.';
+      conclusion += '\n\n🎯 La navigation listing est ignorée par Nitrado (faux positifs détectés).\n   → Le chemin est calculé depuis le .path des entrées racine.\n   → Lance "🔍 Détecter" pour voir le chemin calculé, puis Apply.';
     }
 
     box.style.color = 'var(--text-primary)';
