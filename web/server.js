@@ -3132,6 +3132,59 @@ function createWebServer(discordClient) {
     }
   });
 
+  // Test upload : essaie plusieurs formats de chemin pour l'API upload Nitrado
+  app.get('/nitrado/api/debug/test-upload', requireAdmin, async (req, res) => {
+    try {
+      const { serviceId } = req.query;
+      if (!serviceId) return res.json({ ok: false, error: 'serviceId requis' });
+      const axios = require('axios');
+      const FormData = require('form-data');
+      const tok = nitrado.getToken();
+
+      // Découvre d'abord le basePath
+      const rootEntries = await nitrado.listFiles(serviceId, '/').catch(() => []);
+      let basePath = null;
+      let gameDir = null;
+      for (const e of rootEntries) {
+        if (e.path && e.name) {
+          const idx = e.path.lastIndexOf('/' + e.name);
+          if (idx >= 0) { basePath = e.path.slice(0, idx) || '/'; }
+          if (e.type === 'dir') gameDir = e.name;
+        }
+      }
+
+      const dummyContent = '; test_upload_arki\n';
+      const testFilename = 'test_upload_DELETE_ME.txt';
+
+      // 3 formats de chemin à tester pour l'upload
+      const candidates = basePath && gameDir ? [
+        `${basePath}/${gameDir}/ShooterGame/Saved/Config/${testFilename}`,       // chemin système complet
+        `/${gameDir}/ShooterGame/Saved/Config/${testFilename}`,                  // chemin relatif FTP
+        `/ShooterGame/Saved/Config/${testFilename}`,                             // chemin relatif court
+      ] : [`/ShooterGame/Saved/Config/${testFilename}`];
+
+      const results = [];
+      for (const uploadPath of candidates) {
+        const form = new FormData();
+        form.append('path', uploadPath);
+        form.append('file', Buffer.from(dummyContent, 'utf8'), { filename: testFilename });
+        try {
+          const r = await axios.post(
+            `https://api.nitrado.net/services/${serviceId}/gameservers/file_server/upload`,
+            form,
+            { headers: { Authorization: `Bearer ${tok}`, ...form.getHeaders() }, timeout: 15000 }
+          );
+          results.push({ path: uploadPath, status: 'ok', httpStatus: r.status, body: r.data });
+        } catch (e) {
+          results.push({ path: uploadPath, status: 'error', httpStatus: e.response?.status, error: e.response?.data ? JSON.stringify(e.response.data) : e.message });
+        }
+      }
+      res.json({ ok: true, basePath, gameDir, results });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
   // Debug brut : retourne la réponse RAW de l'API Nitrado file_server/list
   // Permet de voir si le problème vient du paramètre ou du parsing de la réponse
   app.get('/nitrado/api/debug/raw-list', requireAdmin, async (req, res) => {

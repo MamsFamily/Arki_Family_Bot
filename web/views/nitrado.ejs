@@ -599,6 +599,7 @@
               <button onclick="clearDirCache()" style="padding:8px 14px;background:#1c1917;color:#78716c;border:1px solid #44403c;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap" title="Vide le cache du chemin config détecté — force une re-détection au prochain Apply">🗑️ Vider cache</button>
               <button onclick="findGameIni()" style="padding:8px 14px;background:#172554;color:#93c5fd;border:1px solid #1d4ed8;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap;font-weight:700" title="Tente de télécharger Game.ini depuis plusieurs chemins — trouve le bon (serveur ON)">🔎 Find Game.ini</button>
               <button onclick="testMkdirPaths()" style="padding:8px 14px;background:#14532d;color:#86efac;border:1px solid #15803d;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap;font-weight:700" title="Teste mkdir avec différents formats de chemin pour trouver lequel fonctionne">📁 Test mkdir paths</button>
+              <button onclick="testUploadPaths()" style="padding:8px 14px;background:#4c1d95;color:#c4b5fd;border:1px solid #7c3aed;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap;font-weight:700" title="Teste l'upload d'un fichier dummy avec 3 formats de chemin — identifie lequel fonctionne">🧪 Test Upload</button>
             </div>
 
             <!-- Test écriture d'une clé -->
@@ -1235,6 +1236,30 @@ async function testMkdirPaths() {
       ? `\n\n🎯 mkdir fonctionne avec parent="${ok[0].parent}"`
       : '\n\n❌ Aucun mkdir ne fonctionne. Essaye avec serveur OFF.';
     box.textContent = `📁 Test mkdir paths (serveur ${serviceId}) :\n\n${lines.join('\n')}${conclusion}`;
+  } catch (e) { box.style.color = '#f87171'; box.textContent = '❌ Erreur : ' + e.message; }
+}
+
+async function testUploadPaths() {
+  const ids = getSelIds();
+  const serviceId = ids.length > 0 ? ids[0] : (SRV.length > 0 ? SRV[0].id : null);
+  if (!serviceId) { toast('Aucun serveur sélectionné', true); return; }
+  const box = document.getElementById('diag-result');
+  box.style.display = 'block'; box.style.color = 'var(--text-primary)'; box.style.whiteSpace = 'pre-wrap';
+  box.textContent = '⏳ Test upload 3 formats de chemin (fichier dummy)…';
+  try {
+    const r = await fetch(`/nitrado/api/debug/test-upload?${new URLSearchParams({ serviceId })}`);
+    const d = await r.json();
+    if (!d.ok) { box.style.color = '#f87171'; box.textContent = '❌ ' + d.error; return; }
+    const lines = (d.results || []).map(x =>
+      x.status === 'ok'
+        ? `✅ UPLOAD OK  path="${x.path}" → HTTP ${x.httpStatus}: ${JSON.stringify(x.body).slice(0,80)}`
+        : `❌ HTTP ${x.httpStatus||'?'}  path="${x.path}" → ${(x.error||'').slice(0,100)}`
+    );
+    const ok = (d.results || []).filter(x => x.status === 'ok');
+    const conclusion = ok.length > 0
+      ? `\n\n🎯 Upload fonctionne avec path="${ok[0].path}"\n   → basePath détecté : ${d.basePath}\n   → gameDir : ${d.gameDir}`
+      : `\n\n❌ Aucun format d'upload ne fonctionne.\n   basePath=${d.basePath}, gameDir=${d.gameDir}`;
+    box.textContent = `🧪 Test Upload (serveur ${serviceId}) :\n\n${lines.join('\n')}${conclusion}`;
   } catch (e) { box.style.color = '#f87171'; box.textContent = '❌ Erreur : ' + e.message; }
 }
 
