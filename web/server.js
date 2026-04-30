@@ -3287,6 +3287,50 @@ function createWebServer(discordClient) {
     }
   });
 
+  // Debug : liste les permissions (grants/scopes) du token NITRADO_TOKEN actuel
+  // Utile pour diagnostiquer "Permission denied" persistant même serveur stoppé
+  // → vérifie que le token a le scope "Fileserver" (écriture fichiers INI)
+  app.get('/nitrado/api/debug/check-token-scopes', requireAdmin, async (req, res) => {
+    try {
+      const result = await nitrado.checkTokenScopes();
+      if (!result.ok) {
+        return res.json({
+          ok: false,
+          error: result.error,
+          httpStatus: result.httpStatus,
+          hint: 'Vérifiez que NITRADO_TOKEN est configuré et valide sur panel.nitrado.net → API-Tokens.',
+        });
+      }
+
+      const hints = [];
+      if (!result.hasFileserver) {
+        hints.push('⚠️  Scope "Fileserver" ABSENT — le token ne peut pas écrire de fichiers .ini. Régénérez le token avec tous les droits sur panel.nitrado.net → API-Tokens, puis mettez à jour NITRADO_TOKEN dans les secrets Railway.');
+      } else {
+        hints.push('✅ Scope "Fileserver" présent — le token a bien accès en écriture aux fichiers.');
+      }
+      if (!result.hasGameserver) {
+        hints.push('⚠️  Scope "Gameserver" ABSENT — le token ne peut pas contrôler les serveurs (stop/start/restart).');
+      } else {
+        hints.push('✅ Scope "Gameserver" présent.');
+      }
+      if (result.hasFileserver && result.hasGameserver) {
+        hints.push('ℹ️  Si "Permission denied" persiste malgré les scopes présents, le problème vient probablement du chemin FTP (découverte du répertoire config) ou du serveur encore en train de s\'arrêter.');
+      }
+
+      res.json({
+        ok: true,
+        grants: result.grants,
+        hasFileserver: result.hasFileserver,
+        hasGameserver: result.hasGameserver,
+        tokenExpiry: result.tokenInfo?.expires_at || result.tokenInfo?.expiry || null,
+        serviceCount: Array.isArray(result.services) ? result.services.length : null,
+        hints,
+      });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
   // Scanne les répertoires parents pour confirmer si le chemin config existe réellement
   // Découvre d'abord le dossier racine du jeu (ex: /arksa) puis scanne en profondeur
   // Vide le cache de découverte de répertoire config (force re-détection)

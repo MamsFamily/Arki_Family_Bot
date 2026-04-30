@@ -854,6 +854,65 @@ async function updateSettingOnAll(serviceIds, key, value, hintCategory) {
   return results;
 }
 
+// ── Vérification scopes du token ──────────────────────────────────────────────
+
+/**
+ * Vérifie les scopes/permissions du token NITRADO_TOKEN.
+ * Appelle GET /token pour récupérer les grants et les services accessibles.
+ * Retourne { ok, token, grants, services, hasFileserver, hasGameserver } ou { ok: false, error }.
+ */
+async function checkTokenScopes() {
+  const tok = getToken();
+  if (!tok) return { ok: false, error: 'NITRADO_TOKEN non configuré' };
+  try {
+    const res = await axios.get(`${BASE_URL}/token`, {
+      headers: { Authorization: `Bearer ${tok}` },
+      timeout: 10000,
+    });
+    const data = res.data?.data || res.data || {};
+    // Nitrado renvoie les grants dans data.token.grants ou data.grants
+    const tokenInfo = data.token || data;
+    const rawGrants = tokenInfo.grants || tokenInfo.scopes || [];
+    // Normalise : tableau direct, objet de type {scope: true}, ou chaîne CSV
+    let grants;
+    if (Array.isArray(rawGrants)) {
+      grants = rawGrants;
+    } else if (rawGrants && typeof rawGrants === 'object') {
+      grants = Object.keys(rawGrants).filter(k => rawGrants[k]);
+    } else if (typeof rawGrants === 'string' && rawGrants.length > 0) {
+      grants = rawGrants.split(/[\s,]+/).filter(Boolean);
+    } else {
+      grants = [];
+    }
+    const services = tokenInfo.services || data.services || [];
+
+    // Vérifie si les scopes critiques pour l'écriture de fichiers sont présents
+    const grantsLower = grants.map(g => String(g).toLowerCase());
+    const hasFileserver = grantsLower.some(g =>
+      g.includes('fileserver') || g.includes('file_server') || g.includes('file-server')
+    );
+    const hasGameserver = grantsLower.some(g =>
+      g.includes('gameserver') || g.includes('game_server') || g.includes('game-server')
+    );
+
+    return {
+      ok: true,
+      httpStatus: res.status,
+      tokenInfo,
+      grants,
+      services,
+      hasFileserver,
+      hasGameserver,
+      raw: res.data,
+    };
+  } catch (err) {
+    const status = err.response?.status;
+    const body = err.response?.data;
+    const msg = (typeof body === 'object' ? JSON.stringify(body) : body) || err.message;
+    return { ok: false, httpStatus: status, error: msg };
+  }
+}
+
 // ── RCON via API Nitrado ──────────────────────────────────────────────────────
 
 async function sendRcon(serviceId, command) {
@@ -948,4 +1007,5 @@ module.exports = {
   sendRcon,
   sendRconDirect,
   sendRconToMany,
+  checkTokenScopes,
 };
