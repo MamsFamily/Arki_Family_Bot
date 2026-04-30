@@ -3096,8 +3096,8 @@ function createWebServer(discordClient) {
     }
   });
 
-  // Applique des paramètres ini en stoppant le serveur, éditant les fichiers, et redémarrant
-  // POST { settings: [{key, value}], serviceIds?: [] }
+  // Applique des paramètres ini avec streaming SSE pour éviter les timeouts longue durée
+  // POST { settings: [{key, value}], serviceIds?: [] } → text/event-stream
   app.post('/nitrado/api/ini/apply-with-restart', requireAdmin, async (req, res) => {
     const { settings, serviceIds } = req.body;
     if (!settings || !settings.length) return res.json({ ok: false, error: 'settings[] requis' });
@@ -3108,10 +3108,22 @@ function createWebServer(discordClient) {
       ids = services.map(s => s.id);
     }
 
-    const log = [];
-    const addLog = (msg) => { log.push(msg); console.log('[INI apply-restart]', msg); };
+    // SSE streaming pour éviter les timeouts Railway (opération peut durer 2-3 min)
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no'); // désactive le buffering Nginx/Railway
+    res.flushHeaders();
 
-    // Helper : édite tous les settings sur tous les serveurs, retourne true si tout ok
+    const send = (type, data) => {
+      try { res.write(`data: ${JSON.stringify({ type, ...data })}\n\n`); } catch {}
+    };
+    const log = (msg) => { console.log('[INI apply-restart]', msg); send('log', { msg }); };
+    const done = (ok, extra = {}) => { send('done', { ok, ...extra }); res.end(); };
+
+    // Keep-alive ping toutes les 20s pour empêcher Railway de couper la connexion
+    const pingInterval = setInterval(() => { try { res.write(': ping\n\n'); } catch {} }, 20000);
+    res.on('close', () => clearInterval(pingInterval));
+
     const editAll = async (label) => {
       let allOk = true;
       const editResults = {};
@@ -3120,8 +3132,8 @@ function createWebServer(discordClient) {
         const results = await nitrado.updateIniKeyOnAll(ids, key, normalized);
         editResults[key] = results;
         const ok = results.filter(r => r.ok).length;
-        addLog(`  [${label}] ${key}=${normalized} — ${ok}/${ids.length} OK`);
-        results.filter(r => !r.ok).forEach(r => addLog(`    ❌ Serveur ${r.id}: ${r.error}`));
+        log(`  [${label}] ${key}=${normalized} — ${ok}/${ids.length} OK`);
+        results.filter(r => !r.ok).forEach(r => log(`    ❌ Serveur ${r.id}: ${r.error}`));
         if (ok < ids.length) allOk = false;
       }
       return { allOk, editResults };
@@ -3129,59 +3141,60 @@ function createWebServer(discordClient) {
 
     try {
       // ── PHASE 1 : Essai d'écriture serveur EN MARCHE ──────────────────────
-      // ARK SA crée le répertoire Saved/Config au premier démarrage. Si on peut
-      // écrire pendant que le serveur tourne, c'est la méthode la plus fiable.
-      addLog('Phase 1 : Tentative d\'écriture serveur en marche…');
+      log('Phase 1 : Tentative d\'écriture serveur en marche…');
       const phase1 = await editAll('live');
       if (phase1.allOk) {
-        addLog('✅ Écriture réussie sans downtime ! Redémarre simplement la map pour appliquer.');
-        return res.json({ ok: true, log, editResults: phase1.editResults, restartDone: false });
+        log('✅ Écriture réussie sans downtime ! Redémarre simplement la map pour appliquer.');
+        clearInterval(pingInterval);
+        return done(true, { editResults: phase1.editResults, restartDone: false });
       }
-      addLog('Phase 1 échouée — passage en mode stop→édition→démarrage…');
+      log('Phase 1 échouée — passage en mode stop→édition→démarrage…');
 
       // ── PHASE 2 : Stop → édition → start ─────────────────────────────────
-      addLog(`Arrêt de ${ids.length} serveur(s)…`);
-      await Promise.all(ids.map(id => nitrado.stopServer(id).catch(e => addLog(`  WARN stop ${id}: ${e.message}`))));
+      log(`Arrêt de ${ids.length} serveur(s)…`);
+      await Promise.all(ids.map(id => nitrado.stopServer(id).catch(e => log(`  WARN stop ${id}: ${e.message}`))));
 
-      addLog('Attente de l\'arrêt complet (max 45s)…');
+      log('Attente de l\'arrêt complet (max 45s)…');
       const waitStop = async (id) => {
         for (let i = 0; i < 15; i++) {
           await new Promise(r => setTimeout(r, 3000));
           try {
             const d = await nitrado.getServerDetails(id);
             const status = d?.status || d?.gameserver?.status;
+            log(`    ${id} statut: ${status}`);
             if (status === 'stopped' || status === 'halted') return true;
           } catch {}
         }
-        addLog(`  WARN: ${id} pas confirmé stoppé après 45s — édition quand même`);
+        log(`  WARN: ${id} pas confirmé stoppé après 45s — édition quand même`);
         return false;
       };
       await Promise.all(ids.map(id => waitStop(id)));
-      addLog('Serveurs arrêtés.');
+      log('Serveurs arrêtés.');
 
-      addLog('Attente de 15s pour déverrouillage file system…');
-      await new Promise(r => setTimeout(r, 15000));
+      // Essai d'écriture en boucle : tente toutes les 3s pendant 30s
+      log('Phase 2 : Écriture des fichiers ini — tentatives répétées (30s max)…');
+      let phase2 = null;
+      for (let attempt = 1; attempt <= 10; attempt++) {
+        if (attempt > 1) await new Promise(r => setTimeout(r, 3000));
+        log(`  Tentative ${attempt}/10…`);
+        const result = await editAll(`stopped-${attempt}`);
+        if (result.allOk) { phase2 = result; log(`  ✅ Écriture réussie à la tentative ${attempt}`); break; }
+        phase2 = result;
+      }
+      if (!phase2.allOk) log('⚠️ Écriture échouée après 10 tentatives.');
 
-      addLog('Phase 2 : Écriture des fichiers ini (serveur stoppé)…');
-      const phase2 = await editAll('stopped');
-      const editResults = phase2.editResults;
-
-      addLog('Redémarrage des serveurs…');
+      log('Redémarrage des serveurs…');
       const startResults = await Promise.all(ids.map(async id => {
-        try {
-          await nitrado.startServer(id);
-          return { id, ok: true };
-        } catch (e) {
-          addLog(`  WARN start ${id}: ${e.message}`);
-          return { id, ok: false, error: e.message };
-        }
+        try { await nitrado.startServer(id); return { id, ok: true }; }
+        catch (e) { log(`  WARN start ${id}: ${e.message}`); return { id, ok: false, error: e.message }; }
       }));
-      addLog(phase2.allOk ? 'Redémarrage lancé.' : 'Redémarrage lancé (avec erreurs d\'écriture).');
-
-      res.json({ ok: phase2.allOk, log, editResults, startResults, restartDone: true });
+      log(phase2.allOk ? 'Redémarrage lancé.' : 'Redémarrage lancé (avec erreurs d\'écriture).');
+      clearInterval(pingInterval);
+      done(phase2.allOk, { editResults: phase2.editResults, startResults, restartDone: true });
     } catch (e) {
-      addLog(`ERREUR: ${e.message}`);
-      res.json({ ok: false, error: e.message, log });
+      log(`ERREUR: ${e.message}`);
+      clearInterval(pingInterval);
+      done(false, { error: e.message });
     }
   });
 

@@ -174,7 +174,8 @@ async function mkdir(serviceId, fullPath) {
   }
 }
 
-// Crée récursivement tous les niveaux d'un chemin — retourne [{path, ok, status, body}]
+// Crée récursivement tous les niveaux d'un chemin — ne s'arrête pas sur les erreurs intermédiaires
+// "Permission denied" = répertoire existe probablement déjà → on continue
 async function mkdirRecursive(serviceId, fullPath) {
   const parts = fullPath.replace(/\/$/, '').split('/').filter(Boolean);
   let current = '';
@@ -183,10 +184,16 @@ async function mkdirRecursive(serviceId, fullPath) {
     current += '/' + part;
     const r = await mkdir(serviceId, current);
     results.push({ path: current, ...r });
-    console.log(`[Nitrado mkdirRecursive] ${serviceId} "${current}": ${r.ok ? '✅' : '❌'}`);
-    if (!r.ok) {
-      console.error(`[Nitrado mkdirRecursive] ABANDON — impossible de créer "${current}"`);
-      return { allOk: false, results };
+    if (r.ok) {
+      console.log(`[Nitrado mkdirRecursive] ${serviceId} "${current}": ✅`);
+    } else {
+      // "Permission denied" ou 422 = existe probablement déjà → continuer quand même
+      const isExisting = r.status === 422
+        || (r.error && (r.error.includes('denied') || r.error.includes('exists') || r.error.includes('exist')));
+      console.warn(`[Nitrado mkdirRecursive] ${serviceId} "${current}": ❌ (${r.error}) → ${isExisting ? 'supposé existant, on continue' : 'ABANDON'}`);
+      if (!isExisting) return { allOk: false, results };
+      // Marquer comme "ok" pour continuer la récursion
+      results[results.length - 1] = { ...r, ok: true, note: 'assumed_existing' };
     }
   }
   return { allOk: true, results };

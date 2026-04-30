@@ -1085,15 +1085,14 @@ function triggerPendingRestart() {
   applyConfigWithRestart(settings, serviceIds);
 }
 
-// Applique des paramètres .ini en faisant stop → édition fichier → start
+// Applique des paramètres .ini — streaming SSE pour logs temps réel et pas de timeout
 async function applyConfigWithRestart(settings, serviceIds) {
   const box = document.getElementById('diag-result');
-  box.style.display = 'block';
-  box.style.color = 'var(--text-primary)';
-  box.style.whiteSpace = 'pre-wrap';
+  box.style.display = 'block'; box.style.color = 'var(--text-primary)'; box.style.whiteSpace = 'pre-wrap';
   const ids = serviceIds && serviceIds.length ? serviceIds : getSelIds();
   const maps = ids.length === 0 ? 'toutes les maps' : ids.length + ' map(s)';
-  box.textContent = `⏳ Application en cours (${maps})…\nEssai d'écriture directe, puis stop→edit→start si nécessaire.\nNe ferme pas la page.`;
+  const logs = [];
+  box.textContent = `⏳ Application en cours (${maps})…\nLes logs s'affichent en temps réel — ne ferme pas la page.\n`;
 
   try {
     const res = await fetch('/nitrado/api/ini/apply-with-restart', {
@@ -1101,25 +1100,48 @@ async function applyConfigWithRestart(settings, serviceIds) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ settings, serviceIds: ids }),
     });
-    const d = await res.json();
-    const logText = (d.log || []).join('\n');
-    if (d.ok) {
-      box.style.color = '#4ade80';
-      if (d.restartDone === false) {
-        box.textContent = `✅ TERMINÉ — Fichiers écrits sans downtime !\n\n${logText}\n\n→ Redémarre la map depuis le panel pour appliquer les changements.`;
-        toast('✅ Fichiers écrits (redémarre la map)', false);
-      } else {
-        box.textContent = `✅ TERMINÉ — Paramètres appliqués + serveurs redémarrés\n\n${logText}`;
-        toast('✅ Paramètres appliqués avec redémarrage', false);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // garde la ligne incomplète
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const event = JSON.parse(line.slice(6));
+          if (event.type === 'log') {
+            logs.push(event.msg);
+            box.textContent = `⏳ Application en cours (${maps})…\n\n${logs.join('\n')}`;
+          } else if (event.type === 'done') {
+            const logText = logs.join('\n');
+            if (event.ok) {
+              box.style.color = '#4ade80';
+              if (event.restartDone === false) {
+                box.textContent = `✅ TERMINÉ — Fichiers écrits sans downtime !\n\n${logText}\n\n→ Redémarre la map depuis le panel Nitrado pour appliquer.`;
+                toast('✅ Fichiers écrits (redémarre la map)', false);
+              } else {
+                box.textContent = `✅ TERMINÉ — Paramètres appliqués + serveurs redémarrés\n\n${logText}`;
+                toast('✅ Paramètres appliqués avec redémarrage', false);
+              }
+            } else {
+              box.style.color = '#f87171';
+              box.textContent = `❌ ERREUR lors de l'écriture\n${event.error || ''}\n\nLog détaillé :\n${logText}`;
+              toast('❌ Erreur lors de l\'application', true);
+            }
+          }
+        } catch {}
       }
-    } else {
-      box.style.color = '#f87171';
-      box.textContent = `❌ ERREUR lors de l'écriture\n${d.error || ''}\n\nLog détaillé :\n${logText}\n\n💡 Si l'erreur est "directory doesn't exist" → le serveur n'a peut-être jamais démarré.\n   Démarre-le une première fois depuis Nitrado, laisse-le 2 min, puis retente.`;
-      toast('❌ Erreur lors de l\'application', true);
     }
   } catch (e) {
     box.style.color = '#f87171';
-    box.textContent = '❌ Erreur réseau : ' + e.message;
+    box.textContent = `❌ Erreur réseau : ${e.message}\n\nLogs capturés :\n${logs.join('\n')}`;
   }
 }
 
