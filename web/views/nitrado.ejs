@@ -1148,10 +1148,13 @@ async function testMkdir() {
     }
     const lines = (d.results || []).map(r => {
       const icon = r.ok ? '✅' : '❌';
-      const detail = r.ok
-        ? `HTTP ${r.status} (${r.label || '?'})`
-        : `ÉCHEC — ${JSON.stringify(r.body || r.error || '?')}`;
-      return `  ${icon} ${r.path} → ${detail}`;
+      if (r.ok) return `  ${icon} ${r.path} → HTTP ${r.status} (${r.label || '?'})`;
+      // Affiche toutes les tentatives échouées
+      if (r.allErrors && r.allErrors.length > 0) {
+        const errLines = r.allErrors.map(e => `      [${e.label}] HTTP ${e.status || '?'} — ${e.error}`).join('\n');
+        return `  ${icon} ${r.path} → TOUTES LES TENTATIVES ÉCHOUÉES :\n${errLines}`;
+      }
+      return `  ${icon} ${r.path} → HTTP ${r.status || '?'} — ${r.error || '?'}`;
     });
     box.style.color = d.ok ? '#4ade80' : '#f87171';
     const summary = d.ok

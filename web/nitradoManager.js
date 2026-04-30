@@ -141,11 +141,14 @@ async function listFiles(serviceId, dir) {
 
 async function mkdir(serviceId, path) {
   const tok = getToken();
-  // Essaie en JSON d'abord, puis en form-urlencoded si ça échoue
+  // Essaie avec différents noms de paramètre et formats (Nitrado n'est pas cohérent)
   const attempts = [
-    { label: 'json',    data: JSON.stringify({ path }),                      headers: { 'Content-Type': 'application/json' } },
-    { label: 'form',    data: new URLSearchParams({ path }).toString(),       headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+    { label: 'json-path',  data: JSON.stringify({ path }),                            headers: { 'Content-Type': 'application/json' } },
+    { label: 'json-dir',   data: JSON.stringify({ dir: path }),                       headers: { 'Content-Type': 'application/json' } },
+    { label: 'form-path',  data: new URLSearchParams({ path }).toString(),            headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+    { label: 'form-dir',   data: new URLSearchParams({ dir: path }).toString(),       headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
   ];
+  const errors = [];
   for (const { label, data, headers } of attempts) {
     try {
       const res = await axios.post(
@@ -153,19 +156,33 @@ async function mkdir(serviceId, path) {
         data,
         { headers: { Authorization: `Bearer ${tok}`, ...headers }, timeout: 15000 }
       );
-      console.log(`[Nitrado mkdir][${label}] ${serviceId} "${path}": HTTP ${res.status} ✅ — ${JSON.stringify(res.data).slice(0, 150)}`);
+      const bodyStr = JSON.stringify(res.data);
+      console.log(`[Nitrado mkdir][${label}] ${serviceId} "${path}": HTTP ${res.status} — ${bodyStr.slice(0, 200)}`);
+      // Vérifier si Nitrado retourne HTTP 200 avec status=error dans le body
+      if (res.data?.status === 'error') {
+        const msg = res.data.message || 'error in body';
+        console.warn(`[Nitrado mkdir][${label}] Nitrado HTTP 200 mais status=error: ${msg}`);
+        errors.push({ label, status: res.status, error: `HTTP 200 mais status=error: ${msg}` });
+        continue;
+      }
       return { ok: true, label, status: res.status, body: res.data };
     } catch (err) {
       const status = err.response?.status;
-      const body = err.response?.data ? JSON.stringify(err.response.data) : err.message;
-      console.warn(`[Nitrado mkdir][${label}] ${serviceId} "${path}": HTTP ${status} — ${body}`);
+      const respBody = err.response?.data;
+      const bodyStr = respBody ? JSON.stringify(respBody) : '';
+      const msg = bodyStr || err.message || 'unknown error';
+      console.warn(`[Nitrado mkdir][${label}] ${serviceId} "${path}": HTTP ${status} — ${msg}`);
+      errors.push({ label, status, error: msg });
+      // 422 = déjà existant, c'est ok
       if (status === 422) {
-        console.log(`[Nitrado mkdir] ${serviceId} "${path}": déjà existant (422)`);
         return { ok: true, label, status: 422, body: 'already exists' };
       }
+      // 404 = endpoint mkdir inexistant — arrêter les autres essais
+      if (status === 404) break;
     }
   }
-  return { ok: false };
+  const lastErr = errors[errors.length - 1];
+  return { ok: false, error: lastErr?.error || 'all attempts failed', status: lastErr?.status, allErrors: errors };
 }
 
 // Crée récursivement tous les niveaux d'un chemin — retourne [{path, ok, status, body}]
