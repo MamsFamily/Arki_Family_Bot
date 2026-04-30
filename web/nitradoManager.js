@@ -445,6 +445,32 @@ async function writeFile(serviceId, filePath, content, opts = {}) {
   throw lastErr;
 }
 
+/**
+ * Tentative d'upload unique ultra-rapide — uniquement format sys-full (chemin système absolu).
+ * C'est le seul format qui TROUVE les fichiers ini existants ("Permission denied" vs "not exist").
+ * Retourne { ok, error } sans jamais throw — conçu pour le polling rapide pendant un restart.
+ */
+async function writeFileSysFullOnce(serviceId, filePath, content) {
+  const FormData = require('form-data');
+  const tok = getToken();
+  try {
+    const form = new FormData();
+    form.append('path', filePath); // Chemin système absolu complet (ex: /games/.../GameUserSettings.ini)
+    form.append('file', Buffer.from(content, 'utf8'));
+    const res = await axios.post(
+      `${BASE_URL}/services/${serviceId}/gameservers/file_server/upload`,
+      form,
+      { headers: { Authorization: `Bearer ${tok}`, ...form.getHeaders() }, timeout: 8000 }
+    );
+    return { ok: true, status: res.status, data: res.data };
+  } catch (err) {
+    const status = err.response?.status;
+    const body = err.response?.data;
+    const msg = (typeof body === 'object' ? JSON.stringify(body) : body) || err.message;
+    return { ok: false, status, error: msg };
+  }
+}
+
 // ── Éditeur INI ─────────────────────────────────────────────────────────────
 
 /**
@@ -585,6 +611,55 @@ async function updateIniKeyMapped(serviceId, key, value) {
 
   const filePath = `${configDir}/${filename}`;
   return updateIniKey(serviceId, filePath, map.section, key, value, { basePath, gameDir });
+}
+
+/**
+ * Prépare les contenus ini en mémoire pour plusieurs clés/valeurs sans écrire.
+ * Retourne un tableau de { serviceId, filePath, content } prêts pour writeFileSysFullOnce.
+ * Utilisé par le polling restart pour accumuler tous les changements avant d'écrire.
+ */
+async function prepareIniWrites(serviceIds, keyValuePairs) {
+  const nodePath = require('path');
+  const pendingWrites = {}; // key: "${serviceId}::${filePath}", value: { serviceId, filePath, content }
+
+  for (const id of serviceIds) {
+    // Découverte (avec cache) du répertoire config
+    let cached = _configDirCache[id];
+    let configDir = cached?.configDir || (typeof cached === 'string' ? cached : null);
+    let basePath  = cached?.basePath  || null;
+    let gameDir   = cached?.gameDir   || null;
+
+    if (!configDir) {
+      const disc = await discoverConfigDirFull(id);
+      configDir = disc.found;
+      basePath  = disc.basePath;
+      gameDir   = disc.gameDir;
+      if (configDir) _configDirCache[id] = { configDir, basePath, gameDir };
+    }
+
+    if (!configDir) continue;
+
+    // Groupe les clés par fichier, puis lit et modifie le contenu
+    for (const { key, value } of keyValuePairs) {
+      const map = INI_KEY_MAP[key];
+      if (!map) continue;
+      const filename = nodePath.basename(ARK_PATHS[map.file]);
+      const filePath = `${configDir}/${filename}`;
+      const cacheKey = `${id}::${filePath}`;
+
+      // Lit le contenu si pas encore chargé pour ce fichier
+      if (!pendingWrites[cacheKey]) {
+        let content = '';
+        try { content = await readFile(id, filePath); } catch {}
+        pendingWrites[cacheKey] = { serviceId: id, filePath, content };
+      }
+
+      // Applique la modification en mémoire
+      pendingWrites[cacheKey].content = setIniKey(pendingWrites[cacheKey].content, map.section, key, value);
+    }
+  }
+
+  return Object.values(pendingWrites);
 }
 
 async function updateIniKeyOnAll(serviceIds, key, value) {
@@ -832,6 +907,8 @@ module.exports = {
   clearConfigDirCache,
   readFile,
   writeFile,
+  writeFileSysFullOnce,
+  prepareIniWrites,
   updateIniKey,
   updateIniKeyMapped,
   updateIniKeyOnAll,

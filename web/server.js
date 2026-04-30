@@ -3419,38 +3419,105 @@ function createWebServer(discordClient) {
     };
 
     try {
-      // ── ÉCRITURE (serveur EN MARCHE) ───────────────────────────────────────
-      // Le filesystem Nitrado n'est accessible QUE quand le serveur est actif.
-      // writeFile essaie automatiquement 4 formats de chemin jusqu'au premier succès.
-      log('Écriture dans Game.ini / GameUserSettings.ini…');
+      // ── PHASE 1 : Écriture directe (serveur EN MARCHE, 4 formats) ──────────
+      // sys-full = chemin système absolu complet → trouve les fichiers ini existants.
+      // Si "Permission denied" → ARK verrouille les fichiers → passer en Phase 2.
+      log('Phase 1 : Tentative d\'écriture directe (serveur en marche)…');
       const phase1 = await editAll('live');
 
       if (phase1.allOk) {
-        // ── Succès : redémarre pour appliquer les changements ───────────────
-        log('✅ Écriture réussie ! Redémarrage en cours…');
-        const startResults = await Promise.all(ids.map(async id => {
-          try { await nitrado.stopServer(id); return { id, ok: true }; }
-          catch (e) { log(`  WARN restart ${id}: ${e.message}`); return { id, ok: false, error: e.message }; }
-        }));
-        await new Promise(r => setTimeout(r, 3000));
-        await Promise.all(ids.map(id => nitrado.startServer(id).catch(e => log(`  WARN start ${id}: ${e.message}`))));
+        log('✅ Phase 1 réussie — Redémarrage pour appliquer…');
+        await Promise.all(ids.map(id => nitrado.restartServer(id).catch(e => log(`  WARN restart ${id}: ${e.message}`))));
         log('Redémarrage lancé.');
         clearInterval(pingInterval);
-        return done(true, { editResults: phase1.editResults, startResults, restartDone: true });
+        return done(true, { editResults: phase1.editResults, restartDone: true, phase: 1 });
       }
 
-      // ── Échec : log détaillé et message d'aide ────────────────────────────
-      log('❌ ERREUR lors de l\'écriture');
+      log('Phase 1 échouée (fichiers verrouillés par ARK).');
       log('');
-      log('Le serveur doit être EN MARCHE pour que l\'écriture fonctionne.');
-      log('Si le serveur est arrêté, le filesystem Nitrado est démonté (inaccessible).');
-      log('');
-      log('Solutions possibles :');
-      log('  1. Vérifie que le serveur ARK tourne (panel Nitrado → statut "online")');
-      log('  2. Clique "🧪 Test Upload" pour diagnostiquer le format d\'upload');
-      log('  3. Si Test Upload échoue → le token Nitrado ou les permissions sont incorrects');
-      clearInterval(pingInterval);
-      done(false, { editResults: phase1.editResults });
+
+      // ── PHASE 2 : Polling ultra-rapide pendant le restart ──────────────────
+      // Pendant un restart Nitrado, le processus ARK s'arrête puis redémarre.
+      // La fenêtre entre "processus mort" et "nouveau processus démarré" = fichiers déverrouillés.
+      // On sonde toutes les 300ms pendant max 90s pour attraper cette fenêtre.
+      log('Phase 2 : Préparation des contenus ini en mémoire…');
+      const kvPairs = settings.map(({ key, value }) => ({ key, value: String(value).replace(',', '.') }));
+      let pendingWrites;
+      try {
+        pendingWrites = await nitrado.prepareIniWrites(ids, kvPairs);
+        log(`  ${pendingWrites.length} fichier(s) à écrire : ${[...new Set(pendingWrites.map(w => w.filePath.split('/').pop()))].join(', ')}`);
+      } catch (e) {
+        log(`❌ Erreur préparation: ${e.message}`);
+        clearInterval(pingInterval);
+        return done(false, { error: e.message });
+      }
+
+      log('Phase 2 : Déclenchement du restart (polling 300ms pendant 90s)…');
+      // Lance le restart en parallèle du polling — on commence à sonder AVANT que le restart se propage
+      const restartPromises = ids.map(id =>
+        nitrado.restartServer(id).catch(e => log(`  WARN restart ${id}: ${e.message}`))
+      );
+
+      const pollStart = Date.now();
+      const POLL_INTERVAL = 300;   // ms entre chaque tentative
+      const POLL_TIMEOUT  = 90000; // ms max (90s = suffisant pour ARK shutdown + démarrage)
+
+      // remaining = set des fichiers encore à écrire (index dans pendingWrites)
+      const remaining = new Set(pendingWrites.map((_, i) => i));
+      const writeResults = pendingWrites.map(w => ({ filePath: w.filePath, serviceId: w.serviceId, ok: false, error: null, attempt: 0 }));
+      let pollCount = 0;
+
+      while (remaining.size > 0 && Date.now() - pollStart < POLL_TIMEOUT) {
+        pollCount++;
+        const elapsed = Math.round((Date.now() - pollStart) / 1000);
+
+        // Tente d'écrire tous les fichiers restants en parallèle
+        const attempts = await Promise.all([...remaining].map(async idx => {
+          const { serviceId, filePath, content } = pendingWrites[idx];
+          writeResults[idx].attempt++;
+          const r = await nitrado.writeFileSysFullOnce(serviceId, filePath, content);
+          return { idx, ...r };
+        }));
+
+        for (const a of attempts) {
+          if (a.ok) {
+            remaining.delete(a.idx);
+            writeResults[a.idx].ok = true;
+            log(`  ✅ Écrit [${a.attempt}/${Math.round(elapsed)}s]: ${pendingWrites[a.idx].filePath.split('/').pop()} (serveur ${pendingWrites[a.idx].serviceId})`);
+          } else {
+            writeResults[a.idx].error = a.error;
+            // Log de progression toutes les 10 tentatives pour ne pas spammer
+            if (pollCount % 10 === 1) {
+              log(`  ⏳ [${elapsed}s] En attente fenêtre déverrouillage — ${a.error?.slice(0, 60)}`);
+            }
+          }
+        }
+
+        if (remaining.size > 0) {
+          await new Promise(r => setTimeout(r, POLL_INTERVAL));
+        }
+      }
+
+      // Attend la fin des restarts (ils peuvent être encore en cours)
+      await Promise.allSettled(restartPromises);
+
+      const phase2Ok = remaining.size === 0;
+      const elapsed = Math.round((Date.now() - pollStart) / 1000);
+
+      if (phase2Ok) {
+        log(`✅ Phase 2 réussie (${elapsed}s, ${pollCount} tentatives). Changements appliqués après prochain démarrage.`);
+        clearInterval(pingInterval);
+        return done(true, { writeResults, restartDone: true, phase: 2, elapsedSec: elapsed });
+      } else {
+        log(`❌ Phase 2 échouée après ${elapsed}s (${pollCount} tentatives).`);
+        log('');
+        log('Les fichiers ini sont inaccessibles en écriture.');
+        log('Erreurs détaillées :');
+        writeResults.filter(r => !r.ok).forEach(r => log(`  - ${r.filePath.split('/').pop()} (${r.serviceId}): ${r.error?.slice(0, 100)}`));
+        clearInterval(pingInterval);
+        done(false, { writeResults, phase: 2, elapsedSec: elapsed });
+      }
+
     } catch (e) {
       log(`ERREUR: ${e.message}`);
       clearInterval(pingInterval);
