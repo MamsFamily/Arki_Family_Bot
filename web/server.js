@@ -3067,6 +3067,31 @@ function createWebServer(discordClient) {
     }
   });
 
+  // Scanne les répertoires parents pour confirmer si le chemin config existe réellement
+  // Nitrado retourne [] pour les dirs inexistants ET les dirs vides — il faut lister le PARENT
+  app.get('/nitrado/api/ini/scan-parents', requireAdmin, async (req, res) => {
+    try {
+      const { serviceId } = req.query;
+      if (!serviceId) return res.json({ ok: false, error: 'serviceId requis' });
+
+      const scanResults = {};
+      const pathsToScan = ['/', '/ShooterGame', '/ShooterGame/Saved', '/ShooterGame/Saved/Config', '/ShooterGame/Saved/Config/WindowsServer'];
+      for (const p of pathsToScan) {
+        try {
+          const entries = await nitrado.listFiles(serviceId, p);
+          scanResults[p] = { ok: true, count: entries.length, entries: entries.map(e => ({ name: e.name, type: e.type })) };
+        } catch (e) {
+          const status = e.response?.status;
+          const msg = e.response?.data ? JSON.stringify(e.response.data) : e.message;
+          scanResults[p] = { ok: false, status, error: msg };
+        }
+      }
+      res.json({ ok: true, scan: scanResults });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
   // Met à jour une clé dans un .ini sur tous les serveurs sélectionnés (méthode directe)
   app.post('/nitrado/api/ini/update-all', requireAdmin, async (req, res) => {
     try {

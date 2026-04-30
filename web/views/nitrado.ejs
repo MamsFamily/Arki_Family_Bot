@@ -594,6 +594,7 @@
               <button onclick="listIniDir()" style="padding:8px 14px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap" title="Lister les fichiers accessibles (marche serveur OFF)">📁 Lister</button>
               <button onclick="discoverIniPath()" style="padding:8px 14px;background:#065f46;color:#6ee7b7;border:1px solid #047857;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap;font-weight:700" title="Trouve automatiquement le bon chemin (serveur OFF)">🔍 Détecter</button>
               <button onclick="testMkdir()" style="padding:8px 14px;background:#1e1b4b;color:#a5b4fc;border:1px solid #4338ca;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap;font-weight:700" title="Teste la création du répertoire niveau par niveau">🔧 Test mkdir</button>
+              <button onclick="scanParents()" style="padding:8px 14px;background:#431407;color:#fb923c;border:1px solid #9a3412;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap;font-weight:700" title="Liste chaque niveau du chemin pour confirmer l'arborescence réelle (serveur ON recommandé)">🌳 Scan arbre</button>
             </div>
 
             <!-- Test écriture d'une clé -->
@@ -1183,6 +1184,47 @@ async function testMkdir() {
       ? `✅ Tous les répertoires créés avec succès !\n\nLe prochain "Apply" devrait fonctionner.`
       : `❌ Échec à un niveau — le répertoire n'a pas pu être créé.\n\nLis les erreurs ci-dessous pour comprendre pourquoi.`;
     box.textContent = `${summary}\n\nChemin testé : ${d.path}\n\nDétail niveau par niveau :\n${lines.join('\n') || '  (aucun)'}`;
+  } catch (e) { box.style.color = '#f87171'; box.textContent = '❌ Erreur réseau : ' + e.message; }
+}
+
+// Scanne l'arborescence réelle niveau par niveau (serveur ON recommandé)
+// Permet de voir si /ShooterGame/Saved/Config/WindowsServer existe VRAIMENT
+// (Nitrado retourne [] aussi bien pour les dirs vides que non-existants)
+async function scanParents() {
+  const ids = getSelIds();
+  const serviceId = ids.length > 0 ? ids[0] : (SRV.length > 0 ? SRV[0].id : null);
+  if (!serviceId) { toast('Aucun serveur sélectionné', true); return; }
+  const box = document.getElementById('diag-result');
+  box.style.display = 'block'; box.style.color = 'var(--text-primary)'; box.style.whiteSpace = 'pre-wrap';
+  box.textContent = `⏳ Scan arborescence (serveur ${serviceId})…\n⚠️ Résultat fiable seulement si le serveur est ON.`;
+  try {
+    const r = await fetch(`/nitrado/api/ini/scan-parents?${new URLSearchParams({ serviceId })}`);
+    const d = await r.json();
+    if (!d.ok) { box.style.color = '#f87171'; box.textContent = `❌ Erreur : ${d.error}`; return; }
+
+    const lines = Object.entries(d.scan).map(([path, info]) => {
+      if (!info.ok) return `❌ ${path} → HTTP ${info.status || '?'} — ${info.error}`;
+      if (info.count === 0) return `⚠️  ${path} → [] (vide OU inexistant — ambiguïté Nitrado)`;
+      const names = info.entries.map(e => `${e.type === 'dir' ? '📁' : '📄'} ${e.name}`).join(', ');
+      return `✅ ${path} → ${info.count} entrée(s) : ${names}`;
+    });
+
+    // Déduction : si le parent existe avec entrées mais l'enfant est absent → répertoire manquant
+    const configScan = d.scan['/ShooterGame/Saved/Config'];
+    const wsScan = d.scan['/ShooterGame/Saved/Config/WindowsServer'];
+    let conclusion = '';
+    if (configScan?.ok && configScan.count > 0) {
+      const hasWS = configScan.entries.some(e => e.name === 'WindowsServer');
+      if (hasWS) conclusion = '\n✅ CONCLUSION : WindowsServer existe dans Config → l\'écriture devrait fonctionner.';
+      else conclusion = '\n❌ CONCLUSION : WindowsServer ABSENT de Config → dossier manquant, ARK doit le créer en démarrant.';
+    } else if (configScan?.ok && configScan.count === 0) {
+      conclusion = '\n⚠️  CONCLUSION : Config vide ou inexistant (ambiguïté). Démarre le serveur et relance ce scan.';
+    } else {
+      conclusion = '\n❌ CONCLUSION : Impossible de lire /ShooterGame/Saved/Config — serveur probablement OFF.';
+    }
+
+    box.style.color = 'var(--text-primary)';
+    box.textContent = `🌳 Arborescence Nitrado (serveur ${serviceId}) :\n\n${lines.join('\n')}${conclusion}`;
   } catch (e) { box.style.color = '#f87171'; box.textContent = '❌ Erreur réseau : ' + e.message; }
 }
 

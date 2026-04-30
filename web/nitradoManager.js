@@ -174,8 +174,9 @@ async function mkdir(serviceId, fullPath) {
   }
 }
 
-// Crée récursivement tous les niveaux d'un chemin — ne s'arrête pas sur les erreurs intermédiaires
-// "Permission denied" = répertoire existe probablement déjà → on continue
+// Crée récursivement tous les niveaux d'un chemin
+// Seul "Permission denied" est traité comme "dossier existant" (jeu protège ses dossiers)
+// "Destination directory doesn't not exist" = vrai manque → ABANDON (parent introuvable)
 async function mkdirRecursive(serviceId, fullPath) {
   const parts = fullPath.replace(/\/$/, '').split('/').filter(Boolean);
   let current = '';
@@ -183,17 +184,20 @@ async function mkdirRecursive(serviceId, fullPath) {
   for (const part of parts) {
     current += '/' + part;
     const r = await mkdir(serviceId, current);
-    results.push({ path: current, ...r });
+    const entry = { path: current, ...r };
     if (r.ok) {
-      console.log(`[Nitrado mkdirRecursive] ${serviceId} "${current}": ✅`);
+      console.log(`[Nitrado mkdirRecursive] ${serviceId} "${current}": ✅ créé`);
+      results.push(entry);
     } else {
-      // "Permission denied" ou 422 = existe probablement déjà → continuer quand même
-      const isExisting = r.status === 422
-        || (r.error && (r.error.includes('denied') || r.error.includes('exists') || r.error.includes('exist')));
-      console.warn(`[Nitrado mkdirRecursive] ${serviceId} "${current}": ❌ (${r.error}) → ${isExisting ? 'supposé existant, on continue' : 'ABANDON'}`);
-      if (!isExisting) return { allOk: false, results };
-      // Marquer comme "ok" pour continuer la récursion
-      results[results.length - 1] = { ...r, ok: true, note: 'assumed_existing' };
+      // 422 = already exists (Nitrado standard)
+      // "Permission denied" = dossier protégé (existe, ex: /ShooterGame root)
+      const isPermDenied = r.error && r.error.toLowerCase().includes('permission denied');
+      const isAlreadyExists = r.status === 422 || (r.error && r.error.toLowerCase().includes('already exist'));
+      const treatedAsExisting = isPermDenied || isAlreadyExists;
+
+      console.warn(`[Nitrado mkdirRecursive] ${serviceId} "${current}": ❌ (${r.error}) → ${treatedAsExisting ? 'supposé existant (continue)' : 'ABANDON'}`);
+      results.push({ ...entry, ok: treatedAsExisting, note: treatedAsExisting ? 'assumed_existing' : 'real_failure' });
+      if (!treatedAsExisting) return { allOk: false, results };
     }
   }
   return { allOk: true, results };
