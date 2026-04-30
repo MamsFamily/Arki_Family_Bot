@@ -1,0 +1,42 @@
+❌ ERREUR lors de l'écriture
+
+
+Log détaillé :
+Phase 1 : Tentative d'écriture directe (serveur en marche)…
+  [live] MatingIntervalMultiplier=5 — 0/1 OK
+    ❌ Serveur 17822089: HTTP 500: {"status":"error","message":"Permission denied"}
+Phase 1 échouée (fichiers verrouillés par ARK).
+
+Phase 2 : Préparation des contenus ini en mémoire…
+  1 fichier(s) à écrire : Game.ini
+Phase 2 : Déclenchement du restart (polling 300ms pendant 90s)…
+  ⏳ [0s] En attente fenêtre déverrouillage — {"status":"error","message":"Permission denied"}
+  ⏳ [4s] En attente fenêtre déverrouillage — <!DOCTYPE html><html lang="en-US"><head><title>Just a moment
+  ⏳ [8s] En attente fenêtre déverrouillage — {"status":"error","message":"Permission denied"}
+  ⏳ [11s] En attente fenêtre déverrouillage — <!DOCTYPE html><html lang="en-US"><head><title>Just a moment
+  ⏳ [15s] En attente fenêtre déverrouillage — <!DOCTYPE html><html lang="en-US"><head><title>Just a moment
+  ⏳ [19s] En attente fenêtre déverrouillage — <!DOCTYPE html><html lang="en-US"><head><title>Just a moment
+  ⏳ [23s] En attente fenêtre déverrouillage — {"status":"error","message":"Permission denied"}
+  ⏳ [26s] En attente fenêtre déverrouillage — <!DOCTYPE html><html lang="en-US"><head><title>Just a moment
+  ⏳ [30s] En attente fenêtre déverrouillage — <!DOCTYPE html><html lang="en-US"><head><title>Just a moment
+  ⏳ [34s] En attente fenêtre déverrouillage — {"status":"error","message":"Permission denied"}
+  ⏳ [37s] En attente fenêtre déverrouillage — <!DOCTYPE html><html lang="en-US"><head><title>Just a moment
+  ⏳ [41s] En attente fenêtre déverrouillage — <!DOCTYPE html><html lang="en-US"><head><title>Just a moment
+  ⏳ [45s] En attente fenêtre déverrouillage — {"status":"error","message":"Permission denied"}
+  ⏳ [49s] En attente fenêtre déverrouillage — {"status":"error","message":"Permission denied"}
+  ⏳ [52s] En attente fenêtre déverrouillage — <!DOCTYPE html><html lang="en-US"><head><title>Just a moment
+  ⏳ [56s] En attente fenêtre déverrouillage — <!DOCTYPE html><html lang="en-US"><head><title>Just a moment
+  ⏳ [60s] En attente fenêtre déverrouillage — <!DOCTYPE html><html lang="en-US"><head><title>Just a moment
+  ⏳ [64s] En attente fenêtre déverrouillage — {"status":"error","message":"Permission denied"}
+  ⏳ [67s] En attente fenêtre déverrouillage — <!DOCTYPE html><html lang="en-US"><head><title>Just a moment
+  ⏳ [71s] En attente fenêtre déverrouillage — <!DOCTYPE html><html lang="en-US"><head><title>Just a moment
+  ⏳ [75s] En attente fenêtre déverrouillage — <!DOCTYPE html><html lang="en-US"><head><title>Just a moment
+  ⏳ [79s] En attente fenêtre déverrouillage — <!DOCTYPE html><html lang="en-US"><head><title>Just a moment
+  ⏳ [82s] En attente fenêtre déverrouillage — <!DOCTYPE html><html lang="en-US"><head><title>Just a moment
+  ⏳ [86s] En attente fenêtre déverrouillage — <!DOCTYPE html><html lang="en-US"><head><title>Just a moment
+  ⏳ [90s] En attente fenêtre déverrouillage — {"status":"error","message":"Permission denied"}
+❌ Phase 2 échouée après 90s (241 tentatives).
+
+Les fichiers ini sont inaccessibles en écriture.
+Erreurs détaillées :
+  - Game.ini (17822089): {"status":"error","message":"Permission denied"}

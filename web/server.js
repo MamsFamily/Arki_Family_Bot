@@ -3433,87 +3433,113 @@ function createWebServer(discordClient) {
         return done(true, { editResults: phase1.editResults, restartDone: true, phase: 1 });
       }
 
-      log('Phase 1 échouée (fichiers verrouillés par ARK).');
+      log('Phase 1 échouée (Nitrado bloque les écritures serveur en marche).');
       log('');
 
-      // ── PHASE 2 : Polling ultra-rapide pendant le restart ──────────────────
-      // Pendant un restart Nitrado, le processus ARK s'arrête puis redémarre.
-      // La fenêtre entre "processus mort" et "nouveau processus démarré" = fichiers déverrouillés.
-      // On sonde toutes les 300ms pendant max 90s pour attraper cette fenêtre.
-      log('Phase 2 : Préparation des contenus ini en mémoire…');
+      // ── PHASE 2 : Stop → attendre statut "stopped" → écrire → Start ────────
+      // Nitrado bloque les écritures tant que le serveur est "running" ou "restarting".
+      // Il faut attendre que le statut passe à "stopped" avant d'écrire.
+      // Intervalles de 5s pour éviter le rate-limiting Cloudflare de l'API Nitrado.
+
+      // 2a — Préparation des contenus en mémoire (sans écrire)
+      log('Phase 2 : Préparation des fichiers ini en mémoire…');
       const kvPairs = settings.map(({ key, value }) => ({ key, value: String(value).replace(',', '.') }));
       let pendingWrites;
       try {
         pendingWrites = await nitrado.prepareIniWrites(ids, kvPairs);
-        log(`  ${pendingWrites.length} fichier(s) à écrire : ${[...new Set(pendingWrites.map(w => w.filePath.split('/').pop()))].join(', ')}`);
+        log(`  ${pendingWrites.length} fichier(s) : ${[...new Set(pendingWrites.map(w => w.filePath.split('/').pop()))].join(', ')}`);
       } catch (e) {
         log(`❌ Erreur préparation: ${e.message}`);
         clearInterval(pingInterval);
         return done(false, { error: e.message });
       }
 
-      log('Phase 2 : Déclenchement du restart (polling 300ms pendant 90s)…');
-      // Lance le restart en parallèle du polling — on commence à sonder AVANT que le restart se propage
-      const restartPromises = ids.map(id =>
-        nitrado.restartServer(id).catch(e => log(`  WARN restart ${id}: ${e.message}`))
-      );
+      // 2b — Arrêt des serveurs
+      log(`Phase 2 : Arrêt de ${ids.length} serveur(s)…`);
+      await Promise.all(ids.map(id => nitrado.stopServer(id).catch(e => log(`  WARN stop ${id}: ${e.message}`))));
 
-      const pollStart = Date.now();
-      const POLL_INTERVAL = 300;   // ms entre chaque tentative
-      const POLL_TIMEOUT  = 90000; // ms max (90s = suffisant pour ARK shutdown + démarrage)
+      // 2c — Attente du statut "stopped" pour chaque serveur (max 3 min, poll 5s)
+      const STOP_TIMEOUT  = 180000; // 3 minutes max pour l'arrêt
+      const STOP_POLL     = 5000;   // 5s entre chaque vérification statut
+      const stopStart = Date.now();
+      const stoppedIds = new Set();
 
-      // remaining = set des fichiers encore à écrire (index dans pendingWrites)
-      const remaining = new Set(pendingWrites.map((_, i) => i));
-      const writeResults = pendingWrites.map(w => ({ filePath: w.filePath, serviceId: w.serviceId, ok: false, error: null, attempt: 0 }));
-      let pollCount = 0;
-
-      while (remaining.size > 0 && Date.now() - pollStart < POLL_TIMEOUT) {
-        pollCount++;
-        const elapsed = Math.round((Date.now() - pollStart) / 1000);
-
-        // Tente d'écrire tous les fichiers restants en parallèle
-        const attempts = await Promise.all([...remaining].map(async idx => {
-          const { serviceId, filePath, content } = pendingWrites[idx];
-          writeResults[idx].attempt++;
-          const r = await nitrado.writeFileSysFullOnce(serviceId, filePath, content);
-          return { idx, ...r };
-        }));
-
-        for (const a of attempts) {
-          if (a.ok) {
-            remaining.delete(a.idx);
-            writeResults[a.idx].ok = true;
-            log(`  ✅ Écrit [${a.attempt}/${Math.round(elapsed)}s]: ${pendingWrites[a.idx].filePath.split('/').pop()} (serveur ${pendingWrites[a.idx].serviceId})`);
-          } else {
-            writeResults[a.idx].error = a.error;
-            // Log de progression toutes les 10 tentatives pour ne pas spammer
-            if (pollCount % 10 === 1) {
-              log(`  ⏳ [${elapsed}s] En attente fenêtre déverrouillage — ${a.error?.slice(0, 60)}`);
+      log('Phase 2 : Attente arrêt complet…');
+      while (stoppedIds.size < ids.length && Date.now() - stopStart < STOP_TIMEOUT) {
+        await new Promise(r => setTimeout(r, STOP_POLL));
+        const elapsed = Math.round((Date.now() - stopStart) / 1000);
+        for (const id of ids) {
+          if (stoppedIds.has(id)) continue;
+          try {
+            const d = await nitrado.getServerDetails(id);
+            const status = d?.status || d?.gameserver?.status || '?';
+            log(`  [${elapsed}s] Serveur ${id} : ${status}`);
+            if (['stopped', 'offline', 'halted'].includes(String(status).toLowerCase())) {
+              stoppedIds.add(id);
+              log(`  ✅ Serveur ${id} arrêté.`);
             }
-          }
-        }
-
-        if (remaining.size > 0) {
-          await new Promise(r => setTimeout(r, POLL_INTERVAL));
+          } catch (e) { log(`  WARN statut ${id}: ${e.message}`); }
         }
       }
 
-      // Attend la fin des restarts (ils peuvent être encore en cours)
-      await Promise.allSettled(restartPromises);
+      if (stoppedIds.size < ids.length) {
+        log(`⚠️ ${ids.length - stoppedIds.size} serveur(s) pas encore stoppé(s) après ${Math.round(STOP_TIMEOUT/1000)}s — tentative d'écriture quand même…`);
+      }
+
+      // 2d — Écriture (serveur stoppé, fichiers déverrouillés, 3 tentatives × 5s)
+      log('Phase 2 : Écriture des fichiers ini…');
+      const writeResults = pendingWrites.map(w => ({ filePath: w.filePath, serviceId: w.serviceId, ok: false, error: null, attempt: 0 }));
+      const remaining = new Set(pendingWrites.map((_, i) => i));
+
+      for (let attempt = 1; attempt <= 3 && remaining.size > 0; attempt++) {
+        if (attempt > 1) await new Promise(r => setTimeout(r, 5000));
+        log(`  Tentative d'écriture ${attempt}/3…`);
+        const results = await Promise.all([...remaining].map(async idx => {
+          const { serviceId, filePath, content } = pendingWrites[idx];
+          writeResults[idx].attempt = attempt;
+          const r = await nitrado.writeFileSysFullOnce(serviceId, filePath, content);
+          return { idx, ...r };
+        }));
+        for (const a of results) {
+          if (a.ok) {
+            remaining.delete(a.idx);
+            writeResults[a.idx].ok = true;
+            log(`    ✅ ${pendingWrites[a.idx].filePath.split('/').pop()} (${pendingWrites[a.idx].serviceId})`);
+          } else {
+            writeResults[a.idx].error = a.error;
+            log(`    ❌ ${pendingWrites[a.idx].filePath.split('/').pop()} (${pendingWrites[a.idx].serviceId}): ${a.error?.slice(0, 80)}`);
+          }
+        }
+      }
+
+      // 2e — Redémarrage des serveurs (qu'il y ait eu succès ou non)
+      log('Phase 2 : Redémarrage…');
+      await Promise.all(ids.map(id => nitrado.startServer(id).catch(e => log(`  WARN start ${id}: ${e.message}`))));
+      log('Redémarrage lancé.');
 
       const phase2Ok = remaining.size === 0;
-      const elapsed = Math.round((Date.now() - pollStart) / 1000);
+      const elapsed = Math.round((Date.now() - stopStart) / 1000);
 
       if (phase2Ok) {
-        log(`✅ Phase 2 réussie (${elapsed}s, ${pollCount} tentatives). Changements appliqués après prochain démarrage.`);
+        log(`✅ Phase 2 réussie (${elapsed}s). Les changements seront actifs au prochain démarrage.`);
         clearInterval(pingInterval);
         return done(true, { writeResults, restartDone: true, phase: 2, elapsedSec: elapsed });
       } else {
-        log(`❌ Phase 2 échouée après ${elapsed}s (${pollCount} tentatives).`);
+        log(`❌ Phase 2 échouée après ${elapsed}s.`);
         log('');
-        log('Les fichiers ini sont inaccessibles en écriture.');
         log('Erreurs détaillées :');
         writeResults.filter(r => !r.ok).forEach(r => log(`  - ${r.filePath.split('/').pop()} (${r.serviceId}): ${r.error?.slice(0, 100)}`));
+        log('');
+        const lastErr = writeResults.find(r => !r.ok)?.error || '';
+        if (lastErr.includes('Permission denied')) {
+          log('DIAGNOSTIC : "Permission denied" persistant même serveur stoppé.');
+          log('  → Le token Nitrado n\'a probablement pas le scope "gameserver_write".');
+          log('  → Sur panel.nitrado.net → API-Tokens → vérifie que le token a accès "Fileserver".');
+          log('  → Si OK, essaie de regénérer un token avec tous les droits activés.');
+        } else if (lastErr.includes('Just a moment') || lastErr.includes('DOCTYPE')) {
+          log('DIAGNOSTIC : Rate-limiting Cloudflare (trop de requêtes API).');
+          log('  → Relance l\'opération dans quelques minutes.');
+        }
         clearInterval(pingInterval);
         done(false, { writeResults, phase: 2, elapsedSec: elapsed });
       }
