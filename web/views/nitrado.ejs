@@ -593,6 +593,7 @@
               <button onclick="readIniFile()" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:.82rem;white-space:nowrap">📄 Lire</button>
               <button onclick="listIniDir()" style="padding:8px 14px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap" title="Lister les fichiers accessibles (marche serveur OFF)">📁 Lister</button>
               <button onclick="discoverIniPath()" style="padding:8px 14px;background:#065f46;color:#6ee7b7;border:1px solid #047857;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap;font-weight:700" title="Trouve automatiquement le bon chemin (serveur OFF)">🔍 Détecter</button>
+              <button onclick="testMkdir()" style="padding:8px 14px;background:#1e1b4b;color:#a5b4fc;border:1px solid #4338ca;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap;font-weight:700" title="Teste la création du répertoire niveau par niveau">🔧 Test mkdir</button>
             </div>
 
             <!-- Test écriture d'une clé -->
@@ -1123,6 +1124,42 @@ async function applyConfigWithRestart(settings, serviceIds) {
 }
 
 // ── Diagnostic INI ────────────────────────────────────────────────────────
+
+// Teste la création de répertoire (mkdir) niveau par niveau pour voir les vraies erreurs Nitrado
+async function testMkdir() {
+  const ids = getSelIds();
+  const serviceId = ids.length > 0 ? ids[0] : (SRV.length > 0 ? SRV[0].id : null);
+  if (!serviceId) { toast('Aucun serveur sélectionné', true); return; }
+  const customPath = document.getElementById('ini-custom-path').value.trim();
+  // Extrait juste le répertoire (sans le fichier .ini)
+  const testPath = customPath
+    ? customPath.replace(/\/[^/]+\.ini$/i, '') || '/ShooterGame/Saved/Config/WindowsServer'
+    : '/ShooterGame/Saved/Config/WindowsServer';
+  const box = document.getElementById('diag-result');
+  box.style.display = 'block'; box.style.color = 'var(--text-primary)'; box.style.whiteSpace = 'pre-wrap';
+  box.textContent = `⏳ Test mkdir niveau par niveau sur "${testPath}" (serveur ${serviceId})…`;
+  try {
+    const r = await fetch(`/nitrado/api/ini/test-mkdir?${new URLSearchParams({ serviceId, path: testPath })}`);
+    const d = await r.json();
+    if (d.error && !d.results) {
+      box.style.color = '#f87171';
+      box.textContent = `❌ Erreur : ${d.error}`;
+      return;
+    }
+    const lines = (d.results || []).map(r => {
+      const icon = r.ok ? '✅' : '❌';
+      const detail = r.ok
+        ? `HTTP ${r.status} (${r.label || '?'})`
+        : `ÉCHEC — ${JSON.stringify(r.body || r.error || '?')}`;
+      return `  ${icon} ${r.path} → ${detail}`;
+    });
+    box.style.color = d.ok ? '#4ade80' : '#f87171';
+    const summary = d.ok
+      ? `✅ Tous les répertoires créés avec succès !\n\nLe prochain "Apply" devrait fonctionner.`
+      : `❌ Échec à un niveau — le répertoire n'a pas pu être créé.\n\nLis les erreurs ci-dessous pour comprendre pourquoi.`;
+    box.textContent = `${summary}\n\nChemin testé : ${d.path}\n\nDétail niveau par niveau :\n${lines.join('\n') || '  (aucun)'}`;
+  } catch (e) { box.style.color = '#f87171'; box.textContent = '❌ Erreur réseau : ' + e.message; }
+}
 
 // Découvre automatiquement le bon répertoire config ARK SA (serveur OFF recommandé)
 async function discoverIniPath() {

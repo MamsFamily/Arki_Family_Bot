@@ -140,31 +140,50 @@ async function listFiles(serviceId, dir) {
 }
 
 async function mkdir(serviceId, path) {
-  try {
-    const res = await client().post(`/services/${serviceId}/gameservers/file_server/mkdir`, { path });
-    console.log(`[Nitrado mkdir] ${serviceId} "${path}": HTTP ${res.status} ✅`);
-    return true;
-  } catch (err) {
-    const status = err.response?.status;
-    const body = err.response?.data ? JSON.stringify(err.response.data) : err.message;
-    // 422 = déjà existant, c'est ok
-    if (status === 422) { console.log(`[Nitrado mkdir] ${serviceId} "${path}": déjà existant (422)`); return true; }
-    console.warn(`[Nitrado mkdir] ${serviceId} "${path}": HTTP ${status} — ${body}`);
-    return false;
+  const tok = getToken();
+  // Essaie en JSON d'abord, puis en form-urlencoded si ça échoue
+  const attempts = [
+    { label: 'json',    data: JSON.stringify({ path }),                      headers: { 'Content-Type': 'application/json' } },
+    { label: 'form',    data: new URLSearchParams({ path }).toString(),       headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+  ];
+  for (const { label, data, headers } of attempts) {
+    try {
+      const res = await axios.post(
+        `${BASE_URL}/services/${serviceId}/gameservers/file_server/mkdir`,
+        data,
+        { headers: { Authorization: `Bearer ${tok}`, ...headers }, timeout: 15000 }
+      );
+      console.log(`[Nitrado mkdir][${label}] ${serviceId} "${path}": HTTP ${res.status} ✅ — ${JSON.stringify(res.data).slice(0, 150)}`);
+      return { ok: true, label, status: res.status, body: res.data };
+    } catch (err) {
+      const status = err.response?.status;
+      const body = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+      console.warn(`[Nitrado mkdir][${label}] ${serviceId} "${path}": HTTP ${status} — ${body}`);
+      if (status === 422) {
+        console.log(`[Nitrado mkdir] ${serviceId} "${path}": déjà existant (422)`);
+        return { ok: true, label, status: 422, body: 'already exists' };
+      }
+    }
   }
+  return { ok: false };
 }
 
-// Crée récursivement tous les niveaux d'un chemin
+// Crée récursivement tous les niveaux d'un chemin — retourne [{path, ok, status, body}]
 async function mkdirRecursive(serviceId, fullPath) {
   const parts = fullPath.replace(/\/$/, '').split('/').filter(Boolean);
   let current = '';
+  const results = [];
   for (const part of parts) {
     current += '/' + part;
-    const ok = await mkdir(serviceId, current);
-    console.log(`[Nitrado mkdirRecursive] ${serviceId} "${current}": ${ok ? 'ok' : 'échec'}`);
-    if (!ok) return false;
+    const r = await mkdir(serviceId, current);
+    results.push({ path: current, ...r });
+    console.log(`[Nitrado mkdirRecursive] ${serviceId} "${current}": ${r.ok ? '✅' : '❌'}`);
+    if (!r.ok) {
+      console.error(`[Nitrado mkdirRecursive] ABANDON — impossible de créer "${current}"`);
+      return { allOk: false, results };
+    }
   }
-  return true;
+  return { allOk: true, results };
 }
 
 // Découvre automatiquement le répertoire Config ARK SA sur un serveur Nitrado
@@ -288,8 +307,9 @@ async function writeFile(serviceId, filePath, content) {
   // Créer récursivement tous les niveaux du répertoire avant l'upload
   // ex: /ShooterGame → /ShooterGame/Saved → /ShooterGame/Saved/Config → /ShooterGame/Saved/Config/WindowsServer
   console.log(`[Nitrado writeFile] mkdirRecursive "${dir}"…`);
-  const mkdirOk = await mkdirRecursive(serviceId, dir);
-  console.log(`[Nitrado writeFile] mkdirRecursive "${dir}": ${mkdirOk ? '✅ ok' : '⚠️ partiel (upload tenté quand même)'}`);
+  const mkdirResult = await mkdirRecursive(serviceId, dir);
+  console.log(`[Nitrado writeFile] mkdirRecursive "${dir}": ${mkdirResult.allOk ? '✅ ok' : '⚠️ partiel'} — ${JSON.stringify(mkdirResult.results?.map(r => ({ path: r.path, ok: r.ok, status: r.status })))}`);
+  const mkdirOk = mkdirResult.allOk;
 
   // Retry 2× avec délai croissant (le file server peut prendre du temps à s'ouvrir après arrêt du serveur)
   let lastErr;

@@ -3026,6 +3026,19 @@ function createWebServer(discordClient) {
     }
   });
 
+  // Test mkdir pas à pas — affiche la vraie réponse Nitrado pour chaque niveau
+  app.get('/nitrado/api/ini/test-mkdir', requireAdmin, async (req, res) => {
+    try {
+      const { serviceId, path: testPath } = req.query;
+      if (!serviceId) return res.json({ ok: false, error: 'serviceId requis' });
+      const fullPath = testPath || '/ShooterGame/Saved/Config/WindowsServer';
+      const result = await nitrado.mkdirRecursive(serviceId, fullPath);
+      res.json({ ok: result.allOk, path: fullPath, results: result.results });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
   // Découvre le répertoire config ARK SA sur un serveur (version verbose pour diagnostic)
   app.get('/nitrado/api/ini/discover', requireAdmin, async (req, res) => {
     try {
