@@ -3026,20 +3026,16 @@ function createWebServer(discordClient) {
     }
   });
 
-  // Découvre le répertoire config ARK SA sur un serveur
+  // Découvre le répertoire config ARK SA sur un serveur (version verbose pour diagnostic)
   app.get('/nitrado/api/ini/discover', requireAdmin, async (req, res) => {
     try {
       const { serviceId } = req.query;
       if (!serviceId) return res.json({ ok: false, error: 'serviceId requis' });
-      const dir = await nitrado.discoverConfigDir(serviceId);
-      if (dir) {
-        // Liste le contenu du répertoire trouvé
-        const entries = await nitrado.listFiles(serviceId, dir).catch(() => []);
-        res.json({ ok: true, dir, entries });
+      const result = await nitrado.discoverConfigDirVerbose(serviceId);
+      if (result.found) {
+        res.json({ ok: true, dir: result.found, entries: result.entries || [], attempts: result.attempts, candidates: nitrado.CONFIG_PATH_CANDIDATES });
       } else {
-        // Essaie de lister la racine pour donner des pistes
-        const rootEntries = await nitrado.listFiles(serviceId, '/').catch(() => []);
-        res.json({ ok: false, error: 'Aucun répertoire config trouvé', rootEntries, candidates: nitrado.CONFIG_PATH_CANDIDATES });
+        res.json({ ok: false, error: 'Aucun répertoire config trouvé', attempts: result.attempts, rootEntries: result.rootEntries || [], rootError: result.rootError, candidates: nitrado.CONFIG_PATH_CANDIDATES });
       }
     } catch (e) {
       res.json({ ok: false, error: e.message });

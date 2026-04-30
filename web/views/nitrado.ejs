@@ -1131,15 +1131,36 @@ async function discoverIniPath() {
     const r = await fetch(`/nitrado/api/ini/discover?${new URLSearchParams({ serviceId })}`);
     const d = await r.json();
     if (d.ok) {
-      // Prérempli le champ de chemin personnalisé avec le répertoire trouvé
       document.getElementById('ini-custom-path').value = d.dir + '/Game.ini';
       const fileList = (d.entries || []).map(e => `  ${e.type === 'dir' ? '📁' : '📄'} ${e.name}`).join('\n') || '  (vide)';
       box.style.color = '#4ade80';
-      box.textContent = `✅ RÉPERTOIRE TROUVÉ !\n\nChemin : ${d.dir}\n\nFichiers dans ce répertoire :\n${fileList}\n\n→ Le champ "Chemin personnalisé" a été mis à jour automatiquement.\n→ Tu peux maintenant cliquer "📄 Lire" pour voir le contenu du Game.ini.`;
+      box.textContent = `✅ RÉPERTOIRE TROUVÉ !\n\nChemin : ${d.dir}\n\nFichiers dans ce répertoire :\n${fileList}\n\n→ Le champ "Chemin personnalisé" a été mis à jour automatiquement.\n→ Clique "📄 Lire" pour voir le contenu du Game.ini.`;
     } else {
-      const roots = (d.rootEntries || []).map(e => `  ${e.type === 'dir' ? '📁' : '📄'} ${e.name}`).join('\n') || '  (vide ou inaccessible)';
+      // Affiche le détail de chaque tentative avec l'erreur HTTP exacte
+      const attemptLines = (d.attempts || []).map(a => {
+        if (a.status === 'ok') return `  ✅ ${a.path} → ${a.count} entrées${a.hasIni ? ' (✓ .ini trouvés)' : ''}`;
+        return `  ❌ ${a.path} → HTTP ${a.httpStatus || '?'} : ${a.error || 'erreur inconnue'}`;
+      }).join('\n') || '  (aucune tentative)';
+
+      const roots = (d.rootEntries || []).map(e => `  ${e.type === 'dir' ? '📁' : '📄'} ${e.name}`).join('\n')
+        || (d.rootError ? `  ⚠️ Erreur racine : ${d.rootError}` : '  (vide)');
+
+      // Déterminer le diagnostic le plus probable
+      const allErrors = (d.attempts || []).filter(a => a.status === 'error');
+      const has403 = allErrors.some(a => a.httpStatus === 403 || String(a.error).includes('403'));
+      const has404 = allErrors.some(a => a.httpStatus === 404 || String(a.error).includes('404'));
+      const has503 = allErrors.some(a => a.httpStatus === 503 || String(a.error).includes('503'));
+      const hasDirError = allErrors.some(a => String(a.error).includes('directory') || String(a.error).includes('exist'));
+
+      let diagnostic = '';
+      if (has403) diagnostic = '⛔ HTTP 403 détecté → Token Nitrado sans permission "file_server". Vérifie les scopes du token.';
+      else if (has503) diagnostic = '⏸️ HTTP 503 détecté → Serveur probablement en marche. Éteins-le et retente.';
+      else if (has404 && d.rootError) diagnostic = '❓ HTTP 404 partout → Le fileserver Nitrado est inaccessible (token expiré ?).';
+      else if (hasDirError) diagnostic = '📂 Erreur "directory" → Le chemin racine est différent de /ShooterGame.';
+      else diagnostic = '💡 Serveur peut-être encore en marche — éteins-le avant de relancer.';
+
       box.style.color = '#fbbf24';
-      box.textContent = `⚠️ Aucun répertoire config trouvé automatiquement.\n\nChemins testés :\n${(d.candidates || []).map(c => '  - ' + c).join('\n')}\n\nRacine "/" du serveur :\n${roots}\n\n💡 Peut-être que le serveur est en marche (éteins-le d'abord), ou le chemin est différent.\n→ Utilise "📁 Lister" avec "/" pour explorer la racine.`;
+      box.textContent = `⚠️ Aucun répertoire config trouvé.\n\n${diagnostic}\n\n─── Détail des tentatives ───\n${attemptLines}\n\n─── Racine "/" ───\n${roots}`;
     }
   } catch (e) { box.style.color = '#f87171'; box.textContent = '❌ Erreur réseau : ' + e.message; }
 }

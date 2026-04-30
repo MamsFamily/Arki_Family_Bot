@@ -163,30 +163,64 @@ const CONFIG_PATH_CANDIDATES = [
 ];
 
 async function discoverConfigDir(serviceId) {
+  // Retourne le chemin trouvé ou null
+  const results = await discoverConfigDirVerbose(serviceId);
+  return results.found || null;
+}
+
+// Version verbose qui retourne le détail de chaque tentative (pour le diagnostic)
+async function discoverConfigDirVerbose(serviceId) {
+  const attempts = [];
+
   // 1. Essaye de lister chaque chemin candidat
   for (const candidate of CONFIG_PATH_CANDIDATES) {
     try {
       const entries = await listFiles(serviceId, candidate);
-      // Valide si le répertoire contient des fichiers .ini ou des sous-répertoires
       const hasIni = entries.some(e => e.name?.endsWith('.ini'));
       const hasContent = entries.length > 0;
       console.log(`[Nitrado discover] ${serviceId} "${candidate}": ${entries.length} entrées, ini=${hasIni}`);
-      if (hasContent) return candidate;
+      attempts.push({ path: candidate, status: 'ok', count: entries.length, hasIni, entries });
+      if (hasContent) {
+        return { found: candidate, entries, attempts };
+      }
     } catch (err) {
-      console.log(`[Nitrado discover] ${serviceId} "${candidate}": ${err.response?.status || err.message}`);
+      const status = err.response?.status;
+      const msg = err.response?.data
+        ? JSON.stringify(err.response.data)
+        : err.message;
+      console.log(`[Nitrado discover] ${serviceId} "${candidate}": HTTP ${status} — ${msg}`);
+      attempts.push({ path: candidate, status: 'error', httpStatus: status, error: msg });
     }
   }
 
-  // 2. Liste le répertoire parent pour voir ce qui existe
+  // 2. Liste la racine "/" pour donner des pistes
+  let rootEntries = [];
+  let rootError = null;
   try {
-    const parentEntries = await listFiles(serviceId, '/ShooterGame/Saved/Config');
-    if (parentEntries.length > 0) {
-      const first = parentEntries.find(e => e.type === 'dir')?.name;
-      if (first) return `/ShooterGame/Saved/Config/${first}`;
+    rootEntries = await listFiles(serviceId, '/');
+    console.log(`[Nitrado discover] ${serviceId} "/": ${rootEntries.length} entrées`);
+    // Si la racine a des résultats, cherche un dossier "ShooterGame" ou similaire
+    if (rootEntries.length > 0) {
+      const shooterDir = rootEntries.find(e => e.type === 'dir' && e.name?.toLowerCase().includes('shooter'));
+      if (shooterDir) {
+        // Tentative de navigation vers ShooterGame/Saved/Config
+        const sub = `/${shooterDir.name}/Saved/Config`;
+        try {
+          const subEntries = await listFiles(serviceId, sub);
+          if (subEntries.length > 0) {
+            const firstDir = subEntries.find(e => e.type === 'dir');
+            if (firstDir) return { found: `${sub}/${firstDir.name}`, entries: subEntries, attempts, rootEntries };
+            return { found: sub, entries: subEntries, attempts, rootEntries };
+          }
+        } catch {}
+      }
     }
-  } catch {}
+  } catch (err) {
+    rootError = `HTTP ${err.response?.status} — ${err.response?.data ? JSON.stringify(err.response.data) : err.message}`;
+    console.log(`[Nitrado discover] ${serviceId} "/": ${rootError}`);
+  }
 
-  return null;
+  return { found: null, attempts, rootEntries, rootError };
 }
 
 async function readFile(serviceId, filePath) {
@@ -620,6 +654,7 @@ module.exports = {
   listFiles,
   mkdir,
   discoverConfigDir,
+  discoverConfigDirVerbose,
   readFile,
   writeFile,
   updateIniKey,
