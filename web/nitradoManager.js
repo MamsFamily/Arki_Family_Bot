@@ -379,9 +379,9 @@ async function writeFile(serviceId, filePath, content) {
     }
     try {
       const form = new FormData();
-      form.append('path', dir);
+      form.append('path', filePath);  // ← chemin COMPLET fichier (répertoire + nom), pas juste le répertoire
       form.append('file', Buffer.from(content, 'utf8'), { filename });
-      console.log(`[Nitrado writeFile] Tentative ${attempt} — upload ${filePath} (${content.length} octets) vers "${dir}"`);
+      console.log(`[Nitrado writeFile] Tentative ${attempt} — upload "${filePath}" (${content.length} octets)`);
       const res = await axios.post(
         `${BASE_URL}/services/${serviceId}/gameservers/file_server/upload`,
         form,
