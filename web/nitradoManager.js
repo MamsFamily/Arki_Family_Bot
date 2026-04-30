@@ -171,6 +171,7 @@ async function discoverConfigDir(serviceId) {
 // Version verbose qui retourne le détail de chaque tentative (pour le diagnostic)
 async function discoverConfigDirVerbose(serviceId) {
   const attempts = [];
+  let firstOkPath = null; // Premier chemin qui répond sans erreur HTTP (même vide)
 
   // 1. Essaye de lister chaque chemin candidat
   for (const candidate of CONFIG_PATH_CANDIDATES) {
@@ -180,8 +181,22 @@ async function discoverConfigDirVerbose(serviceId) {
       const hasContent = entries.length > 0;
       console.log(`[Nitrado discover] ${serviceId} "${candidate}": ${entries.length} entrées, ini=${hasIni}`);
       attempts.push({ path: candidate, status: 'ok', count: entries.length, hasIni, entries });
-      if (hasContent) {
-        return { found: candidate, entries, attempts };
+
+      if (hasIni) {
+        // Priorité absolue : répertoire avec des .ini existants
+        return { found: candidate, entries, attempts, note: 'ini_found' };
+      }
+      if (hasContent && !firstOkPath) {
+        // Répertoire avec du contenu (sous-dossiers, autres fichiers)
+        firstOkPath = { path: candidate, entries };
+      }
+      if (!hasContent && firstOkPath === null) {
+        // Répertoire vide accessible → candidat par défaut (Nitrado retourne [] pour les dirs inexistants aussi,
+        // mais on tentera mkdir+upload de toute façon — WriteFile gère ça maintenant)
+        // On mémorise le premier chemin "standard" sans erreur
+        if (candidate === '/ShooterGame/Saved/Config/WindowsServer') {
+          firstOkPath = { path: candidate, entries: [] };
+        }
       }
     } catch (err) {
       const status = err.response?.status;
@@ -193,25 +208,26 @@ async function discoverConfigDirVerbose(serviceId) {
     }
   }
 
-  // 2. Liste la racine "/" pour donner des pistes
+  // 2. Si un chemin avec contenu (non-ini) a été trouvé, l'utiliser
+  if (firstOkPath) {
+    return { found: firstOkPath.path, entries: firstOkPath.entries, attempts, note: 'empty_dir_assumed' };
+  }
+
+  // 3. Liste la racine "/" pour donner des pistes
   let rootEntries = [];
   let rootError = null;
   try {
     rootEntries = await listFiles(serviceId, '/');
     console.log(`[Nitrado discover] ${serviceId} "/": ${rootEntries.length} entrées`);
-    // Si la racine a des résultats, cherche un dossier "ShooterGame" ou similaire
     if (rootEntries.length > 0) {
       const shooterDir = rootEntries.find(e => e.type === 'dir' && e.name?.toLowerCase().includes('shooter'));
       if (shooterDir) {
-        // Tentative de navigation vers ShooterGame/Saved/Config
         const sub = `/${shooterDir.name}/Saved/Config`;
         try {
           const subEntries = await listFiles(serviceId, sub);
-          if (subEntries.length > 0) {
-            const firstDir = subEntries.find(e => e.type === 'dir');
-            if (firstDir) return { found: `${sub}/${firstDir.name}`, entries: subEntries, attempts, rootEntries };
-            return { found: sub, entries: subEntries, attempts, rootEntries };
-          }
+          const firstDir = subEntries.find(e => e.type === 'dir');
+          if (firstDir) return { found: `${sub}/${firstDir.name}`, entries: subEntries, attempts, rootEntries, note: 'root_nav' };
+          if (subEntries.length > 0) return { found: sub, entries: subEntries, attempts, rootEntries, note: 'root_nav' };
         } catch {}
       }
     }
@@ -254,6 +270,11 @@ async function writeFile(serviceId, filePath, content) {
   const dir = nodePath.dirname(filePath);
   const filename = nodePath.basename(filePath);
 
+  // Toujours créer le répertoire avant l'upload (Nitrado ne le crée pas automatiquement)
+  // mkdir retourne true si créé ou déjà existant (422), false en cas d'erreur ignorable
+  const mkdirOk = await mkdir(serviceId, dir);
+  console.log(`[Nitrado writeFile] mkdir "${dir}": ${mkdirOk ? 'ok' : 'ignoré (sera tenté quand même)'}`);
+
   // Retry 2× avec délai croissant (le file server peut prendre du temps à s'ouvrir après arrêt du serveur)
   let lastErr;
   for (let attempt = 1; attempt <= 2; attempt++) {
@@ -265,19 +286,25 @@ async function writeFile(serviceId, filePath, content) {
       const form = new FormData();
       form.append('path', dir);
       form.append('file', Buffer.from(content, 'utf8'), { filename });
-      console.log(`[Nitrado writeFile] Tentative ${attempt} — upload ${filePath} (${content.length} octets) vers ${dir}`);
+      console.log(`[Nitrado writeFile] Tentative ${attempt} — upload ${filePath} (${content.length} octets) vers "${dir}"`);
       const res = await axios.post(
         `${BASE_URL}/services/${serviceId}/gameservers/file_server/upload`,
         form,
         { headers: { Authorization: `Bearer ${tok}`, ...form.getHeaders() }, timeout: 30000 }
       );
-      console.log(`[Nitrado writeFile] OK tentative ${attempt} — HTTP ${res.status}:`, JSON.stringify(res.data).slice(0, 200));
+      console.log(`[Nitrado writeFile] ✅ OK tentative ${attempt} — HTTP ${res.status}:`, JSON.stringify(res.data).slice(0, 200));
       return res.data;
     } catch (err) {
       const status = err.response?.status;
       const body = err.response?.data;
       const msg = (typeof body === 'object' ? JSON.stringify(body) : body) || err.message;
-      console.error(`[Nitrado writeFile] Erreur tentative ${attempt} — HTTP ${status}: ${msg}`);
+      console.error(`[Nitrado writeFile] ❌ Erreur tentative ${attempt} — HTTP ${status}: ${msg}`);
+      // Si "directory doesn't exist" au 1er essai → retente mkdir et upload
+      if (attempt === 1 && typeof msg === 'string' && msg.toLowerCase().includes('director')) {
+        console.log(`[Nitrado writeFile] Répertoire manquant détecté, nouvelle tentative mkdir…`);
+        await mkdir(serviceId, dir);
+        await new Promise(r => setTimeout(r, 3000));
+      }
       lastErr = new Error(`HTTP ${status}: ${msg}`);
     }
   }
@@ -356,9 +383,6 @@ function setIniKey(content, section, key, value) {
  * Crée le répertoire parent automatiquement si nécessaire.
  */
 async function updateIniKey(serviceId, filePath, section, key, value) {
-  const nodePath = require('path');
-  const dir = nodePath.dirname(filePath);
-
   // 1. Lire le fichier existant (peut être vide si nouveau)
   let content = '';
   try {
@@ -366,15 +390,13 @@ async function updateIniKey(serviceId, filePath, section, key, value) {
     console.log(`[Nitrado INI] Fichier lu: ${filePath} (${content.length} octets)`);
   } catch (e) {
     console.warn(`[Nitrado INI] Fichier non trouvé (${filePath}), démarrage avec contenu vide. Erreur: ${e.message}`);
-    // Tente de créer le répertoire parent avant l'écriture
-    await mkdir(serviceId, dir);
     content = '';
   }
 
   // 2. Modifier la clé dans le contenu INI
   const updated = setIniKey(content, section, key, value);
 
-  // 3. Écrire le fichier (avec retry intégré dans writeFile)
+  // 3. Écrire le fichier — writeFile appelle mkdir automatiquement avant l'upload
   await writeFile(serviceId, filePath, updated);
   console.log(`[Nitrado INI] ✅ Clé ${key}=${value} écrite dans ${filePath}`);
   return { updated: true };

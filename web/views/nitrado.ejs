@@ -1132,9 +1132,13 @@ async function discoverIniPath() {
     const d = await r.json();
     if (d.ok) {
       document.getElementById('ini-custom-path').value = d.dir + '/Game.ini';
-      const fileList = (d.entries || []).map(e => `  ${e.type === 'dir' ? '📁' : '📄'} ${e.name}`).join('\n') || '  (vide)';
-      box.style.color = '#4ade80';
-      box.textContent = `✅ RÉPERTOIRE TROUVÉ !\n\nChemin : ${d.dir}\n\nFichiers dans ce répertoire :\n${fileList}\n\n→ Le champ "Chemin personnalisé" a été mis à jour automatiquement.\n→ Clique "📄 Lire" pour voir le contenu du Game.ini.`;
+      const fileList = (d.entries || []).map(e => `  ${e.type === 'dir' ? '📁' : '📄'} ${e.name}`).join('\n') || '  (vide — aucun fichier ini pour l\'instant)';
+      const isAssumed = d.note === 'empty_dir_assumed';
+      box.style.color = isAssumed ? '#fbbf24' : '#4ade80';
+      const noteMsg = isAssumed
+        ? `⚠️ RÉPERTOIRE VIDE ASSUMÉ\n\nLe répertoire semble vide (le serveur n'a jamais démarré ?).\nLe chemin standard WindowsServer sera utilisé et créé au besoin.\n`
+        : `✅ RÉPERTOIRE TROUVÉ !\n`;
+      box.textContent = `${noteMsg}\nChemin utilisé : ${d.dir}\n\nContenu :\n${fileList}\n\n→ Chemin mis à jour dans le champ ci-dessus.\n→ Tu peux maintenant tester l'écriture d'une clé ou relancer "Apply with restart".\n   Le répertoire sera créé automatiquement si inexistant.`;
     } else {
       // Affiche le détail de chaque tentative avec l'erreur HTTP exacte
       const attemptLines = (d.attempts || []).map(a => {
