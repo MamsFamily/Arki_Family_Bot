@@ -3188,18 +3188,23 @@ function createWebServer(discordClient) {
           { label: 'ROOT-dir-ftp',   path: '/',                filename: testFilename, format: 'dir' },
 
           // ── Tests vers arksa/ (dossier connu existant) ───────────────────────
-          { label: 'GAME-dir-sys',   path: `${sysBase}`,       filename: testFilename, format: 'dir' },
-          { label: 'GAME-dir-ftp',   path: ftpBase,            filename: testFilename, format: 'dir' },
+          { label: 'GAME-dir-sys',   path: `${sysBase}`,            filename: testFilename, format: 'dir' },
+          { label: 'GAME-dir-ftp',   path: ftpBase,                 filename: testFilename, format: 'dir' },
+          // Sans slash initial (ex: "arksa/ShooterGame/...") — certaines API ignorent le slash
+          { label: 'GAME-dir-noslash', path: gameDir,               filename: testFilename, format: 'dir' },
 
           // ── Tests vers Config/ ────────────────────────────────────────────────
           { label: 'CFG-dir-sys',    path: `${sysBase}/ShooterGame/Saved/Config`,                  filename: testFilename, format: 'dir' },
           { label: 'CFG-dir-ftp',    path: `${ftpBase}/ShooterGame/Saved/Config`,                  filename: testFilename, format: 'dir' },
 
           // ── Tests vers WindowsServer/ (après mkdir) ────────────────────────
-          { label: 'WS-dir-sys',     path: `${sysBase}/ShooterGame/Saved/Config/WindowsServer`,    filename: testFilename, format: 'dir' },
-          { label: 'WS-dir-ftp',     path: `${ftpBase}/ShooterGame/Saved/Config/WindowsServer`,    filename: testFilename, format: 'dir' },
-          { label: 'WS-full-sys',    path: `${sysBase}/ShooterGame/Saved/Config/WindowsServer/${testFilename}`, filename: null, format: 'full' },
-          { label: 'WS-full-ftp',    path: `${ftpBase}/ShooterGame/Saved/Config/WindowsServer/${testFilename}`, filename: null, format: 'full' },
+          { label: 'WS-dir-sys',     path: `${sysBase}/ShooterGame/Saved/Config/WindowsServer`,                        filename: testFilename, format: 'dir' },
+          { label: 'WS-dir-ftp',     path: `${ftpBase}/ShooterGame/Saved/Config/WindowsServer`,                        filename: testFilename, format: 'dir' },
+          // Sans slash initial
+          { label: 'WS-dir-noslash', path: `${gameDir}/ShooterGame/Saved/Config/WindowsServer`,                        filename: testFilename, format: 'dir' },
+          { label: 'WS-full-sys',    path: `${sysBase}/ShooterGame/Saved/Config/WindowsServer/${testFilename}`,         filename: null,         format: 'full' },
+          { label: 'WS-full-ftp',    path: `${ftpBase}/ShooterGame/Saved/Config/WindowsServer/${testFilename}`,         filename: null,         format: 'full' },
+          { label: 'WS-full-noslash',path: `${gameDir}/ShooterGame/Saved/Config/WindowsServer/${testFilename}`,         filename: null,         format: 'full' },
         );
       } else {
         // Fallback si pas de basePath
