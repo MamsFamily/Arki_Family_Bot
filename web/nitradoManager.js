@@ -235,64 +235,64 @@ async function discoverConfigDir(serviceId) {
 }
 
 // Version verbose qui retourne le détail de chaque tentative (pour le diagnostic)
+// IMPORTANT : les API list/upload/mkdir ont des roots DIFFÉRENTS sur Nitrado :
+//   - list API : root = FTP root → liste avec "/arksa/ShooterGame/..." pour trouver les fichiers
+//   - upload/mkdir API : root = dossier jeu → utilise "/ShooterGame/..." (sans préfixe jeu)
+// discoverConfigDirVerbose retourne le chemin pour UPLOAD/MKDIR (sans préfixe jeu).
 async function discoverConfigDirVerbose(serviceId) {
   const attempts = [];
-
-  // ── ÉTAPE 1 : Découverte du dossier racine du jeu via listFiles('/') ─────────
-  // Nitrado utilise "path" comme paramètre (pas "dir"). Le serveur ARK SA est
-  // dans un sous-dossier (ex: "arksa") accessible depuis la racine "/".
-  let gameRootFolders = [];
   let rootEntries = [];
   let rootError = null;
+
+  // ── ÉTAPE 1 : Navigation via root pour confirmer le préfixe jeu (ex: /arksa) ───
+  // On liste "/", trouve le dossier jeu, puis liste dedans pour trouver les .ini.
+  // Mais on retourne le chemin SANS le préfixe jeu (pour upload/mkdir).
   try {
     rootEntries = await listFiles(serviceId, '/');
     console.log(`[Nitrado discover] ${serviceId} "/": ${rootEntries.length} entrées`);
-    // Garde tous les sous-dossiers à la racine (ex: "arksa", "ark-survival-ascended"…)
-    gameRootFolders = rootEntries.filter(e => e.type === 'dir');
+    const gameDirs = rootEntries.filter(e => e.type === 'dir');
+
+    for (const gameDir of gameDirs) {
+      const listPrefix = `/${gameDir.name}`; // utilisé pour LISTER
+      const suffixCandidates = [
+        'ShooterGame/Saved/Config/WindowsServer',
+        'ShooterGame/Saved/Config/WinServer',
+        'ShooterGame/Saved/Config/LinuxServer',
+        'ShooterGame/Saved/Config/WindowsNoEditor',
+        'ShooterGame/Saved/Config',
+      ];
+      for (const suffix of suffixCandidates) {
+        const listPath = `${listPrefix}/${suffix}`;   // chemin pour LIST
+        const opPath = `/${suffix}`;                  // chemin pour UPLOAD/MKDIR (sans préfixe jeu)
+        try {
+          const entries = await listFiles(serviceId, listPath);
+          const hasIni = entries.some(e => e.name?.endsWith('.ini'));
+          console.log(`[Nitrado discover] ${serviceId} list:"${listPath}" → op:"${opPath}": ${entries.length} entrées, ini=${hasIni}`);
+          attempts.push({ path: opPath, listPath, status: 'ok', count: entries.length, hasIni, entries });
+          if (hasIni) return { found: opPath, listPath, entries, attempts, rootEntries, note: 'ini_found' };
+          if (entries.length > 0) return { found: opPath, listPath, entries, attempts, rootEntries, note: 'has_content' };
+        } catch (err) {
+          const status = err.response?.status;
+          const msg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+          attempts.push({ path: opPath, listPath, status: 'error', httpStatus: status, error: msg });
+        }
+      }
+      // Aucun suffix avec contenu → retourne le chemin op par défaut (sans préfixe)
+      const opDefault = '/ShooterGame/Saved/Config/WindowsServer';
+      console.log(`[Nitrado discover] ${serviceId} jeu="${listPrefix}" → tous vides, utilise op défaut: ${opDefault}`);
+      return { found: opDefault, gameRoot: gameDir.name, entries: [], attempts, rootEntries, note: 'game_root_found_empty' };
+    }
   } catch (err) {
     rootError = `HTTP ${err.response?.status} — ${err.response?.data ? JSON.stringify(err.response.data) : err.message}`;
     console.log(`[Nitrado discover] ${serviceId} "/": ${rootError}`);
   }
 
-  // ── ÉTAPE 2 : Pour chaque dossier racine trouvé, cherche ShooterGame/Saved/Config ─
-  for (const rootDir of gameRootFolders) {
-    const prefix = `/${rootDir.name}`;
-    const suffixCandidates = [
-      'ShooterGame/Saved/Config/WindowsServer',
-      'ShooterGame/Saved/Config/WinServer',
-      'ShooterGame/Saved/Config/LinuxServer',
-      'ShooterGame/Saved/Config/WindowsNoEditor',
-      'ShooterGame/Saved/Config',
-    ];
-    for (const suffix of suffixCandidates) {
-      const candidate = `${prefix}/${suffix}`;
-      try {
-        const entries = await listFiles(serviceId, candidate);
-        const hasIni = entries.some(e => e.name?.endsWith('.ini'));
-        console.log(`[Nitrado discover] ${serviceId} "${candidate}": ${entries.length} entrées, ini=${hasIni}`);
-        attempts.push({ path: candidate, status: 'ok', count: entries.length, hasIni, entries });
-        if (hasIni) return { found: candidate, entries, attempts, rootEntries, note: 'ini_found' };
-        if (entries.length > 0) return { found: candidate, entries, attempts, rootEntries, note: 'has_content' };
-      } catch (err) {
-        const status = err.response?.status;
-        const msg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
-        console.log(`[Nitrado discover] ${serviceId} "${candidate}": HTTP ${status} — ${msg}`);
-        attempts.push({ path: candidate, status: 'error', httpStatus: status, error: msg });
-      }
-    }
-    // Aucun des suffixes n'a de contenu — retourne le chemin standard WindowsServer de ce root
-    // (le dossier existe probablement mais est vide, ARK ne crée le .ini qu'au besoin)
-    const defaultCandidate = `${prefix}/ShooterGame/Saved/Config/WindowsServer`;
-    console.log(`[Nitrado discover] ${serviceId} "${prefix}" → dossiers vides, utilise defaut: ${defaultCandidate}`);
-    return { found: defaultCandidate, entries: [], attempts, rootEntries, note: 'game_root_found_empty' };
-  }
-
-  // ── ÉTAPE 3 : Fallback — essaie les chemins candidats classiques (sans préfixe) ─
+  // ── ÉTAPE 2 : Fallback — essaie les chemins candidats classiques (sans préfixe) ─
   for (const candidate of CONFIG_PATH_CANDIDATES) {
     try {
       const entries = await listFiles(serviceId, candidate);
       const hasIni = entries.some(e => e.name?.endsWith('.ini'));
-      console.log(`[Nitrado discover] ${serviceId} "${candidate}" (fallback): ${entries.length} entrées`);
+      console.log(`[Nitrado discover] ${serviceId} "${candidate}" (fallback): ${entries.length} entrées, ini=${hasIni}`);
       attempts.push({ path: candidate, status: 'ok', count: entries.length, hasIni, entries });
       if (hasIni) return { found: candidate, entries, attempts, note: 'fallback_ini_found' };
     } catch (err) {
@@ -470,6 +470,15 @@ async function updateIniKey(serviceId, filePath, section, key, value) {
 
 // Cache par serviceId pour éviter de redécouvrir à chaque appel
 const _configDirCache = {};
+
+// Vide le cache de découverte (appelé manuellement depuis le dashboard ou au redémarrage)
+function clearConfigDirCache(serviceId) {
+  if (serviceId) {
+    delete _configDirCache[serviceId];
+  } else {
+    Object.keys(_configDirCache).forEach(k => delete _configDirCache[k]);
+  }
+}
 
 /**
  * Met à jour une clé en utilisant le mapping INI_KEY_MAP.
@@ -745,6 +754,7 @@ module.exports = {
   mkdirRecursive,
   discoverConfigDir,
   discoverConfigDirVerbose,
+  clearConfigDirCache,
   readFile,
   writeFile,
   updateIniKey,

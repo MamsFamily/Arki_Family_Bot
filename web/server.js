@@ -3097,6 +3097,13 @@ function createWebServer(discordClient) {
 
   // Scanne les répertoires parents pour confirmer si le chemin config existe réellement
   // Découvre d'abord le dossier racine du jeu (ex: /arksa) puis scanne en profondeur
+  // Vide le cache de découverte de répertoire config (force re-détection)
+  app.post('/nitrado/api/ini/clear-cache', requireAdmin, async (req, res) => {
+    const { serviceId } = req.body;
+    nitrado.clearConfigDirCache(serviceId || null);
+    res.json({ ok: true, msg: serviceId ? `Cache vidé pour ${serviceId}` : 'Cache global vidé' });
+  });
+
   app.get('/nitrado/api/ini/scan-parents', requireAdmin, async (req, res) => {
     try {
       const { serviceId } = req.query;
@@ -3221,34 +3228,30 @@ function createWebServer(discordClient) {
       log(`Arrêt de ${ids.length} serveur(s)…`);
       await Promise.all(ids.map(id => nitrado.stopServer(id).catch(e => log(`  WARN stop ${id}: ${e.message}`))));
 
-      log('Attente de l\'arrêt complet (max 45s)…');
-      const waitStop = async (id) => {
-        for (let i = 0; i < 15; i++) {
-          await new Promise(r => setTimeout(r, 3000));
-          try {
-            const d = await nitrado.getServerDetails(id);
-            const status = d?.status || d?.gameserver?.status;
-            log(`    ${id} statut: ${status}`);
-            if (status === 'stopped' || status === 'halted') return true;
-          } catch {}
-        }
-        log(`  WARN: ${id} pas confirmé stoppé après 45s — édition quand même`);
-        return false;
-      };
-      await Promise.all(ids.map(id => waitStop(id)));
-      log('Serveurs arrêtés.');
-
-      // Essai d'écriture en boucle : tente toutes les 3s pendant 30s
-      log('Phase 2 : Écriture des fichiers ini — tentatives répétées (30s max)…');
+      // Écriture IMMÉDIATEMENT après stop — PAS d'attente statut "stopped".
+      // Le filesystem Nitrado reste accessible ~5-10s après la mort du process ARK.
+      // On tente toutes les 2s pendant 60s max pour attraper cette fenêtre.
+      log('Phase 2 : Écriture immédiate — tentatives toutes les 2s (60s max)…');
       let phase2 = null;
-      for (let attempt = 1; attempt <= 10; attempt++) {
-        if (attempt > 1) await new Promise(r => setTimeout(r, 3000));
-        log(`  Tentative ${attempt}/10…`);
+      for (let attempt = 1; attempt <= 30; attempt++) {
+        if (attempt > 1) await new Promise(r => setTimeout(r, 2000));
+        log(`  Tentative ${attempt}/30 (${(attempt-1)*2}s)…`);
         const result = await editAll(`stopped-${attempt}`);
-        if (result.allOk) { phase2 = result; log(`  ✅ Écriture réussie à la tentative ${attempt}`); break; }
+        if (result.allOk) {
+          phase2 = result;
+          log(`  ✅ Écriture réussie à la tentative ${attempt} (~${(attempt-1)*2}s après stop)`);
+          break;
+        }
         phase2 = result;
       }
-      if (!phase2.allOk) log('⚠️ Écriture échouée après 10 tentatives.');
+      if (!phase2.allOk) log('⚠️ Écriture échouée après 30 tentatives (60s).');
+
+      // Statut serveur pour info
+      try {
+        const d = await nitrado.getServerDetails(ids[0]);
+        const status = d?.status || d?.gameserver?.status;
+        log(`  Statut serveur : ${status}`);
+      } catch {}
 
       log('Redémarrage des serveurs…');
       const startResults = await Promise.all(ids.map(async id => {
