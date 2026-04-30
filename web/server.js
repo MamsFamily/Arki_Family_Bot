@@ -3073,23 +3073,39 @@ function createWebServer(discordClient) {
     try {
       const { serviceId, dir } = req.query;
       if (!serviceId) return res.json({ ok: false, error: 'serviceId requis' });
+      const axios = require('axios');
+      const tok = nitrado.getToken();
+      const doRawList = async (path) => {
+        try {
+          const r = await axios.get(`https://api.nitrado.net/services/${serviceId}/gameservers/file_server/list`,
+            { params: { path }, headers: { Authorization: `Bearer ${tok}` }, timeout: 15000 });
+          return { httpStatus: r.status, body: r.data };
+        } catch (e) {
+          return { httpStatus: e.response?.status, body: e.response?.data, error: e.message };
+        }
+      };
       const targetDir = dir || '/';
-      // Test avec les deux noms de paramètre possibles (dir et path)
-      const [withDir, withPath] = await Promise.all([
-        nitrado.listFilesRaw(serviceId, targetDir),
-        (async () => {
-          const axios = require('axios');
-          const tok = nitrado.getToken();
-          try {
-            const r = await axios.get(`https://api.nitrado.net/services/${serviceId}/gameservers/file_server/list`,
-              { params: { path: targetDir }, headers: { Authorization: `Bearer ${tok}` }, timeout: 15000 });
-            return { httpStatus: r.status, body: r.data };
-          } catch (e) {
-            return { httpStatus: e.response?.status, body: e.response?.data, error: e.message };
-          }
-        })(),
-      ]);
-      res.json({ ok: true, dir: targetDir, withDirParam: withDir, withPathParam: withPath });
+      // Test 1 : chemin demandé avec param "path"
+      const withPathParam = await doRawList(targetDir);
+      // Test 2 : si on liste la racine, aussi tester le chemin COMPLET de la première entrée
+      let withFullEntryPath = null;
+      if (targetDir === '/' && withPathParam?.body?.data?.entries?.length > 0) {
+        const firstEntry = withPathParam.body.data.entries.find(e => e.type === 'dir');
+        if (firstEntry?.path) {
+          withFullEntryPath = await doRawList(firstEntry.path);
+          withFullEntryPath._testedPath = firstEntry.path;
+        }
+      }
+      // Test 3 : le même chemin avec param "dir" (pour comparaison)
+      let withDirParam = null;
+      try {
+        const r = await axios.get(`https://api.nitrado.net/services/${serviceId}/gameservers/file_server/list`,
+          { params: { dir: targetDir }, headers: { Authorization: `Bearer ${tok}` }, timeout: 15000 });
+        withDirParam = { httpStatus: r.status, body: r.data };
+      } catch (e) {
+        withDirParam = { httpStatus: e.response?.status, body: e.response?.data, error: e.message };
+      }
+      res.json({ ok: true, dir: targetDir, withPathParam, withDirParam, withFullEntryPath });
     } catch (e) {
       res.json({ ok: false, error: e.message });
     }

@@ -234,26 +234,45 @@ async function discoverConfigDir(serviceId) {
   return results.found || null;
 }
 
+// Extrait le chemin base FTP à partir des entrées racine.
+// Exemple : entry.path="/games/ni9697515_2/ftproot/arksa", entry.name="arksa"
+//           → basePath="/games/ni9697515_2/ftproot"
+function extractFtpBasePath(rootEntries) {
+  for (const entry of rootEntries) {
+    if (entry.path && entry.name) {
+      const suffix = '/' + entry.name;
+      const idx = entry.path.lastIndexOf(suffix);
+      if (idx >= 0) return entry.path.slice(0, idx) || '/';
+    }
+  }
+  return null;
+}
+
 // Version verbose qui retourne le détail de chaque tentative (pour le diagnostic)
-// IMPORTANT : les API list/upload/mkdir ont des roots DIFFÉRENTS sur Nitrado :
-//   - list API : root = FTP root → liste avec "/arksa/ShooterGame/..." pour trouver les fichiers
-//   - upload/mkdir API : root = dossier jeu → utilise "/ShooterGame/..." (sans préfixe jeu)
-// discoverConfigDirVerbose retourne le chemin pour UPLOAD/MKDIR (sans préfixe jeu).
+// CLÉ : Nitrado retourne TOUJOURS les entrées racine pour les chemins relatifs comme "/arksa".
+//       Il faut utiliser les CHEMINS SYSTÈME COMPLETS extraits du champ .path des entrées.
+//       Exemple : pour lister arksa/, on passe path="/games/ni9697515_2/ftproot/arksa"
+//       Le chemin retourné (found) est utilisé pour upload ET mkdir.
 async function discoverConfigDirVerbose(serviceId) {
   const attempts = [];
   let rootEntries = [];
   let rootError = null;
 
-  // ── ÉTAPE 1 : Navigation via root pour confirmer le préfixe jeu (ex: /arksa) ───
-  // On liste "/", trouve le dossier jeu, puis liste dedans pour trouver les .ini.
-  // Mais on retourne le chemin SANS le préfixe jeu (pour upload/mkdir).
+  // ── ÉTAPE 1 : Listing racine pour trouver le chemin système du dossier jeu ────
   try {
     rootEntries = await listFiles(serviceId, '/');
     console.log(`[Nitrado discover] ${serviceId} "/": ${rootEntries.length} entrées`);
-    const gameDirs = rootEntries.filter(e => e.type === 'dir');
 
+    // Extrait le chemin FTP base (ex: /games/ni9697515_2/ftproot)
+    const basePath = extractFtpBasePath(rootEntries);
+    console.log(`[Nitrado discover] ${serviceId} basePath="${basePath}"`);
+
+    const gameDirs = rootEntries.filter(e => e.type === 'dir');
     for (const gameDir of gameDirs) {
-      const listPrefix = `/${gameDir.name}`; // utilisé pour LISTER
+      // Chemin système complet du dossier jeu (ex: /games/ni9697515_2/ftproot/arksa)
+      const gameSysPath = gameDir.path || (basePath ? `${basePath}/${gameDir.name}` : null);
+      if (!gameSysPath) continue;
+
       const suffixCandidates = [
         'ShooterGame/Saved/Config/WindowsServer',
         'ShooterGame/Saved/Config/WinServer',
@@ -261,38 +280,48 @@ async function discoverConfigDirVerbose(serviceId) {
         'ShooterGame/Saved/Config/WindowsNoEditor',
         'ShooterGame/Saved/Config',
       ];
+
       for (const suffix of suffixCandidates) {
-        const listPath = `${listPrefix}/${suffix}`;   // chemin pour LIST
-        const opPath = `/${suffix}`;                  // chemin pour UPLOAD/MKDIR (sans préfixe jeu)
+        // Chemin système complet — Nitrado ignore les chemins relatifs
+        const fullPath = `${gameSysPath}/${suffix}`;
         try {
-          const entries = await listFiles(serviceId, listPath);
+          const entries = await listFiles(serviceId, fullPath);
           const hasIni = entries.some(e => e.name?.endsWith('.ini'));
-          console.log(`[Nitrado discover] ${serviceId} list:"${listPath}" → op:"${opPath}": ${entries.length} entrées, ini=${hasIni}`);
-          attempts.push({ path: opPath, listPath, status: 'ok', count: entries.length, hasIni, entries });
-          if (hasIni) return { found: opPath, listPath, entries, attempts, rootEntries, note: 'ini_found' };
-          if (entries.length > 0) return { found: opPath, listPath, entries, attempts, rootEntries, note: 'has_content' };
+          console.log(`[Nitrado discover] ${serviceId} "${fullPath}": ${entries.length} entrées, ini=${hasIni}`);
+          attempts.push({ path: fullPath, status: 'ok', count: entries.length, hasIni, entries });
+          if (hasIni) return { found: fullPath, entries, attempts, rootEntries, basePath, note: 'ini_found' };
+          if (entries.length > 0) {
+            // Vérifie que ce n'est pas un faux-positif (même contenu que root = ignoré)
+            const isRootRepeat = entries.length === rootEntries.length &&
+              entries.every((e, i) => rootEntries[i] && e.name === rootEntries[i].name);
+            if (!isRootRepeat) {
+              return { found: fullPath, entries, attempts, rootEntries, basePath, note: 'has_content' };
+            }
+          }
         } catch (err) {
           const status = err.response?.status;
           const msg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
-          attempts.push({ path: opPath, listPath, status: 'error', httpStatus: status, error: msg });
+          console.log(`[Nitrado discover] ${serviceId} "${fullPath}": HTTP ${status} — ${msg}`);
+          attempts.push({ path: fullPath, status: 'error', httpStatus: status, error: msg });
         }
       }
-      // Aucun suffix avec contenu → retourne le chemin op par défaut (sans préfixe)
-      const opDefault = '/ShooterGame/Saved/Config/WindowsServer';
-      console.log(`[Nitrado discover] ${serviceId} jeu="${listPrefix}" → tous vides, utilise op défaut: ${opDefault}`);
-      return { found: opDefault, gameRoot: gameDir.name, entries: [], attempts, rootEntries, note: 'game_root_found_empty' };
+
+      // Aucun suffix accessible → retourne le chemin WindowsServer complet par défaut
+      const defaultPath = `${gameSysPath}/ShooterGame/Saved/Config/WindowsServer`;
+      console.log(`[Nitrado discover] ${serviceId} "${gameDir.name}" → défaut: ${defaultPath}`);
+      return { found: defaultPath, gameRoot: gameDir.name, basePath, entries: [], attempts, rootEntries, note: 'game_root_found_empty' };
     }
   } catch (err) {
     rootError = `HTTP ${err.response?.status} — ${err.response?.data ? JSON.stringify(err.response.data) : err.message}`;
     console.log(`[Nitrado discover] ${serviceId} "/": ${rootError}`);
   }
 
-  // ── ÉTAPE 2 : Fallback — essaie les chemins candidats classiques (sans préfixe) ─
+  // ── ÉTAPE 2 : Fallback chemins relatifs classiques ────────────────────────────
   for (const candidate of CONFIG_PATH_CANDIDATES) {
     try {
       const entries = await listFiles(serviceId, candidate);
       const hasIni = entries.some(e => e.name?.endsWith('.ini'));
-      console.log(`[Nitrado discover] ${serviceId} "${candidate}" (fallback): ${entries.length} entrées, ini=${hasIni}`);
+      console.log(`[Nitrado discover] ${serviceId} "${candidate}" (fallback): ${entries.length} entrées`);
       attempts.push({ path: candidate, status: 'ok', count: entries.length, hasIni, entries });
       if (hasIni) return { found: candidate, entries, attempts, note: 'fallback_ini_found' };
     } catch (err) {

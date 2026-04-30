@@ -1222,7 +1222,16 @@ async function rawDebugList() {
       return `── ${label} (HTTP ${info?.httpStatus || '?'}) ──\n${info?.error ? '❌ ' + info.error + '\n' : ''}${body?.slice(0, 800) || '(vide)'}`;
     };
     box.style.color = 'var(--text-primary)';
-    box.textContent = `🔬 Réponse brute Nitrado pour "/" (serveur ${serviceId}) :\n\n${fmt('param=dir', d.withDirParam)}\n\n${fmt('param=path', d.withPathParam)}`;
+    let out = `🔬 Réponse brute Nitrado "${d.dir}" (serveur ${serviceId}) :\n\n`;
+    out += `── param=path (notre code) (HTTP ${d.withPathParam?.httpStatus}) ──\n${JSON.stringify(d.withPathParam?.body?.data?.entries?.map(e=>({name:e.name,type:e.type,path:e.path})),null,2)?.slice(0,600) || '(vide/erreur)'}\n`;
+    if (d.withFullEntryPath) {
+      out += `\n── Test chemin système complet "${d.withFullEntryPath._testedPath}" (HTTP ${d.withFullEntryPath?.httpStatus}) ──\n`;
+      out += `${JSON.stringify(d.withFullEntryPath?.body?.data?.entries?.map(e=>({name:e.name,type:e.type})),null,2)?.slice(0,600) || '(vide/erreur)'}\n`;
+      const sameAsRoot = JSON.stringify(d.withFullEntryPath?.body?.data?.entries?.map(e=>e.name)) === JSON.stringify(d.withPathParam?.body?.data?.entries?.map(e=>e.name));
+      out += sameAsRoot ? '⚠️  MÊME contenu que root → Nitrado ignore le chemin?' : '✅ DIFFÉRENT de root → le chemin fonctionne!';
+    }
+    out += `\n\n── param=dir (ancien code) (HTTP ${d.withDirParam?.httpStatus}) ──\n${JSON.stringify(d.withDirParam?.body?.data?.entries,null,2)?.slice(0,200) || '(vide)'}`;
+    box.textContent = out;
   } catch (e) { box.style.color = '#f87171'; box.textContent = '❌ Erreur réseau : ' + e.message; }
 }
 
