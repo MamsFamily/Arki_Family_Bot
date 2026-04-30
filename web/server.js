@@ -3132,7 +3132,7 @@ function createWebServer(discordClient) {
     }
   });
 
-  // Test upload : essaie plusieurs formats de chemin pour l'API upload Nitrado
+  // Test upload étendu : teste TOUS les formats possibles + upload vers racine FTP
   app.get('/nitrado/api/debug/test-upload', requireAdmin, async (req, res) => {
     try {
       const { serviceId } = req.query;
@@ -3141,7 +3141,7 @@ function createWebServer(discordClient) {
       const FormData = require('form-data');
       const tok = nitrado.getToken();
 
-      // Découvre d'abord le basePath
+      // Découvre le basePath et gameDir depuis les entrées racine
       const rootEntries = await nitrado.listFiles(serviceId, '/').catch(() => []);
       let basePath = null;
       let gameDir = null;
@@ -3154,32 +3154,85 @@ function createWebServer(discordClient) {
       }
 
       const dummyContent = '; test_upload_arki\n';
-      const testFilename = 'test_upload_DELETE_ME.txt';
+      const testFilename = 'test_arki_DELETE_ME.txt';
 
-      // 3 formats de chemin à tester pour l'upload
-      const candidates = basePath && gameDir ? [
-        `${basePath}/${gameDir}/ShooterGame/Saved/Config/${testFilename}`,       // chemin système complet
-        `/${gameDir}/ShooterGame/Saved/Config/${testFilename}`,                  // chemin relatif FTP
-        `/ShooterGame/Saved/Config/${testFilename}`,                             // chemin relatif court
-      ] : [`/ShooterGame/Saved/Config/${testFilename}`];
+      // ── ÉTAPE 1 : mkdir explicite de Config/WindowsServer (format prouvé) ─────
+      let mkdirWsResult = null;
+      if (basePath && gameDir) {
+        const configSysPath = `${basePath}/${gameDir}/ShooterGame/Saved/Config`;
+        try {
+          const r = await axios.post(
+            `https://api.nitrado.net/services/${serviceId}/gameservers/file_server/mkdir`,
+            { path: configSysPath, name: 'WindowsServer' },
+            { headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' }, timeout: 10000 }
+          );
+          mkdirWsResult = { ok: true, parent: configSysPath, status: r.status, body: r.data };
+        } catch (e) {
+          mkdirWsResult = { ok: false, parent: configSysPath, status: e.response?.status, error: e.response?.data ? JSON.stringify(e.response.data) : e.message };
+        }
+        await new Promise(r => setTimeout(r, 1500)); // Délai pour laisser le FS se mettre à jour
+      }
+
+      // ── ÉTAPE 2 : Tests upload — 9 combinaisons de formats ───────────────────
+      // Format A : path=dir (répertoire seulement), filename dans multipart
+      // Format B : path=fullpath (chemin complet avec filename), pas de filename dans multipart
+      const candidates = [];
+
+      if (basePath && gameDir) {
+        const sysBase = `${basePath}/${gameDir}`;
+        const ftpBase = `/${gameDir}`;
+
+        candidates.push(
+          // ── Tests vers la RACINE FTP (vérification API upload fonctionnelle) ──
+          { label: 'ROOT-dir-sys',   path: basePath,           filename: testFilename, format: 'dir' },
+          { label: 'ROOT-dir-ftp',   path: '/',                filename: testFilename, format: 'dir' },
+
+          // ── Tests vers arksa/ (dossier connu existant) ───────────────────────
+          { label: 'GAME-dir-sys',   path: `${sysBase}`,       filename: testFilename, format: 'dir' },
+          { label: 'GAME-dir-ftp',   path: ftpBase,            filename: testFilename, format: 'dir' },
+
+          // ── Tests vers Config/ ────────────────────────────────────────────────
+          { label: 'CFG-dir-sys',    path: `${sysBase}/ShooterGame/Saved/Config`,                  filename: testFilename, format: 'dir' },
+          { label: 'CFG-dir-ftp',    path: `${ftpBase}/ShooterGame/Saved/Config`,                  filename: testFilename, format: 'dir' },
+
+          // ── Tests vers WindowsServer/ (après mkdir) ────────────────────────
+          { label: 'WS-dir-sys',     path: `${sysBase}/ShooterGame/Saved/Config/WindowsServer`,    filename: testFilename, format: 'dir' },
+          { label: 'WS-dir-ftp',     path: `${ftpBase}/ShooterGame/Saved/Config/WindowsServer`,    filename: testFilename, format: 'dir' },
+          { label: 'WS-full-sys',    path: `${sysBase}/ShooterGame/Saved/Config/WindowsServer/${testFilename}`, filename: null, format: 'full' },
+          { label: 'WS-full-ftp',    path: `${ftpBase}/ShooterGame/Saved/Config/WindowsServer/${testFilename}`, filename: null, format: 'full' },
+        );
+      } else {
+        // Fallback si pas de basePath
+        candidates.push(
+          { label: 'ROOT-dir', path: '/', filename: testFilename, format: 'dir' },
+          { label: 'WS-dir',   path: '/ShooterGame/Saved/Config/WindowsServer', filename: testFilename, format: 'dir' },
+        );
+      }
 
       const results = [];
-      for (const uploadPath of candidates) {
+      for (const c of candidates) {
         const form = new FormData();
-        form.append('path', uploadPath);
-        form.append('file', Buffer.from(dummyContent, 'utf8'), { filename: testFilename });
+        form.append('path', c.path);
+        if (c.filename) {
+          form.append('file', Buffer.from(dummyContent, 'utf8'), { filename: c.filename });
+        } else {
+          form.append('file', Buffer.from(dummyContent, 'utf8'));
+        }
         try {
           const r = await axios.post(
             `https://api.nitrado.net/services/${serviceId}/gameservers/file_server/upload`,
             form,
             { headers: { Authorization: `Bearer ${tok}`, ...form.getHeaders() }, timeout: 15000 }
           );
-          results.push({ path: uploadPath, status: 'ok', httpStatus: r.status, body: r.data });
+          results.push({ label: c.label, format: c.format, path: c.path, status: 'ok', httpStatus: r.status, body: r.data });
         } catch (e) {
-          results.push({ path: uploadPath, status: 'error', httpStatus: e.response?.status, error: e.response?.data ? JSON.stringify(e.response.data) : e.message });
+          const errBody = e.response?.data;
+          results.push({ label: c.label, format: c.format, path: c.path, status: 'error', httpStatus: e.response?.status, error: errBody ? JSON.stringify(errBody) : e.message });
         }
       }
-      res.json({ ok: true, basePath, gameDir, results });
+
+      const firstOk = results.find(r => r.status === 'ok');
+      res.json({ ok: true, basePath, gameDir, mkdirWsResult, firstOk: firstOk || null, results });
     } catch (e) {
       res.json({ ok: false, error: e.message });
     }
@@ -3366,53 +3419,38 @@ function createWebServer(discordClient) {
     };
 
     try {
-      // ── PHASE 1 : Essai d'écriture serveur EN MARCHE ──────────────────────
-      log('Phase 1 : Tentative d\'écriture serveur en marche…');
+      // ── ÉCRITURE (serveur EN MARCHE) ───────────────────────────────────────
+      // Le filesystem Nitrado n'est accessible QUE quand le serveur est actif.
+      // writeFile essaie automatiquement 4 formats de chemin jusqu'au premier succès.
+      log('Écriture dans Game.ini / GameUserSettings.ini…');
       const phase1 = await editAll('live');
+
       if (phase1.allOk) {
-        log('✅ Écriture réussie sans downtime ! Redémarre simplement la map pour appliquer.');
+        // ── Succès : redémarre pour appliquer les changements ───────────────
+        log('✅ Écriture réussie ! Redémarrage en cours…');
+        const startResults = await Promise.all(ids.map(async id => {
+          try { await nitrado.stopServer(id); return { id, ok: true }; }
+          catch (e) { log(`  WARN restart ${id}: ${e.message}`); return { id, ok: false, error: e.message }; }
+        }));
+        await new Promise(r => setTimeout(r, 3000));
+        await Promise.all(ids.map(id => nitrado.startServer(id).catch(e => log(`  WARN start ${id}: ${e.message}`))));
+        log('Redémarrage lancé.');
         clearInterval(pingInterval);
-        return done(true, { editResults: phase1.editResults, restartDone: false });
+        return done(true, { editResults: phase1.editResults, startResults, restartDone: true });
       }
-      log('Phase 1 échouée — passage en mode stop→édition→démarrage…');
 
-      // ── PHASE 2 : Stop → édition → start ─────────────────────────────────
-      log(`Arrêt de ${ids.length} serveur(s)…`);
-      await Promise.all(ids.map(id => nitrado.stopServer(id).catch(e => log(`  WARN stop ${id}: ${e.message}`))));
-
-      // Écriture IMMÉDIATEMENT après stop — PAS d'attente statut "stopped".
-      // Le filesystem Nitrado reste accessible ~5-10s après la mort du process ARK.
-      // On tente toutes les 2s pendant 60s max pour attraper cette fenêtre.
-      log('Phase 2 : Écriture immédiate — tentatives toutes les 2s (60s max)…');
-      let phase2 = null;
-      for (let attempt = 1; attempt <= 30; attempt++) {
-        if (attempt > 1) await new Promise(r => setTimeout(r, 2000));
-        log(`  Tentative ${attempt}/30 (${(attempt-1)*2}s)…`);
-        const result = await editAll(`stopped-${attempt}`);
-        if (result.allOk) {
-          phase2 = result;
-          log(`  ✅ Écriture réussie à la tentative ${attempt} (~${(attempt-1)*2}s après stop)`);
-          break;
-        }
-        phase2 = result;
-      }
-      if (!phase2.allOk) log('⚠️ Écriture échouée après 30 tentatives (60s).');
-
-      // Statut serveur pour info
-      try {
-        const d = await nitrado.getServerDetails(ids[0]);
-        const status = d?.status || d?.gameserver?.status;
-        log(`  Statut serveur : ${status}`);
-      } catch {}
-
-      log('Redémarrage des serveurs…');
-      const startResults = await Promise.all(ids.map(async id => {
-        try { await nitrado.startServer(id); return { id, ok: true }; }
-        catch (e) { log(`  WARN start ${id}: ${e.message}`); return { id, ok: false, error: e.message }; }
-      }));
-      log(phase2.allOk ? 'Redémarrage lancé.' : 'Redémarrage lancé (avec erreurs d\'écriture).');
+      // ── Échec : log détaillé et message d'aide ────────────────────────────
+      log('❌ ERREUR lors de l\'écriture');
+      log('');
+      log('Le serveur doit être EN MARCHE pour que l\'écriture fonctionne.');
+      log('Si le serveur est arrêté, le filesystem Nitrado est démonté (inaccessible).');
+      log('');
+      log('Solutions possibles :');
+      log('  1. Vérifie que le serveur ARK tourne (panel Nitrado → statut "online")');
+      log('  2. Clique "🧪 Test Upload" pour diagnostiquer le format d\'upload');
+      log('  3. Si Test Upload échoue → le token Nitrado ou les permissions sont incorrects');
       clearInterval(pingInterval);
-      done(phase2.allOk, { editResults: phase2.editResults, startResults, restartDone: true });
+      done(false, { editResults: phase1.editResults });
     } catch (e) {
       log(`ERREUR: ${e.message}`);
       clearInterval(pingInterval);

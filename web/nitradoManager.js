@@ -234,6 +234,12 @@ async function discoverConfigDir(serviceId) {
   return results.found || null;
 }
 
+// Version qui retourne { found, basePath, gameDir } pour l'upload multi-format
+async function discoverConfigDirFull(serviceId) {
+  const results = await discoverConfigDirVerbose(serviceId);
+  return { found: results.found || null, basePath: results.basePath || null, gameDir: results.gameRoot || null };
+}
+
 // Extrait le chemin base FTP à partir des entrées racine.
 // Exemple : entry.path="/games/ni9697515_2/ftproot/arksa", entry.name="arksa"
 //           → basePath="/games/ni9697515_2/ftproot"
@@ -289,13 +295,13 @@ async function discoverConfigDirVerbose(serviceId) {
           const hasIni = entries.some(e => e.name?.endsWith('.ini'));
           console.log(`[Nitrado discover] ${serviceId} "${fullPath}": ${entries.length} entrées, ini=${hasIni}`);
           attempts.push({ path: fullPath, status: 'ok', count: entries.length, hasIni, entries });
-          if (hasIni) return { found: fullPath, entries, attempts, rootEntries, basePath, note: 'ini_found' };
+          if (hasIni) return { found: fullPath, gameRoot: gameDir.name, entries, attempts, rootEntries, basePath, note: 'ini_found' };
           if (entries.length > 0) {
             // Vérifie que ce n'est pas un faux-positif (même contenu que root = ignoré)
             const isRootRepeat = entries.length === rootEntries.length &&
               entries.every((e, i) => rootEntries[i] && e.name === rootEntries[i].name);
             if (!isRootRepeat) {
-              return { found: fullPath, entries, attempts, rootEntries, basePath, note: 'has_content' };
+              return { found: fullPath, gameRoot: gameDir.name, entries, attempts, rootEntries, basePath, note: 'has_content' };
             }
           }
         } catch (err) {
@@ -356,53 +362,86 @@ async function readFile(serviceId, filePath) {
   throw lastErr;
 }
 
-async function writeFile(serviceId, filePath, content) {
+async function writeFile(serviceId, filePath, content, opts = {}) {
   const FormData = require('form-data');
   const nodePath = require('path');
   const tok = getToken();
   const dir = nodePath.dirname(filePath);
   const filename = nodePath.basename(filePath);
+  const { basePath, gameDir } = opts;
 
-  // Créer récursivement tous les niveaux du répertoire avant l'upload
-  // ex: /ShooterGame → /ShooterGame/Saved → /ShooterGame/Saved/Config → /ShooterGame/Saved/Config/WindowsServer
-  console.log(`[Nitrado writeFile] mkdirRecursive "${dir}"…`);
-  const mkdirResult = await mkdirRecursive(serviceId, dir);
-  console.log(`[Nitrado writeFile] mkdirRecursive "${dir}": ${mkdirResult.allOk ? '✅ ok' : '⚠️ partiel'} — ${JSON.stringify(mkdirResult.results?.map(r => ({ path: r.path, ok: r.ok, status: r.status })))}`);
-  const mkdirOk = mkdirResult.allOk;
+  // ── ÉTAPE 1 : Créer le répertoire final (WindowsServer) via mkdir prouvé ──
+  // Deux tentatives : avec chemin système complet ET avec chemin FTP relatif
+  const mkdirAttempts = [];
+  if (basePath && gameDir) {
+    // Chemin système complet (format PROUVÉ par les tests mkdir)
+    mkdirAttempts.push({ parent: nodePath.dirname(dir), name: nodePath.basename(dir) });
+  }
+  // Chemin relatif FTP (au cas où)
+  mkdirAttempts.push({ parent: nodePath.dirname(dir.replace(basePath || '', '') || dir), name: nodePath.basename(dir) });
 
-  // Retry 2× avec délai croissant (le file server peut prendre du temps à s'ouvrir après arrêt du serveur)
+  for (const attempt of mkdirAttempts) {
+    const r = await mkdir(serviceId, `${attempt.parent}/${attempt.name}`);
+    console.log(`[Nitrado writeFile] mkdir "${attempt.parent}" + "${attempt.name}": ${r.ok ? '✅' : `⚠️ ${r.error}`}`);
+  }
+
+  // Petit délai pour laisser le FS se mettre à jour après mkdir
+  await new Promise(r => setTimeout(r, 1000));
+
+  // ── ÉTAPE 2 : Upload — essaie plusieurs formats jusqu'au premier succès ────
+  // Priorité : FTP-relatif (sans basePath) en premier, puis système complet
+  const uploadFormats = [];
+
+  if (basePath && gameDir) {
+    // FTP-relatif = filePath sans le basePath prefix
+    const ftpFilePath = filePath.startsWith(basePath) ? filePath.slice(basePath.length) : `/${gameDir}${filePath.slice(filePath.indexOf(`/${gameDir}`))}`;
+    const ftpDir = nodePath.dirname(ftpFilePath);
+
+    uploadFormats.push(
+      // Format 1 : FTP-relatif, path=dir, filename dans multipart  ← PROBABLEMENT CORRECT
+      { label: 'ftp-dir',      path: ftpDir,     useFilename: true  },
+      // Format 2 : FTP-relatif, path=fullpath, pas de filename
+      { label: 'ftp-full',     path: ftpFilePath, useFilename: false },
+      // Format 3 : Système, path=dir, filename dans multipart
+      { label: 'sys-dir',      path: dir,         useFilename: true  },
+      // Format 4 : Système, path=fullpath, pas de filename
+      { label: 'sys-full',     path: filePath,    useFilename: false },
+    );
+  } else {
+    uploadFormats.push(
+      { label: 'default-dir',  path: dir,         useFilename: true  },
+      { label: 'default-full', path: filePath,    useFilename: false },
+    );
+  }
+
   let lastErr;
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    if (attempt > 1) {
-      console.log(`[Nitrado writeFile] Retry ${attempt} dans 10s (${filePath})`);
-      await new Promise(r => setTimeout(r, 10000));
-    }
+  for (const fmt of uploadFormats) {
     try {
       const form = new FormData();
-      form.append('path', filePath);  // ← chemin COMPLET fichier (répertoire + nom), pas juste le répertoire
-      form.append('file', Buffer.from(content, 'utf8'), { filename });
-      console.log(`[Nitrado writeFile] Tentative ${attempt} — upload "${filePath}" (${content.length} octets)`);
+      form.append('path', fmt.path);
+      if (fmt.useFilename) {
+        form.append('file', Buffer.from(content, 'utf8'), { filename });
+      } else {
+        form.append('file', Buffer.from(content, 'utf8'));
+      }
+      console.log(`[Nitrado writeFile] Upload [${fmt.label}] path="${fmt.path}" useFilename=${fmt.useFilename} (${content.length} octets)`);
       const res = await axios.post(
         `${BASE_URL}/services/${serviceId}/gameservers/file_server/upload`,
         form,
         { headers: { Authorization: `Bearer ${tok}`, ...form.getHeaders() }, timeout: 30000 }
       );
-      console.log(`[Nitrado writeFile] ✅ OK tentative ${attempt} — HTTP ${res.status}:`, JSON.stringify(res.data).slice(0, 200));
-      return res.data;
+      console.log(`[Nitrado writeFile] ✅ OK [${fmt.label}] — HTTP ${res.status}:`, JSON.stringify(res.data).slice(0, 200));
+      return { ...res.data, _formatUsed: fmt.label };
     } catch (err) {
       const status = err.response?.status;
       const body = err.response?.data;
       const msg = (typeof body === 'object' ? JSON.stringify(body) : body) || err.message;
-      console.error(`[Nitrado writeFile] ❌ Erreur tentative ${attempt} — HTTP ${status}: ${msg}`);
-      // Si "directory doesn't exist" au 1er essai → retente mkdir et upload
-      if (attempt === 1 && typeof msg === 'string' && msg.toLowerCase().includes('director')) {
-        console.log(`[Nitrado writeFile] Répertoire manquant détecté, nouvelle tentative mkdir…`);
-        await mkdir(serviceId, dir);
-        await new Promise(r => setTimeout(r, 3000));
-      }
+      console.warn(`[Nitrado writeFile] ❌ [${fmt.label}] HTTP ${status}: ${msg}`);
       lastErr = new Error(`HTTP ${status}: ${msg}`);
     }
   }
+
+  // Tous les formats ont échoué
   throw lastErr;
 }
 
@@ -477,7 +516,7 @@ function setIniKey(content, section, key, value) {
  * Lit un fichier INI, modifie une clé, réécrit le fichier.
  * Crée le répertoire parent automatiquement si nécessaire.
  */
-async function updateIniKey(serviceId, filePath, section, key, value) {
+async function updateIniKey(serviceId, filePath, section, key, value, opts = {}) {
   // 1. Lire le fichier existant (peut être vide si nouveau)
   let content = '';
   try {
@@ -492,12 +531,13 @@ async function updateIniKey(serviceId, filePath, section, key, value) {
   const updated = setIniKey(content, section, key, value);
 
   // 3. Écrire le fichier — writeFile appelle mkdir automatiquement avant l'upload
-  await writeFile(serviceId, filePath, updated);
+  await writeFile(serviceId, filePath, updated, opts);
   console.log(`[Nitrado INI] ✅ Clé ${key}=${value} écrite dans ${filePath}`);
   return { updated: true };
 }
 
 // Cache par serviceId pour éviter de redécouvrir à chaque appel
+// Stocke { configDir, basePath, gameDir }
 const _configDirCache = {};
 
 // Vide le cache de découverte (appelé manuellement depuis le dashboard ou au redémarrage)
@@ -521,15 +561,21 @@ async function updateIniKeyMapped(serviceId, key, value) {
   const filename = nodePath.basename(ARK_PATHS[map.file]); // ex: "Game.ini"
 
   // 1. Utilise le cache si disponible
-  let configDir = _configDirCache[serviceId];
+  let cached = _configDirCache[serviceId];
+  let configDir = cached?.configDir || (typeof cached === 'string' ? cached : null);
+  let basePath  = cached?.basePath  || null;
+  let gameDir   = cached?.gameDir   || null;
 
   // 2. Sinon, découvre le bon répertoire
   if (!configDir) {
     console.log(`[Nitrado INI] Découverte du répertoire config pour ${serviceId}…`);
-    configDir = await discoverConfigDir(serviceId);
+    const disc = await discoverConfigDirFull(serviceId);
+    configDir = disc.found;
+    basePath  = disc.basePath;
+    gameDir   = disc.gameDir;
     if (configDir) {
-      _configDirCache[serviceId] = configDir;
-      console.log(`[Nitrado INI] ✅ Répertoire trouvé: ${configDir}`);
+      _configDirCache[serviceId] = { configDir, basePath, gameDir };
+      console.log(`[Nitrado INI] ✅ Répertoire trouvé: ${configDir} (basePath=${basePath}, gameDir=${gameDir})`);
     } else {
       // Fallback : utiliser le chemin par défaut et laisser mkdir créer le répertoire
       configDir = nodePath.dirname(ARK_PATHS[map.file]);
@@ -538,7 +584,7 @@ async function updateIniKeyMapped(serviceId, key, value) {
   }
 
   const filePath = `${configDir}/${filename}`;
-  return updateIniKey(serviceId, filePath, map.section, key, value);
+  return updateIniKey(serviceId, filePath, map.section, key, value, { basePath, gameDir });
 }
 
 async function updateIniKeyOnAll(serviceIds, key, value) {

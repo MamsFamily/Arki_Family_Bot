@@ -1245,21 +1245,27 @@ async function testUploadPaths() {
   if (!serviceId) { toast('Aucun serveur sélectionné', true); return; }
   const box = document.getElementById('diag-result');
   box.style.display = 'block'; box.style.color = 'var(--text-primary)'; box.style.whiteSpace = 'pre-wrap';
-  box.textContent = '⏳ Test upload 3 formats de chemin (fichier dummy)…';
+  box.textContent = '⏳ Test upload étendu (10 formats + mkdir WindowsServer)…';
   try {
     const r = await fetch(`/nitrado/api/debug/test-upload?${new URLSearchParams({ serviceId })}`);
     const d = await r.json();
     if (!d.ok) { box.style.color = '#f87171'; box.textContent = '❌ ' + d.error; return; }
+
+    const mkdirLine = d.mkdirWsResult
+      ? (d.mkdirWsResult.ok
+          ? `✅ mkdir WindowsServer → HTTP ${d.mkdirWsResult.status}: ${JSON.stringify(d.mkdirWsResult.body).slice(0,60)}`
+          : `⚠️  mkdir WindowsServer → HTTP ${d.mkdirWsResult.status}: ${(d.mkdirWsResult.error||'').slice(0,80)}`)
+      : '—';
+
     const lines = (d.results || []).map(x =>
       x.status === 'ok'
-        ? `✅ UPLOAD OK  path="${x.path}" → HTTP ${x.httpStatus}: ${JSON.stringify(x.body).slice(0,80)}`
-        : `❌ HTTP ${x.httpStatus||'?'}  path="${x.path}" → ${(x.error||'').slice(0,100)}`
+        ? `✅ [${x.label}] fmt=${x.format} path="${x.path}" → OK`
+        : `❌ [${x.label}] fmt=${x.format} path="${x.path.slice(0,50)}" → HTTP ${x.httpStatus||'?'}: ${(x.error||'').slice(0,70)}`
     );
-    const ok = (d.results || []).filter(x => x.status === 'ok');
-    const conclusion = ok.length > 0
-      ? `\n\n🎯 Upload fonctionne avec path="${ok[0].path}"\n   → basePath détecté : ${d.basePath}\n   → gameDir : ${d.gameDir}`
-      : `\n\n❌ Aucun format d'upload ne fonctionne.\n   basePath=${d.basePath}, gameDir=${d.gameDir}`;
-    box.textContent = `🧪 Test Upload (serveur ${serviceId}) :\n\n${lines.join('\n')}${conclusion}`;
+    const conclusion = d.firstOk
+      ? `\n\n🎯 UPLOAD FONCTIONNE : [${d.firstOk.label}] path="${d.firstOk.path}", format=${d.firstOk.format}`
+      : `\n\n❌ Aucun format ne fonctionne (basePath=${d.basePath}, gameDir=${d.gameDir})`;
+    box.textContent = `🧪 Test Upload étendu (serveur ${serviceId}) :\n\nMkdir WindowsServer : ${mkdirLine}\n\n${lines.join('\n')}${conclusion}`;
   } catch (e) { box.style.color = '#f87171'; box.textContent = '❌ Erreur : ' + e.message; }
 }
 
