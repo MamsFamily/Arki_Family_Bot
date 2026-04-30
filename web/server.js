@@ -3424,6 +3424,92 @@ function createWebServer(discordClient) {
     }
   });
 
+  // Sonde d'écriture : valide que le token a le scope Fileserver sans modifier aucun contenu.
+  // POST { serviceId } → { ok, phase, details[] }
+  // Résultat attendu si le token est correctement configuré (scopes Fileserver + Gameserver) :
+  //   { ok: true, phase: "read_ok" | "write_ok", details: [...] }
+  // Si "Permission denied" → token manque le scope Fileserver.
+  app.post('/nitrado/api/ini/probe-write', requireAdmin, async (req, res) => {
+    try {
+      const { serviceId } = req.body;
+      if (!serviceId) return res.json({ ok: false, error: 'serviceId requis' });
+
+      const details = [];
+      const log = (msg) => { console.log('[INI probe-write]', msg); details.push(msg); };
+
+      // 1. Découverte du répertoire config
+      log(`Découverte du répertoire config pour ${serviceId}…`);
+      let configDir = null;
+      try {
+        configDir = await nitrado.discoverConfigDir(serviceId);
+        if (configDir) {
+          log(`✅ Répertoire config trouvé : ${configDir}`);
+        } else {
+          log('❌ Répertoire config introuvable.');
+          return res.json({ ok: false, phase: 'discover_failed', details });
+        }
+      } catch (e) {
+        log(`❌ Erreur découverte : ${e.message}`);
+        return res.json({ ok: false, phase: 'discover_error', error: e.message, details });
+      }
+
+      // 2. Lecture d'un fichier INI existant (GameUserSettings.ini en premier)
+      const candidateFiles = ['GameUserSettings.ini', 'Game.ini'];
+      let filePath = null;
+      let originalContent = null;
+      for (const fname of candidateFiles) {
+        const fp = `${configDir}/${fname}`;
+        try {
+          originalContent = await nitrado.readFile(serviceId, fp);
+          filePath = fp;
+          log(`✅ Lecture OK : ${fname} (${originalContent.length} octets)`);
+          break;
+        } catch (e) {
+          log(`⚠️ Lecture ${fname} échouée : ${e.message}`);
+        }
+      }
+
+      if (!filePath || originalContent === null) {
+        log('❌ Aucun fichier INI lisible trouvé — impossible de tester l\'écriture.');
+        return res.json({ ok: false, phase: 'read_failed', details });
+      }
+
+      // 3. Écriture du même contenu (aucun changement réel)
+      log(`Test d'écriture sur ${filePath.split('/').pop()} (contenu inchangé)…`);
+      const writeResult = await nitrado.writeFileSysFullOnce(serviceId, filePath, originalContent);
+      if (writeResult.ok) {
+        log(`✅ Écriture OK — le token a bien le scope Fileserver.`);
+        return res.json({ ok: true, phase: 'write_ok', filePath, details });
+      } else {
+        const err = writeResult.error || '';
+        if (err.includes('Permission denied') || writeResult.status === 403 || writeResult.status === 401) {
+          log(`❌ Écriture refusée (Permission denied) — scope Fileserver absent OU fichier verrouillé par le serveur.`);
+          log('  → Si le serveur est en marche, l\'arrêter et réessayer confirme si c\'est un verrou.');
+          log('  → Vérifier aussi sur panel.nitrado.net → API-Tokens → scope "Fileserver" activé.');
+        } else if (err.includes('Just a moment') || err.includes('DOCTYPE')) {
+          log('❌ Réponse Cloudflare — rate-limiting. Réessaie dans quelques minutes.');
+        } else {
+          log(`❌ Écriture échouée (HTTP ${writeResult.status}) : ${err.slice(0, 120)}`);
+        }
+        return res.json({ ok: false, phase: 'write_failed', httpStatus: writeResult.status, error: writeResult.error, details });
+      }
+    } catch (e) {
+      console.error('[INI probe-write] Erreur inattendue:', e.message);
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // Retourne le dernier apply-with-restart réussi (telemetry persisté en DB).
+  // GET → { ok, last: { at, phase, serviceIds, keys, filesWritten?, elapsedSec?, restartDone } }
+  app.get('/nitrado/api/ini/last-apply', requireAdmin, async (req, res) => {
+    try {
+      const last = await pgStore.getData('nitrado_last_ini_apply', null);
+      res.json({ ok: true, last: last || null });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
   // Applique des paramètres ini avec streaming SSE pour éviter les timeouts longue durée
   // POST { settings: [{key, value}], serviceIds?: [] } → text/event-stream
   app.post('/nitrado/api/ini/apply-with-restart', requireAdmin, async (req, res) => {
@@ -3478,12 +3564,54 @@ function createWebServer(discordClient) {
         log('✅ Phase 1 réussie — Redémarrage pour appliquer…');
         await Promise.all(ids.map(id => nitrado.restartServer(id).catch(e => log(`  WARN restart ${id}: ${e.message}`))));
         log('Redémarrage lancé.');
+        // Telemetry : enregistre le dernier apply réussi pour traçabilité
+        await pgStore.setData('nitrado_last_ini_apply', {
+          at: new Date().toISOString(), phase: 1, serviceIds: ids,
+          keys: settings.map(s => s.key), restartDone: true,
+        }).catch(() => {});
         clearInterval(pingInterval);
         return done(true, { editResults: phase1.editResults, restartDone: true, phase: 1 });
       }
 
       log('Phase 1 échouée (Nitrado bloque les écritures serveur en marche).');
       log('');
+
+      // ── PRÉ-VÉRIFICATION : Scope Fileserver avant d'arrêter les serveurs ─────
+      // Si Phase 1 a échoué exclusivement avec "Permission denied", vérifie via l'API
+      // de token Nitrado si le scope "Fileserver" est absent. Si oui, on échoue
+      // immédiatement SANS arrêter les serveurs (aucun effet de bord).
+      log('Vérification scope token Fileserver avant arrêt des serveurs…');
+      try {
+        const allErrors = Object.values(phase1.editResults)
+          .flat()
+          .filter(r => !r.ok)
+          .map(r => String(r.error || ''));
+        const allPermDenied = allErrors.length > 0 && allErrors.every(e => e.includes('Permission denied'));
+
+        if (allPermDenied) {
+          // Vérifie les scopes du token sans aucune mutation côté serveur
+          const scopeCheck = await nitrado.checkTokenScopes();
+          if (scopeCheck.ok && scopeCheck.hasFileserver === false) {
+            log('❌ PRÉ-VÉRIFICATION ÉCHOUÉE : le token Nitrado manque le scope "Fileserver".');
+            log(`  → Scopes actuels du token : ${(scopeCheck.grants || []).join(', ') || '(aucun)'}`);
+            log('  → Sur panel.nitrado.net → API-Tokens → activer le scope "Fileserver".');
+            log('  → Aucun serveur n\'a été arrêté.');
+            clearInterval(pingInterval);
+            return done(false, {
+              error: 'Token Nitrado manque le scope Fileserver — aucun serveur arrêté',
+              diagnostic: 'missing_fileserver_scope',
+              currentGrants: scopeCheck.grants || [],
+            });
+          }
+          if (!scopeCheck.ok) {
+            log(`  → Impossible de vérifier le scope (${scopeCheck.error || 'API token indisponible'}) — passage Phase 2.`);
+          } else {
+            log(`  → Scope Fileserver confirmé (grants: ${(scopeCheck.grants || []).join(', ')}) — passage Phase 2.`);
+          }
+        }
+      } catch (preCheckErr) {
+        log(`  ⚠️ Pré-vérification scope ignorée (${preCheckErr.message}) — passage Phase 2.`);
+      }
 
       // ── PHASE 2 : Stop → attendre statut "stopped" → écrire → Start ────────
       // Nitrado bloque les écritures tant que le serveur est "running" ou "restarting".
@@ -3586,6 +3714,12 @@ function createWebServer(discordClient) {
 
       if (phase2Ok) {
         log(`✅ Phase 2 réussie (${elapsed}s). Les changements seront actifs au prochain démarrage.`);
+        // Telemetry : enregistre le dernier apply réussi pour traçabilité
+        await pgStore.setData('nitrado_last_ini_apply', {
+          at: new Date().toISOString(), phase: 2, serviceIds: ids, elapsedSec: elapsed,
+          keys: settings.map(s => s.key), filesWritten: writeResults.map(r => r.filePath.split('/').pop()),
+          restartDone: true,
+        }).catch(() => {});
         clearInterval(pingInterval);
         return done(true, { writeResults, restartDone: true, phase: 2, elapsedSec: elapsed });
       } else {
