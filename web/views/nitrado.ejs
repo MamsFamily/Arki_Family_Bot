@@ -1245,7 +1245,7 @@ async function testUploadPaths() {
   if (!serviceId) { toast('Aucun serveur sélectionné', true); return; }
   const box = document.getElementById('diag-result');
   box.style.display = 'block'; box.style.color = 'var(--text-primary)'; box.style.whiteSpace = 'pre-wrap';
-  box.textContent = '⏳ Test upload étendu (10 formats + mkdir WindowsServer)…';
+  box.textContent = '⏳ Test upload étendu (13 formats + mkdir WindowsServer)…';
   try {
     const r = await fetch(`/nitrado/api/debug/test-upload?${new URLSearchParams({ serviceId })}`);
     const d = await r.json();

@@ -467,6 +467,10 @@ async function writeFileSysFullOnce(serviceId, filePath, content) {
     const status = err.response?.status;
     const body = err.response?.data;
     const msg = (typeof body === 'object' ? JSON.stringify(body) : body) || err.message;
+    // Log détaillé pour HTTP 500 : chemin + taille contenu + corps réponse
+    if (status === 500) {
+      console.warn(`[Nitrado writeFileSysFullOnce] HTTP 500 — path="${filePath}" contentLen=${content.length} resp=${JSON.stringify(msg).slice(0, 200)}`);
+    }
     return { ok: false, status, error: msg };
   }
 }
