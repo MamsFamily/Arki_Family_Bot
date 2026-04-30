@@ -139,6 +139,56 @@ async function listFiles(serviceId, dir) {
   return res.data?.data?.entries || [];
 }
 
+async function mkdir(serviceId, path) {
+  try {
+    const res = await client().post(`/services/${serviceId}/gameservers/file_server/mkdir`, { path });
+    console.log(`[Nitrado mkdir] ${serviceId} "${path}": HTTP ${res.status}`);
+    return true;
+  } catch (err) {
+    // 422 = déjà existant, pas une erreur
+    if (err.response?.status === 422) return true;
+    console.warn(`[Nitrado mkdir] Erreur ${serviceId} "${path}": HTTP ${err.response?.status} — ${err.message}`);
+    return false;
+  }
+}
+
+// Découvre automatiquement le répertoire Config ARK SA sur un serveur Nitrado
+// Teste plusieurs chemins possibles (WindowsServer, WinServer, LinuxServer…)
+const CONFIG_PATH_CANDIDATES = [
+  '/ShooterGame/Saved/Config/WindowsServer',
+  '/ShooterGame/Saved/Config/WinServer',
+  '/ShooterGame/Saved/Config/LinuxServer',
+  '/ShooterGame/Saved/Config/WindowsNoEditor',
+  '/ShooterGame/Saved/Config',
+];
+
+async function discoverConfigDir(serviceId) {
+  // 1. Essaye de lister chaque chemin candidat
+  for (const candidate of CONFIG_PATH_CANDIDATES) {
+    try {
+      const entries = await listFiles(serviceId, candidate);
+      // Valide si le répertoire contient des fichiers .ini ou des sous-répertoires
+      const hasIni = entries.some(e => e.name?.endsWith('.ini'));
+      const hasContent = entries.length > 0;
+      console.log(`[Nitrado discover] ${serviceId} "${candidate}": ${entries.length} entrées, ini=${hasIni}`);
+      if (hasContent) return candidate;
+    } catch (err) {
+      console.log(`[Nitrado discover] ${serviceId} "${candidate}": ${err.response?.status || err.message}`);
+    }
+  }
+
+  // 2. Liste le répertoire parent pour voir ce qui existe
+  try {
+    const parentEntries = await listFiles(serviceId, '/ShooterGame/Saved/Config');
+    if (parentEntries.length > 0) {
+      const first = parentEntries.find(e => e.type === 'dir')?.name;
+      if (first) return `/ShooterGame/Saved/Config/${first}`;
+    }
+  } catch {}
+
+  return null;
+}
+
 async function readFile(serviceId, filePath) {
   let lastErr;
   for (let attempt = 1; attempt <= 2; attempt++) {
@@ -269,28 +319,65 @@ function setIniKey(content, section, key, value) {
 
 /**
  * Lit un fichier INI, modifie une clé, réécrit le fichier.
+ * Crée le répertoire parent automatiquement si nécessaire.
  */
 async function updateIniKey(serviceId, filePath, section, key, value) {
+  const nodePath = require('path');
+  const dir = nodePath.dirname(filePath);
+
+  // 1. Lire le fichier existant (peut être vide si nouveau)
   let content = '';
   try {
     content = await readFile(serviceId, filePath);
+    console.log(`[Nitrado INI] Fichier lu: ${filePath} (${content.length} octets)`);
   } catch (e) {
-    console.warn(`[Nitrado INI] Fichier introuvable (${filePath}), création: ${e.message}`);
+    console.warn(`[Nitrado INI] Fichier non trouvé (${filePath}), démarrage avec contenu vide. Erreur: ${e.message}`);
+    // Tente de créer le répertoire parent avant l'écriture
+    await mkdir(serviceId, dir);
     content = '';
   }
+
+  // 2. Modifier la clé dans le contenu INI
   const updated = setIniKey(content, section, key, value);
+
+  // 3. Écrire le fichier (avec retry intégré dans writeFile)
   await writeFile(serviceId, filePath, updated);
+  console.log(`[Nitrado INI] ✅ Clé ${key}=${value} écrite dans ${filePath}`);
   return { updated: true };
 }
 
+// Cache par serviceId pour éviter de redécouvrir à chaque appel
+const _configDirCache = {};
+
 /**
  * Met à jour une clé en utilisant le mapping INI_KEY_MAP.
- * Si la clé n'est pas dans le mapping, lève une erreur.
+ * Découvre automatiquement le bon répertoire config sur le serveur.
  */
 async function updateIniKeyMapped(serviceId, key, value) {
   const map = INI_KEY_MAP[key];
   if (!map) throw new Error(`Clé "${key}" non mappée — fichier et section inconnus`);
-  const filePath = ARK_PATHS[map.file];
+
+  const nodePath = require('path');
+  const filename = nodePath.basename(ARK_PATHS[map.file]); // ex: "Game.ini"
+
+  // 1. Utilise le cache si disponible
+  let configDir = _configDirCache[serviceId];
+
+  // 2. Sinon, découvre le bon répertoire
+  if (!configDir) {
+    console.log(`[Nitrado INI] Découverte du répertoire config pour ${serviceId}…`);
+    configDir = await discoverConfigDir(serviceId);
+    if (configDir) {
+      _configDirCache[serviceId] = configDir;
+      console.log(`[Nitrado INI] ✅ Répertoire trouvé: ${configDir}`);
+    } else {
+      // Fallback : utiliser le chemin par défaut et laisser mkdir créer le répertoire
+      configDir = nodePath.dirname(ARK_PATHS[map.file]);
+      console.warn(`[Nitrado INI] Aucun répertoire trouvé, utilisation du défaut: ${configDir}`);
+    }
+  }
+
+  const filePath = `${configDir}/${filename}`;
   return updateIniKey(serviceId, filePath, map.section, key, value);
 }
 
@@ -531,6 +618,8 @@ module.exports = {
   findCategory,
   smartUpdateSetting,
   listFiles,
+  mkdir,
+  discoverConfigDir,
   readFile,
   writeFile,
   updateIniKey,
@@ -538,6 +627,7 @@ module.exports = {
   updateIniKeyOnAll,
   INI_KEY_MAP,
   ARK_PATHS,
+  CONFIG_PATH_CANDIDATES,
   getMods,
   setMods,
   addMod,

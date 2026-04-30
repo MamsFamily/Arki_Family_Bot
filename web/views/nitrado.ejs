@@ -592,6 +592,7 @@
               </div>
               <button onclick="readIniFile()" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:.82rem;white-space:nowrap">📄 Lire</button>
               <button onclick="listIniDir()" style="padding:8px 14px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap" title="Lister les fichiers accessibles (marche serveur OFF)">📁 Lister</button>
+              <button onclick="discoverIniPath()" style="padding:8px 14px;background:#065f46;color:#6ee7b7;border:1px solid #047857;border-radius:8px;cursor:pointer;font-size:.82rem;white-space:nowrap;font-weight:700" title="Trouve automatiquement le bon chemin (serveur OFF)">🔍 Détecter</button>
             </div>
 
             <!-- Test écriture d'une clé -->
@@ -1117,6 +1118,31 @@ async function applyConfigWithRestart(settings, serviceIds) {
 }
 
 // ── Diagnostic INI ────────────────────────────────────────────────────────
+
+// Découvre automatiquement le bon répertoire config ARK SA (serveur OFF recommandé)
+async function discoverIniPath() {
+  const ids = getSelIds();
+  const serviceId = ids.length > 0 ? ids[0] : (SRV.length > 0 ? SRV[0].id : null);
+  if (!serviceId) { toast('Aucun serveur sélectionné', true); return; }
+  const box = document.getElementById('diag-result');
+  box.style.display = 'block'; box.style.color = 'var(--text-primary)'; box.style.whiteSpace = 'pre-wrap';
+  box.textContent = `⏳ Découverte du répertoire config (serveur ${serviceId})…\nTest de plusieurs chemins possibles…`;
+  try {
+    const r = await fetch(`/nitrado/api/ini/discover?${new URLSearchParams({ serviceId })}`);
+    const d = await r.json();
+    if (d.ok) {
+      // Prérempli le champ de chemin personnalisé avec le répertoire trouvé
+      document.getElementById('ini-custom-path').value = d.dir + '/Game.ini';
+      const fileList = (d.entries || []).map(e => `  ${e.type === 'dir' ? '📁' : '📄'} ${e.name}`).join('\n') || '  (vide)';
+      box.style.color = '#4ade80';
+      box.textContent = `✅ RÉPERTOIRE TROUVÉ !\n\nChemin : ${d.dir}\n\nFichiers dans ce répertoire :\n${fileList}\n\n→ Le champ "Chemin personnalisé" a été mis à jour automatiquement.\n→ Tu peux maintenant cliquer "📄 Lire" pour voir le contenu du Game.ini.`;
+    } else {
+      const roots = (d.rootEntries || []).map(e => `  ${e.type === 'dir' ? '📁' : '📄'} ${e.name}`).join('\n') || '  (vide ou inaccessible)';
+      box.style.color = '#fbbf24';
+      box.textContent = `⚠️ Aucun répertoire config trouvé automatiquement.\n\nChemins testés :\n${(d.candidates || []).map(c => '  - ' + c).join('\n')}\n\nRacine "/" du serveur :\n${roots}\n\n💡 Peut-être que le serveur est en marche (éteins-le d'abord), ou le chemin est différent.\n→ Utilise "📁 Lister" avec "/" pour explorer la racine.`;
+    }
+  } catch (e) { box.style.color = '#f87171'; box.textContent = '❌ Erreur réseau : ' + e.message; }
+}
 
 // Liste les fichiers d'un répertoire Nitrado (marche quand serveur OFF)
 async function listIniDir() {
