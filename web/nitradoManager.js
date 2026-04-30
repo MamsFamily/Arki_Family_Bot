@@ -139,50 +139,39 @@ async function listFiles(serviceId, dir) {
   return res.data?.data?.entries || [];
 }
 
-async function mkdir(serviceId, path) {
+// mkdir(serviceId, fullPath) — Nitrado attend { path: parentDir, name: newDirName }
+async function mkdir(serviceId, fullPath) {
+  const nodePath = require('path');
+  const parentDir = nodePath.dirname(fullPath);   // ex: /ShooterGame/Saved/Config
+  const dirName   = nodePath.basename(fullPath);  // ex: WindowsServer
   const tok = getToken();
-  // Essaie avec différents noms de paramètre et formats (Nitrado n'est pas cohérent)
-  const attempts = [
-    { label: 'json-path',  data: JSON.stringify({ path }),                            headers: { 'Content-Type': 'application/json' } },
-    { label: 'json-dir',   data: JSON.stringify({ dir: path }),                       headers: { 'Content-Type': 'application/json' } },
-    { label: 'form-path',  data: new URLSearchParams({ path }).toString(),            headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
-    { label: 'form-dir',   data: new URLSearchParams({ dir: path }).toString(),       headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
-  ];
-  const errors = [];
-  for (const { label, data, headers } of attempts) {
-    try {
-      const res = await axios.post(
-        `${BASE_URL}/services/${serviceId}/gameservers/file_server/mkdir`,
-        data,
-        { headers: { Authorization: `Bearer ${tok}`, ...headers }, timeout: 15000 }
-      );
-      const bodyStr = JSON.stringify(res.data);
-      console.log(`[Nitrado mkdir][${label}] ${serviceId} "${path}": HTTP ${res.status} — ${bodyStr.slice(0, 200)}`);
-      // Vérifier si Nitrado retourne HTTP 200 avec status=error dans le body
-      if (res.data?.status === 'error') {
-        const msg = res.data.message || 'error in body';
-        console.warn(`[Nitrado mkdir][${label}] Nitrado HTTP 200 mais status=error: ${msg}`);
-        errors.push({ label, status: res.status, error: `HTTP 200 mais status=error: ${msg}` });
-        continue;
-      }
-      return { ok: true, label, status: res.status, body: res.data };
-    } catch (err) {
-      const status = err.response?.status;
-      const respBody = err.response?.data;
-      const bodyStr = respBody ? JSON.stringify(respBody) : '';
-      const msg = bodyStr || err.message || 'unknown error';
-      console.warn(`[Nitrado mkdir][${label}] ${serviceId} "${path}": HTTP ${status} — ${msg}`);
-      errors.push({ label, status, error: msg });
-      // 422 = déjà existant, c'est ok
-      if (status === 422) {
-        return { ok: true, label, status: 422, body: 'already exists' };
-      }
-      // 404 = endpoint mkdir inexistant — arrêter les autres essais
-      if (status === 404) break;
+
+  try {
+    const payload = { path: parentDir, name: dirName };
+    const res = await axios.post(
+      `${BASE_URL}/services/${serviceId}/gameservers/file_server/mkdir`,
+      payload,
+      { headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' }, timeout: 15000 }
+    );
+    const bodyStr = JSON.stringify(res.data);
+    console.log(`[Nitrado mkdir] ${serviceId} "${fullPath}": HTTP ${res.status} ✅ — ${bodyStr.slice(0, 200)}`);
+    if (res.data?.status === 'error') {
+      const msg = res.data.message || 'error in body';
+      console.warn(`[Nitrado mkdir] HTTP 200 mais status=error: ${msg}`);
+      return { ok: false, status: res.status, error: `HTTP 200 status=error: ${msg}` };
     }
+    return { ok: true, status: res.status, body: res.data };
+  } catch (err) {
+    const status = err.response?.status;
+    const respBody = err.response?.data;
+    const msg = respBody ? JSON.stringify(respBody) : (err.message || 'unknown error');
+    console.warn(`[Nitrado mkdir] ${serviceId} "${fullPath}": HTTP ${status} — ${msg}`);
+    // 422 = déjà existant, c'est ok
+    if (status === 422) {
+      return { ok: true, status: 422, body: 'already exists' };
+    }
+    return { ok: false, status, error: msg };
   }
-  const lastErr = errors[errors.length - 1];
-  return { ok: false, error: lastErr?.error || 'all attempts failed', status: lastErr?.status, allErrors: errors };
 }
 
 // Crée récursivement tous les niveaux d'un chemin — retourne [{path, ok, status, body}]
