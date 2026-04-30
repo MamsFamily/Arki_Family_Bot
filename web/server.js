@@ -3104,6 +3104,10 @@ function createWebServer(discordClient) {
       await Promise.all(ids.map(id => waitStop(id)));
       addLog('Serveurs arrêtés.');
 
+      // Délai supplémentaire : le file server Nitrado peut rester verrouillé quelques secondes après l'arrêt du process
+      addLog('Attente de 15s pour déverrouillage file system…');
+      await new Promise(r => setTimeout(r, 15000));
+
       // 3. Éditer les fichiers ini sur chaque serveur
       const editResults = {};
       for (const { key, value } of settings) {
@@ -3112,6 +3116,7 @@ function createWebServer(discordClient) {
         editResults[key] = results;
         const ok = results.filter(r => r.ok).length;
         addLog(`  ${key}=${normalized} — ${ok}/${ids.length} OK`);
+        results.filter(r => !r.ok).forEach(r => addLog(`    ❌ Serveur ${r.id}: ${r.error}`));
       }
 
       // 4. Redémarrer tous les serveurs en parallèle

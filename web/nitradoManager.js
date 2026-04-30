@@ -53,7 +53,8 @@ async function stopServer(serviceId) {
 }
 
 async function startServer(serviceId) {
-  const res = await client().post(`/services/${serviceId}/gameservers/start`);
+  // Nitrado n'a pas d'endpoint /start séparé — /restart fonctionne que le serveur soit stoppé ou non
+  const res = await client().post(`/services/${serviceId}/gameservers/restart`);
   return res.data;
 }
 
@@ -139,34 +140,64 @@ async function listFiles(serviceId, dir) {
 }
 
 async function readFile(serviceId, filePath) {
-  // 1. Demande un token de téléchargement
-  const res = await client().get(`/services/${serviceId}/gameservers/file_server/download`, {
-    params: { file: filePath },
-  });
-  const url = res.data?.data?.url;
-  const token = res.data?.data?.token;
-  if (!url && !token) throw new Error(`Impossible d'obtenir un lien de téléchargement pour ${filePath}`);
-
-  // 2. Télécharge le contenu réel
-  const dlUrl = url || `${BASE_URL}/download?token=${token}`;
-  const dl = await axios.get(dlUrl, { responseType: 'text', timeout: 20000 });
-  return typeof dl.data === 'string' ? dl.data : JSON.stringify(dl.data);
+  let lastErr;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    if (attempt > 1) await new Promise(r => setTimeout(r, 8000));
+    try {
+      const res = await client().get(`/services/${serviceId}/gameservers/file_server/download`, {
+        params: { file: filePath },
+      });
+      const url = res.data?.data?.url;
+      const token = res.data?.data?.token;
+      if (!url && !token) throw new Error(`Pas de lien de téléchargement pour ${filePath}`);
+      const dlUrl = url || `${BASE_URL}/download?token=${token}`;
+      const dl = await axios.get(dlUrl, { responseType: 'text', timeout: 20000 });
+      return typeof dl.data === 'string' ? dl.data : JSON.stringify(dl.data);
+    } catch (err) {
+      const status = err.response?.status;
+      const msg = (typeof err.response?.data === 'object' ? JSON.stringify(err.response?.data) : err.response?.data) || err.message;
+      console.error(`[Nitrado readFile] Erreur tentative ${attempt} — HTTP ${status}: ${msg} (${filePath})`);
+      lastErr = new Error(`HTTP ${status}: ${msg}`);
+    }
+  }
+  throw lastErr;
 }
 
 async function writeFile(serviceId, filePath, content) {
   const FormData = require('form-data');
-  const path = require('path');
-  const form = new FormData();
-  form.append('path', path.dirname(filePath));
-  form.append('file', Buffer.from(content, 'utf8'), { filename: path.basename(filePath) });
-
+  const nodePath = require('path');
   const tok = getToken();
-  const res = await axios.post(
-    `${BASE_URL}/services/${serviceId}/gameservers/file_server/upload`,
-    form,
-    { headers: { Authorization: `Bearer ${tok}`, ...form.getHeaders() }, timeout: 30000 }
-  );
-  return res.data;
+  const dir = nodePath.dirname(filePath);
+  const filename = nodePath.basename(filePath);
+
+  // Retry 2× avec délai croissant (le file server peut prendre du temps à s'ouvrir après arrêt du serveur)
+  let lastErr;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    if (attempt > 1) {
+      console.log(`[Nitrado writeFile] Retry ${attempt} dans 10s (${filePath})`);
+      await new Promise(r => setTimeout(r, 10000));
+    }
+    try {
+      const form = new FormData();
+      form.append('path', dir);
+      form.append('file', Buffer.from(content, 'utf8'), { filename });
+      console.log(`[Nitrado writeFile] Tentative ${attempt} — upload ${filePath} (${content.length} octets) vers ${dir}`);
+      const res = await axios.post(
+        `${BASE_URL}/services/${serviceId}/gameservers/file_server/upload`,
+        form,
+        { headers: { Authorization: `Bearer ${tok}`, ...form.getHeaders() }, timeout: 30000 }
+      );
+      console.log(`[Nitrado writeFile] OK tentative ${attempt} — HTTP ${res.status}:`, JSON.stringify(res.data).slice(0, 200));
+      return res.data;
+    } catch (err) {
+      const status = err.response?.status;
+      const body = err.response?.data;
+      const msg = (typeof body === 'object' ? JSON.stringify(body) : body) || err.message;
+      console.error(`[Nitrado writeFile] Erreur tentative ${attempt} — HTTP ${status}: ${msg}`);
+      lastErr = new Error(`HTTP ${status}: ${msg}`);
+    }
+  }
+  throw lastErr;
 }
 
 // ── Éditeur INI ─────────────────────────────────────────────────────────────
