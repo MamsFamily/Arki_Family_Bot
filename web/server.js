@@ -2839,6 +2839,8 @@ function createWebServer(discordClient) {
       }
     }
 
+    const { getSettings: getNitradoSettings } = require('../settingsManager');
+    const nitradoSettings = getNitradoSettings();
     res.render('nitrado', {
       path: req.path,
       botUser: discordClient?.user || null,
@@ -2847,6 +2849,7 @@ function createWebServer(discordClient) {
       hasToken,
       servers,
       error,
+      nitradoFtp: nitradoSettings.nitradoFtp || {},
     });
   });
 
@@ -3368,6 +3371,47 @@ function createWebServer(discordClient) {
     res.json({ ok: true, msg: serviceId ? `Cache vidé pour ${serviceId}` : 'Cache global vidé' });
   });
 
+  // ── Sauvegarde des credentials FTP ──────────────────────────────────────────
+  app.post('/nitrado/api/ftp/save', requireAdmin, async (req, res) => {
+    try {
+      const { host, port, user, password, secure } = req.body;
+      const { updateSection } = require('../settingsManager');
+      updateSection('nitradoFtp', {
+        host:     (host     || '').trim(),
+        port:     parseInt(port) || 21,
+        user:     (user     || '').trim(),
+        password: (password || '').trim(),
+        secure:   secure === true || secure === 'true' || secure === 'on',
+      });
+      res.json({ ok: true });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
+  // ── Test connexion FTP ────────────────────────────────────────────────────────
+  app.post('/nitrado/api/ftp/test', requireAdmin, async (req, res) => {
+    try {
+      const { host, port, user, password, secure } = req.body;
+      const ftp = require('basic-ftp');
+      const client = new ftp.Client();
+      client.ftp.verbose = false;
+      await client.access({
+        host: (host || '').trim(),
+        port: parseInt(port) || 21,
+        user: (user || '').trim(),
+        password: (password || '').trim(),
+        secure: secure === true || secure === 'true' || secure === 'on',
+        secureOptions: { rejectUnauthorized: false },
+      });
+      const list = await client.list('/').catch(() => []);
+      client.close();
+      res.json({ ok: true, entries: list.slice(0, 10).map(e => ({ name: e.name, type: e.type === 2 ? 'dir' : 'file' })) });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
   app.get('/nitrado/api/ini/scan-parents', requireAdmin, async (req, res) => {
     try {
       const { serviceId } = req.query;
@@ -3729,6 +3773,37 @@ function createWebServer(discordClient) {
             writeResults[a.idx].error = a.error;
             log(`    ❌ ${pendingWrites[a.idx].filePath.split('/').pop()} (${pendingWrites[a.idx].serviceId}): ${a.error?.slice(0, 80)}`);
           }
+        }
+      }
+
+      // 2d-bis — Fallback FTP si l'API Nitrado a échoué et que les credentials FTP sont configurés
+      if (remaining.size > 0) {
+        const settings_sm = require('../settingsManager').getSettings();
+        const ftpCfg = settings_sm.nitradoFtp || {};
+        const ftpReady = !!(ftpCfg.host && ftpCfg.user && ftpCfg.password);
+        if (ftpReady) {
+          log('');
+          log(`⚡ API Nitrado bloquée — tentative FTP direct (${remaining.size} fichier(s))…`);
+          const ftpResults = await Promise.all([...remaining].map(async idx => {
+            const { serviceId, filePath, content } = pendingWrites[idx];
+            const ftpPath = nitrado.getFtpPath(serviceId, filePath);
+            log(`  → FTP: ${ftpPath}`);
+            const r = await nitrado.writeFtpFile(ftpCfg, ftpPath, content);
+            return { idx, ...r };
+          }));
+          for (const a of ftpResults) {
+            if (a.ok) {
+              remaining.delete(a.idx);
+              writeResults[a.idx].ok = true;
+              log(`  ✅ [FTP] ${pendingWrites[a.idx].filePath.split('/').pop()} (${pendingWrites[a.idx].serviceId})`);
+            } else {
+              writeResults[a.idx].error = `FTP: ${a.error}`;
+              log(`  ❌ [FTP] ${pendingWrites[a.idx].filePath.split('/').pop()} : ${a.error?.slice(0, 80)}`);
+            }
+          }
+        } else {
+          log('');
+          log('⚠️ FTP non configuré — Configurer les credentials FTP dans Dashboard → Nitrado → Accès FTP pour contourner le blocage API.');
         }
       }
 

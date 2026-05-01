@@ -50,3 +50,4 @@ The bot is built on Node.js using Discord.js for Discord API interactions. A web
 - **@vitalets/google-translate-api:** For translation functionalities.
 - **node-cron:** For scheduling automated tasks, such as monthly vote publications.
 - **TopServeurs API:** For fetching monthly vote rankings and data.
+- **basic-ftp:** Direct FTP access to Nitrado game servers for writing .ini files (bypasses the Nitrado API Long-life token permission restrictions on file uploads).

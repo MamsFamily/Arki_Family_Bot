@@ -132,6 +132,13 @@ const DEFAULTS = {
     welcomeMessage: 'Bienvenue {user} dans l\'événement **{event}** !\n\nUn membre du staff va bientôt te rejoindre.',
   },
   aliases: {},
+  nitradoFtp: {
+    host: '',
+    port: 21,
+    user: '',
+    password: '',
+    secure: false,
+  },
 };
 
 function deepMerge(target, source) {

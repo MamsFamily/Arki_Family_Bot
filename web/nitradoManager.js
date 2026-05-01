@@ -903,6 +903,77 @@ async function updateSettingOnAll(serviceIds, key, value, hintCategory) {
   return results;
 }
 
+// ── Écriture fichier via FTP direct ──────────────────────────────────────────
+
+/**
+ * Retourne le chemin FTP relatif au root FTP Nitrado à partir du chemin système complet.
+ * Ex: fullPath="/games/ni9697515_2/ftproot/arksa/Game.ini"
+ *     basePath="/games/ni9697515_2/ftproot"
+ *   → ftpPath="/arksa/Game.ini"
+ * Si basePath inconnu, retourne fullPath tel quel.
+ */
+function getFtpPath(serviceId, fullSystemPath) {
+  const cached = _configDirCache[serviceId];
+  const basePath = cached?.basePath || null;
+  if (basePath && fullSystemPath.startsWith(basePath)) {
+    return fullSystemPath.slice(basePath.length) || '/';
+  }
+  return fullSystemPath;
+}
+
+/**
+ * Écrit un fichier via FTP direct sur le serveur Nitrado.
+ * Contourne les restrictions de l'API Nitrado (Permission denied).
+ * @param {object} ftpConfig  { host, port, user, password, secure }
+ * @param {string} ftpPath    Chemin FTP relatif ex: /arksa/ShooterGame/Saved/Config/WindowsServer/Game.ini
+ * @param {string} content    Contenu du fichier
+ * @returns {{ ok, error }}
+ */
+async function writeFtpFile(ftpConfig, ftpPath, content) {
+  const ftp = require('basic-ftp');
+  const { Readable } = require('stream');
+  const nodePath = require('path');
+
+  if (!ftpConfig?.host || !ftpConfig?.user || !ftpConfig?.password) {
+    return { ok: false, error: 'Credentials FTP incomplets (host/user/password requis)' };
+  }
+
+  const client = new ftp.Client();
+  client.ftp.verbose = false;
+
+  try {
+    await client.access({
+      host: ftpConfig.host,
+      port: parseInt(ftpConfig.port) || 21,
+      user: ftpConfig.user,
+      password: ftpConfig.password,
+      secure: ftpConfig.secure === true || ftpConfig.secure === 'true',
+      secureOptions: { rejectUnauthorized: false },
+    });
+
+    const dir = nodePath.dirname(ftpPath);
+    const filename = nodePath.basename(ftpPath);
+
+    // Crée le répertoire si nécessaire
+    try { await client.ensureDir(dir); } catch (e) {
+      console.warn(`[FTP] ensureDir "${dir}" : ${e.message} — tentative d'écriture quand même`);
+    }
+
+    // Upload du contenu
+    const buf = Buffer.from(content, 'utf8');
+    const stream = Readable.from(buf);
+    await client.uploadFrom(stream, filename);
+
+    console.log(`[FTP] ✅ ${ftpPath} écrit (${buf.length} octets)`);
+    return { ok: true };
+  } catch (err) {
+    console.error(`[FTP] ❌ ${ftpPath} : ${err.message}`);
+    return { ok: false, error: err.message };
+  } finally {
+    client.close();
+  }
+}
+
 // ── Vérification scopes du token ──────────────────────────────────────────────
 
 /**
@@ -1062,4 +1133,6 @@ module.exports = {
   sendRconDirect,
   sendRconToMany,
   checkTokenScopes,
+  writeFtpFile,
+  getFtpPath,
 };
