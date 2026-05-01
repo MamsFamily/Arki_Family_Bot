@@ -3321,8 +3321,7 @@ function createWebServer(discordClient) {
   });
 
   // Debug : liste les permissions (grants/scopes) du token NITRADO_TOKEN actuel
-  // Utile pour diagnostiquer "Permission denied" persistant même serveur stoppé
-  // → vérifie que le token a le scope "Fileserver" (écriture fichiers INI)
+  // → vérifie que le token a le scope "service" (accès game servers, fichiers INI, contrôle)
   app.get('/nitrado/api/debug/check-token-scopes', requireAdmin, async (req, res) => {
     try {
       const result = await nitrado.checkTokenScopes();
@@ -3331,20 +3330,15 @@ function createWebServer(discordClient) {
           ok: false,
           error: result.error,
           httpStatus: result.httpStatus,
-          hint: 'Vérifiez que NITRADO_TOKEN est configuré et valide sur panel.nitrado.net → API-Tokens.',
+          hint: 'Vérifiez que NITRADO_TOKEN est configuré et valide sur server.nitrado.net → Long-life tokens.',
         });
       }
 
       const hints = [];
       if (!result.hasFileserver) {
-        hints.push('⚠️  Scope "Fileserver" ABSENT — le token ne peut pas écrire de fichiers .ini. Régénérez le token avec tous les droits sur panel.nitrado.net → API-Tokens, puis mettez à jour NITRADO_TOKEN dans les secrets Railway.');
+        hints.push('⚠️  Scope "service" ABSENT — le token ne peut pas accéder aux game servers. Régénérez le token en cochant "service" sur server.nitrado.net → Long-life tokens, puis mettez à jour NITRADO_TOKEN dans les secrets Railway.');
       } else {
-        hints.push('✅ Scope "Fileserver" présent — le token a bien accès en écriture aux fichiers.');
-      }
-      if (!result.hasGameserver) {
-        hints.push('⚠️  Scope "Gameserver" ABSENT — le token ne peut pas contrôler les serveurs (stop/start/restart).');
-      } else {
-        hints.push('✅ Scope "Gameserver" présent.');
+        hints.push('✅ Scope "service" présent — le token a bien accès aux game servers (fichiers + contrôle).');
       }
       if (result.hasFileserver && result.hasGameserver) {
         hints.push('ℹ️  Si "Permission denied" persiste malgré les scopes présents, le problème vient probablement du chemin FTP (découverte du répertoire config) ou du serveur encore en train de s\'arrêter.');
@@ -3353,6 +3347,7 @@ function createWebServer(discordClient) {
       res.json({
         ok: true,
         grants: result.grants,
+        hasService: result.hasService,
         hasFileserver: result.hasFileserver,
         hasGameserver: result.hasGameserver,
         tokenExpiry: result.tokenInfo?.expires_at || result.tokenInfo?.expiry || null,
@@ -3625,21 +3620,21 @@ function createWebServer(discordClient) {
           // Vérifie les scopes du token sans aucune mutation côté serveur
           const scopeCheck = await nitrado.checkTokenScopes();
           if (scopeCheck.ok && scopeCheck.hasFileserver === false) {
-            log('❌ PRÉ-VÉRIFICATION ÉCHOUÉE : le token Nitrado manque le scope "Fileserver".');
+            log('❌ PRÉ-VÉRIFICATION ÉCHOUÉE : le token Nitrado manque le scope "service".');
             log(`  → Scopes actuels du token : ${(scopeCheck.grants || []).join(', ') || '(aucun)'}`);
-            log('  → Sur panel.nitrado.net → API-Tokens → activer le scope "Fileserver".');
+            log('  → Sur server.nitrado.net → Long-life tokens → créer un token avec le scope "service".');
             log('  → Aucun serveur n\'a été arrêté.');
             clearInterval(pingInterval);
             return done(false, {
-              error: 'Token Nitrado manque le scope Fileserver — aucun serveur arrêté',
-              diagnostic: 'missing_fileserver_scope',
+              error: 'Token Nitrado manque le scope "service" — aucun serveur arrêté',
+              diagnostic: 'missing_service_scope',
               currentGrants: scopeCheck.grants || [],
             });
           }
           if (!scopeCheck.ok) {
             log(`  → Impossible de vérifier le scope (${scopeCheck.error || 'API token indisponible'}) — passage Phase 2.`);
           } else {
-            log(`  → Scope Fileserver confirmé (grants: ${(scopeCheck.grants || []).join(', ')}) — passage Phase 2.`);
+            log(`  → Scope "service" confirmé (grants: ${(scopeCheck.grants || []).join(', ')}) — passage Phase 2.`);
           }
         }
       } catch (preCheckErr) {

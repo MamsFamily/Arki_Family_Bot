@@ -1285,8 +1285,7 @@ async function checkTokenScopes() {
     const lines = [];
     lines.push('🔑 Vérification token Nitrado');
     lines.push('');
-    lines.push(d.hasFileserver ? '✅ Scope FILESERVER : présent' : '❌ Scope FILESERVER : MANQUANT');
-    lines.push(d.hasGameserver ? '✅ Scope GAMESERVER : présent' : '⚠️ Scope GAMESERVER : absent');
+    lines.push(d.hasFileserver ? '✅ Scope "service" : présent — accès game servers OK' : '❌ Scope "service" : MANQUANT');
     if (d.tokenExpiry) lines.push(`📅 Expiration : ${d.tokenExpiry}`);
     if (d.serviceCount !== undefined) lines.push(`🖥️ Serveurs accessibles : ${d.serviceCount}`);
     if (d.grants && d.grants.length > 0) {
@@ -1299,9 +1298,9 @@ async function checkTokenScopes() {
     if (!d.hasFileserver) {
       lines.push('');
       lines.push('───────────────────────────────────────────');
-      lines.push('⚠️  Le scope Fileserver est requis pour écrire Game.ini.');
-      lines.push('   → panel.nitrado.net → API-Tokens → créer un nouveau token');
-      lines.push('   → Cocher "Fileserver" (et "Gameserver" si absent)');
+      lines.push('⚠️  Le scope "service" est requis pour accéder aux game servers.');
+      lines.push('   → server.nitrado.net → Long-life tokens → créer un nouveau token');
+      lines.push('   → Cocher "service" (et les autres scopes disponibles)');
       lines.push('   → Mettre à jour NITRADO_TOKEN dans les variables Railway');
     }
     if (d.hints && d.hints.length > 0) {

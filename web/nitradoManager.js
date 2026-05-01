@@ -935,14 +935,18 @@ async function checkTokenScopes() {
     }
     const services = tokenInfo.services || data.services || [];
 
-    // Vérifie si les scopes critiques pour l'écriture de fichiers sont présents
+    // Vérifie si les scopes critiques sont présents.
+    // Nitrado Long-life tokens utilisent les scopes : service, service_order, rootserver, etc.
+    // "service" couvre l'accès aux game servers (lecture/écriture fichiers + contrôle).
     const grantsLower = grants.map(g => String(g).toLowerCase());
-    const hasFileserver = grantsLower.some(g =>
-      g.includes('fileserver') || g.includes('file_server') || g.includes('file-server')
+    const hasService = grantsLower.some(g =>
+      g.includes('service') || g.includes('fileserver') || g.includes('file_server') || g.includes('file-server')
     );
     const hasGameserver = grantsLower.some(g =>
-      g.includes('gameserver') || g.includes('game_server') || g.includes('game-server')
+      g.includes('service') || g.includes('gameserver') || g.includes('game_server') || g.includes('game-server')
     );
+    // Alias pour compatibilité avec le reste du code
+    const hasFileserver = hasService;
 
     return {
       ok: true,
@@ -952,6 +956,7 @@ async function checkTokenScopes() {
       services,
       hasFileserver,
       hasGameserver,
+      hasService,
       raw: res.data,
     };
   } catch (err) {
