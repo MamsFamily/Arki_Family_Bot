@@ -3759,9 +3759,9 @@ function createWebServer(discordClient) {
         const lastErr = writeResults.find(r => !r.ok)?.error || '';
         if (lastErr.includes('Permission denied')) {
           log('DIAGNOSTIC : "Permission denied" persistant même serveur stoppé.');
-          log('  → Le token Nitrado n\'a probablement pas le scope "gameserver_write".');
-          log('  → Sur panel.nitrado.net → API-Tokens → vérifie que le token a accès "Fileserver".');
-          log('  → Si OK, essaie de regénérer un token avec tous les droits activés.');
+          log('  → Le token Long-life (server.nitrado.net) ne permet pas l\'écriture de fichiers game server.');
+          log('  → Nitrado requiert un accès OAuth2 via l\'application enregistrée pour les opérations fichier.');
+          log('  → Solution : utiliser l\'accès FTP/SFTP direct plutôt que l\'API Nitrado pour écrire les .ini.');
         } else if (lastErr.includes('Just a moment') || lastErr.includes('DOCTYPE')) {
           log('DIAGNOSTIC : Rate-limiting Cloudflare (trop de requêtes API).');
           log('  → Relance l\'opération dans quelques minutes.');
