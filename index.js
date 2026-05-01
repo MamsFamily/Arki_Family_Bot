@@ -258,13 +258,22 @@ async function distributeWithChecks(ranking, memberIndex, votesConfig, monthName
               );
             }
             if (votePack) {
-              await addToInventory(memberId, votePack.id, 1, 'system', `${votePack.name} — Votes ${monthName}`);
+              const packItems = votePack.items || [];
+              if (packItems.length > 0) {
+                for (const item of packItems) {
+                  await addToInventory(memberId, item.itemId, item.quantity, 'system', `${votePack.name} — Votes ${monthName}`);
+                }
+              } else {
+                // Fallback : aucun item dans le pack — crédite le pack brut
+                await addToInventory(memberId, votePack.id, 1, 'system', `${votePack.name} — Votes ${monthName}`);
+              }
               distributionResults.inventoryResults.push({
                 playername: player.playername,
                 rankIdx,
                 type: 'pack',
                 packId: votePack.id,
                 packName: votePack.name,
+                itemsCount: packItems.length,
               });
             } else {
               const ordinal = rankIdx === 1 ? '1ère' : `${rankIdx}ème`;
