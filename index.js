@@ -489,6 +489,33 @@ async function autoPublishVotes() {
       await resultsChannel.send(`${pingPrefix}## 🎉 Félicitations **${winningChoice}** !\n\n${dinoWinText}`);
     }
 
+    // Distribuer le Dino Shiny dans l'inventaire du gagnant
+    const dinoShinyItemId = votesConfig.DINO_SHINY_ITEM_ID;
+    if (dinoShinyItemId) {
+      const winnerMemberId = resolvePlayer(memberIndex, winningChoice);
+      if (winnerMemberId) {
+        try {
+          await addToInventory(winnerMemberId, dinoShinyItemId, 1, 'system', `Dino Shiny — Tirage votes ${monthName}`);
+          console.log(`🦖 Dino Shiny (${dinoShinyItemId}) distribué à ${winnerMemberId} (${winningChoice})`);
+          if (reportChannel) {
+            await reportChannel.send(`🦖 **Dino Shiny distribué en inventaire !** → <@${winnerMemberId}> (\`${winningChoice}\`) a reçu \`${dinoShinyItemId}\`.`);
+          }
+        } catch (err) {
+          console.error('❌ [DINO SHINY] Erreur distribution inventaire:', err.message);
+          if (adminChannel) {
+            await adminChannel.send(`⚠️ **Dino Shiny non distribué** — Erreur : \`${err.message}\`\nGagnant : **${winningChoice}** (<@${winnerMemberId}>) — Ajoutez manuellement \`${dinoShinyItemId}\`.`);
+          }
+        }
+      } else {
+        console.warn(`⚠️ [DINO SHINY] Gagnant "${winningChoice}" non trouvé dans Discord`);
+        if (adminChannel) {
+          await adminChannel.send(`⚠️ **Dino Shiny non distribué** — Le gagnant **${winningChoice}** n'est pas identifié sur Discord.\nAjoutez manuellement \`${dinoShinyItemId}\` au bon membre.`);
+        }
+      }
+    } else {
+      console.warn('⚠️ [DINO SHINY] Aucun item configuré (Dashboard → Récompenses → Item Dino Shiny)');
+    }
+
     const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);
 
     // Rapport de distribution dans le salon dédié
@@ -2271,7 +2298,7 @@ client.on('interactionCreate', async interaction => {
       const gifBuffer = await rouletteWheel.generateAnimatedGif(winningIndex);
       const winningChoice = rouletteWheel.getWinningChoice(winningIndex);
       const attachment = new AttachmentBuilder(gifBuffer, { name: 'dino-shiny-roulette.gif' });
-      
+
       if (resultsChannel) {
         const pingPrefix = votesConfig.STYLE.everyonePing ? '|| @everyone ||\n' : '';
         await resultsChannel.send({
@@ -2280,9 +2307,36 @@ client.on('interactionCreate', async interaction => {
           }).join('\n')}\n\n🎰 C'est parti !`,
           files: [attachment]
         });
-        
+
         const dinoWinText = msg.dinoWinText || 'Tu remportes le **Dino Shiny** du mois ! 🦖✨';
         await resultsChannel.send(`${pingPrefix}## 🎉 Félicitations **${winningChoice}** !\n\n${dinoWinText}`);
+      }
+
+      // Distribuer le Dino Shiny dans l'inventaire du gagnant
+      const dinoShinyItemId = votesConfig.DINO_SHINY_ITEM_ID;
+      if (dinoShinyItemId) {
+        const winnerMemberId = resolvePlayer(memberIndex, winningChoice);
+        if (winnerMemberId) {
+          try {
+            await addToInventory(winnerMemberId, dinoShinyItemId, 1, 'system', `Dino Shiny — Tirage votes ${monthName}`);
+            console.log(`🦖 Dino Shiny (${dinoShinyItemId}) distribué à ${winnerMemberId} (${winningChoice})`);
+            if (reportChannel) {
+              await reportChannel.send(`🦖 **Dino Shiny distribué en inventaire !** → <@${winnerMemberId}> (\`${winningChoice}\`) a reçu \`${dinoShinyItemId}\`.`);
+            }
+          } catch (err) {
+            console.error('❌ [DINO SHINY] Erreur distribution inventaire:', err.message);
+            if (adminChannel) {
+              await adminChannel.send(`⚠️ **Dino Shiny non distribué** — Erreur : \`${err.message}\`\nGagnant : **${winningChoice}** (<@${winnerMemberId}>) — Ajoutez manuellement \`${dinoShinyItemId}\`.`);
+            }
+          }
+        } else {
+          console.warn(`⚠️ [DINO SHINY] Gagnant "${winningChoice}" non trouvé dans Discord`);
+          if (adminChannel) {
+            await adminChannel.send(`⚠️ **Dino Shiny non distribué** — Le gagnant **${winningChoice}** n'est pas identifié sur Discord.\nAjoutez manuellement \`${dinoShinyItemId}\` au bon membre.`);
+          }
+        }
+      } else {
+        console.warn('⚠️ [DINO SHINY] Aucun item configuré (Dashboard → Récompenses → Item Dino Shiny)');
       }
 
       const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);

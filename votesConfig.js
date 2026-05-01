@@ -16,6 +16,7 @@ function getVotesConfig() {
     TOP_LOTS: s.rewards.topLots,
     TOP_DIAMONDS: s.rewards.topDiamonds,
     VOTE_PACK_IDS: s.rewards.votePackIds || { 1: '', 2: '', 3: '', 4: '', 5: '' },
+    DINO_SHINY_ITEM_ID: s.rewards.dinoShinyItemId || '',
     STYLE: {
       everyonePing: s.style.everyonePing,
       logo: s.style.logo,

@@ -65,6 +65,31 @@
           </div>
         </div>
 
+        <div class="card">
+          <div class="card-header">
+            <h2>🦖 Item Dino Shiny (tirage mensuel)</h2>
+          </div>
+          <div class="card-body">
+            <p class="help-text" style="margin-bottom:16px;">Sélectionnez l'item qui sera automatiquement ajouté à l'inventaire du gagnant du tirage Dino Shiny lors de la publication des votes.</p>
+            <div class="form-group" style="max-width:400px;">
+              <label for="dinoShinyItemId">Item Dino Shiny</label>
+              <select name="dinoShinyItemId" id="dinoShinyItemId" class="form-select">
+                <option value="">— Aucun (pas de distribution automatique) —</option>
+                <% if (typeof specialPacks !== 'undefined') { %>
+                  <% specialPacks.forEach(pack => { %>
+                    <option value="<%= pack.id %>" <%= (settings.rewards.dinoShinyItemId === pack.id) ? 'selected' : '' %>><%= pack.name %></option>
+                  <% }); %>
+                <% } %>
+              </select>
+              <% if (settings.rewards.dinoShinyItemId) { %>
+                <p class="help-text" style="color:var(--success);">✅ Item configuré : <strong><%= settings.rewards.dinoShinyItemId %></strong></p>
+              <% } else { %>
+                <p class="help-text" style="color:var(--warning);">⚠️ Aucun item sélectionné — le Dino Shiny ne sera pas distribué en inventaire.</p>
+              <% } %>
+            </div>
+          </div>
+        </div>
+
         <button type="submit" class="btn btn-primary">💾 Sauvegarder les récompenses</button>
       </form>
     </main>

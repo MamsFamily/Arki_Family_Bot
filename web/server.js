@@ -701,7 +701,7 @@ function createWebServer(discordClient) {
   });
 
   app.post('/rewards', requireAdmin, async (req, res) => {
-    const { diamondsPerVote } = req.body;
+    const { diamondsPerVote, dinoShinyItemId } = req.body;
 
     const votePackIds = {
       1: req.body.votePackId1 || '',
@@ -714,6 +714,7 @@ function createWebServer(discordClient) {
     await updateSection('rewards', {
       diamondsPerVote: parseInt(diamondsPerVote) || 100,
       votePackIds,
+      dinoShinyItemId: dinoShinyItemId || '',
     });
 
     const settings = getSettings();

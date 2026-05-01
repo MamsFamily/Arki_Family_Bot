@@ -30,6 +30,7 @@ const DEFAULTS = {
       3: { '🦖': 2, '🎨': 2, '1️⃣': 1, '🍓': 5000, '💎': 5000 },
     },
     votePackIds: { 1: '', 2: '', 3: '' },
+    dinoShinyItemId: '',
   },
   api: {
     topserveursRankingUrl: envOr('TOPSERVEURS_RANKING_URL', 'https://api.top-serveurs.net/v1/servers/4ROMAU33GJTY/players-ranking?type=lastMonth'),
