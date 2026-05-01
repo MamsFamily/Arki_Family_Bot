@@ -696,7 +696,7 @@ async function updateIniKeyMapped(serviceId, key, value) {
  *   skipped = [{ serviceId?, key?, reason }] erreurs explicites (configDir manquant, clé non mappée, etc.)
  * Ne retourne JAMAIS silencieusement un tableau vide sans raison dans skipped.
  */
-async function prepareIniWrites(serviceIds, keyValuePairs, ftpMap = {}) {
+async function prepareIniWrites(serviceIds, keyValuePairs, ftpMap = {}, dbg = null) {
   const nodePath = require('path');
   const pendingWrites = {}; // key: "${serviceId}::${filePath}", value: { serviceId, filePath, content }
   const skipped = [];
@@ -751,20 +751,43 @@ async function prepareIniWrites(serviceIds, keyValuePairs, ftpMap = {}) {
         // 2. Si l'API retourne vide (permission ou autre), fallback lecture FTP
         if (!content.trim() && ftpMap[id]) {
           const ftpPath = getFtpPath(id, filePath);
-          console.log(`[prepareIniWrites] API lecture vide pour ${filePath}, tentative FTP (${ftpPath})…`);
+          if (dbg) dbg(`  🔍 [DEBUG] API vide → lecture FTP : ${ftpPath}`);
           content = await readFileFtp(ftpMap[id], ftpPath);
           if (content.trim()) {
-            console.log(`[prepareIniWrites] ✅ Contenu récupéré via FTP (${content.length} octets)`);
+            if (dbg) dbg(`  🔍 [DEBUG] FTP OK — ${content.length} octets lus`);
           } else {
-            console.warn(`[prepareIniWrites] ⚠️ FTP aussi vide — le fichier sera créé from scratch`);
+            if (dbg) dbg(`  🔍 [DEBUG] ⚠️ FTP vide aussi — fichier sera créé from scratch`);
           }
+        } else if (content.trim()) {
+          if (dbg) dbg(`  🔍 [DEBUG] API OK — ${content.length} octets lus`);
+        }
+
+        // Aperçu lignes pour diagnostiquer la section
+        if (dbg && content.trim()) {
+          const sampleLines = content.split(/\r?\n/).slice(0, 5).map(l => `    "${l}"`).join('\n');
+          dbg(`  🔍 [DEBUG] Premières lignes du fichier :\n${sampleLines}`);
         }
 
         pendingWrites[cacheKey] = { serviceId: id, filePath, content };
       }
 
       // Applique la modification en mémoire
+      const beforeContent = pendingWrites[cacheKey].content;
       pendingWrites[cacheKey].content = setIniKey(pendingWrites[cacheKey].content, map.section, key, value);
+
+      // Diagnostic : vérifie si la clé a été trouvée/remplacée ou ajoutée
+      if (dbg) {
+        const after = pendingWrites[cacheKey].content;
+        const countBefore = (beforeContent.match(new RegExp(key.replace(/[[\]]/g, '\\$&') + '=', 'g')) || []).length;
+        const countAfter  = (after.match(new RegExp(key.replace(/[[\]]/g, '\\$&') + '=', 'g')) || []).length;
+        if (countBefore > 0 && countAfter === countBefore) {
+          dbg(`  🔍 [DEBUG] "${key}" remplacé en place (${countBefore} occurrence(s)) ✅`);
+        } else if (countBefore === 0 && countAfter === 1) {
+          dbg(`  🔍 [DEBUG] "${key}" absent → ajouté dans la section`);
+        } else if (countAfter > countBefore) {
+          dbg(`  🔍 [DEBUG] ⚠️ "${key}" DUPLIQUÉ : ${countBefore} avant → ${countAfter} après`);
+        }
+      }
     }
   }
 

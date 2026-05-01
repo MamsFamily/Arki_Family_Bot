@@ -3701,7 +3701,7 @@ function createWebServer(discordClient) {
       const kvPairs = settings.map(({ key, value }) => ({ key, value: String(value).replace(',', '.') }));
       let pendingWrites;
       try {
-        const prep = await nitrado.prepareIniWrites(ids, kvPairs, ftpMap);
+        const prep = await nitrado.prepareIniWrites(ids, kvPairs, ftpMap, log);
         pendingWrites = prep.writes;
         // Log des éléments ignorés (clé non mappée, configDir manquant, etc.)
         if (prep.skipped.length > 0) {
