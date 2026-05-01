@@ -550,9 +550,21 @@ function parseIni(content) {
  * Retourne le contenu INI modifié.
  */
 function setIniKey(content, section, key, value) {
-  const lines = content.split('\n');
+  // Suppression du BOM UTF-8 éventuel en tête de fichier
+  const cleaned = content.startsWith('\uFEFF') ? content.slice(1) : content;
+  const lines = cleaned.split(/\r?\n/); // gère \r\n (Windows) ET \n (Unix)
   const normalizedVal = normalizeValue(String(value));
   const sectionHeader = `[${section}]`;
+
+  // DEBUG temporaire — à retirer après confirmation
+  console.log(`[setIniKey] cherche section="${sectionHeader}" clé="${key}" dans ${lines.length} lignes`);
+  const matchIdx = lines.findIndex(l => l.trim() === sectionHeader);
+  console.log(`[setIniKey] première occurrence section à ligne ${matchIdx} (${matchIdx === -1 ? 'INTROUVABLE' : 'trouvée'})`);
+  if (matchIdx !== -1) {
+    const raw = lines[matchIdx];
+    const codes = [...raw].map(c => c.charCodeAt(0).toString(16)).join(' ');
+    console.log(`[setIniKey] ligne brute [${raw}] codes: ${codes}`);
+  }
 
   // Passe 1 : cherche la clé dans TOUTES les occurrences de la section
   // (ARK Game.ini peut avoir plusieurs blocs [/Script/ShooterGame.ShooterGameMode])
@@ -572,12 +584,12 @@ function setIniKey(content, section, key, value) {
 
   if (!found) {
     // Passe 2 : clé absente — trouve la DERNIÈRE occurrence de la section
-    // pour y insérer la nouvelle clé (ARK respecte l'ordre, dernier = prioritaire)
     let lastSectionIdx = -1;
     for (let i = 0; i < lines.length; i++) {
       const trimmed = lines[i].trim();
       if (trimmed === sectionHeader) lastSectionIdx = i;
     }
+    console.log(`[setIniKey] passe 2 — lastSectionIdx=${lastSectionIdx}`);
 
     if (lastSectionIdx === -1) {
       // Section absente : on la crée en fin de fichier
