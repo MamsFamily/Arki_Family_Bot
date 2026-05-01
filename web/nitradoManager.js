@@ -550,28 +550,44 @@ function parseIni(content) {
  * Retourne le contenu INI modifié.
  */
 function setIniKey(content, section, key, value) {
-  const { sections, lines } = parseIni(content);
+  const lines = content.split('\n');
   const normalizedVal = normalizeValue(String(value));
+  const sectionHeader = `[${section}]`;
 
-  if (sections.has(section)) {
-    const sectionStart = sections.get(section);
-    // Cherche la clé dans cette section
-    let found = false;
-    for (let i = sectionStart + 1; i < lines.length; i++) {
-      const trimmed = lines[i].trim();
-      // Fin de section
-      if (trimmed.startsWith('[') && trimmed.endsWith(']')) break;
-      // Clé trouvée
-      if (trimmed.startsWith(key + '=') || trimmed.startsWith(key + ' =')) {
-        lines[i] = `${key}=${normalizedVal}`;
-        found = true;
-        break;
-      }
+  // Passe 1 : cherche la clé dans TOUTES les occurrences de la section
+  // (ARK Game.ini peut avoir plusieurs blocs [/Script/ShooterGame.ShooterGameMode])
+  let inSection = false;
+  let found = false;
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      inSection = (trimmed === sectionHeader);
     }
-    if (!found) {
-      // Ajouter la clé à la fin de la section (avant la prochaine section ou EOF)
-      let insertAt = sectionStart + 1;
-      for (let i = sectionStart + 1; i < lines.length; i++) {
+    if (inSection && (trimmed.startsWith(key + '=') || trimmed.startsWith(key + ' ='))) {
+      lines[i] = `${key}=${normalizedVal}`;
+      found = true;
+      break; // remplace uniquement la première occurrence trouvée
+    }
+  }
+
+  if (!found) {
+    // Passe 2 : clé absente — trouve la DERNIÈRE occurrence de la section
+    // pour y insérer la nouvelle clé (ARK respecte l'ordre, dernier = prioritaire)
+    let lastSectionIdx = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const trimmed = lines[i].trim();
+      if (trimmed === sectionHeader) lastSectionIdx = i;
+    }
+
+    if (lastSectionIdx === -1) {
+      // Section absente : on la crée en fin de fichier
+      if (lines[lines.length - 1] !== '') lines.push('');
+      lines.push(sectionHeader);
+      lines.push(`${key}=${normalizedVal}`);
+    } else {
+      // Insère à la fin du dernier bloc de la section
+      let insertAt = lastSectionIdx + 1;
+      for (let i = lastSectionIdx + 1; i < lines.length; i++) {
         const trimmed = lines[i].trim();
         if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
           insertAt = i;
@@ -581,11 +597,6 @@ function setIniKey(content, section, key, value) {
       }
       lines.splice(insertAt, 0, `${key}=${normalizedVal}`);
     }
-  } else {
-    // Crée la section à la fin du fichier
-    if (lines[lines.length - 1] !== '') lines.push('');
-    lines.push(`[${section}]`);
-    lines.push(`${key}=${normalizedVal}`);
   }
 
   return lines.join('\n');
