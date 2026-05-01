@@ -673,7 +673,7 @@ async function updateIniKeyMapped(serviceId, key, value) {
  *   skipped = [{ serviceId?, key?, reason }] erreurs explicites (configDir manquant, clé non mappée, etc.)
  * Ne retourne JAMAIS silencieusement un tableau vide sans raison dans skipped.
  */
-async function prepareIniWrites(serviceIds, keyValuePairs) {
+async function prepareIniWrites(serviceIds, keyValuePairs, ftpMap = {}) {
   const nodePath = require('path');
   const pendingWrites = {}; // key: "${serviceId}::${filePath}", value: { serviceId, filePath, content }
   const skipped = [];
@@ -721,7 +721,22 @@ async function prepareIniWrites(serviceIds, keyValuePairs) {
       // Lit le contenu si pas encore chargé pour ce fichier
       if (!pendingWrites[cacheKey]) {
         let content = '';
+
+        // 1. Tentative lecture via API Nitrado
         try { content = await readFile(id, filePath); } catch {}
+
+        // 2. Si l'API retourne vide (permission ou autre), fallback lecture FTP
+        if (!content.trim() && ftpMap[id]) {
+          const ftpPath = getFtpPath(id, filePath);
+          console.log(`[prepareIniWrites] API lecture vide pour ${filePath}, tentative FTP (${ftpPath})…`);
+          content = await readFileFtp(ftpMap[id], ftpPath);
+          if (content.trim()) {
+            console.log(`[prepareIniWrites] ✅ Contenu récupéré via FTP (${content.length} octets)`);
+          } else {
+            console.warn(`[prepareIniWrites] ⚠️ FTP aussi vide — le fichier sera créé from scratch`);
+          }
+        }
+
         pendingWrites[cacheKey] = { serviceId: id, filePath, content };
       }
 
@@ -919,6 +934,49 @@ function getFtpPath(serviceId, fullSystemPath) {
     return fullSystemPath.slice(basePath.length) || '/';
   }
   return fullSystemPath;
+}
+
+/**
+ * Lit un fichier via FTP direct.
+ * Utilisé en fallback quand l'API Nitrado retourne vide (même problème de permission).
+ * @param {object} ftpConfig  { host, port, user, password, secure }
+ * @param {string} ftpPath    Chemin FTP relatif ex: /arksa/ShooterGame/Saved/Config/WindowsServer/Game.ini
+ * @returns {string} contenu du fichier, ou '' si erreur
+ */
+async function readFileFtp(ftpConfig, ftpPath) {
+  const ftp = require('basic-ftp');
+  const { Writable } = require('stream');
+
+  if (!ftpConfig?.host || !ftpConfig?.user || !ftpConfig?.password) return '';
+
+  const client = new ftp.Client();
+  client.ftp.verbose = false;
+
+  try {
+    await client.access({
+      host: ftpConfig.host,
+      port: parseInt(ftpConfig.port) || 21,
+      user: ftpConfig.user,
+      password: ftpConfig.password,
+      secure: ftpConfig.secure === true || ftpConfig.secure === 'true',
+      secureOptions: { rejectUnauthorized: false },
+    });
+
+    const chunks = [];
+    const writable = new Writable({
+      write(chunk, _enc, cb) { chunks.push(chunk); cb(); },
+    });
+
+    await client.downloadTo(writable, ftpPath);
+    const content = Buffer.concat(chunks).toString('utf8');
+    console.log(`[FTP read] ✅ ${ftpPath} (${content.length} octets)`);
+    return content;
+  } catch (err) {
+    console.warn(`[FTP read] ⚠️ ${ftpPath} : ${err.message}`);
+    return '';
+  } finally {
+    client.close();
+  }
 }
 
 /**
@@ -1135,4 +1193,5 @@ module.exports = {
   checkTokenScopes,
   writeFtpFile,
   getFtpPath,
+  readFileFtp,
 };

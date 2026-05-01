@@ -3696,10 +3696,12 @@ function createWebServer(discordClient) {
 
       // 2a — Préparation des contenus en mémoire (sans écrire)
       log('Phase 2 : Préparation des fichiers ini en mémoire…');
+      // Chargement du FTP map une fois pour toute la phase (lecture + écriture)
+      const ftpMap = (require('../settingsManager').getSettings().nitradoFtp) || {};
       const kvPairs = settings.map(({ key, value }) => ({ key, value: String(value).replace(',', '.') }));
       let pendingWrites;
       try {
-        const prep = await nitrado.prepareIniWrites(ids, kvPairs);
+        const prep = await nitrado.prepareIniWrites(ids, kvPairs, ftpMap);
         pendingWrites = prep.writes;
         // Log des éléments ignorés (clé non mappée, configDir manquant, etc.)
         if (prep.skipped.length > 0) {
@@ -3782,9 +3784,7 @@ function createWebServer(discordClient) {
 
       // 2d-bis — Fallback FTP par serveur si l'API Nitrado a échoué
       if (remaining.size > 0) {
-        const settings_sm = require('../settingsManager').getSettings();
-        const ftpMap = settings_sm.nitradoFtp || {};
-
+        // ftpMap déjà chargé en 2a — réutilisé ici pour l'écriture
         const ftpEligible = [...remaining].filter(idx => {
           const cfg = ftpMap[pendingWrites[idx].serviceId];
           return cfg?.host && cfg?.user && cfg?.password;
