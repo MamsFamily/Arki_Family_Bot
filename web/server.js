@@ -687,6 +687,12 @@ function createWebServer(discordClient) {
     res.render('votes', { ranking, monthName, votesConfig, error });
   });
 
+  app.get('/votes/test-unb', requireAdmin, async (req, res) => {
+    const { testConnection } = require('../unbelievaboatService');
+    const result = await testConnection();
+    res.json(result);
+  });
+
   app.get('/rewards', requireAdmin, (req, res) => {
     const settings = getSettings();
     const { getSpecialPacks } = require('../specialPacksManager');

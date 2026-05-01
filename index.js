@@ -125,7 +125,7 @@ function detectDuplicates(ranking, memberIndex) {
 async function distributeWithChecks(ranking, memberIndex, votesConfig, monthName, adminChannel) {
   const duplicates = detectDuplicates(ranking, memberIndex);
   const duplicateMemberIds = new Set(duplicates.map(d => d.memberId));
-  const distributionResults = { success: 0, failed: 0, notFound: [], pendingDuplicates: 0, pendingNotFound: 0, inventoryResults: [] };
+  const distributionResults = { success: 0, failed: 0, notFound: [], pendingDuplicates: 0, pendingNotFound: 0, inventoryResults: [], errors: [] };
   const playerStatus = {};
 
   for (const player of ranking) {
@@ -298,6 +298,7 @@ async function distributeWithChecks(ranking, memberIndex, votesConfig, monthName
       } else {
         distributionResults.failed++;
         playerStatus[player.playername] = 'failed';
+        distributionResults.errors.push({ playername: player.playername, userId: memberId, error: result.error || 'Erreur inconnue' });
       }
     }
   }
@@ -305,7 +306,7 @@ async function distributeWithChecks(ranking, memberIndex, votesConfig, monthName
   return { distributionResults, playerStatus };
 }
 
-function buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus, monthName, source) {
+function buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus, monthName, source, errors = []) {
   const sparkly = votesConfig.STYLE.sparkly || '💎';
   let msg = `📊 **Rapport de distribution des récompenses — ${monthName}**\n`;
   if (source === 'auto') msg += `-# 🕐 Publication automatique du 1er du mois\n`;
@@ -353,6 +354,14 @@ function buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus
       msg += `• \`${p.playername}\` (rank #${rankIdx}) — ${p.votes} votes — **${totalDiamonds.toLocaleString('fr-FR')} ${sparkly} dûs**\n`;
     }
     msg += `-# Utilisez \`/vote-rapport\` pour voir les liens pseudo → Discord, ou résolvez via le salon admin.\n`;
+  }
+
+  // Section erreurs UnbelievaBoat
+  if (errors.length > 0) {
+    const firstErr = errors[0];
+    msg += `\n\n🔴 **Erreur UnbelievaBoat (${errors.length} échec(s)) :**\n`;
+    msg += `\`${firstErr.error}\`\n`;
+    msg += `-# Vérifiez le token UNB dans le dashboard → Votes (bouton Tester connexion).\n`;
   }
 
   return msg;
@@ -493,7 +502,7 @@ async function autoPublishVotes() {
 
     // Rapport de distribution dans le salon dédié
     if (reportChannel) {
-      const reportMsg = buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus, monthName, 'auto');
+      const reportMsg = buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus, monthName, 'auto', distributionResults.errors);
       for (const chunk of splitMessage(reportMsg, 1900)) {
         await reportChannel.send(chunk);
       }
@@ -2274,7 +2283,7 @@ client.on('interactionCreate', async interaction => {
 
       // Rapport de distribution dans le salon dédié
       if (reportChannel) {
-        const reportMsg = buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus, monthName, 'manual');
+        const reportMsg = buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus, monthName, 'manual', distributionResults.errors);
         for (const chunk of splitMessage(reportMsg, 1900)) {
           await reportChannel.send(chunk);
         }

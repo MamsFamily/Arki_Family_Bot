@@ -43,6 +43,24 @@ async function getUserBalance(userId) {
   }
 }
 
+async function testConnection() {
+  if (!token) {
+    return { success: false, error: 'UNBELIEVABOAT_TOKEN non défini dans les variables d\'environnement' };
+  }
+  const client = getClient();
+  try {
+    const guild = await client.getGuild(GUILD_ID);
+    return {
+      success: true,
+      guildId: GUILD_ID,
+      guildName: guild.name || '(inconnu)',
+      currency: guild.currency ? guild.currency.symbol || guild.currency.name : '?',
+    };
+  } catch (error) {
+    return { success: false, error: error.message || String(error) };
+  }
+}
+
 function generateDraftBotCommands(players, memberIndex, resolvePlayer) {
   const { getVotesConfig } = require('./votesConfig');
   const { TOP_LOTS } = getVotesConfig();
@@ -70,6 +88,7 @@ module.exports = {
   getClient,
   addCashToUser,
   getUserBalance,
+  testConnection,
   generateDraftBotCommands,
   GUILD_ID,
 };
