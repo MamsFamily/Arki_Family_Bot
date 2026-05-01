@@ -21,7 +21,7 @@ const { initDatabase } = require('./database');
 const { fetchTopserveursRanking } = require('./topserveursService');
 const { monthNameFr, formatRewards, buildMemberIndex, resolvePlayer } = require('./votesUtils');
 const { getVotesConfig } = require('./votesConfig');
-const { addCashToUser, generateDraftBotCommands } = require('./unbelievaboatService');
+const { generateDraftBotCommands } = require('./unbelievaboatService');
 const { translate } = require('@vitalets/google-translate-api');
 const OpenAI = require('openai');
 const { createWebServer } = require('./web/server');
@@ -229,13 +229,17 @@ async function distributeWithChecks(ranking, memberIndex, votesConfig, monthName
         playerStatus[player.playername] = 'pending';
       }
     } else {
-      // Rang 4 et 5 : les diamants bonus vont dans l'inventaire, pas dans UB
-      const isRank4or5 = rankIdx === 4 || rankIdx === 5;
-      const ubGain = isRank4or5 ? totalDiamonds : totalGain;
-      const result = await addCashToUser(memberId, ubGain, `Votes ${monthName}`);
-      if (result.success) {
+      // Distribuer les diamants directement dans l'inventaire Arki
+      try {
+        await addToInventory(memberId, 'diamants', totalGain, 'system', `Votes ${monthName}`);
         distributionResults.success++;
         playerStatus[player.playername] = 'success';
+        distributionResults.inventoryResults.push({
+          playername: player.playername,
+          rankIdx,
+          type: 'diamants',
+          quantity: totalGain,
+        });
 
         // Top 1 à 5 : ajouter le pack spécial dans l'inventaire si configuré
         if (rankIdx >= 1 && rankIdx <= 5) {
@@ -283,22 +287,10 @@ async function distributeWithChecks(ranking, memberIndex, votesConfig, monthName
             }
           }
         }
-
-        // Rang 4/5 : ajouter les diamants bonus dans l'inventaire
-        if (isRank4or5 && bonusDiamonds > 0) {
-          const ordinal = rankIdx === 4 ? '4ème' : '5ème';
-          await addToInventory(memberId, 'diamants', bonusDiamonds, 'system', `Bonus ${ordinal} place vote — ${monthName}`);
-          distributionResults.inventoryResults.push({
-            playername: player.playername,
-            rankIdx,
-            type: 'diamants',
-            quantity: bonusDiamonds,
-          });
-        }
-      } else {
+      } catch (err) {
         distributionResults.failed++;
         playerStatus[player.playername] = 'failed';
-        distributionResults.errors.push({ playername: player.playername, userId: memberId, error: result.error || 'Erreur inconnue' });
+        distributionResults.errors.push({ playername: player.playername, userId: memberId, error: err.message || 'Erreur inconnue' });
       }
     }
   }
@@ -318,14 +310,13 @@ function buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus
     const rankIdx = i + 1;
     const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
     const bonusDiamonds = votesConfig.TOP_DIAMONDS[rankIdx] || 0;
-    const isRank4or5 = rankIdx === 4 || rankIdx === 5;
-    const ubGain = isRank4or5 ? totalDiamonds : totalDiamonds + bonusDiamonds;
+    const totalGain = totalDiamonds + bonusDiamonds;
     const status = playerStatus[player.playername];
     const statusIcon = status === 'success' ? '✅' : status === 'pending' ? '⏳' : status === 'failed' ? '❌' : '⚠️';
     const memberId = resolvePlayer(memberIndex, player.playername);
     const mention = memberId ? `<@${memberId}>` : `\`${player.playername}\``;
 
-    msg += `**${rankIdx}.** ${mention} — ${player.votes} votes → ${ubGain.toLocaleString('fr-FR')} ${sparkly} ${statusIcon}`;
+    msg += `**${rankIdx}.** ${mention} — ${player.votes} votes → ${totalGain.toLocaleString('fr-FR')} ${sparkly} ${statusIcon}`;
 
     if (rankIdx >= 1 && rankIdx <= 5 && (votesConfig.VOTE_PACK_IDS || {})[rankIdx]) {
       const packLabels = ['Pack 1ère place vote', 'Pack 2ème place vote', 'Pack 3ème place vote', 'Pack 4ème place vote', 'Pack 5ème place vote'];
@@ -356,12 +347,12 @@ function buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus
     msg += `-# Utilisez \`/vote-rapport\` pour voir les liens pseudo → Discord, ou résolvez via le salon admin.\n`;
   }
 
-  // Section erreurs UnbelievaBoat
+  // Section erreurs inventaire
   if (errors.length > 0) {
     const firstErr = errors[0];
-    msg += `\n\n🔴 **Erreur UnbelievaBoat (${errors.length} échec(s)) :**\n`;
+    msg += `\n\n🔴 **Erreur d'inventaire (${errors.length} échec(s)) :**\n`;
     msg += `\`${firstErr.error}\`\n`;
-    msg += `-# Vérifiez le token UNB dans le dashboard → Votes (bouton Tester connexion).\n`;
+    msg += `-# Vérifiez la connexion à la base de données et relancez le bot si nécessaire.\n`;
   }
 
   return msg;
@@ -511,9 +502,9 @@ async function autoPublishVotes() {
     // Message admin (doublons, non trouvés, commandes DraftBot)
     let adminMessage = `📊 **Rapport admin — ${monthName}**\n\n`;
     adminMessage += `🕐 *Publication automatique du 1er du mois*\n\n`;
-    adminMessage += `💎 **UnbelievaBoat :** ${distributionResults.success} distribué(s)`;
+    adminMessage += `💎 **Inventaire Arki :** ${distributionResults.success} distribué(s)`;
     if (distributionResults.failed > 0) adminMessage += `, ${distributionResults.failed} échec(s)`;
-    adminMessage += `\n📦 **Inventaire :** ${distributionResults.inventoryResults.length} crédit(s)\n`;
+    adminMessage += `\n📦 **Crédits inventaire :** ${distributionResults.inventoryResults.length} élément(s)\n`;
     if (distributionResults.pendingDuplicates > 0) {
       adminMessage += `⏳ ${distributionResults.pendingDuplicates} doublon(s) en attente de validation (voir messages ci-dessous)\n`;
     }
@@ -1334,8 +1325,13 @@ client.on('interactionCreate', async interaction => {
       }
       pending.resolved = true;
       const chosen = pending.entries[choiceIdx];
-      const result = await addCashToUser(pending.memberId, chosen.totalGain, `Votes ${pending.monthName}`);
-      const statusText = result.success ? '✅ Distribué' : '❌ Échec';
+      let statusText;
+      try {
+        await addToInventory(pending.memberId, 'diamants', chosen.totalGain, 'system', `Votes ${pending.monthName}`);
+        statusText = '✅ Ajouté à l\'inventaire';
+      } catch (err) {
+        statusText = `❌ Échec : ${err.message}`;
+      }
       await interaction.update({
         content: `## ✅ Doublon résolu\n\n<@${pending.memberId}> — Entrée retenue : **"${chosen.playername}"** (${chosen.votes} votes)\n${statusText} : **${chosen.totalGain.toLocaleString('fr-FR')}** 💎`,
         components: [],
@@ -1356,8 +1352,13 @@ client.on('interactionCreate', async interaction => {
       const totalDiamonds = totalVotes * votesConfig.DIAMONDS_PER_VOTE;
       const bonusDiamonds = votesConfig.TOP_DIAMONDS[bestRank] || 0;
       const totalGain = totalDiamonds + bonusDiamonds;
-      const result = await addCashToUser(pending.memberId, totalGain, `Votes ${pending.monthName} (fusionné)`);
-      const statusText = result.success ? '✅ Distribué' : '❌ Échec';
+      let statusText;
+      try {
+        await addToInventory(pending.memberId, 'diamants', totalGain, 'system', `Votes ${pending.monthName} (fusionné)`);
+        statusText = '✅ Ajouté à l\'inventaire';
+      } catch (err) {
+        statusText = `❌ Échec : ${err.message}`;
+      }
       const names = pending.entries.map(e => `"${e.playername}"`).join(' + ');
       await interaction.update({
         content: `## ✅ Doublon fusionné\n\n<@${pending.memberId}> — ${names} fusionnés\nTotal : **${totalVotes} votes** → ${statusText} : **${totalGain.toLocaleString('fr-FR')}** 💎`,
@@ -1376,15 +1377,15 @@ client.on('interactionCreate', async interaction => {
       let totalDistributed = 0;
       let allSuccess = true;
       for (const entry of pending.entries) {
-        const result = await addCashToUser(pending.memberId, entry.totalGain, `Votes ${pending.monthName} (${entry.playername})`);
-        if (result.success) {
+        try {
+          await addToInventory(pending.memberId, 'diamants', entry.totalGain, 'system', `Votes ${pending.monthName} (${entry.playername})`);
           totalDistributed += entry.totalGain;
-        } else {
+        } catch (err) {
           allSuccess = false;
         }
       }
       const names = pending.entries.map(e => `"${e.playername}" (${e.totalGain.toLocaleString('fr-FR')} 💎)`).join(' + ');
-      const statusText = allSuccess ? '✅ Tout distribué' : '⚠️ Distribution partielle';
+      const statusText = allSuccess ? '✅ Tout ajouté à l\'inventaire' : '⚠️ Distribution partielle';
       await interaction.update({
         content: `## ✅ Doublon — distribution complète\n\n<@${pending.memberId}> — ${names}\n${statusText} : **${totalDistributed.toLocaleString('fr-FR')}** 💎 au total`,
         components: [],
@@ -1439,8 +1440,13 @@ client.on('interactionCreate', async interaction => {
       }
       pending.resolved = true;
       const selectedUserId = interaction.values[0];
-      const result = await addCashToUser(selectedUserId, pending.totalGain, `Votes ${pending.monthName} (${pending.playername})`);
-      const statusText = result.success ? '✅ Distribué' : '❌ Échec';
+      let statusText;
+      try {
+        await addToInventory(selectedUserId, 'diamants', pending.totalGain, 'system', `Votes ${pending.monthName} (${pending.playername})`);
+        statusText = '✅ Ajouté à l\'inventaire';
+      } catch (err) {
+        statusText = `❌ Échec : ${err.message}`;
+      }
       await interaction.update({
         content: `## ✅ Joueur attribué\n\n**${pending.playername}** → <@${selectedUserId}>\n${statusText} : **${pending.totalGain.toLocaleString('fr-FR')}** 💎`,
         components: [],
@@ -2291,9 +2297,9 @@ client.on('interactionCreate', async interaction => {
 
       // Message admin (doublons, non trouvés, commandes DraftBot)
       let adminMessage = `📊 **Rapport admin — ${monthName}**\n\n`;
-      adminMessage += `💎 **UnbelievaBoat :** ${distributionResults.success} distribué(s)`;
+      adminMessage += `💎 **Inventaire Arki :** ${distributionResults.success} distribué(s)`;
       if (distributionResults.failed > 0) adminMessage += `, ${distributionResults.failed} échec(s)`;
-      adminMessage += `\n📦 **Inventaire :** ${distributionResults.inventoryResults.length} crédit(s)\n`;
+      adminMessage += `\n📦 **Crédits inventaire :** ${distributionResults.inventoryResults.length} élément(s)\n`;
       if (distributionResults.pendingDuplicates > 0) {
         adminMessage += `⏳ ${distributionResults.pendingDuplicates} doublon(s) en attente de validation\n`;
       }
@@ -2580,23 +2586,19 @@ client.on('interactionCreate', async interaction => {
         const rankIdx = i + 1;
         const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
         const bonusDiamonds = votesConfig.TOP_DIAMONDS[rankIdx] || 0;
-        const isRank4or5 = rankIdx === 4 || rankIdx === 5;
-        const ubGain = isRank4or5 ? totalDiamonds : totalDiamonds + bonusDiamonds;
+        const totalGain = totalDiamonds + bonusDiamonds;
         const memberId = resolvePlayer(memberIndex, player.playername);
 
         if (memberId) {
-          report += `**${rankIdx}.** <@${memberId}> (\`${player.playername}\`) — ${player.votes} votes → ${ubGain.toLocaleString('fr-FR')} ${sparkly}`;
+          report += `**${rankIdx}.** <@${memberId}> (\`${player.playername}\`) — ${player.votes} votes → ${totalGain.toLocaleString('fr-FR')} ${sparkly}`;
         } else {
-          report += `**${rankIdx}.** ⚠️ \`${player.playername}\` *(non trouvé)* — ${player.votes} votes → ${ubGain.toLocaleString('fr-FR')} ${sparkly} **non envoyé**`;
-          notFoundList.push({ player, rankIdx, ubGain });
+          report += `**${rankIdx}.** ⚠️ \`${player.playername}\` *(non trouvé)* — ${player.votes} votes → ${totalGain.toLocaleString('fr-FR')} ${sparkly} **non envoyé**`;
+          notFoundList.push({ player, rankIdx, totalGain });
         }
 
-        if (rankIdx <= 3) {
-          const packLabels = ['Pack 1ère place vote', 'Pack 2ème place vote', 'Pack 3ème place vote'];
+        if (rankIdx >= 1 && rankIdx <= 5 && (votesConfig.VOTE_PACK_IDS || {})[rankIdx]) {
+          const packLabels = ['Pack 1ère place vote', 'Pack 2ème place vote', 'Pack 3ème place vote', 'Pack 4ème place vote', 'Pack 5ème place vote'];
           report += ` + 📦 ${packLabels[rankIdx - 1]}`;
-        }
-        if (isRank4or5 && bonusDiamonds > 0) {
-          report += ` + ${bonusDiamonds.toLocaleString('fr-FR')} ${sparkly} *(inventaire)*`;
         }
         report += `\n`;
       }
@@ -2607,9 +2609,9 @@ client.on('interactionCreate', async interaction => {
       report += ` | ${ranking.length} votants au total\n`;
 
       if (notFoundList.length > 0) {
-        report += `\n⚠️ **Joueurs sans compte Discord identifié — à payer manuellement :**\n`;
-        for (const { player, rankIdx, ubGain } of notFoundList) {
-          report += `• \`${player.playername}\` — rank #${rankIdx} — ${player.votes} votes — **${ubGain.toLocaleString('fr-FR')} ${sparkly}** dûs\n`;
+        report += `\n⚠️ **Joueurs sans compte Discord identifié — à ajouter manuellement en inventaire :**\n`;
+        for (const { player, rankIdx, totalGain } of notFoundList) {
+          report += `• \`${player.playername}\` — rank #${rankIdx} — ${player.votes} votes — **${totalGain.toLocaleString('fr-FR')} ${sparkly}** dûs\n`;
         }
         report += `-# Pour les relier à un Discord : utilisez le bouton de résolution dans le salon admin lors du prochain \`/publish-votes\`.\n`;
       }
@@ -2666,7 +2668,7 @@ client.on('interactionCreate', async interaction => {
       const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);
       
       let adminMessage = `📊 **Rapport de distribution - ${monthName}**\n\n`;
-      adminMessage += `💎 **Distribution UnbelievaBoat:**\n`;
+      adminMessage += `💎 **Distribution Inventaire Arki :**\n`;
       adminMessage += `   • ${distributionResults.success} joueurs récompensés\n`;
       if (distributionResults.failed > 0) {
         adminMessage += `   • ${distributionResults.failed} échecs\n`;

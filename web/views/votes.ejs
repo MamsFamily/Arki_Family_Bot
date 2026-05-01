@@ -19,15 +19,6 @@
         <div class="alert alert-error">❌ <%= error %></div>
       <% } %>
 
-      <div class="card" style="margin-bottom: 20px;">
-        <div class="card-header" style="display:flex; align-items:center; justify-content:space-between;">
-          <h2 style="margin:0;">🔌 Diagnostic UnbelievaBoat</h2>
-          <button id="btn-test-unb" class="btn btn-secondary" onclick="testUnb()">Tester la connexion</button>
-        </div>
-        <div class="card-body">
-          <div id="unb-result" style="font-size:14px; color: var(--text-muted);">Cliquez sur le bouton pour tester la connexion au bot UnbelievaBoat et vérifier que le token est valide.</div>
-        </div>
-      </div>
 
       <% if (ranking.length === 0) { %>
         <div class="empty-state">
@@ -109,31 +100,5 @@
       <% } %>
     </main>
   </div>
-  <script>
-    async function testUnb() {
-      const btn = document.getElementById('btn-test-unb');
-      const result = document.getElementById('unb-result');
-      btn.disabled = true;
-      btn.textContent = 'Test en cours…';
-      result.style.color = 'var(--text-muted)';
-      result.textContent = '⏳ Connexion à UnbelievaBoat en cours…';
-      try {
-        const res = await fetch('/votes/test-unb');
-        const data = await res.json();
-        if (data.success) {
-          result.style.color = 'var(--success)';
-          result.innerHTML = `✅ <strong>Connexion réussie !</strong> Serveur : <strong>${data.guildName}</strong> — Monnaie : <strong>${data.currency}</strong>`;
-        } else {
-          result.style.color = 'var(--danger)';
-          result.innerHTML = `❌ <strong>Échec de connexion :</strong> <code>${data.error}</code><br><small>Vérifiez que UNBELIEVABOAT_TOKEN est correct dans les variables d'environnement Railway.</small>`;
-        }
-      } catch (e) {
-        result.style.color = 'var(--danger)';
-        result.textContent = '❌ Erreur réseau : ' + e.message;
-      }
-      btn.disabled = false;
-      btn.textContent = 'Tester la connexion';
-    }
-  </script>
 </body>
 </html>

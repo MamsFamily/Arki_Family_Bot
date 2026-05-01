@@ -21,7 +21,7 @@ The bot is built on Node.js using Discord.js for Discord API interactions. A web
 
 **Technical Implementations:**
 - **Roulette:** Generates smooth GIF animations using Canvas and GIF Encoder 2.
-- **Monthly Votes:** Integrates with TopServeurs API for vote tracking, distributes rewards via UnbelievaBoat API, and generates DraftBot commands. It features automatic result publication via `node-cron`.
+- **Monthly Votes:** Integrates with TopServeurs API for vote tracking, distributes diamond rewards directly into the Arki inventory system (no longer via UnbelievaBoat), and generates DraftBot commands. It features automatic result publication via `node-cron`.
 - **Shop & Dino Prices:** CRUD operations for packs and dinos are managed via the dashboard. These features support variants, special options (e.g., `isModded`, `isShoulder`, 'Flash Sale'), and categorized publication into Discord embeds.
 - **Translation & Reformulation:** Utilizes `@vitalets/google-translate-api` for translations and OpenAI for Kaamelott-style reformulations, triggered by emoji reactions.
 - **Inventory System:** Comprehensive management of player inventories (items, currencies, dinos, equipment) with a transaction history, accessible and modifiable through the dashboard and Discord commands.
@@ -44,7 +44,7 @@ The bot is built on Node.js using Discord.js for Discord API interactions. A web
 - **Axios:** HTTP client for making API requests.
 - **PostgreSQL (via `pg`):** Primary database for data persistence on Railway.
 - **Better-SQLite3:** Local database for specific data like vote history.
-- **unb-api:** For interacting with the UnbelievaBoat API (diamond distribution).
+- **unb-api:** Kept for the `/migrer-ub` migration command only. Diamond distribution for votes now uses the internal inventory system directly.
 - **OpenAI:** Used for AI-powered text reformulation (Kaamelott style).
 - **@vitalets/google-translate-api:** For translation functionalities.
 - **node-cron:** For scheduling automated tasks, such as monthly vote publications.
