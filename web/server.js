@@ -3614,82 +3614,29 @@ function createWebServer(discordClient) {
     const pingInterval = setInterval(() => { try { res.write(': ping\n\n'); } catch {} }, 20000);
     res.on('close', () => clearInterval(pingInterval));
 
-    const editAll = async (label) => {
-      let allOk = true;
-      const editResults = {};
-      for (const { key, value } of settings) {
-        const normalized = String(value).replace(',', '.');
-        const results = await nitrado.updateIniKeyOnAll(ids, key, normalized);
-        editResults[key] = results;
-        const ok = results.filter(r => r.ok).length;
-        log(`  [${label}] ${key}=${normalized} — ${ok}/${ids.length} OK`);
-        results.filter(r => !r.ok).forEach(r => log(`    ❌ Serveur ${r.id}: ${r.error}`));
-        if (ok < ids.length) allOk = false;
-      }
-      return { allOk, editResults };
-    };
-
     try {
-      // ── PHASE 1 : Écriture directe (serveur EN MARCHE, 4 formats) ──────────
-      // sys-full = chemin système absolu complet → trouve les fichiers ini existants.
-      // Si "Permission denied" → ARK verrouille les fichiers → passer en Phase 2.
-      log('Phase 1 : Tentative d\'écriture directe (serveur en marche)…');
-      const phase1 = await editAll('live');
-
-      if (phase1.allOk) {
-        log('✅ Phase 1 réussie — Redémarrage pour appliquer…');
-        await Promise.all(ids.map(id => nitrado.restartServer(id).catch(e => log(`  WARN restart ${id}: ${e.message}`))));
-        log('Redémarrage lancé.');
-        // Telemetry : enregistre le dernier apply réussi pour traçabilité
-        await pgStore.setData('nitrado_last_ini_apply', {
-          at: new Date().toISOString(), phase: 1, serviceIds: ids,
-          keys: settings.map(s => s.key), restartDone: true,
-        }).catch(() => {});
-        clearInterval(pingInterval);
-        return done(true, { editResults: phase1.editResults, restartDone: true, phase: 1 });
-      }
-
-      log('Phase 1 échouée (Nitrado bloque les écritures serveur en marche).');
-      log('');
-
-      // ── PRÉ-VÉRIFICATION : Scope Fileserver avant d'arrêter les serveurs ─────
-      // Si Phase 1 a échoué exclusivement avec "Permission denied", vérifie via l'API
-      // de token Nitrado si le scope "Fileserver" est absent. Si oui, on échoue
-      // immédiatement SANS arrêter les serveurs (aucun effet de bord).
-      log('Vérification scope token Fileserver avant arrêt des serveurs…');
+      // Vérification scope token avant d'arrêter les serveurs
+      log('Vérification scope token…');
       try {
-        const allErrors = Object.values(phase1.editResults)
-          .flat()
-          .filter(r => !r.ok)
-          .map(r => String(r.error || ''));
-        const allPermDenied = allErrors.length > 0 && allErrors.every(e => e.includes('Permission denied'));
-
-        if (allPermDenied) {
-          // Vérifie les scopes du token sans aucune mutation côté serveur
-          const scopeCheck = await nitrado.checkTokenScopes();
-          if (scopeCheck.ok && scopeCheck.hasFileserver === false) {
-            log('❌ PRÉ-VÉRIFICATION ÉCHOUÉE : le token Nitrado manque le scope "service".');
-            log(`  → Scopes actuels du token : ${(scopeCheck.grants || []).join(', ') || '(aucun)'}`);
-            log('  → Sur server.nitrado.net → Long-life tokens → créer un token avec le scope "service".');
-            log('  → Aucun serveur n\'a été arrêté.');
-            clearInterval(pingInterval);
-            return done(false, {
-              error: 'Token Nitrado manque le scope "service" — aucun serveur arrêté',
-              diagnostic: 'missing_service_scope',
-              currentGrants: scopeCheck.grants || [],
-            });
-          }
-          if (!scopeCheck.ok) {
-            log(`  → Impossible de vérifier le scope (${scopeCheck.error || 'API token indisponible'}) — passage Phase 2.`);
-          } else {
-            log(`  → Scope "service" confirmé (grants: ${(scopeCheck.grants || []).join(', ')}) — passage Phase 2.`);
-          }
+        const scopeCheck = await nitrado.checkTokenScopes();
+        if (scopeCheck.ok && scopeCheck.hasFileserver === false) {
+          log('❌ Token manque le scope "service" — aucun serveur arrêté.');
+          log(`  → Scopes actuels : ${(scopeCheck.grants || []).join(', ') || '(aucun)'}`);
+          log('  → Créer un token avec le scope "service" sur server.nitrado.net → Long-life tokens.');
+          clearInterval(pingInterval);
+          return done(false, {
+            error: 'Token Nitrado manque le scope "service" — aucun serveur arrêté',
+            diagnostic: 'missing_service_scope',
+            currentGrants: scopeCheck.grants || [],
+          });
         }
+        if (scopeCheck.ok) log(`  → Scope "service" confirmé (grants: ${(scopeCheck.grants || []).join(', ')}).`);
+        else log(`  → Vérification scope impossible (${scopeCheck.error || 'API indisponible'}) — on continue.`);
       } catch (preCheckErr) {
-        log(`  ⚠️ Pré-vérification scope ignorée (${preCheckErr.message}) — passage Phase 2.`);
+        log(`  ⚠️ Vérification scope ignorée (${preCheckErr.message}) — on continue.`);
       }
 
-      // ── PHASE 2 : Stop → attendre statut "stopped" → écrire → Start ────────
+      // ── Stop → attendre statut "stopped" → écrire → Start ────────
       // Nitrado bloque les écritures tant que le serveur est "running" ou "restarting".
       // Il faut attendre que le statut passe à "stopped" avant d'écrire.
       // Intervalles de 5s pour éviter le rate-limiting Cloudflare de l'API Nitrado.

@@ -1,0 +1,48 @@
+✅ TERMINÉ — Paramètres appliqués + serveurs redémarrés
+
+Phase 1 : Tentative d'écriture directe (serveur en marche)…
+  [live] MatingIntervalMultiplier=2 — 0/1 OK
+    ❌ Serveur 17822089: HTTP 500: {"status":"error","message":"Permission denied"}
+Phase 1 échouée (Nitrado bloque les écritures serveur en marche).
+
+Vérification scope token Fileserver avant arrêt des serveurs…
+  → Scope "service" confirmé (grants: rootserver, service, service_order, ssh_keys, user_edit, user_info) — passage Phase 2.
+Phase 2 : Préparation des fichiers ini en mémoire…
+  🔍 [DEBUG] API vide → lecture FTP : /arksa/ShooterGame/Saved/Config/WindowsServer/Game.ini
+  🔍 [DEBUG] FTP OK — 294279 octets lus
+  🔍 [DEBUG] Premières lignes du fichier :
+    "[/script/shootergame.shootergamemode]"
+    "AlphaKillXPMultiplier=1.25"
+    "BabyCuddleGracePeriodMultiplier=2"
+    "BabyCuddleIntervalMultiplier=0.01"
+    "BabyCuddleLoseImprintQualitySpeedMultiplier=1"
+  🔍 [DEBUG] "MatingIntervalMultiplier" remplacé en place (2 occurrence(s)) ✅
+  1 fichier(s) à écrire : Game.ini
+Phase 2 : Arrêt de 1 serveur(s)…
+Phase 2 : Attente arrêt complet…
+  [5s] Serveur 17822089 : stopping
+  [11s] Serveur 17822089 : stopping
+  [16s] Serveur 17822089 : stopping
+  [22s] Serveur 17822089 : stopping
+  [27s] Serveur 17822089 : stopping
+  [33s] Serveur 17822089 : stopping
+  [39s] Serveur 17822089 : stopping
+  [44s] Serveur 17822089 : stopping
+  [49s] Serveur 17822089 : stopping
+  [56s] Serveur 17822089 : stopping
+  [62s] Serveur 17822089 : stopped
+  ✅ Serveur 17822089 arrêté.
+Phase 2 : Écriture des fichiers ini…
+  Tentative d'écriture 1/3…
+    ❌ Game.ini (17822089): {"status":"error","message":"Internal server error"}
+  Tentative d'écriture 2/3…
+    ❌ Game.ini (17822089): {"status":"error","message":"Internal server error"}
+  Tentative d'écriture 3/3…
+    ❌ Game.ini (17822089): {"status":"error","message":"Internal server error"}
+
+⚡ API Nitrado bloquée — tentative FTP direct (1 fichier(s))…
+  → FTP [17822089]: /arksa/ShooterGame/Saved/Config/WindowsServer/Game.ini
+  ✅ [FTP] Game.ini (17822089)
+Phase 2 : Redémarrage…
+Redémarrage lancé.
+✅ Phase 2 réussie (78s). Les changements seront actifs au prochain démarrage.

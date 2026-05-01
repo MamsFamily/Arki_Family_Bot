@@ -477,7 +477,7 @@
               <div class="cfg-row">
                 <input type="number" step="0.01" min="0.01" id="cfg-mating" placeholder="ex : 0.25"
                   oninput="updateCfgPreview('mating', this.value)">
-                <button class="cfg-apply" onclick="applyConfig('config','MatingIntervalMultiplier','cfg-mating')">✓</button>
+                <button class="cfg-apply" onclick="queueSetting('MatingIntervalMultiplier','cfg-mating')" title="Ajouter à la file">+</button>
               </div>
               <div class="cfg-preview" id="cfg-mating-preview">⏱️ Entre une valeur pour voir l'intervalle calculé</div>
             </div>
@@ -489,7 +489,7 @@
               <div class="cfg-row">
                 <input type="number" step="0.1" min="0.1" id="cfg-taming" placeholder="ex : 5.0"
                   oninput="updateCfgPreview('taming', this.value)">
-                <button class="cfg-apply" onclick="applyConfig('config','TamingSpeedMultiplier','cfg-taming')">✓</button>
+                <button class="cfg-apply" onclick="queueSetting('TamingSpeedMultiplier','cfg-taming')" title="Ajouter à la file">+</button>
               </div>
               <div class="cfg-preview" id="cfg-taming-preview">⏱️ Entre une valeur pour voir la durée calculée</div>
             </div>
@@ -501,7 +501,7 @@
               <div class="cfg-row">
                 <input type="number" step="0.1" min="0.1" id="cfg-harvest" placeholder="ex : 3.0"
                   oninput="updateCfgPreview('harvest', this.value)">
-                <button class="cfg-apply" onclick="applyConfig('config','HarvestAmountMultiplier','cfg-harvest')">✓</button>
+                <button class="cfg-apply" onclick="queueSetting('HarvestAmountMultiplier','cfg-harvest')" title="Ajouter à la file">+</button>
               </div>
               <div class="cfg-preview" id="cfg-harvest-preview">📦 Entre une valeur pour voir les quantités calculées</div>
             </div>
@@ -513,7 +513,7 @@
               <div class="cfg-row">
                 <input type="number" step="0.1" min="0.1" id="cfg-xp" placeholder="ex : 2.0"
                   oninput="updateCfgPreview('xp', this.value)">
-                <button class="cfg-apply" onclick="applyConfig('config','XPMultiplier','cfg-xp')">✓</button>
+                <button class="cfg-apply" onclick="queueSetting('XPMultiplier','cfg-xp')" title="Ajouter à la file">+</button>
               </div>
               <div class="cfg-preview" id="cfg-xp-preview">⭐ Entre une valeur pour voir les XP calculés</div>
             </div>
@@ -525,7 +525,7 @@
               <div class="cfg-row">
                 <input type="number" step="1" min="1" id="cfg-mature" placeholder="ex : 30"
                   oninput="updateCfgPreview('mature', this.value)">
-                <button class="cfg-apply" onclick="applyConfig('config','BabyMatureSpeedMultiplier','cfg-mature')">✓</button>
+                <button class="cfg-apply" onclick="queueSetting('BabyMatureSpeedMultiplier','cfg-mature')" title="Ajouter à la file">+</button>
               </div>
               <div class="cfg-preview" id="cfg-mature-preview">⏱️ Entre une valeur pour voir la durée calculée</div>
             </div>
@@ -537,7 +537,7 @@
               <div class="cfg-row">
                 <input type="number" step="0.01" min="0.01" id="cfg-babyfood" placeholder="ex : 0.1"
                   oninput="updateCfgPreview('babyfood', this.value)">
-                <button class="cfg-apply" onclick="applyConfig('config','BabyFoodConsumptionSpeedMultiplier','cfg-babyfood')">✓</button>
+                <button class="cfg-apply" onclick="queueSetting('BabyFoodConsumptionSpeedMultiplier','cfg-babyfood')" title="Ajouter à la file">+</button>
               </div>
               <div class="cfg-preview" id="cfg-babyfood-preview">⏱️ Entre une valeur pour voir l'intervalle de repas</div>
             </div>
@@ -549,7 +549,7 @@
               <div class="cfg-row">
                 <input type="number" step="1" min="1" id="cfg-hatch" placeholder="ex : 20"
                   oninput="updateCfgPreview('hatch', this.value)">
-                <button class="cfg-apply" onclick="applyConfig('config','EggHatchSpeedMultiplier','cfg-hatch')">✓</button>
+                <button class="cfg-apply" onclick="queueSetting('EggHatchSpeedMultiplier','cfg-hatch')" title="Ajouter à la file">+</button>
               </div>
               <div class="cfg-preview" id="cfg-hatch-preview">⏱️ Entre une valeur pour voir la durée calculée</div>
             </div>
@@ -561,15 +561,29 @@
               <div class="cfg-row">
                 <input type="number" step="0.1" min="0.1" id="cfg-dmg" placeholder="ex : 1.0"
                   oninput="updateCfgPreview('dmg', this.value)">
-                <button class="cfg-apply" onclick="applyConfig('config','PlayerDamageMultiplier','cfg-dmg')">✓</button>
+                <button class="cfg-apply" onclick="queueSetting('PlayerDamageMultiplier','cfg-dmg')" title="Ajouter à la file">+</button>
               </div>
               <div class="cfg-preview" id="cfg-dmg-preview">💥 Entre une valeur pour voir les dégâts calculés</div>
             </div>
 
           </div>
+          <!-- File de modifications en attente -->
+          <div id="ini-queue-panel" style="display:none;margin-top:14px;padding:14px 16px;background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.35);border-radius:12px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px">
+              <div style="font-weight:700;font-size:.88rem;color:#fbbf24">
+                📋 Modifications en attente — <span class="ini-queue-count">0</span> paramètre(s)
+              </div>
+              <button onclick="applyIniQueue()"
+                style="padding:8px 18px;background:#f59e0b;color:#1c1917;border:none;border-radius:8px;font-weight:700;font-size:.84rem;cursor:pointer;white-space:nowrap">
+                🔄 Appliquer tout (~2 min)
+              </button>
+            </div>
+            <div id="ini-queue-list" style="font-size:.82rem"></div>
+          </div>
+
           <div id="cfg-results" class="bulk-results"></div>
           <div style="margin-top:12px;padding:10px 14px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:10px;font-size:.8rem;color:#4ade80">
-            ✏️ <strong>Écriture directe dans le fichier .ini</strong> — Les valeurs sont écrites directement dans <code>Game.ini</code> ou <code>GameUserSettings.ini</code> via l'API fichiers Nitrado (méthode fiable). <strong>Redémarre la map</strong> après pour que les changements soient pris en compte par ARK.
+            ➕ <strong>Clique sur + pour ajouter un paramètre à la file.</strong> Une fois tous tes changements ajoutés, clique sur <strong>🔄 Appliquer tout</strong> — la map sera arrêtée, les fichiers modifiés, puis redémarrée (~2 min).
           </div>
 
           <!-- Diagnostic INI direct -->
@@ -1122,41 +1136,52 @@ function filterDebugKeys() {
 }
 document.getElementById('debug-modal').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.classList.remove('open'); });
 
-// ── Config ────────────────────────────────────────────────────────────────
-function applyConfig(cat, key, inputId) {
+// ── File de modifications INI ──────────────────────────────────────────────
+let _iniQueue = {}; // { key: value } — dédupliqué par clé
+
+function queueSetting(key, inputId) {
   const raw = document.getElementById(inputId).value.trim();
   if (!raw) { toast('Entre une valeur', true); return; }
-  // Normalise la virgule décimale en point (ex: "0,0002" → "0.0002")
   const value = raw.replace(',', '.');
-  const ids = getSelIds();
-  if (!confirm(key + ' = ' + value + '\nsur ' + (ids.length === 0 ? 'TOUTES les maps' : ids.length + ' map(s)') + ' ?\n\n⚠️ Le fichier .ini sera modifié directement — redémarre la map après.')) return;
-  // Écriture directe dans le fichier .ini — méthode fiable vs l'API Settings
-  post('/nitrado/api/ini/update-all', { key, value, serviceIds: ids }).then(d => {
-    if (d.ok) {
-      const ok = d.results.filter(r => r.ok).length;
-      const fail = d.results.length - ok;
-      const failedServers = d.results.filter(r => !r.ok);
-      const isLocked = failedServers.some(r => r.error && r.error.includes('500'));
-
-      if (fail > 0 && isLocked) {
-        // Fichiers verrouillés (serveur en marche) → proposer le mode avec redémarrage
-        if (confirm(`⚠️ Le fichier .ini est verrouillé (serveur en marche).\n\nVeux-tu appliquer "${key} = ${value}" via un redémarrage automatique ?\n\n→ Le(s) serveur(s) seront stoppés, le fichier modifié, puis redémarrés (~2 min de downtime).`)) {
-          applyConfigWithRestart([{ key, value }], ids);
-        }
-      } else {
-        const cats = d.file ? ` [→ ${d.file.split('/').pop()}]` : '';
-        const errMsg = fail > 0 ? ' — ' + fail + ' erreur(s)' : '';
-        toast('✅ ' + key + ' = ' + value + ' — ' + ok + '/' + d.results.length + ' maps' + cats + errMsg, fail > 0);
-        showResults('cfg-results', d.results);
-      }
-    } else {
-      toast('❌ ' + key + ' : ' + d.error, true);
-      console.error('[Nitrado applyConfig]', key, d.error);
-    }
-  }).catch(e => { toast('Erreur réseau', true); console.error('[Nitrado applyConfig] réseau:', e); });
+  _iniQueue[key] = value;
+  _renderIniQueue();
+  toast(`+ ${key} = ${value} — ajouté à la file`, false);
 }
 
-// Déclenche le redémarrage en utilisant les params stockés dans _restartPending
+function _removeFromQueue(key) {
+  delete _iniQueue[key];
+  _renderIniQueue();
+}
+
+function _renderIniQueue() {
+  const panel = document.getElementById('ini-queue-panel');
+  const list  = document.getElementById('ini-queue-list');
+  const count = Object.keys(_iniQueue).length;
+  document.querySelectorAll('.ini-queue-count').forEach(el => el.textContent = count);
+  if (count === 0) { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  list.innerHTML = '';
+  for (const [k, v] of Object.entries(_iniQueue)) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)';
+    row.innerHTML = `<code style="flex:1;font-size:.82rem;color:var(--text-primary)">${k}</code><strong style="white-space:nowrap;color:#4ade80">${v}</strong><button onclick="_removeFromQueue('${k.replace(/'/g,"\\'")}\')" style="background:none;border:none;color:#f87171;cursor:pointer;font-size:.9rem;padding:0 2px" title="Retirer">✕</button>`;
+    list.appendChild(row);
+  }
+}
+
+function applyIniQueue() {
+  const entries = Object.entries(_iniQueue);
+  if (!entries.length) { toast('File vide — ajoute au moins un paramètre', true); return; }
+  const settings = entries.map(([key, value]) => ({ key, value }));
+  const ids = getSelIds();
+  const keyList = entries.map(([k, v]) => `• ${k} = ${v}`).join('\n');
+  if (!confirm(`Appliquer ${entries.length} modification(s) :\n${keyList}\n\nsur ${ids.length === 0 ? 'TOUTES les maps' : ids.length + ' map(s)'}\n\n⚠️ La map sera arrêtée ~2 min pour appliquer les changements.`)) return;
+  _iniQueue = {};
+  _renderIniQueue();
+  applyConfigWithRestart(settings, ids);
+}
+
+// Utilisé par la section Diagnostic pour déclencher un redémarrage après échec d'écriture directe
 function triggerPendingRestart() {
   if (!window._restartPending) { toast('Aucun paramètre en attente', true); return; }
   const { settings, serviceIds } = window._restartPending;
