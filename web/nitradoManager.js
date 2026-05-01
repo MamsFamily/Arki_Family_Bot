@@ -556,26 +556,19 @@ function setIniKey(content, section, key, value) {
   const normalizedVal = normalizeValue(String(value));
   const sectionHeader = `[${section}]`;
 
-  // DEBUG temporaire — à retirer après confirmation
-  console.log(`[setIniKey] cherche section="${sectionHeader}" clé="${key}" dans ${lines.length} lignes`);
-  const matchIdx = lines.findIndex(l => l.trim() === sectionHeader);
-  console.log(`[setIniKey] première occurrence section à ligne ${matchIdx} (${matchIdx === -1 ? 'INTROUVABLE' : 'trouvée'})`);
-  if (matchIdx !== -1) {
-    const raw = lines[matchIdx];
-    const codes = [...raw].map(c => c.charCodeAt(0).toString(16)).join(' ');
-    console.log(`[setIniKey] ligne brute [${raw}] codes: ${codes}`);
-  }
+  const sectionHeaderLower = sectionHeader.toLowerCase();
 
   // Passe 1 : cherche la clé dans TOUTES les occurrences de la section
   // (ARK Game.ini peut avoir plusieurs blocs [/Script/ShooterGame.ShooterGameMode])
+  // Comparaison insensible à la casse : ARK génère parfois [/script/shootergame.shootergamemode]
   let inSection = false;
   let found = false;
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim();
     if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-      inSection = (trimmed === sectionHeader);
+      inSection = (trimmed.toLowerCase() === sectionHeaderLower);
     }
-    if (inSection && (trimmed.startsWith(key + '=') || trimmed.startsWith(key + ' ='))) {
+    if (inSection && (trimmed.toLowerCase().startsWith(key.toLowerCase() + '=') || trimmed.toLowerCase().startsWith(key.toLowerCase() + ' ='))) {
       lines[i] = `${key}=${normalizedVal}`;
       found = true;
       break; // remplace uniquement la première occurrence trouvée
@@ -587,9 +580,8 @@ function setIniKey(content, section, key, value) {
     let lastSectionIdx = -1;
     for (let i = 0; i < lines.length; i++) {
       const trimmed = lines[i].trim();
-      if (trimmed === sectionHeader) lastSectionIdx = i;
+      if (trimmed.toLowerCase() === sectionHeaderLower) lastSectionIdx = i;
     }
-    console.log(`[setIniKey] passe 2 — lastSectionIdx=${lastSectionIdx}`);
 
     if (lastSectionIdx === -1) {
       // Section absente : on la crée en fin de fichier
