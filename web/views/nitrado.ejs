@@ -642,47 +642,70 @@
       <div class="card" id="ftp-card">
         <div class="card-header">
           <h2>📁 Accès FTP direct</h2>
-          <span style="font-size:.78rem;color:var(--text-muted)">Contourne le blocage API Nitrado pour l'écriture des fichiers .ini</span>
+          <span style="font-size:.78rem;color:var(--text-muted)">Contourne le blocage API Nitrado pour l'écriture des fichiers .ini — à configurer pour chaque map</span>
         </div>
         <div class="card-body">
-          <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:16px">
-            Le token Long-life Nitrado ne peut <strong>pas écrire</strong> les fichiers via l'API. En configurant l'accès FTP ci-dessous, le bot écrira les fichiers <code style="background:var(--bg-input);padding:1px 5px;border-radius:4px">.ini</code> directement sur le serveur ARK lors de chaque "Apply".<br>
-            <span style="color:var(--text-muted)">📋 Trouve tes credentials FTP dans le panneau Nitrado → ton serveur ARK → <strong>Infos</strong> (FTP Data).</span>
+          <p style="font-size:.82rem;color:var(--text-secondary);margin-bottom:16px;line-height:1.6">
+            Le token Long-life Nitrado ne peut <strong>pas écrire</strong> les fichiers via l'API. En renseignant les credentials FTP de chaque map ci-dessous, le bot basculera automatiquement sur FTP lors d'un "Apply".<br>
+            <span style="color:var(--text-muted)">📋 Credentials dans le panneau Nitrado → ta map → <strong>Infos</strong> → section <strong>FTP Data</strong>.</span>
           </p>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
-            <div>
-              <label style="font-size:.8rem;color:var(--text-muted);display:block;margin-bottom:4px">Hôte FTP</label>
-              <input type="text" id="ftp-host" placeholder="ex: ft.nitrado.net" value="<%= nitradoFtp.host || '' %>"
-                style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text);font-size:.85rem">
+
+          <% if (!servers || servers.length === 0) { %>
+            <p style="font-size:.83rem;color:var(--text-muted)">Aucun serveur détecté. Assure-toi que le token Nitrado est configuré et que les serveurs sont visibles dans la liste ci-dessus.</p>
+          <% } else { %>
+            <% servers.forEach(function(s) {
+              const ftpEntry = nitradoFtp[s.id] || {};
+            %>
+            <div style="background:var(--bg-input);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+                <span style="font-weight:600;font-size:.9rem">
+                  🗺️ <%= s.name || ('Serveur ' + s.id) %>
+                  <span style="font-size:.75rem;color:var(--text-muted);font-weight:400;margin-left:6px">ID: <%= s.id %></span>
+                </span>
+                <span id="ftp-status-<%= s.id %>" style="font-size:.78rem;display:none"></span>
+              </div>
+              <div style="display:grid;grid-template-columns:2fr 80px 1.5fr 1.5fr;gap:8px;align-items:end">
+                <div>
+                  <label style="font-size:.76rem;color:var(--text-muted);display:block;margin-bottom:3px">Hôte FTP</label>
+                  <input type="text" id="ftp-host-<%= s.id %>" placeholder="ft.nitrado.net"
+                    value="<%= ftpEntry.host || '' %>"
+                    style="width:100%;padding:7px 9px;border-radius:7px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:.82rem">
+                </div>
+                <div>
+                  <label style="font-size:.76rem;color:var(--text-muted);display:block;margin-bottom:3px">Port</label>
+                  <input type="number" id="ftp-port-<%= s.id %>" placeholder="21"
+                    value="<%= ftpEntry.port || 21 %>"
+                    style="width:100%;padding:7px 9px;border-radius:7px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:.82rem">
+                </div>
+                <div>
+                  <label style="font-size:.76rem;color:var(--text-muted);display:block;margin-bottom:3px">Utilisateur FTP</label>
+                  <input type="text" id="ftp-user-<%= s.id %>" placeholder="ni0000000_1"
+                    value="<%= ftpEntry.user || '' %>"
+                    style="width:100%;padding:7px 9px;border-radius:7px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:.82rem">
+                </div>
+                <div>
+                  <label style="font-size:.76rem;color:var(--text-muted);display:block;margin-bottom:3px">Mot de passe FTP</label>
+                  <input type="password" id="ftp-password-<%= s.id %>" placeholder="••••••••"
+                    value="<%= ftpEntry.password || '' %>"
+                    style="width:100%;padding:7px 9px;border-radius:7px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:.82rem">
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:8px">
+                <label style="font-size:.78rem;color:var(--text-muted);display:flex;align-items:center;gap:5px;cursor:pointer">
+                  <input type="checkbox" id="ftp-secure-<%= s.id %>" <%= (ftpEntry.secure === true) ? 'checked' : '' %>
+                    style="width:13px;height:13px;accent-color:var(--accent)">
+                  Utiliser TLS/FTPS
+                </label>
+                <div style="display:flex;gap:8px">
+                  <button class="btn" style="padding:6px 14px;font-size:.8rem;background:var(--bg-card);border:1px solid var(--border)"
+                    onclick="testFtpConnection('<%= s.id %>')">🔌 Tester</button>
+                  <button class="btn btn-primary" style="padding:6px 14px;font-size:.8rem"
+                    onclick="saveFtpCredentials('<%= s.id %>')">💾 Sauvegarder</button>
+                </div>
+              </div>
             </div>
-            <div>
-              <label style="font-size:.8rem;color:var(--text-muted);display:block;margin-bottom:4px">Port FTP</label>
-              <input type="number" id="ftp-port" placeholder="21" value="<%= nitradoFtp.port || 21 %>"
-                style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text);font-size:.85rem">
-            </div>
-            <div>
-              <label style="font-size:.8rem;color:var(--text-muted);display:block;margin-bottom:4px">Utilisateur FTP</label>
-              <input type="text" id="ftp-user" placeholder="ex: ni9697515_2" value="<%= nitradoFtp.user || '' %>"
-                style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text);font-size:.85rem">
-            </div>
-            <div>
-              <label style="font-size:.8rem;color:var(--text-muted);display:block;margin-bottom:4px">Mot de passe FTP</label>
-              <input type="password" id="ftp-password" placeholder="••••••••" value="<%= nitradoFtp.password || '' %>"
-                style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text);font-size:.85rem">
-            </div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
-            <label style="font-size:.82rem;color:var(--text-secondary);display:flex;align-items:center;gap:6px;cursor:pointer">
-              <input type="checkbox" id="ftp-secure" <%= (nitradoFtp.secure === true) ? 'checked' : '' %>
-                style="width:15px;height:15px;accent-color:var(--accent)">
-              Utiliser TLS/FTPS (décoché par défaut — Nitrado utilise FTP simple)
-            </label>
-          </div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <button class="btn btn-primary" onclick="saveFtpCredentials()">💾 Sauvegarder</button>
-            <button class="btn" style="background:var(--bg-card);border:1px solid var(--border)" onclick="testFtpConnection()">🔌 Tester la connexion</button>
-          </div>
-          <div id="ftp-status" style="margin-top:12px;font-size:.82rem;display:none"></div>
+            <% }); %>
+          <% } %>
         </div>
       </div>
 
@@ -2324,55 +2347,57 @@ function showRdStatus(serviceId, msg, isError) {
 
 loadRconDirectCfg();
 
-// ── FTP Credentials ────────────────────────────────────────────────────────
-function getFtpPayload() {
+// ── FTP Credentials par serveur ───────────────────────────────────────────
+function getFtpPayload(serviceId) {
   return {
-    host:     document.getElementById('ftp-host').value.trim(),
-    port:     parseInt(document.getElementById('ftp-port').value) || 21,
-    user:     document.getElementById('ftp-user').value.trim(),
-    password: document.getElementById('ftp-password').value,
-    secure:   document.getElementById('ftp-secure').checked,
+    serviceId,
+    host:     (document.getElementById('ftp-host-'     + serviceId)?.value || '').trim(),
+    port:     parseInt(document.getElementById('ftp-port-'     + serviceId)?.value) || 21,
+    user:     (document.getElementById('ftp-user-'     + serviceId)?.value || '').trim(),
+    password:  document.getElementById('ftp-password-' + serviceId)?.value || '',
+    secure:    document.getElementById('ftp-secure-'   + serviceId)?.checked || false,
   };
 }
 
-function showFtpStatus(msg, ok) {
-  const el = document.getElementById('ftp-status');
+function showFtpStatus(serviceId, msg, ok) {
+  const el = document.getElementById('ftp-status-' + serviceId);
+  if (!el) return;
   el.style.display = '';
   el.style.color = ok ? '#81c784' : '#ef9a9a';
   el.textContent = msg;
 }
 
-async function saveFtpCredentials() {
-  const payload = getFtpPayload();
+async function saveFtpCredentials(serviceId) {
+  const payload = getFtpPayload(serviceId);
   if (!payload.host || !payload.user || !payload.password) {
-    showFtpStatus('⚠️ Hôte, utilisateur et mot de passe sont requis.', false);
+    showFtpStatus(serviceId, '⚠️ Hôte, utilisateur et mot de passe requis.', false);
     return;
   }
-  showFtpStatus('Sauvegarde…', true);
+  showFtpStatus(serviceId, '⏳ Sauvegarde…', true);
   try {
     const r = await fetch('/nitrado/api/ftp/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const d = await r.json();
-    showFtpStatus(d.ok ? '✅ Credentials FTP sauvegardés.' : '❌ ' + d.error, d.ok);
-  } catch (e) { showFtpStatus('❌ Erreur réseau : ' + e.message, false); }
+    showFtpStatus(serviceId, d.ok ? '✅ Sauvegardé !' : '❌ ' + d.error, d.ok);
+  } catch (e) { showFtpStatus(serviceId, '❌ Erreur réseau : ' + e.message, false); }
 }
 
-async function testFtpConnection() {
-  const payload = getFtpPayload();
+async function testFtpConnection(serviceId) {
+  const payload = getFtpPayload(serviceId);
   if (!payload.host || !payload.user || !payload.password) {
-    showFtpStatus('⚠️ Remplis tous les champs avant de tester.', false);
+    showFtpStatus(serviceId, '⚠️ Remplis tous les champs avant de tester.', false);
     return;
   }
-  showFtpStatus('⏳ Test de connexion FTP en cours…', true);
+  showFtpStatus(serviceId, '⏳ Test FTP en cours…', true);
   try {
     const r = await fetch('/nitrado/api/ftp/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const d = await r.json();
     if (d.ok) {
-      const ls = (d.entries || []).map(e => `${e.type === 'dir' ? '📁' : '📄'} ${e.name}`).join(', ') || '(racine vide)';
-      showFtpStatus(`✅ Connexion FTP réussie ! Racine : ${ls}`, true);
+      const ls = (d.entries || []).map(e => `${e.type === 'dir' ? '📁' : '📄'} ${e.name}`).join('  ') || '(racine vide)';
+      showFtpStatus(serviceId, `✅ Connexion OK — Racine : ${ls}`, true);
     } else {
-      showFtpStatus('❌ Connexion FTP échouée : ' + d.error, false);
+      showFtpStatus(serviceId, '❌ ' + d.error, false);
     }
-  } catch (e) { showFtpStatus('❌ Erreur réseau : ' + e.message, false); }
+  } catch (e) { showFtpStatus(serviceId, '❌ Erreur réseau : ' + e.message, false); }
 }
 </script>
 </body>
