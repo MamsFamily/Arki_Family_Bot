@@ -60,7 +60,25 @@ async function handleEventTicketInteraction(interaction) {
   }
 
   if (id.startsWith(`${PREFIX}_close::`)) {
-    return handleCloseEventTicket(interaction);
+    // Format : evt_close::channelId::userId
+    const parts = id.split('::');
+    const userId = parts[2] || null;
+    return handleCloseEventTicket(interaction, userId);
+  }
+
+  if (id.startsWith(`${PREFIX}_close_confirm::`)) {
+    // Format : evt_close_confirm::channelId::userId
+    const parts = id.split('::');
+    const userId = parts[2] || null;
+    return handleCloseConfirmEventTicket(interaction, userId);
+  }
+
+  if (id.startsWith(`${PREFIX}_close_cancel::`)) {
+    return interaction.update({ components: [] });
+  }
+
+  if (id.startsWith(`${PREFIX}_delete::`)) {
+    return handleDeleteEventTicket(interaction);
   }
 }
 
@@ -138,9 +156,10 @@ async function handleOpenEventTicket(interaction, rawEventName) {
     .setFooter({ text: `Ticket de ${user.tag || user.username}` })
     .setTimestamp();
 
+  // Format customId : evt_close::channelId::userId (userId encodé pour le retrait de perms à la fermeture)
   const closeRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(`${PREFIX}_close::${channel.id}`)
+      .setCustomId(`${PREFIX}_close::${channel.id}::${user.id}`)
       .setLabel('🔒 Fermer le ticket')
       .setStyle(ButtonStyle.Danger),
   );
@@ -162,16 +181,108 @@ async function handleOpenEventTicket(interaction, rawEventName) {
 
 // ── Fermeture du ticket ───────────────────────────────────────────────────────
 
-async function handleCloseEventTicket(interaction) {
+// ── Étape 1 : demander confirmation de fermeture ──────────────────────────────
+
+async function handleCloseEventTicket(interaction, userId) {
+  const channelId = interaction.channel.id;
+  await interaction.reply({
+    embeds: [new EmbedBuilder()
+      .setColor(0xe67e22)
+      .setTitle('⚠️ Fermer ce ticket ?')
+      .setDescription(
+        'Le joueur n\'aura plus accès à ce salon.\n' +
+        'Le ticket restera visible pour le staff jusqu\'à sa suppression manuelle.',
+      )
+    ],
+    components: [new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${PREFIX}_close_confirm::${channelId}::${userId || ''}`)
+        .setLabel('✅ Oui, fermer')
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId(`${PREFIX}_close_cancel::${channelId}`)
+        .setLabel('❌ Annuler')
+        .setStyle(ButtonStyle.Secondary),
+    )],
+    ephemeral: true,
+  });
+}
+
+// ── Étape 2 : fermeture effective ─────────────────────────────────────────────
+
+async function handleCloseConfirmEventTicket(interaction, userId) {
   const channel = interaction.channel;
-  const user = interaction.user;
+  const adminName = interaction.member?.displayName || interaction.user.username;
 
-  const embed = new EmbedBuilder()
-    .setDescription(`🔒 **Ticket fermé** par <@${user.id}>\nSuppression dans 5 secondes…`)
-    .setColor(0xED4245);
+  // Retirer l'accès du joueur au salon
+  if (userId) {
+    try {
+      await channel.permissionOverwrites.edit(userId, {
+        ViewChannel: false,
+        SendMessages: false,
+      });
+    } catch (e) {
+      console.error('[EventTicket] Impossible de modifier les permissions du joueur:', e.message);
+    }
+  }
 
-  await interaction.reply({ embeds: [embed] });
-  setTimeout(() => channel.delete().catch(() => {}), 5000);
+  // Renommer le salon avec le préfixe "ferme-"
+  try {
+    const newName = `ferme-${channel.name}`.slice(0, 100);
+    await channel.edit({ name: newName, reason: `Ticket fermé par ${adminName}` });
+  } catch (e) {
+    console.error('[EventTicket] Impossible de renommer le salon:', e.message);
+  }
+
+  // Mettre à jour le message éphémère de confirmation
+  try {
+    await interaction.update({
+      embeds: [new EmbedBuilder()
+        .setColor(0x95a5a6)
+        .setTitle('🔒 Ticket fermé')
+        .setDescription(`Fermé par **${adminName}**.\nLe joueur ne voit plus ce salon.`)
+      ],
+      components: [],
+    });
+  } catch (e) {}
+
+  // Message public dans le salon avec bouton Supprimer
+  await channel.send({
+    embeds: [new EmbedBuilder()
+      .setColor(0x95a5a6)
+      .setTitle('🔒 Ticket fermé')
+      .setDescription(
+        `Ce ticket a été fermé par **${adminName}**.\n` +
+        `Le joueur n'a plus accès à ce salon.\n\n` +
+        `Supprime le ticket quand tu es prêt(e).`,
+      )
+      .setTimestamp()
+    ],
+    components: [new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${PREFIX}_delete::${channel.id}`)
+        .setLabel('🗑️ Supprimer le ticket')
+        .setStyle(ButtonStyle.Danger),
+    )],
+  });
+}
+
+// ── Étape 3 : suppression du salon ────────────────────────────────────────────
+
+async function handleDeleteEventTicket(interaction) {
+  const channel = interaction.channel;
+  const adminName = interaction.member?.displayName || interaction.user.username;
+
+  await interaction.reply({
+    embeds: [new EmbedBuilder()
+      .setDescription(`🗑️ Suppression dans 3 secondes…`)
+      .setColor(0xED4245)
+    ],
+  });
+
+  setTimeout(async () => {
+    try { await channel.delete(`Ticket supprimé par ${adminName}`); } catch (e) {}
+  }, 3000);
 }
 
 module.exports = { publishEventPanel, handleEventTicketInteraction };
