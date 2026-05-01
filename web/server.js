@@ -881,7 +881,8 @@ function createWebServer(discordClient) {
         .map(r => ({ id: r.id, name: r.name, color: r.color ? '#' + r.color.toString(16).padStart(6, '0') : null }));
     }
     const spawnTicket = settings.spawnTicket || {};
-    res.render('tickets', { shop, channels, discordCategories, discordRoles, spawnTicket, success: req.query.success || null, error: req.query.error || null });
+    const eventTicket = settings.eventTicket || {};
+    res.render('tickets', { shop, channels, discordCategories, discordRoles, spawnTicket, eventTicket, success: req.query.success || null, error: req.query.error || null });
   });
 
   const spawnImageUpload = multer({
@@ -944,6 +945,31 @@ function createWebServer(discordClient) {
     } catch (err) {
       console.error('[SpawnTicket] Erreur sauvegarde settings:', err);
       res.redirect('/tickets?error=Erreur+lors+de+la+sauvegarde+des+r%C3%A9glages');
+    }
+  });
+
+  // ── Tickets Événement ─────────────────────────────────────────────────────
+  app.post('/tickets/event', requireAdmin, async (req, res) => {
+    try {
+      const {
+        eventCategoryId, eventNotifChannelId,
+        eventStaffRoleIds, eventPanelDescription,
+        eventButtonLabel, eventWelcomeMessage,
+      } = req.body;
+      const rawRoles = eventStaffRoleIds || [];
+      const staffRoleIds = (Array.isArray(rawRoles) ? rawRoles : [rawRoles]).filter(s => /^\d+$/.test(s));
+      await updateSection('eventTicket', {
+        categoryId: eventCategoryId || '',
+        staffRoleIds,
+        notifChannelId: eventNotifChannelId || '',
+        panelDescription: eventPanelDescription || '',
+        buttonLabel: eventButtonLabel || '',
+        welcomeMessage: eventWelcomeMessage || '',
+      });
+      res.redirect('/tickets?success=%C3%89v%C3%A9nement+sauvegard%C3%A9+!#tk-event');
+    } catch (err) {
+      console.error('[EventTicket] Erreur sauvegarde settings:', err);
+      res.redirect('/tickets?error=Erreur+lors+de+la+sauvegarde');
     }
   });
 

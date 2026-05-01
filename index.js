@@ -39,6 +39,7 @@ const xpManager = require('./xpManager');
 const { handleShopCommand, handleShopInteraction } = require('./shopCommand');
 const { handleShopTicketCommand, handleShopTicketInteraction, publishShopTicketPanel, handleRecapCommand } = require('./shopTicketCommand');
 const { handleSpawnTicketCommand, handleSpawnTicketInteraction, initSpawnTickets } = require('./spawnTicketCommand');
+const { publishEventPanel, handleEventTicketInteraction } = require('./eventTicketCommand');
 const restartScheduler = require('./nitradoRestartScheduler');
 const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
 const { registerCasinoHandlers } = require('./casino/casinoHandler');
@@ -1147,6 +1148,24 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
+  // ── Event Ticket interactions (boutons evt_open / evt_close) ──
+  if (interaction.isButton() && (
+    interaction.customId.startsWith('evt_open::') ||
+    interaction.customId.startsWith('evt_close::')
+  )) {
+    try {
+      await handleEventTicketInteraction(interaction);
+    } catch (err) {
+      console.error('[EventTicket] Erreur interaction:', err);
+      try {
+        const reply = { content: '❌ Une erreur est survenue avec le ticket événement.', ephemeral: true };
+        if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
+        else await interaction.reply(reply);
+      } catch (e) {}
+    }
+    return;
+  }
+
   // ── Giveaway: soumission modal création ──
   if (interaction.isModalSubmit() && interaction.customId.startsWith('giveway_create_modal_')) {
     const raw = interaction.customId.replace('giveway_create_modal_', '');
@@ -1973,6 +1992,21 @@ client.on('interactionCreate', async interaction => {
       console.error('[SpawnTicket] Erreur commande /spawn-panel:', err);
       try {
         const reply = { content: '❌ Impossible de publier le panneau spawn. Réessaie.', ephemeral: true };
+        if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
+        else await interaction.reply(reply);
+      } catch (e) {}
+    }
+    return;
+  }
+
+  if (commandName === 'event-panel') {
+    try {
+      const eventName = interaction.options.getString('nom') || 'Événement';
+      await publishEventPanel(interaction, eventName);
+    } catch (err) {
+      console.error('[EventTicket] Erreur commande /event-panel:', err);
+      try {
+        const reply = { content: '❌ Impossible de publier le panneau événement. Réessaie.', ephemeral: true };
         if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
         else await interaction.reply(reply);
       } catch (e) {}

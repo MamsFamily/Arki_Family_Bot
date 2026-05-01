@@ -416,6 +416,112 @@
         </div>
       </div>
 
+      <!-- ══ Tickets Événement ══════════════════════════════════════════════ -->
+      <div class="tk-accordion" id="tk-event">
+        <div class="tk-header" onclick="tkToggle('tk-event')">
+          <span class="tk-icon">🎟️</span>
+          <div class="tk-title">
+            Tickets Événement
+            <div class="tk-subtitle">Ticket temporaire ouvert à la demande d'un joueur — nom choisi lors du /event-panel</div>
+          </div>
+          <span class="tk-badge tk-badge-active">Actif</span>
+          <span class="tk-chevron">▼</span>
+        </div>
+        <div class="tk-body">
+          <form method="POST" action="/tickets/event">
+
+            <p class="tk-section-title">⚙️ Apparence du panel</p>
+            <div class="tk-form-row">
+              <div class="form-group">
+                <label for="eventPanelDescription">Description affichée dans l'embed du panel</label>
+                <textarea id="eventPanelDescription" name="eventPanelDescription" class="form-control" rows="3"
+                  placeholder="Clique sur le bouton ci-dessous pour ouvrir ton ticket…"><%= eventTicket.panelDescription || '' %></textarea>
+                <p class="help-text">Texte visible sous le titre dans l'embed du bouton.</p>
+              </div>
+              <div class="form-group" style="max-width:300px">
+                <label for="eventButtonLabel">Label du bouton</label>
+                <input type="text" id="eventButtonLabel" name="eventButtonLabel" class="form-control"
+                  value="<%= eventTicket.buttonLabel || '' %>"
+                  placeholder="🎟️ Rejoindre l'événement">
+              </div>
+            </div>
+
+            <p class="tk-section-title" style="margin-top:8px">✉️ Message d'ouverture du ticket</p>
+            <div class="tk-form-row">
+              <div class="form-group">
+                <label for="eventWelcomeMessage">Message publié automatiquement à l'ouverture du ticket</label>
+                <textarea id="eventWelcomeMessage" name="eventWelcomeMessage" class="form-control" rows="5"
+                  placeholder="Bienvenue {user} dans l'événement **{event}** !&#10;&#10;Un staff va bientôt te rejoindre."><%= eventTicket.welcomeMessage || '' %></textarea>
+                <p class="help-text">Variables disponibles : <code>{user}</code> (mention Discord) · <code>{event}</code> (nom de l'événement)</p>
+              </div>
+            </div>
+
+            <p class="tk-section-title" style="margin-top:8px">📂 Canaux Discord</p>
+            <div class="tk-form-row">
+              <div class="form-group">
+                <label for="eventCategoryId">Catégorie des tickets événement</label>
+                <select id="eventCategoryId" name="eventCategoryId" class="form-control">
+                  <option value="">-- Aucune (racine du serveur) --</option>
+                  <% (discordCategories || []).forEach(cat => { %>
+                    <option value="<%= cat.id %>" <%= eventTicket.categoryId === cat.id ? 'selected' : '' %>>
+                      📁 <%= cat.name %>
+                    </option>
+                  <% }); %>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="eventNotifChannelId">Salon de notification staff (optionnel)</label>
+                <select id="eventNotifChannelId" name="eventNotifChannelId" class="form-control">
+                  <option value="">-- Aucune notification --</option>
+                  <% (channels || []).forEach(ch => { %>
+                    <option value="<%= ch.id %>" <%= eventTicket.notifChannelId === ch.id ? 'selected' : '' %>>
+                      # <%= ch.name %><% if (ch.category) { %> — <%= ch.category %><% } %>
+                    </option>
+                  <% }); %>
+                </select>
+                <p class="help-text">Un message est envoyé ici à chaque ouverture de ticket.</p>
+              </div>
+            </div>
+
+            <p class="tk-section-title" style="margin-top:8px">🛡️ Permissions</p>
+            <div class="tk-form-row">
+              <div class="form-group" style="max-width:520px">
+                <label>Rôles staff pouvant voir et gérer les tickets événement</label>
+                <div class="role-picker" id="rolePickerEvent">
+                  <div class="role-picker-trigger" onclick="rpToggle('rolePickerEvent')">
+                    <span class="role-picker-placeholder" id="rpPlaceholderEvent" style="display:<%= (eventTicket.staffRoleIds||[]).length ? 'none' : 'inline' %>">Sélectionner des rôles…</span>
+                    <span id="rpTagsEvent" style="display:contents"></span>
+                    <span class="role-picker-chevron">▼</span>
+                  </div>
+                  <div class="role-picker-dropdown">
+                    <div class="role-picker-search">
+                      <input type="text" placeholder="Rechercher un rôle…" oninput="rpFilter(this,'rolePickerEvent')">
+                    </div>
+                    <% (discordRoles || []).forEach(r => {
+                      const selected = (eventTicket.staffRoleIds || []).includes(r.id);
+                    %>
+                    <label class="role-option <%= selected ? 'checked' : '' %>" data-role-id="<%= r.id %>" data-role-name="<%= r.name %>" data-role-color="<%= r.color || '#7289da' %>">
+                      <input type="checkbox" name="eventStaffRoleIds" value="<%= r.id %>" <%= selected ? 'checked' : '' %> onchange="rpUpdate('rolePickerEvent')">
+                      <span class="role-option-dot" style="background:<%= r.color || '#7289da' %>"></span>
+                      <span class="role-option-name"><%= r.name %></span>
+                    </label>
+                    <% }); %>
+                    <% if (!discordRoles || discordRoles.length === 0) { %>
+                    <div style="padding:14px;text-align:center;color:var(--text-muted);font-size:13px">Aucun rôle disponible (bot hors ligne ?)</div>
+                    <% } %>
+                  </div>
+                </div>
+                <p class="help-text">Ces rôles peuvent voir et répondre dans tous les tickets événement.</p>
+              </div>
+            </div>
+
+            <div style="margin-top:8px">
+              <button type="submit" class="btn btn-primary">💾 Sauvegarder</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
     </main>
   </div>
 

@@ -123,6 +123,14 @@ const DEFAULTS = {
     autoMessageImageUrl: '',
     mapPassword: '',
   },
+  eventTicket: {
+    categoryId: '',
+    staffRoleIds: [],
+    notifChannelId: '',
+    panelDescription: 'Clique sur le bouton ci-dessous pour ouvrir ton ticket et rejoindre l\'événement.',
+    buttonLabel: '🎟️ Rejoindre l\'événement',
+    welcomeMessage: 'Bienvenue {user} dans l\'événement **{event}** !\n\nUn membre du staff va bientôt te rejoindre.',
+  },
   aliases: {},
 };
 

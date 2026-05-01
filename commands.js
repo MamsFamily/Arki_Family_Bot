@@ -140,6 +140,18 @@ const commands = [
     description: 'Publie le panneau d\'admission Spawn Joueur dans le salon courant (Admin)',
   },
   {
+    name: 'event-panel',
+    description: 'Publie un panneau de ticket événement temporaire dans le salon courant (Admin)',
+    options: [
+      {
+        name: 'nom',
+        type: 3,
+        description: 'Nom de l\'événement (affiché dans le panel et les tickets)',
+        required: true,
+      },
+    ],
+  },
+  {
     name: 'creer-giveway',
     description: 'Crée et publie un giveaway dans le salon courant (Admin et Modo)',
     options: [
