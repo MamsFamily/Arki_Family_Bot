@@ -101,6 +101,11 @@
     <a href="/giveaways" class="nav-link <%= path === '/giveaways' ? 'active' : '' %>">
       <span class="icon">🎉</span> Giveaways
     </a>
+    <% if (role === 'admin') { %>
+    <a href="/booster-repro" class="nav-link <%= path === '/booster-repro' ? 'active' : '' %>">
+      <span class="icon">🧬</span> Booster Repro
+    </a>
+    <% } %>
 
     <% if (role === 'admin') { %>
     <div class="nav-section">Système</div>

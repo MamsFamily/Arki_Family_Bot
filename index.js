@@ -43,6 +43,7 @@ const { publishEventPanel, handleEventTicketInteraction } = require('./eventTick
 const restartScheduler = require('./nitradoRestartScheduler');
 const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
 const { registerCasinoHandlers } = require('./casino/casinoHandler');
+const boosterReproManager = require('./boosterReproManager');
 
 
 const openaiConfig = {};
@@ -618,6 +619,9 @@ client.once('clientReady', async () => {
 
   // Enregistrer les handlers du casino
   registerCasinoHandlers(client, { pgStore, getPlayerInventory, addToInventory, removeFromInventory });
+
+  // Initialiser le système booster repro (cron de restauration automatique)
+  boosterReproManager.init(client);
 
   console.log('✅ Bot Discord Arki Roulette est en ligne !');
   console.log(`📝 Connecté en tant que ${client.user.tag}`);
@@ -4087,6 +4091,221 @@ client.on('interactionCreate', async interaction => {
   lines.push(`\n> Une fois vérifiée, tu peux supprimer la commande \`/migrer-ub\` de \`commands.js\`.`);
 
   return interaction.editReply(lines.join('\n'));
+});
+
+// ─── BOOSTER REPRO ───────────────────────────────────────────────────────────
+client.on('interactionCreate', async interaction => {
+  // ── Commande slash /activer-booster ──────────────────────────────────────
+  if (interaction.isChatInputCommand() && interaction.commandName === 'activer-booster') {
+    const cfg = getSettings().boosterRepro || {};
+
+    if (!cfg.enabled) {
+      return interaction.reply({ content: '❌ Le système de booster repro est actuellement désactivé.', ephemeral: true });
+    }
+    if (!cfg.maps || cfg.maps.length === 0) {
+      return interaction.reply({ content: '❌ Aucune map configurée pour le booster repro.', ephemeral: true });
+    }
+    if (!cfg.items || cfg.items.length === 0) {
+      return interaction.reply({ content: '❌ Aucun item booster configuré.', ephemeral: true });
+    }
+
+    const userId = interaction.user.id;
+    const inventory = getPlayerInventory(userId);
+
+    // Trouver les boosters dans l'inventaire du joueur
+    const ownedBoosters = [];
+    for (const itemCfg of cfg.items) {
+      const qty = inventory[itemCfg.itemName] || 0;
+      if (qty > 0) ownedBoosters.push({ ...itemCfg, qty });
+    }
+
+    if (ownedBoosters.length === 0) {
+      return interaction.reply({
+        content: `❌ Tu n'as aucun booster de reproduction dans ton inventaire.\nAchète-en un dans la boutique !`,
+        ephemeral: true,
+      });
+    }
+
+    // Construire le menu de sélection des maps
+    const mapOptions = cfg.maps.map(map => ({
+      label: map.displayName,
+      value: `${map.serviceId}::${map.id}`,
+      description: `Service ID : ${map.serviceId}`,
+      emoji: '🗺️',
+    }));
+
+    // Sélectionner automatiquement le booster le moins long (pour préserver les plus longs)
+    const booster = ownedBoosters.sort((a, b) => a.durationHours - b.durationHours)[0];
+
+    const selectMenu = new StringSelectMenuBuilder()
+      .setCustomId(`booster_map_select::${booster.itemName}::${booster.durationHours}`)
+      .setPlaceholder('Choisis une map...')
+      .addOptions(mapOptions);
+
+    return interaction.reply({
+      embeds: [new EmbedBuilder()
+        .setTitle('🧬 Activer un Booster Repro')
+        .setColor(0x2ecc71)
+        .setDescription(
+          `**Booster sélectionné :** ${booster.label} (${booster.durationHours}h)\n` +
+          `**Quantité disponible :** ${booster.qty}\n\n` +
+          `Choisis la map sur laquelle tu veux activer le boost.\n` +
+          `⚠️ Le serveur redémarrera pour appliquer les nouveaux paramètres.`,
+        )
+      ],
+      components: [new ActionRowBuilder().addComponents(selectMenu)],
+      ephemeral: true,
+    });
+  }
+
+  // ── Sélection de la map ───────────────────────────────────────────────────
+  if (interaction.isStringSelectMenu() && interaction.customId.startsWith('booster_map_select::')) {
+    const parts = interaction.customId.split('::');
+    const itemName = parts[1];
+    const durationHours = parseInt(parts[2]) || 6;
+    const [serviceId] = interaction.values[0].split('::');
+
+    const cfg = getSettings().boosterRepro || {};
+    const mapCfg = (cfg.maps || []).find(m => m.serviceId === serviceId);
+    if (!mapCfg) {
+      return interaction.update({ content: '❌ Map introuvable.', components: [], embeds: [] });
+    }
+
+    const userId = interaction.user.id;
+    const username = interaction.member?.displayName || interaction.user.username;
+
+    // Vérifier inventaire
+    const inventory = getPlayerInventory(userId);
+    const qty = inventory[itemName] || 0;
+    if (qty <= 0) {
+      return interaction.update({
+        embeds: [new EmbedBuilder().setColor(0xe74c3c).setDescription('❌ Tu n\'as plus ce booster dans ton inventaire.')],
+        components: [],
+      });
+    }
+
+    // Vérifier session active sur la map
+    const activeSession = await boosterReproManager.getActiveSessionForMap(serviceId);
+    if (activeSession) {
+      const expiresTs = Math.floor(new Date(activeSession.expiresAt).getTime() / 1000);
+      return interaction.update({
+        embeds: [new EmbedBuilder()
+          .setColor(0xe67e22)
+          .setTitle('⚠️ Boost déjà actif')
+          .setDescription(
+            `Un boost est déjà actif sur **${mapCfg.displayName}** !\n` +
+            `Activé par **${activeSession.username}** · Expire <t:${expiresTs}:R>`,
+          )
+        ],
+        components: [],
+      });
+    }
+
+    // Vérifier cooldown
+    if (cfg.cooldownHours > 0) {
+      const lastSession = await boosterReproManager.getLastSessionForMap(serviceId);
+      if (lastSession) {
+        const cooldownUntil = new Date(lastSession.expiresAt).getTime() + cfg.cooldownHours * 3600 * 1000;
+        if (Date.now() < cooldownUntil) {
+          const cooldownTs = Math.floor(cooldownUntil / 1000);
+          return interaction.update({
+            embeds: [new EmbedBuilder()
+              .setColor(0xe67e22)
+              .setTitle('⏳ Cooldown actif')
+              .setDescription(
+                `Le boost sur **${mapCfg.displayName}** est en cooldown.\n` +
+                `Prochain boost disponible : <t:${cooldownTs}:R>`,
+              )
+            ],
+            components: [],
+          });
+        }
+      }
+    }
+
+    // Tout est OK — déférer et lancer le boost
+    await interaction.deferUpdate();
+
+    // Consommer l'item de l'inventaire
+    try {
+      await removeFromInventory(userId, itemName, 1, 'system', `Booster Repro ${durationHours}h — ${mapCfg.displayName}`);
+    } catch (e) {
+      return interaction.editReply({
+        embeds: [new EmbedBuilder().setColor(0xe74c3c).setDescription(`❌ Erreur lors de la consommation du booster : ${e.message}`)],
+        components: [],
+      });
+    }
+
+    // Créer la session
+    const expiresAt = new Date(Date.now() + durationHours * 3600 * 1000);
+    const session = await boosterReproManager.createSession({
+      userId, username, serviceId,
+      mapDisplayName: mapCfg.displayName,
+      itemName, durationHours,
+      expiresAt,
+      iniBackup: { key1: cfg.iniKey1?.normalValue || '1.0', key2: cfg.iniKey2?.normalValue || '1.0' },
+    });
+
+    // Notifier que le boost est en cours d'application
+    await interaction.editReply({
+      embeds: [new EmbedBuilder()
+        .setTitle('⚙️ Application du boost en cours…')
+        .setColor(0xe67e22)
+        .setDescription(
+          `🗺️ **${mapCfg.displayName}**\n` +
+          `⏱️ Durée : **${durationHours}h**\n\n` +
+          `La map redémarre pour appliquer les paramètres. Cela peut prendre 1-2 minutes.`,
+        )
+      ],
+      components: [],
+    });
+
+    // Appliquer les INI + redémarrer en arrière-plan
+    (async () => {
+      try {
+        await boosterReproManager.applyBoostIni(serviceId, cfg);
+        await require('./web/nitradoManager').restartServer(serviceId, 'Activation booster de reproduction');
+        console.log(`[BoosterRepro] ✅ Boost activé par ${username} sur ${mapCfg.displayName}`);
+
+        const expiresTs = Math.floor(expiresAt.getTime() / 1000);
+
+        // Message de confirmation dans le salon de notif
+        if (cfg.notifChannelId) {
+          const ch = client.channels.cache.get(cfg.notifChannelId);
+          if (ch) {
+            await ch.send({
+              embeds: [new EmbedBuilder()
+                .setTitle('🟢 Booster Repro activé !')
+                .setColor(0x2ecc71)
+                .setDescription(
+                  `<@${userId}> a activé un boost de reproduction sur **${mapCfg.displayName}** !\n\n` +
+                  `⏱️ Durée : **${durationHours}h**\n` +
+                  `🔴 Fin du boost : <t:${expiresTs}:F> (<t:${expiresTs}:R>)\n\n` +
+                  `La map redémarre pour appliquer les paramètres boostés.`,
+                )
+                .setTimestamp()
+              ],
+            }).catch(() => {});
+          }
+        }
+      } catch (e) {
+        console.error('[BoosterRepro] Erreur application boost:', e.message);
+        await boosterReproManager.cancelSession(session.id);
+        // Rembourser l'item
+        await addToInventory(userId, itemName, 1, 'system', `Remboursement booster repro — erreur: ${e.message}`).catch(() => {});
+        if (cfg.notifChannelId) {
+          const ch = client.channels.cache.get(cfg.notifChannelId);
+          if (ch) {
+            await ch.send({
+              content: `⚠️ Erreur activation boost repro pour <@${userId}> sur ${mapCfg.displayName}: \`${e.message}\``,
+            }).catch(() => {});
+          }
+        }
+      }
+    })();
+
+    return;
+  }
 });
 
 // ─── CASINO : déblocage forcé d'un joueur ────────────────────────────────────

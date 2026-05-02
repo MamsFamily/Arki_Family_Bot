@@ -368,6 +368,10 @@ const commands = [
       },
     ],
   },
+  {
+    name: 'activer-booster',
+    description: '🧬 Active un booster de reproduction sur une map (si tu en possèdes un)',
+  },
 ];
 
 module.exports = commands;

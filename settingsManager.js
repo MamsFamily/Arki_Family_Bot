@@ -134,6 +134,15 @@ const DEFAULTS = {
   aliases: {},
   nitradoFtp: {},
   // nitradoFtp est un objet keyed par serviceId : { [serviceId]: { host, port, user, password, secure } }
+  boosterRepro: {
+    enabled: false,
+    iniKey1: { key: 'MatingIntervalMultiplier',  normalValue: '1.0', boostValue: '0.1' },
+    iniKey2: { key: 'EggHatchSpeedMultiplier',   normalValue: '1.0', boostValue: '10.0' },
+    maps:          [],  // [{ id, displayName, serviceId }]
+    items:         [],  // [{ id, itemName, durationHours, label }]
+    cooldownHours: 2,
+    notifChannelId: '',
+  },
 };
 
 function deepMerge(target, source) {

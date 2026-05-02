@@ -4274,6 +4274,138 @@ function createWebServer(discordClient) {
     }
   });
 
+  // ── Booster Repro ──────────────────────────────────────────────────────────
+  const boosterReproManager = (() => {
+    try { return require('../boosterReproManager'); } catch { return null; }
+  })();
+
+  async function getBoosterPageVars() {
+    const settings = getSettings();
+    const boosterRepro = settings.boosterRepro || {};
+    const configuredGuildId = settings.guild?.guildId;
+    const guild = discordClient
+      ? (configuredGuildId ? discordClient.guilds.cache.get(configuredGuildId) : discordClient.guilds.cache.first())
+      : null;
+    let channels = [];
+    if (guild) {
+      const categories = guild.channels.cache.filter(ch => ch.type === 4).sort((a,b) => a.position - b.position);
+      channels = [...guild.channels.cache.values()]
+        .filter(ch => ch.type === 0)
+        .sort((a,b) => {
+          const catA = a.parentId ? (categories.get(a.parentId)?.position ?? 999) : -1;
+          const catB = b.parentId ? (categories.get(b.parentId)?.position ?? 999) : -1;
+          return catA !== catB ? catA - catB : a.position - b.position;
+        })
+        .map(ch => ({ id: ch.id, name: ch.name, category: ch.parentId ? (categories.get(ch.parentId)?.name || '') : '' }));
+    }
+    let allSessions = [];
+    if (boosterReproManager) {
+      try { allSessions = await boosterReproManager.loadSessions(); } catch {}
+    }
+    const now = Date.now();
+    const activeSessions = allSessions.filter(s => s.status === 'active' && new Date(s.expiresAt).getTime() > now);
+    const cutoff = now - 24 * 3600 * 1000;
+    const recentSessions = allSessions
+      .filter(s => s.status !== 'active' && new Date(s.expiresAt).getTime() >= cutoff)
+      .sort((a,b) => new Date(b.expiresAt) - new Date(a.expiresAt))
+      .slice(0, 20);
+    return { boosterRepro, channels, activeSessions, recentSessions };
+  }
+
+  app.get('/booster-repro', requireAdmin, async (req, res) => {
+    const vars = await getBoosterPageVars();
+    res.render('booster-repro', { ...vars, success: req.query.success || null, error: req.query.error || null });
+  });
+
+  app.post('/booster-repro/toggle', requireAdmin, async (req, res) => {
+    const enabled = req.body.enabled === '1';
+    await updateSection('boosterRepro', { enabled });
+    res.redirect('/booster-repro?success=Système+' + (enabled ? 'activé' : 'désactivé') + '+!');
+  });
+
+  app.post('/booster-repro/settings', requireAdmin, async (req, res) => {
+    try {
+      const {
+        iniKey1_key, iniKey1_normalValue, iniKey1_boostValue,
+        iniKey2_key, iniKey2_normalValue, iniKey2_boostValue,
+        cooldownHours, notifChannelId,
+      } = req.body;
+      const cur = (getSettings().boosterRepro) || {};
+      await updateSection('boosterRepro', {
+        ...cur,
+        iniKey1: { key: iniKey1_key || 'MatingIntervalMultiplier', normalValue: iniKey1_normalValue || '1.0', boostValue: iniKey1_boostValue || '0.1' },
+        iniKey2: { key: iniKey2_key || 'EggHatchSpeedMultiplier',  normalValue: iniKey2_normalValue || '1.0', boostValue: iniKey2_boostValue || '10.0' },
+        cooldownHours: parseInt(cooldownHours) || 2,
+        notifChannelId: notifChannelId || '',
+      });
+      res.redirect('/booster-repro?success=Configuration+sauvegardée+!');
+    } catch (e) {
+      res.redirect('/booster-repro?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  app.post('/booster-repro/maps/add', requireAdmin, async (req, res) => {
+    try {
+      const { displayName, serviceId } = req.body;
+      if (!displayName || !serviceId) return res.redirect('/booster-repro?error=Nom+et+Service+ID+requis');
+      const cur = getSettings().boosterRepro || {};
+      const maps = Array.isArray(cur.maps) ? [...cur.maps] : [];
+      maps.push({ id: `map_${Date.now()}`, displayName: displayName.trim(), serviceId: serviceId.trim() });
+      await updateSection('boosterRepro', { ...cur, maps });
+      res.redirect('/booster-repro?success=Map+ajoutée+!');
+    } catch (e) {
+      res.redirect('/booster-repro?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  app.post('/booster-repro/maps/delete', requireAdmin, async (req, res) => {
+    try {
+      const { mapId } = req.body;
+      const cur = getSettings().boosterRepro || {};
+      const maps = (cur.maps || []).filter(m => m.id !== mapId);
+      await updateSection('boosterRepro', { ...cur, maps });
+      res.redirect('/booster-repro?success=Map+supprimée+!');
+    } catch (e) {
+      res.redirect('/booster-repro?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  app.post('/booster-repro/items/add', requireAdmin, async (req, res) => {
+    try {
+      const { itemName, durationHours, label } = req.body;
+      if (!itemName || !durationHours || !label) return res.redirect('/booster-repro?error=Tous+les+champs+sont+requis');
+      const cur = getSettings().boosterRepro || {};
+      const items = Array.isArray(cur.items) ? [...cur.items] : [];
+      items.push({ id: `item_${Date.now()}`, itemName: itemName.trim(), durationHours: parseInt(durationHours), label: label.trim() });
+      await updateSection('boosterRepro', { ...cur, items });
+      res.redirect('/booster-repro?success=Item+booster+ajouté+!');
+    } catch (e) {
+      res.redirect('/booster-repro?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  app.post('/booster-repro/items/delete', requireAdmin, async (req, res) => {
+    try {
+      const { itemId } = req.body;
+      const cur = getSettings().boosterRepro || {};
+      const items = (cur.items || []).filter(i => i.id !== itemId);
+      await updateSection('boosterRepro', { ...cur, items });
+      res.redirect('/booster-repro?success=Item+supprimé+!');
+    } catch (e) {
+      res.redirect('/booster-repro?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  app.post('/booster-repro/sessions/cancel', requireAdmin, async (req, res) => {
+    try {
+      const { sessionId } = req.body;
+      if (boosterReproManager) await boosterReproManager.cancelSession(sessionId);
+      res.redirect('/booster-repro?success=Session+annulée+(map+non+redémarrée)+!');
+    } catch (e) {
+      res.redirect('/booster-repro?error=' + encodeURIComponent(e.message));
+    }
+  });
+
   // ─────────────────────────────────────────────────────────────────────────────
 
   // Les timers et la publication Discord des giveaways sont gérés

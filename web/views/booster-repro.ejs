@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Booster Repro — Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .br-accordion {
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      overflow: hidden;
+      margin-bottom: 18px;
+      background: var(--bg-card);
+    }
+    .br-header {
+      padding: 16px 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      user-select: none;
+      transition: background .15s;
+    }
+    .br-header:hover { background: var(--bg-hover, rgba(255,255,255,.04)); }
+    .br-icon { font-size: 20px; flex-shrink: 0; }
+    .br-title { flex: 1; font-size: 15px; font-weight: 700; }
+    .br-subtitle { font-size: 12px; color: var(--text-muted); font-weight: 400; margin-top: 2px; }
+    .br-badge {
+      font-size: 11px; padding: 3px 10px; border-radius: 20px;
+      font-weight: 700; flex-shrink: 0;
+    }
+    .br-badge-on  { background: rgba(46,204,113,.15); color: #2ecc71; border: 1px solid rgba(46,204,113,.3); }
+    .br-badge-off { background: rgba(231,76,60,.12);  color: #e74c3c; border: 1px solid rgba(231,76,60,.25); }
+    .br-chevron { font-size: 12px; color: var(--text-muted); transition: transform .2s; flex-shrink: 0; }
+    .br-accordion.open .br-chevron { transform: rotate(180deg); }
+    .br-body {
+      display: none;
+      padding: 22px 24px;
+      border-top: 1px solid var(--border-color);
+      background: var(--bg-main, var(--bg-card));
+    }
+    .br-accordion.open .br-body { display: block; }
+    .br-section-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .8px; color: var(--text-muted);
+      margin: 0 0 14px 0; display: flex; align-items: center; gap: 6px;
+    }
+    .br-section-title::after { content:''; flex:1; height:1px; background:var(--border-color); }
+    .br-form-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+    .br-form-row .form-group { flex: 1; min-width: 200px; }
+
+    /* Toggle switch */
+    .toggle-row {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 18px; border-radius: 10px;
+      background: var(--bg-input, #1e1f22);
+      border: 1px solid var(--border-color); margin-bottom: 20px;
+    }
+    .toggle-label { flex: 1; font-size: 14px; font-weight: 600; }
+    .toggle-desc { font-size: 12px; color: var(--text-muted); font-weight: 400; margin-top: 2px; }
+    .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; cursor: pointer; top:0; left:0; right:0; bottom:0;
+      background: var(--border-color); border-radius: 24px; transition: .3s;
+    }
+    .slider:before {
+      content:""; position:absolute; height:18px; width:18px; left:3px; bottom:3px;
+      background: white; border-radius: 50%; transition: .3s;
+    }
+    input:checked + .slider { background: #2ecc71; }
+    input:checked + .slider:before { transform: translateX(20px); }
+
+    /* Table */
+    .br-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }
+    .br-table th {
+      text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .6px; color: var(--text-muted);
+      border-bottom: 1px solid var(--border-color);
+    }
+    .br-table td { padding: 10px 12px; border-bottom: 1px solid var(--border-color, rgba(255,255,255,.06)); vertical-align: middle; }
+    .br-table tr:last-child td { border-bottom: none; }
+    .br-table tr:hover td { background: var(--bg-hover, rgba(255,255,255,.03)); }
+    .br-table .mono { font-family: monospace; font-size: 12px; color: var(--accent, #5865f2); }
+    .br-table .badge-dur {
+      background: rgba(88,101,242,.15); color: #7289da; border: 1px solid rgba(88,101,242,.3);
+      padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700;
+    }
+
+    /* Add form card */
+    .add-card {
+      background: var(--bg-input, #1e1f22); border: 1.5px dashed var(--border-color);
+      border-radius: 10px; padding: 16px; margin-top: 12px;
+    }
+    .add-card-title { font-size: 12px; font-weight: 700; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: .5px; }
+
+    /* Session badge */
+    .sess-active { background: rgba(46,204,113,.15); color: #2ecc71; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+    .sess-ended  { background: rgba(149,165,166,.12); color: #95a5a6; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+    .countdown { font-variant-numeric: tabular-nums; font-family: monospace; font-size: 13px; }
+    .empty-state { text-align: center; color: var(--text-muted); padding: 28px; font-size: 13px; }
+    .empty-state span { font-size: 28px; display: block; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>🧬 Booster Repro</h1>
+        <p>Système de boosters de reproduction achetables par les joueurs</p>
+      </div>
+
+      <% if (success) { %>
+        <div class="alert alert-success">✅ <%= success %></div>
+      <% } %>
+      <% if (error) { %>
+        <div class="alert alert-error">❌ <%= error %></div>
+      <% } %>
+
+      <!-- ══ Toggle actif / inactif ══════════════════════════════════════════ -->
+      <form method="POST" action="/booster-repro/toggle" style="margin-bottom:0">
+        <div class="toggle-row">
+          <div class="toggle-label">
+            Système Booster Repro
+            <div class="toggle-desc">Active ou désactive la commande /activer-booster pour les joueurs</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" name="enabled" value="1" onchange="this.form.submit()" <%= boosterRepro.enabled ? 'checked' : '' %>>
+            <span class="slider"></span>
+          </label>
+        </div>
+      </form>
+
+      <!-- ══ Configuration INI ══════════════════════════════════════════════ -->
+      <div class="br-accordion open" id="br-ini">
+        <div class="br-header" onclick="brToggle('br-ini')">
+          <span class="br-icon">⚙️</span>
+          <div style="flex:1">
+            <div class="br-title">Configuration INI</div>
+            <div class="br-subtitle">Les deux clés Game.ini modifiées pendant le boost</div>
+          </div>
+          <span class="br-chevron">▼</span>
+        </div>
+        <div class="br-body">
+          <form method="POST" action="/booster-repro/settings">
+            <p class="br-section-title">🔑 Clé 1</p>
+            <div class="br-form-row">
+              <div class="form-group">
+                <label>Nom de la clé INI</label>
+                <input type="text" name="iniKey1_key" class="form-control" value="<%= boosterRepro.iniKey1?.key || '' %>" placeholder="MatingIntervalMultiplier">
+                <p class="help-text">Doit être présent dans INI_KEY_MAP</p>
+              </div>
+              <div class="form-group">
+                <label>Valeur normale</label>
+                <input type="text" name="iniKey1_normalValue" class="form-control" value="<%= boosterRepro.iniKey1?.normalValue || '' %>" placeholder="1.0">
+              </div>
+              <div class="form-group">
+                <label>Valeur boostée</label>
+                <input type="text" name="iniKey1_boostValue" class="form-control" value="<%= boosterRepro.iniKey1?.boostValue || '' %>" placeholder="0.1">
+              </div>
+            </div>
+
+            <p class="br-section-title">🔑 Clé 2</p>
+            <div class="br-form-row">
+              <div class="form-group">
+                <label>Nom de la clé INI</label>
+                <input type="text" name="iniKey2_key" class="form-control" value="<%= boosterRepro.iniKey2?.key || '' %>" placeholder="EggHatchSpeedMultiplier">
+              </div>
+              <div class="form-group">
+                <label>Valeur normale</label>
+                <input type="text" name="iniKey2_normalValue" class="form-control" value="<%= boosterRepro.iniKey2?.normalValue || '' %>" placeholder="1.0">
+              </div>
+              <div class="form-group">
+                <label>Valeur boostée</label>
+                <input type="text" name="iniKey2_boostValue" class="form-control" value="<%= boosterRepro.iniKey2?.boostValue || '' %>" placeholder="10.0">
+              </div>
+            </div>
+
+            <p class="br-section-title">📋 Paramètres généraux</p>
+            <div class="br-form-row">
+              <div class="form-group">
+                <label>Cooldown entre deux boosts sur la même map (heures)</label>
+                <input type="number" name="cooldownHours" class="form-control" value="<%= boosterRepro.cooldownHours ?? 2 %>" min="0" max="168" placeholder="2">
+                <p class="help-text">0 = pas de cooldown</p>
+              </div>
+              <div class="form-group">
+                <label>Salon de notification Discord</label>
+                <select name="notifChannelId" class="form-control">
+                  <option value="">-- Aucun --</option>
+                  <% channels.forEach(ch => { %>
+                    <option value="<%= ch.id %>" <%= boosterRepro.notifChannelId === ch.id ? 'selected' : '' %>>
+                      <% if (ch.category) { %>[<%= ch.category %>] <% } %># <%= ch.name %>
+                    </option>
+                  <% }); %>
+                </select>
+                <p class="help-text">Annonces de début / fin de boost</p>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">💾 Sauvegarder la configuration</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- ══ Maps du cluster ════════════════════════════════════════════════ -->
+      <div class="br-accordion open" id="br-maps">
+        <div class="br-header" onclick="brToggle('br-maps')">
+          <span class="br-icon">🗺️</span>
+          <div style="flex:1">
+            <div class="br-title">Maps du cluster</div>
+            <div class="br-subtitle">Les serveurs disponibles pour le boost</div>
+          </div>
+          <span class="br-badge br-badge-on"><%= boosterRepro.maps?.length || 0 %> map(s)</span>
+          <span class="br-chevron">▼</span>
+        </div>
+        <div class="br-body">
+          <% if (boosterRepro.maps && boosterRepro.maps.length > 0) { %>
+            <table class="br-table">
+              <thead>
+                <tr>
+                  <th>Nom affiché</th>
+                  <th>Service ID Nitrado</th>
+                  <th>Session active</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <% boosterRepro.maps.forEach(map => {
+                  const activeSess = activeSessions.find(s => s.serviceId === map.serviceId);
+                %>
+                <tr>
+                  <td><strong><%= map.displayName %></strong></td>
+                  <td><span class="mono"><%= map.serviceId %></span></td>
+                  <td>
+                    <% if (activeSess) { %>
+                      <span class="sess-active">🟢 Boost actif</span>
+                      <div style="font-size:11px;color:var(--text-muted);margin-top:3px">
+                        par <%= activeSess.username %> · expire <span class="countdown" data-expires="<%= activeSess.expiresAt %>">…</span>
+                      </div>
+                    <% } else { %>
+                      <span class="sess-ended">⚪ Libre</span>
+                    <% } %>
+                  </td>
+                  <td style="text-align:right">
+                    <form method="POST" action="/booster-repro/maps/delete" style="display:inline" onsubmit="return confirm('Supprimer cette map ?')">
+                      <input type="hidden" name="mapId" value="<%= map.id %>">
+                      <button type="submit" class="btn btn-danger btn-sm">🗑️</button>
+                    </form>
+                  </td>
+                </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          <% } else { %>
+            <div class="empty-state">
+              <span>🗺️</span>
+              Aucune map configurée. Ajoute-en une ci-dessous.
+            </div>
+          <% } %>
+
+          <div class="add-card">
+            <div class="add-card-title">➕ Ajouter une map</div>
+            <form method="POST" action="/booster-repro/maps/add">
+              <div class="br-form-row">
+                <div class="form-group">
+                  <label>Nom affiché (vu par les joueurs)</label>
+                  <input type="text" name="displayName" class="form-control" placeholder="The Island" required>
+                </div>
+                <div class="form-group">
+                  <label>Service ID Nitrado</label>
+                  <input type="text" name="serviceId" class="form-control" placeholder="17822089" pattern="\d+" required>
+                </div>
+                <div class="form-group" style="display:flex;align-items:flex-end">
+                  <button type="submit" class="btn btn-primary" style="width:100%">➕ Ajouter</button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ Items Boosters ════════════════════════════════════════════════ -->
+      <div class="br-accordion open" id="br-items">
+        <div class="br-header" onclick="brToggle('br-items')">
+          <span class="br-icon">🎁</span>
+          <div style="flex:1">
+            <div class="br-title">Items Boosters</div>
+            <div class="br-subtitle">Items d'inventaire reconnus comme boosters de repro</div>
+          </div>
+          <span class="br-badge br-badge-on"><%= boosterRepro.items?.length || 0 %> item(s)</span>
+          <span class="br-chevron">▼</span>
+        </div>
+        <div class="br-body">
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
+            Ces noms d'items doivent correspondre exactement aux IDs d'items dans le système d'inventaire.
+            Les joueurs achètent ces items en boutique, puis utilisent <code>/activer-booster</code> pour les consommer.
+          </p>
+
+          <% if (boosterRepro.items && boosterRepro.items.length > 0) { %>
+            <table class="br-table">
+              <thead>
+                <tr>
+                  <th>ID item (inventaire)</th>
+                  <th>Durée</th>
+                  <th>Label Discord</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <% boosterRepro.items.forEach(item => { %>
+                <tr>
+                  <td><span class="mono"><%= item.itemName %></span></td>
+                  <td><span class="badge-dur">⏱️ <%= item.durationHours %>h</span></td>
+                  <td><%= item.label %></td>
+                  <td style="text-align:right">
+                    <form method="POST" action="/booster-repro/items/delete" style="display:inline" onsubmit="return confirm('Supprimer cet item ?')">
+                      <input type="hidden" name="itemId" value="<%= item.id %>">
+                      <button type="submit" class="btn btn-danger btn-sm">🗑️</button>
+                    </form>
+                  </td>
+                </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          <% } else { %>
+            <div class="empty-state">
+              <span>🎁</span>
+              Aucun item booster configuré. Ajoute-en un ci-dessous.
+            </div>
+          <% } %>
+
+          <div class="add-card">
+            <div class="add-card-title">➕ Ajouter un item booster</div>
+            <form method="POST" action="/booster-repro/items/add">
+              <div class="br-form-row">
+                <div class="form-group">
+                  <label>ID item dans l'inventaire</label>
+                  <input type="text" name="itemName" class="form-control" placeholder="booster-repro-6h" required>
+                  <p class="help-text">Doit correspondre à l'ID créé dans la boutique</p>
+                </div>
+                <div class="form-group">
+                  <label>Durée (heures)</label>
+                  <input type="number" name="durationHours" class="form-control" placeholder="6" min="1" max="168" required>
+                </div>
+                <div class="form-group">
+                  <label>Label affiché sur Discord</label>
+                  <input type="text" name="label" class="form-control" placeholder="Booster Repro 6h" required>
+                </div>
+                <div class="form-group" style="display:flex;align-items:flex-end">
+                  <button type="submit" class="btn btn-primary" style="width:100%">➕ Ajouter</button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ Sessions actives ════════════════════════════════════════════════ -->
+      <div class="br-accordion open" id="br-sessions">
+        <div class="br-header" onclick="brToggle('br-sessions')">
+          <span class="br-icon">📊</span>
+          <div style="flex:1">
+            <div class="br-title">Sessions actives</div>
+            <div class="br-subtitle">Boosts de repro en cours sur le cluster</div>
+          </div>
+          <% if (activeSessions.length > 0) { %>
+            <span class="br-badge br-badge-on"><%= activeSessions.length %> actif(s)</span>
+          <% } else { %>
+            <span class="br-badge br-badge-off">Aucun</span>
+          <% } %>
+          <span class="br-chevron">▼</span>
+        </div>
+        <div class="br-body">
+          <% if (activeSessions.length > 0) { %>
+            <table class="br-table">
+              <thead>
+                <tr>
+                  <th>Joueur</th>
+                  <th>Map</th>
+                  <th>Durée</th>
+                  <th>Début</th>
+                  <th>Expire dans</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <% activeSessions.forEach(sess => { %>
+                <tr>
+                  <td><strong><%= sess.username %></strong></td>
+                  <td><%= sess.mapDisplayName %></td>
+                  <td><span class="badge-dur">⏱️ <%= sess.durationHours %>h</span></td>
+                  <td style="font-size:12px;color:var(--text-muted)">
+                    <%= new Date(sess.startedAt).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) %>
+                  </td>
+                  <td><span class="countdown" data-expires="<%= sess.expiresAt %>">…</span></td>
+                  <td style="text-align:right">
+                    <form method="POST" action="/booster-repro/sessions/cancel" style="display:inline" onsubmit="return confirm('Annuler ce boost (la map ne sera PAS redémarrée automatiquement) ?')">
+                      <input type="hidden" name="sessionId" value="<%= sess.id %>">
+                      <button type="submit" class="btn btn-danger btn-sm">⛔ Annuler</button>
+                    </form>
+                  </td>
+                </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          <% } else { %>
+            <div class="empty-state">
+              <span>😴</span>
+              Aucun boost actif en ce moment.
+            </div>
+          <% } %>
+
+          <% if (recentSessions.length > 0) { %>
+            <p class="br-section-title" style="margin-top:24px">🕓 Sessions récentes (24h)</p>
+            <table class="br-table">
+              <thead>
+                <tr><th>Joueur</th><th>Map</th><th>Durée</th><th>Statut</th><th>Terminé le</th></tr>
+              </thead>
+              <tbody>
+                <% recentSessions.forEach(sess => { %>
+                <tr>
+                  <td><%= sess.username %></td>
+                  <td><%= sess.mapDisplayName %></td>
+                  <td><span class="badge-dur">⏱️ <%= sess.durationHours %>h</span></td>
+                  <td>
+                    <% if (sess.status === 'ended') { %><span class="sess-ended">✅ Terminé</span>
+                    <% } else { %><span class="sess-ended">⛔ Annulé</span><% } %>
+                  </td>
+                  <td style="font-size:12px;color:var(--text-muted)">
+                    <%= new Date(sess.expiresAt).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) %>
+                  </td>
+                </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          <% } %>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    function brToggle(id) {
+      document.getElementById(id).classList.toggle('open');
+    }
+
+    // Countdown timers
+    function formatCountdown(ms) {
+      if (ms <= 0) return 'Expiré';
+      const h = Math.floor(ms / 3600000);
+      const m = Math.floor((ms % 3600000) / 60000);
+      const s = Math.floor((ms % 60000) / 1000);
+      if (h > 0) return `${h}h ${String(m).padStart(2,'0')}m`;
+      if (m > 0) return `${m}m ${String(s).padStart(2,'0')}s`;
+      return `${s}s`;
+    }
+
+    function updateCountdowns() {
+      document.querySelectorAll('.countdown[data-expires]').forEach(el => {
+        const ms = new Date(el.dataset.expires).getTime() - Date.now();
+        el.textContent = formatCountdown(ms);
+        if (ms <= 0) el.style.color = '#e74c3c';
+        else if (ms < 3600000) el.style.color = '#e67e22';
+        else el.style.color = '#2ecc71';
+      });
+    }
+
+    updateCountdowns();
+    setInterval(updateCountdowns, 1000);
+  </script>
+</body>
+</html>
