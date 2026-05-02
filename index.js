@@ -4089,6 +4089,107 @@ client.on('interactionCreate', async interaction => {
   return interaction.editReply(lines.join('\n'));
 });
 
+// ─── CASINO : déblocage forcé d'un joueur ────────────────────────────────────
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isChatInputCommand()) return;
+  if (interaction.commandName !== 'casino-debloquer') return;
+
+  if (!interaction.memberPermissions?.has('ManageMessages')) {
+    return interaction.reply({ content: '❌ Réservé aux admins et modérateurs.', ephemeral: true });
+  }
+
+  const targetUser = interaction.options.getUser('membre');
+  const userId = targetUser.id;
+  const nettoyages = [];
+
+  // ── 1. Blackjack ──────────────────────────────────────────────────────────
+  try {
+    const bjPath = path.join(__dirname, 'casino', 'config', 'blackjack.json');
+    if (fs.existsSync(bjPath)) {
+      const parties = JSON.parse(fs.readFileSync(bjPath, 'utf8'));
+      if (parties[userId]) {
+        const etat = parties[userId].etat;
+        delete parties[userId];
+        fs.writeFileSync(bjPath, JSON.stringify(parties, null, 4));
+        nettoyages.push(`🃏 **Blackjack** : partie supprimée (état : \`${etat}\`)`);
+      }
+    }
+  } catch (e) {
+    nettoyages.push(`🃏 **Blackjack** : erreur — ${e.message}`);
+  }
+
+  // ── 2. Roulette Russe ─────────────────────────────────────────────────────
+  try {
+    const rrPath = path.join(__dirname, 'casino', 'config', 'rouletterusse.json');
+    if (fs.existsSync(rrPath)) {
+      const partie = JSON.parse(fs.readFileSync(rrPath, 'utf8'));
+      const avant = (partie.participants || []).length;
+      partie.participants = (partie.participants || []).filter(p => String(p.id) !== String(userId));
+      if (partie.participants.length < avant) {
+        fs.writeFileSync(rrPath, JSON.stringify(partie, null, 4));
+        nettoyages.push(`🔫 **Roulette Russe** : joueur retiré des participants`);
+      }
+    }
+  } catch (e) {
+    nettoyages.push(`🔫 **Roulette Russe** : erreur — ${e.message}`);
+  }
+
+  // ── 3. Poker ──────────────────────────────────────────────────────────────
+  try {
+    const pokerPath = path.join(__dirname, 'casino', 'data', 'tables.json');
+    if (fs.existsSync(pokerPath)) {
+      const tables = JSON.parse(fs.readFileSync(pokerPath, 'utf8'));
+      let modifie = false;
+      if (Array.isArray(tables)) {
+        for (const table of tables) {
+          if (Array.isArray(table.participants) && table.participants.includes(userId)) {
+            table.participants = table.participants.filter(id => id !== userId);
+            modifie = true;
+          }
+        }
+        if (modifie) {
+          fs.writeFileSync(pokerPath, JSON.stringify(tables, null, 2));
+          nettoyages.push(`♠️ **Poker** : joueur retiré de la/les table(s)`);
+        }
+      }
+    }
+  } catch (e) {
+    nettoyages.push(`♠️ **Poker** : erreur — ${e.message}`);
+  }
+
+  // ── 4. Roulette (paris en attente) ───────────────────────────────────────
+  try {
+    const roulPath = path.join(__dirname, 'casino', 'config', 'roulette.json');
+    if (fs.existsSync(roulPath)) {
+      const paris = JSON.parse(fs.readFileSync(roulPath, 'utf8'));
+      if (paris[userId]) {
+        delete paris[userId];
+        fs.writeFileSync(roulPath, JSON.stringify(paris, null, 4));
+        nettoyages.push(`🎡 **Roulette** : paris en attente supprimés`);
+      }
+    }
+  } catch (e) {
+    nettoyages.push(`🎡 **Roulette** : erreur — ${e.message}`);
+  }
+
+  // ── Réponse ───────────────────────────────────────────────────────────────
+  const embed = new EmbedBuilder()
+    .setTitle(`🎰 Déblocage casino — ${targetUser.username}`)
+    .setColor(nettoyages.length === 0 ? 0x57f287 : 0xe67e22)
+    .setTimestamp();
+
+  if (nettoyages.length === 0) {
+    embed.setDescription(`✅ Aucune partie en cours trouvée pour <@${userId}>.\nLe joueur n'était bloqué dans aucun jeu.`);
+  } else {
+    embed.setDescription(
+      `Le joueur <@${userId}> a été retiré des jeux suivants :\n\n` +
+      nettoyages.join('\n'),
+    );
+  }
+
+  return interaction.reply({ embeds: [embed], ephemeral: true });
+});
+
 // ─── XP : gain automatique sur message ───────────────────────────────────────
 client.on('messageCreate', async message => {
   // ── Fils poker : suppression automatique des messages joueurs ─────────────

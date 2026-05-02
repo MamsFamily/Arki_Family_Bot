@@ -356,6 +356,18 @@ const commands = [
     name: 'recap',
     description: 'Publie le récapitulatif de la commande dans le ticket (Admin uniquement)',
   },
+  {
+    name: 'casino-debloquer',
+    description: '🎰 Retire un joueur de toutes les parties casino en cours (Admin et Modo)',
+    options: [
+      {
+        name: 'membre',
+        type: 6,
+        description: 'Le joueur à débloquer',
+        required: true,
+      },
+    ],
+  },
 ];
 
 module.exports = commands;
