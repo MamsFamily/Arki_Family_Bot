@@ -4309,7 +4309,28 @@ function createWebServer(discordClient) {
       .filter(s => s.status !== 'active' && new Date(s.expiresAt).getTime() >= cutoff)
       .sort((a,b) => new Date(b.expiresAt) - new Date(a.expiresAt))
       .slice(0, 20);
-    return { boosterRepro, channels, activeSessions, recentSessions };
+
+    // ── Serveurs Nitrado disponibles (FTP configuré) ──────────────────────────
+    // On croise les credentials FTP enregistrés avec les noms venant de l'API
+    const nitradoFtp = settings.nitradoFtp || {};
+    let nitradoApiNames = {};
+    try {
+      const apiServices = await nitrado.getServices();
+      for (const s of apiServices) {
+        nitradoApiNames[String(s.id)] = s.details?.name || s.username || null;
+      }
+    } catch { /* API indispo — on utilise uniquement les infos FTP */ }
+
+    // Construire la liste des serveurs sélectionnables (uniquement ceux avec FTP)
+    const nitradoServersForSelect = Object.entries(nitradoFtp).map(([svcId, ftp]) => ({
+      serviceId: svcId,
+      apiName:   nitradoApiNames[svcId] || null,
+      host:      ftp.host || '',
+      port:      ftp.port || 21,
+      user:      ftp.user || '',
+    }));
+
+    return { boosterRepro, channels, activeSessions, recentSessions, nitradoServersForSelect };
   }
 
   app.get('/booster-repro', requireAdmin, async (req, res) => {

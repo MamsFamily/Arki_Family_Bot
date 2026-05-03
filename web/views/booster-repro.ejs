@@ -262,21 +262,77 @@
 
           <div class="add-card">
             <div class="add-card-title">➕ Ajouter une map</div>
-            <form method="POST" action="/booster-repro/maps/add">
-              <div class="br-form-row">
-                <div class="form-group">
-                  <label>Nom affiché (vu par les joueurs)</label>
-                  <input type="text" name="displayName" class="form-control" placeholder="The Island" required>
-                </div>
-                <div class="form-group">
-                  <label>Service ID Nitrado</label>
-                  <input type="text" name="serviceId" class="form-control" placeholder="17822089" pattern="\d+" required>
-                </div>
-                <div class="form-group" style="display:flex;align-items:flex-end">
-                  <button type="submit" class="btn btn-primary" style="width:100%">➕ Ajouter</button>
-                </div>
+
+            <% if (!nitradoServersForSelect || nitradoServersForSelect.length === 0) { %>
+              <div style="padding:14px;border-radius:8px;background:rgba(231,76,60,.08);border:1px solid rgba(231,76,60,.2);font-size:13px;color:var(--text-muted)">
+                ⚠️ Aucun serveur Nitrado avec credentials FTP configurés.
+                <a href="/nitrado" style="color:var(--accent)">Configure les serveurs dans l'onglet Nitrado</a> d'abord.
               </div>
-            </form>
+            <% } else { %>
+              <form method="POST" action="/booster-repro/maps/add" id="form-add-map">
+                <!-- Champs cachés remplis par le JS -->
+                <input type="hidden" name="serviceId" id="map-serviceId">
+                <input type="hidden" name="displayName" id="map-displayName-hidden">
+
+                <!-- Sélecteur serveur -->
+                <div class="form-group" style="margin-bottom:14px">
+                  <label>Serveur Nitrado <span style="color:var(--text-muted);font-weight:400">(FTP configuré)</span></label>
+                  <select id="map-server-select" class="form-control" onchange="onMapServerSelect(this)" required>
+                    <option value="">— Choisir un serveur —</option>
+                    <% nitradoServersForSelect.forEach(srv => {
+                      const label = srv.apiName
+                        ? `${srv.apiName} (${srv.serviceId})`
+                        : `Serveur ${srv.serviceId}`;
+                    %>
+                      <option value="<%= srv.serviceId %>"
+                        data-api-name="<%= srv.apiName || '' %>"
+                        data-host="<%= srv.host %>"
+                        data-user="<%= srv.user %>"
+                        data-port="<%= srv.port %>">
+                        <%= label %>
+                      </option>
+                    <% }); %>
+                  </select>
+                  <p class="help-text">Seuls les serveurs avec credentials FTP enregistrés sont listés.</p>
+                </div>
+
+                <!-- Carte d'infos (affichée après sélection) -->
+                <div id="map-server-info" style="display:none;margin-bottom:16px;padding:12px 14px;border-radius:9px;background:var(--bg-card);border:1px solid var(--border-color)">
+                  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">
+                    <div>
+                      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Hôte FTP</div>
+                      <div id="info-host" style="font-family:monospace;font-size:13px"></div>
+                    </div>
+                    <div>
+                      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Utilisateur</div>
+                      <div id="info-user" style="font-family:monospace;font-size:13px"></div>
+                    </div>
+                    <div>
+                      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Port</div>
+                      <div id="info-port" style="font-family:monospace;font-size:13px"></div>
+                    </div>
+                    <div>
+                      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Service ID</div>
+                      <div id="info-sid" style="font-family:monospace;font-size:13px;color:var(--accent)"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Nom affiché (modifiable après auto-fill) -->
+                <div class="br-form-row" style="align-items:flex-end">
+                  <div class="form-group">
+                    <label>Nom affiché aux joueurs <span style="color:var(--text-muted);font-weight:400">(modifiable)</span></label>
+                    <input type="text" id="map-displayName-input" class="form-control"
+                      placeholder="Sélectionne un serveur ci-dessus" required
+                      oninput="document.getElementById('map-displayName-hidden').value = this.value">
+                    <p class="help-text">Ex : The Island, Scorched Earth…</p>
+                  </div>
+                  <div class="form-group" style="display:flex;align-items:flex-end;max-width:160px">
+                    <button type="submit" class="btn btn-primary" id="btn-add-map" style="width:100%" disabled>➕ Ajouter</button>
+                  </div>
+                </div>
+              </form>
+            <% } %>
           </div>
         </div>
       </div>
@@ -445,6 +501,45 @@
   <script>
     function brToggle(id) {
       document.getElementById(id).classList.toggle('open');
+    }
+
+    // ── Sélection d'un serveur Nitrado dans le formulaire "Ajouter une map" ──
+    function onMapServerSelect(sel) {
+      const opt = sel.options[sel.selectedIndex];
+      const serviceId   = opt.value;
+      const apiName     = opt.dataset.apiName || '';
+      const host        = opt.dataset.host || '';
+      const user        = opt.dataset.user || '';
+      const port        = opt.dataset.port || '21';
+
+      const infoCard    = document.getElementById('map-server-info');
+      const nameInput   = document.getElementById('map-displayName-input');
+      const hiddenSid   = document.getElementById('map-serviceId');
+      const hiddenName  = document.getElementById('map-displayName-hidden');
+      const addBtn      = document.getElementById('btn-add-map');
+
+      if (!serviceId) {
+        infoCard.style.display  = 'none';
+        nameInput.value         = '';
+        hiddenSid.value         = '';
+        hiddenName.value        = '';
+        addBtn.disabled         = true;
+        return;
+      }
+
+      // Remplir la carte d'infos
+      document.getElementById('info-host').textContent = host || '—';
+      document.getElementById('info-user').textContent = user || '—';
+      document.getElementById('info-port').textContent = port;
+      document.getElementById('info-sid').textContent  = serviceId;
+      infoCard.style.display = 'block';
+
+      // Auto-remplir le nom affiché avec le nom API (l'admin peut le modifier)
+      const suggestedName = apiName || `Serveur ${serviceId}`;
+      nameInput.value    = suggestedName;
+      hiddenSid.value    = serviceId;
+      hiddenName.value   = suggestedName;
+      addBtn.disabled    = false;
     }
 
     // Countdown timers
