@@ -4236,6 +4236,9 @@ client.on('interactionCreate', async interaction => {
       });
     }
 
+    // Retrouver la config INI spécifique à cet item
+    const itemCfgFull = (cfg.items || []).find(i => i.itemName === itemName) || booster;
+
     // Créer la session
     const expiresAt = new Date(Date.now() + durationHours * 3600 * 1000);
     const session = await boosterReproManager.createSession({
@@ -4243,7 +4246,14 @@ client.on('interactionCreate', async interaction => {
       mapDisplayName: mapCfg.displayName,
       itemName, durationHours,
       expiresAt,
-      iniBackup: { key1: cfg.iniKey1?.normalValue || '1.0', key2: cfg.iniKey2?.normalValue || '1.0' },
+      iniBackup: {
+        key1: itemCfgFull.iniKey1?.normalValue || '1.0',
+        key2: itemCfgFull.iniKey2?.normalValue || '1.0',
+      },
+      iniConfig: {
+        key1Name: itemCfgFull.iniKey1?.key || '',
+        key2Name: itemCfgFull.iniKey2?.key || '',
+      },
     });
 
     // Notifier que le boost est en cours d'application
@@ -4263,7 +4273,7 @@ client.on('interactionCreate', async interaction => {
     // Appliquer les INI + redémarrer en arrière-plan
     (async () => {
       try {
-        await boosterReproManager.applyBoostIni(serviceId, cfg);
+        await boosterReproManager.applyBoostIni(serviceId, itemCfgFull);
         await require('./web/nitradoManager').restartServer(serviceId, 'Activation booster de reproduction');
         console.log(`[BoosterRepro] ✅ Boost activé par ${username} sur ${mapCfg.displayName}`);
 

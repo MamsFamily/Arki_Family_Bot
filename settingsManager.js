@@ -136,10 +136,37 @@ const DEFAULTS = {
   // nitradoFtp est un objet keyed par serviceId : { [serviceId]: { host, port, user, password, secure } }
   boosterRepro: {
     enabled: false,
-    iniKey1: { key: 'MatingIntervalMultiplier',  normalValue: '1.0', boostValue: '0.1' },
-    iniKey2: { key: 'EggHatchSpeedMultiplier',   normalValue: '1.0', boostValue: '10.0' },
-    maps:          [],  // [{ id, displayName, serviceId }]
-    items:         [],  // [{ id, itemName, durationHours, label }]
+    maps:  [],  // [{ id, displayName, serviceId }]
+    // Chaque item a sa propre config INI : { id, itemName, durationHours, label, icon, iniKey1, iniKey2 }
+    items: [
+      {
+        id: 'boost-repro-6h',
+        itemName: 'boost-repro-6h',
+        durationHours: 6,
+        label: 'Boost Repro 6h',
+        icon: '/img/boost-repro-6h.png',
+        iniKey1: { key: 'MatingIntervalMultiplier', normalValue: '1.0', boostValue: '0.1' },
+        iniKey2: { key: 'EggHatchSpeedMultiplier',  normalValue: '1.0', boostValue: '10.0' },
+      },
+      {
+        id: 'boost-repro-12h',
+        itemName: 'boost-repro-12h',
+        durationHours: 12,
+        label: 'Boost Repro 12h',
+        icon: '/img/boost-repro-12h.png',
+        iniKey1: { key: 'MatingIntervalMultiplier', normalValue: '1.0', boostValue: '0.1' },
+        iniKey2: { key: 'EggHatchSpeedMultiplier',  normalValue: '1.0', boostValue: '10.0' },
+      },
+      {
+        id: 'boost-repro-24h',
+        itemName: 'boost-repro-24h',
+        durationHours: 24,
+        label: 'Boost Repro 24h',
+        icon: '/img/boost-repro-24h.png',
+        iniKey1: { key: 'MatingIntervalMultiplier', normalValue: '1.0', boostValue: '0.1' },
+        iniKey2: { key: 'EggHatchSpeedMultiplier',  normalValue: '1.0', boostValue: '10.0' },
+      },
+    ],
     cooldownHours: 2,
     notifChannelId: '',
   },

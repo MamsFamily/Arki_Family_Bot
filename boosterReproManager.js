@@ -19,7 +19,7 @@ async function saveSessions(sessions) {
   await pgStore.setData(SESSIONS_KEY, sessions);
 }
 
-async function createSession({ userId, username, serviceId, mapDisplayName, itemName, durationHours, expiresAt, iniBackup }) {
+async function createSession({ userId, username, serviceId, mapDisplayName, itemName, durationHours, expiresAt, iniBackup, iniConfig }) {
   const sessions = await loadSessions();
   const session = {
     id: `${Date.now()}_${userId}`,
@@ -32,7 +32,8 @@ async function createSession({ userId, username, serviceId, mapDisplayName, item
     startedAt:  new Date().toISOString(),
     expiresAt:  new Date(expiresAt).toISOString(),
     status:     'active',
-    iniBackup:  iniBackup || {},
+    iniBackup:  iniBackup  || {},   // { key1: valeurNormale1, key2: valeurNormale2 }
+    iniConfig:  iniConfig  || {},   // { key1Name: 'MatingIntervalMultiplier', key2Name: '...' }
   };
   sessions.push(session);
   await saveSessions(sessions);
@@ -79,47 +80,61 @@ async function cancelSession(sessionId) {
 }
 
 // ── INI Apply / Restore ───────────────────────────────────────────────────────
+// itemConfig = { iniKey1: { key, boostValue }, iniKey2: { key, boostValue } }
 
-async function applyBoostIni(serviceId, boosterSettings) {
-  const { iniKey1, iniKey2 } = boosterSettings;
+async function applyBoostIni(serviceId, itemConfig) {
+  const { iniKey1, iniKey2 } = itemConfig;
   const errors = [];
 
-  try {
-    await updateIniKeyMapped(serviceId, iniKey1.key, String(iniKey1.boostValue));
-    console.log(`[BoosterRepro] ✅ ${iniKey1.key}=${iniKey1.boostValue} appliqué sur ${serviceId}`);
-  } catch (e) {
-    console.error(`[BoosterRepro] Erreur ${iniKey1.key}:`, e.message);
-    errors.push(`${iniKey1.key}: ${e.message}`);
+  if (iniKey1 && iniKey1.key) {
+    try {
+      await updateIniKeyMapped(serviceId, iniKey1.key, String(iniKey1.boostValue));
+      console.log(`[BoosterRepro] ✅ ${iniKey1.key}=${iniKey1.boostValue} appliqué sur ${serviceId}`);
+    } catch (e) {
+      console.error(`[BoosterRepro] Erreur ${iniKey1.key}:`, e.message);
+      errors.push(`${iniKey1.key}: ${e.message}`);
+    }
   }
 
-  try {
-    await updateIniKeyMapped(serviceId, iniKey2.key, String(iniKey2.boostValue));
-    console.log(`[BoosterRepro] ✅ ${iniKey2.key}=${iniKey2.boostValue} appliqué sur ${serviceId}`);
-  } catch (e) {
-    console.error(`[BoosterRepro] Erreur ${iniKey2.key}:`, e.message);
-    errors.push(`${iniKey2.key}: ${e.message}`);
+  if (iniKey2 && iniKey2.key) {
+    try {
+      await updateIniKeyMapped(serviceId, iniKey2.key, String(iniKey2.boostValue));
+      console.log(`[BoosterRepro] ✅ ${iniKey2.key}=${iniKey2.boostValue} appliqué sur ${serviceId}`);
+    } catch (e) {
+      console.error(`[BoosterRepro] Erreur ${iniKey2.key}:`, e.message);
+      errors.push(`${iniKey2.key}: ${e.message}`);
+    }
   }
 
   if (errors.length) throw new Error(errors.join(' | '));
 }
 
-async function restoreNormalIni(serviceId, iniBackup, boosterSettings) {
-  const { iniKey1, iniKey2 } = boosterSettings;
-  const val1 = iniBackup?.key1 || iniKey1.normalValue;
-  const val2 = iniBackup?.key2 || iniKey2.normalValue;
+// Restaure les valeurs normales à partir des données stockées dans la session
+// session.iniConfig = { key1Name, key2Name }
+// session.iniBackup = { key1, key2 }
+async function restoreNormalIni(serviceId, session, fallbackItemConfig) {
+  // Priorité : infos stockées dans la session → fallback sur itemConfig
+  const key1Name = session.iniConfig?.key1Name || fallbackItemConfig?.iniKey1?.key;
+  const key2Name = session.iniConfig?.key2Name || fallbackItemConfig?.iniKey2?.key;
+  const val1     = session.iniBackup?.key1     || fallbackItemConfig?.iniKey1?.normalValue || '1.0';
+  const val2     = session.iniBackup?.key2     || fallbackItemConfig?.iniKey2?.normalValue || '1.0';
 
-  try {
-    await updateIniKeyMapped(serviceId, iniKey1.key, String(val1));
-    console.log(`[BoosterRepro] ✅ ${iniKey1.key}=${val1} restauré sur ${serviceId}`);
-  } catch (e) {
-    console.error(`[BoosterRepro] Erreur restauration ${iniKey1.key}:`, e.message);
+  if (key1Name) {
+    try {
+      await updateIniKeyMapped(serviceId, key1Name, String(val1));
+      console.log(`[BoosterRepro] ✅ ${key1Name}=${val1} restauré sur ${serviceId}`);
+    } catch (e) {
+      console.error(`[BoosterRepro] Erreur restauration ${key1Name}:`, e.message);
+    }
   }
 
-  try {
-    await updateIniKeyMapped(serviceId, iniKey2.key, String(val2));
-    console.log(`[BoosterRepro] ✅ ${iniKey2.key}=${val2} restauré sur ${serviceId}`);
-  } catch (e) {
-    console.error(`[BoosterRepro] Erreur restauration ${iniKey2.key}:`, e.message);
+  if (key2Name) {
+    try {
+      await updateIniKeyMapped(serviceId, key2Name, String(val2));
+      console.log(`[BoosterRepro] ✅ ${key2Name}=${val2} restauré sur ${serviceId}`);
+    } catch (e) {
+      console.error(`[BoosterRepro] Erreur restauration ${key2Name}:`, e.message);
+    }
   }
 }
 
@@ -138,8 +153,11 @@ async function checkExpiredSessions(discordClient) {
   for (const session of expired) {
     console.log(`[BoosterRepro] Session expirée détectée: ${session.id} (${session.mapDisplayName})`);
 
+    // Retrouver la config de l'item pour avoir le fallback INI
+    const itemConfig = (settings.items || []).find(i => i.itemName === session.itemName) || null;
+
     try {
-      await restoreNormalIni(session.serviceId, session.iniBackup, settings);
+      await restoreNormalIni(session.serviceId, session, itemConfig);
     } catch (e) {
       console.error(`[BoosterRepro] Erreur restauration INI session ${session.id}:`, e.message);
     }
@@ -157,7 +175,6 @@ async function checkExpiredSessions(discordClient) {
       try {
         const ch = discordClient.channels.cache.get(settings.notifChannelId);
         if (ch) {
-          const expiresTs = Math.floor(new Date(session.expiresAt).getTime() / 1000);
           await ch.send({
             embeds: [new EmbedBuilder()
               .setTitle('🔴 Booster Repro terminé')

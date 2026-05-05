@@ -4346,20 +4346,39 @@ function createWebServer(discordClient) {
 
   app.post('/booster-repro/settings', requireAdmin, async (req, res) => {
     try {
-      const {
-        iniKey1_key, iniKey1_normalValue, iniKey1_boostValue,
-        iniKey2_key, iniKey2_normalValue, iniKey2_boostValue,
-        cooldownHours, notifChannelId,
-      } = req.body;
+      const { cooldownHours, notifChannelId } = req.body;
       const cur = (getSettings().boosterRepro) || {};
       await updateSection('boosterRepro', {
         ...cur,
-        iniKey1: { key: iniKey1_key || 'MatingIntervalMultiplier', normalValue: iniKey1_normalValue || '1.0', boostValue: iniKey1_boostValue || '0.1' },
-        iniKey2: { key: iniKey2_key || 'EggHatchSpeedMultiplier',  normalValue: iniKey2_normalValue || '1.0', boostValue: iniKey2_boostValue || '10.0' },
         cooldownHours: parseInt(cooldownHours) || 2,
         notifChannelId: notifChannelId || '',
       });
       res.redirect('/booster-repro?success=Configuration+sauvegardée+!');
+    } catch (e) {
+      res.redirect('/booster-repro?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  // Sauvegarde config INI d'un item spécifique
+  app.post('/booster-repro/items/ini', requireAdmin, async (req, res) => {
+    try {
+      const {
+        itemId,
+        iniKey1_key, iniKey1_normalValue, iniKey1_boostValue,
+        iniKey2_key, iniKey2_normalValue, iniKey2_boostValue,
+      } = req.body;
+      if (!itemId) return res.redirect('/booster-repro?error=Item+ID+manquant');
+      const cur = getSettings().boosterRepro || {};
+      const items = (cur.items || []).map(item => {
+        if (item.id !== itemId) return item;
+        return {
+          ...item,
+          iniKey1: { key: (iniKey1_key || '').trim(), normalValue: (iniKey1_normalValue || '1.0').trim(), boostValue: (iniKey1_boostValue || '1.0').trim() },
+          iniKey2: { key: (iniKey2_key || '').trim(), normalValue: (iniKey2_normalValue || '1.0').trim(), boostValue: (iniKey2_boostValue || '1.0').trim() },
+        };
+      });
+      await updateSection('boosterRepro', { ...cur, items });
+      res.redirect('/booster-repro?success=Config+INI+sauvegardée+!');
     } catch (e) {
       res.redirect('/booster-repro?error=' + encodeURIComponent(e.message));
     }
@@ -4393,11 +4412,23 @@ function createWebServer(discordClient) {
 
   app.post('/booster-repro/items/add', requireAdmin, async (req, res) => {
     try {
-      const { itemName, durationHours, label } = req.body;
+      const {
+        itemName, durationHours, label, icon,
+        iniKey1_key, iniKey1_normalValue, iniKey1_boostValue,
+        iniKey2_key, iniKey2_normalValue, iniKey2_boostValue,
+      } = req.body;
       if (!itemName || !durationHours || !label) return res.redirect('/booster-repro?error=Tous+les+champs+sont+requis');
       const cur = getSettings().boosterRepro || {};
       const items = Array.isArray(cur.items) ? [...cur.items] : [];
-      items.push({ id: `item_${Date.now()}`, itemName: itemName.trim(), durationHours: parseInt(durationHours), label: label.trim() });
+      items.push({
+        id: `item_${Date.now()}`,
+        itemName: itemName.trim(),
+        durationHours: parseInt(durationHours),
+        label: label.trim(),
+        icon: (icon || '').trim() || '',
+        iniKey1: { key: (iniKey1_key || '').trim(), normalValue: (iniKey1_normalValue || '1.0').trim(), boostValue: (iniKey1_boostValue || '1.0').trim() },
+        iniKey2: { key: (iniKey2_key || '').trim(), normalValue: (iniKey2_normalValue || '1.0').trim(), boostValue: (iniKey2_boostValue || '1.0').trim() },
+      });
       await updateSection('boosterRepro', { ...cur, items });
       res.redirect('/booster-repro?success=Item+booster+ajouté+!');
     } catch (e) {
