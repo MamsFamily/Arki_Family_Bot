@@ -2266,6 +2266,7 @@ async function handleInvPick(interaction, orderId) {
       usedQty: effectiveQty,
       label: adjustedLabel,
     });
+    pgStore.saveShopOrder(order).catch(() => {});
   }
 
   // Mettre à jour le message avec le nouveau menu (prix mis à jour)
@@ -2291,6 +2292,7 @@ async function handleInvDirect(interaction, orderId) {
     remainingDiamonds: remD,
     remainingStrawberries: remS,
   };
+  pgStore.saveShopOrder(order).catch(() => {});
 
   // Désactiver le menu
   try { await interaction.message.edit({ components: [] }); } catch (e) {}
@@ -2348,6 +2350,7 @@ async function handlePayMethod(interaction, orderId, methodKey) {
 
   order.paymentMethod = choice.id;
   order.paymentChoice = choice;
+  pgStore.saveShopOrder(order).catch(() => {});
 
   // Désactiver les boutons de paiement
   try { await interaction.message.edit({ components: [] }); } catch (e) {}
