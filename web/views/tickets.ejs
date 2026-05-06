@@ -522,10 +522,163 @@
         </div>
       </div>
 
+      <!-- ══ Tickets Réclamation ══════════════════════════════════════════════ -->
+      <div class="tk-accordion" id="tk-reclaim">
+        <div class="tk-header" onclick="tkToggle('tk-reclaim')">
+          <span class="tk-icon">📋</span>
+          <div style="flex:1">
+            <div class="tk-title">Tickets Réclamation</div>
+            <div class="tk-subtitle">Inventaire · Résurrection · Structures · Autres — prélèvement diamants automatique</div>
+          </div>
+          <span class="tk-badge tk-badge-active">Actif</span>
+          <span class="tk-chevron">▼</span>
+        </div>
+        <div class="tk-body">
+          <form method="POST" action="/tickets/reclaim">
+
+            <p class="tk-section-title">📂 Canaux Discord</p>
+            <div class="tk-form-row">
+              <div class="form-group">
+                <label for="reclaimCategoryId">📂 Catégorie des tickets</label>
+                <select id="reclaimCategoryId" name="reclaimCategoryId" class="form-control">
+                  <option value="">-- Aucune (racine du serveur) --</option>
+                  <% (discordCategories || []).forEach(cat => { %>
+                    <option value="<%= cat.id %>" <%= reclaimTicket.categoryId === cat.id ? 'selected' : '' %>>
+                      📁 <%= cat.name %>
+                    </option>
+                  <% }); %>
+                </select>
+                <p class="help-text">Catégorie où sont créés les salons réclamation-xxx</p>
+              </div>
+              <div class="form-group">
+                <label for="reclaimNotifChannelId">🔔 Salon de notification à l'ouverture</label>
+                <select id="reclaimNotifChannelId" name="reclaimNotifChannelId" class="form-control">
+                  <option value="">-- Aucune notification --</option>
+                  <% (channels || []).forEach(ch => { %>
+                    <option value="<%= ch.id %>" <%= reclaimTicket.notifChannelId === ch.id ? 'selected' : '' %>>
+                      <% if (ch.category) { %>[<%= ch.category %>] <% } %># <%= ch.name %>
+                    </option>
+                  <% }); %>
+                </select>
+                <p class="help-text">Un message est envoyé ici à chaque ouverture de ticket</p>
+              </div>
+              <div class="form-group">
+                <label for="reclaimLogChannelId">📋 Salon de log à la suppression</label>
+                <select id="reclaimLogChannelId" name="reclaimLogChannelId" class="form-control">
+                  <option value="">-- Aucun log --</option>
+                  <% (channels || []).forEach(ch => { %>
+                    <option value="<%= ch.id %>" <%= reclaimTicket.logChannelId === ch.id ? 'selected' : '' %>>
+                      <% if (ch.category) { %>[<%= ch.category %>] <% } %># <%= ch.name %>
+                    </option>
+                  <% }); %>
+                </select>
+                <p class="help-text">Récapitulatif envoyé ici lors de la suppression d'un ticket</p>
+              </div>
+            </div>
+
+            <p class="tk-section-title" style="margin-top:8px">🛡️ Permissions</p>
+            <div class="tk-form-row">
+              <div class="form-group" style="max-width:520px">
+                <label>Rôles staff pouvant voir et gérer les tickets réclamation</label>
+                <div class="role-picker" id="rolePickerReclaim">
+                  <div class="role-picker-trigger" onclick="rpToggle('rolePickerReclaim')">
+                    <span class="role-picker-placeholder" id="rpPlaceholderReclaim" style="display:<%= (reclaimTicket.staffRoleIds||[]).length ? 'none' : 'inline' %>">Sélectionner des rôles…</span>
+                    <span id="rpTagsReclaim" style="display:contents"></span>
+                    <span class="role-picker-chevron">▼</span>
+                  </div>
+                  <div class="role-picker-dropdown">
+                    <div class="role-picker-search">
+                      <input type="text" placeholder="Rechercher un rôle…" oninput="rpFilter(this,'rolePickerReclaim')">
+                    </div>
+                    <% (discordRoles || []).forEach(r => {
+                      const sel = (reclaimTicket.staffRoleIds || []).includes(r.id);
+                    %>
+                    <label class="role-option <%= sel ? 'checked' : '' %>" data-role-id="<%= r.id %>" data-role-name="<%= r.name %>" data-role-color="<%= r.color || '#7289da' %>">
+                      <input type="checkbox" name="reclaimStaffRoleIds" value="<%= r.id %>" <%= sel ? 'checked' : '' %> onchange="rpUpdate('rolePickerReclaim')">
+                      <span class="role-option-dot" style="background:<%= r.color || '#7289da' %>"></span>
+                      <span class="role-option-name"><%= r.name %></span>
+                    </label>
+                    <% }); %>
+                    <% if (!discordRoles || discordRoles.length === 0) { %>
+                    <div style="padding:14px;text-align:center;color:var(--text-muted);font-size:13px">Aucun rôle disponible (bot hors ligne ?)</div>
+                    <% } %>
+                  </div>
+                </div>
+                <p class="help-text">Ces rôles voient et gèrent tous les tickets réclamation</p>
+              </div>
+            </div>
+
+            <p class="tk-section-title" style="margin-top:8px">⚙️ Apparence du panel</p>
+            <div class="tk-form-row">
+              <div class="form-group">
+                <label for="reclaimPanelDescription">Description affichée dans l'embed du panel</label>
+                <textarea id="reclaimPanelDescription" name="reclaimPanelDescription" class="form-control" rows="3"
+                  placeholder="Clique sur le bouton ci-dessous pour ouvrir une réclamation…"><%= reclaimTicket.panelDescription || '' %></textarea>
+                <p class="help-text">Texte visible sous le titre dans l'embed du bouton /reclamation-panel</p>
+              </div>
+              <div class="form-group" style="max-width:340px">
+                <label for="reclaimButtonLabel">Label du bouton</label>
+                <input type="text" id="reclaimButtonLabel" name="reclaimButtonLabel" class="form-control"
+                  value="<%= reclaimTicket.buttonLabel || '' %>"
+                  placeholder="📋 Ouvrir une réclamation">
+                <p class="help-text">Texte affiché sur le bouton dans Discord</p>
+              </div>
+            </div>
+            <div class="tk-form-row">
+              <div class="form-group" style="max-width:520px">
+                <label for="reclaimPanelImageUrl">🖼️ URL de l'image du panel (optionnel)</label>
+                <input type="text" id="reclaimPanelImageUrl" name="reclaimPanelImageUrl" class="form-control"
+                  value="<%= reclaimTicket.panelImageUrl || '' %>"
+                  placeholder="https://…/image.png">
+                <p class="help-text">Image affichée dans l'embed du panel de réclamation</p>
+              </div>
+            </div>
+
+            <p class="tk-section-title" style="margin-top:8px">✉️ Message d'ouverture du ticket</p>
+            <div class="tk-form-row">
+              <div class="form-group">
+                <label for="reclaimWelcomeMessage">Message publié automatiquement à l'ouverture</label>
+                <textarea id="reclaimWelcomeMessage" name="reclaimWelcomeMessage" class="form-control" rows="4"
+                  placeholder="Bienvenue {user} ! Un staff va prendre en charge ta réclamation très prochainement."><%= reclaimTicket.welcomeMessage || '' %></textarea>
+                <p class="help-text">Variable disponible : <code>{user}</code> (mention Discord du joueur)</p>
+              </div>
+            </div>
+
+            <p class="tk-section-title" style="margin-top:8px">💎 Résurrection dino</p>
+            <div class="tk-form-row">
+              <div class="form-group" style="max-width:480px">
+                <label class="toggle-label" style="display:flex;align-items:center;gap:12px;cursor:pointer">
+                  <span style="font-size:14px">Bloquer la résurrection si solde insuffisant (&lt; 500 💎)</span>
+                  <div style="position:relative;flex-shrink:0">
+                    <input type="checkbox" id="reclaimBlockResurrection" name="reclaimBlockResurrection" style="opacity:0;position:absolute;width:0;height:0"
+                      <%= reclaimTicket.blockResurrectionIfInsufficient ? 'checked' : '' %> onchange="syncToggleReclaim(this)">
+                    <div id="toggleTrackReclaim" onclick="document.getElementById('reclaimBlockResurrection').click()"
+                      style="width:42px;height:22px;border-radius:11px;cursor:pointer;transition:background .2s;background:<%= reclaimTicket.blockResurrectionIfInsufficient ? '#2ecc71' : '#555' %>">
+                      <div id="toggleKnobReclaim"
+                        style="width:18px;height:18px;border-radius:50%;background:#fff;position:absolute;top:2px;transition:left .2s;left:<%= reclaimTicket.blockResurrectionIfInsufficient ? '22px' : '2px' %>"></div>
+                    </div>
+                  </div>
+                </label>
+                <p class="help-text" style="margin-top:8px">Si activé, un joueur sans diamants suffisants ne peut pas ouvrir un ticket de type Résurrection. Si désactivé, le ticket s'ouvre quand même mais un avertissement est envoyé au staff.</p>
+              </div>
+            </div>
+
+            <div style="margin-top:8px">
+              <button type="submit" class="btn btn-primary">💾 Sauvegarder</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
     </main>
   </div>
 
   <script>
+    function syncToggleReclaim(cb) {
+      document.getElementById('toggleTrackReclaim').style.background = cb.checked ? '#2ecc71' : '#555';
+      document.getElementById('toggleKnobReclaim').style.left = cb.checked ? '22px' : '2px';
+    }
+
     // ── Accordéons ────────────────────────────────────────────────────────────
     function tkToggle(id) {
       document.getElementById(id).classList.toggle('open');

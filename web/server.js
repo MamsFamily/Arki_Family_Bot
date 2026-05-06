@@ -880,9 +880,10 @@ function createWebServer(discordClient) {
         .sort((a, b) => b.position - a.position)
         .map(r => ({ id: r.id, name: r.name, color: r.color ? '#' + r.color.toString(16).padStart(6, '0') : null }));
     }
-    const spawnTicket = settings.spawnTicket || {};
-    const eventTicket = settings.eventTicket || {};
-    res.render('tickets', { shop, channels, discordCategories, discordRoles, spawnTicket, eventTicket, success: req.query.success || null, error: req.query.error || null });
+    const spawnTicket   = settings.spawnTicket   || {};
+    const eventTicket   = settings.eventTicket   || {};
+    const reclaimTicket = settings.reclaimTicket || {};
+    res.render('tickets', { shop, channels, discordCategories, discordRoles, spawnTicket, eventTicket, reclaimTicket, success: req.query.success || null, error: req.query.error || null });
   });
 
   const spawnImageUpload = multer({
@@ -969,6 +970,34 @@ function createWebServer(discordClient) {
       res.redirect('/tickets?success=%C3%89v%C3%A9nement+sauvegard%C3%A9+!#tk-event');
     } catch (err) {
       console.error('[EventTicket] Erreur sauvegarde settings:', err);
+      res.redirect('/tickets?error=Erreur+lors+de+la+sauvegarde');
+    }
+  });
+
+  // ── Tickets Réclamation ────────────────────────────────────────────────────
+  app.post('/tickets/reclaim', requireAdmin, async (req, res) => {
+    try {
+      const {
+        reclaimCategoryId, reclaimNotifChannelId, reclaimLogChannelId,
+        reclaimStaffRoleIds, reclaimPanelDescription, reclaimPanelImageUrl,
+        reclaimButtonLabel, reclaimWelcomeMessage, reclaimBlockResurrection,
+      } = req.body;
+      const rawRoles = reclaimStaffRoleIds || [];
+      const staffRoleIds = (Array.isArray(rawRoles) ? rawRoles : [rawRoles]).filter(s => /^\d+$/.test(s));
+      await updateSection('reclaimTicket', {
+        categoryId: reclaimCategoryId || '',
+        staffRoleIds,
+        notifChannelId: reclaimNotifChannelId || '',
+        logChannelId: reclaimLogChannelId || '',
+        panelDescription: reclaimPanelDescription || '',
+        panelImageUrl: reclaimPanelImageUrl || '',
+        buttonLabel: reclaimButtonLabel || '',
+        welcomeMessage: reclaimWelcomeMessage || '',
+        blockResurrectionIfInsufficient: reclaimBlockResurrection === 'on',
+      });
+      res.redirect('/tickets?success=Param%C3%A8tres+R%C3%A9clamation+sauvegard%C3%A9s+!#tk-reclaim');
+    } catch (err) {
+      console.error('[ReclaimTicket] Erreur sauvegarde settings:', err);
       res.redirect('/tickets?error=Erreur+lors+de+la+sauvegarde');
     }
   });
