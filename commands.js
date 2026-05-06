@@ -372,6 +372,10 @@ const commands = [
     name: 'activer-booster',
     description: '🧬 Active un booster de reproduction sur une map (si tu en possèdes un)',
   },
+  {
+    name: 'reclamation-panel',
+    description: '📋 Publie le panneau de réclamation dans ce salon (Admin uniquement)',
+  },
 ];
 
 module.exports = commands;

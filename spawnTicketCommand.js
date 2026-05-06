@@ -433,11 +433,27 @@ async function handleModalSubmit(interaction) {
   });
 }
 
+// ── Reconstruction depuis la DB si absent de la Map ───────────────────────────
+async function getOrReloadSpawnTicket(ticketId) {
+  if (activeSpawnTickets.has(ticketId)) return activeSpawnTickets.get(ticketId);
+  try {
+    const rows = await pgStore.loadAllOpenSpawnTickets();
+    const found = rows.find(r => r.ticketId === ticketId);
+    if (found) {
+      activeSpawnTickets.set(ticketId, found);
+      return found;
+    }
+  } catch (e) {
+    console.error('[SpawnTicket] Erreur rechargement ticket:', e.message);
+  }
+  return null;
+}
+
 // ── Toggle case checklist ─────────────────────────────────────────────────────
 async function handleCheck(interaction, ticketId, step) {
   if (!isStaff(interaction)) return interaction.reply(STAFF_ONLY_REPLY);
-  const data = activeSpawnTickets.get(ticketId);
-  if (!data) return interaction.reply({ content: '❌ Ce ticket est expiré (le bot a redémarré). Merci de contacter un Admin pour relancer la procédure si nécessaire.', ephemeral: true });
+  const data = await getOrReloadSpawnTicket(ticketId);
+  if (!data) return interaction.reply({ content: '❌ Ce ticket est introuvable. Il a peut-être déjà été finalisé ou supprimé.', ephemeral: true });
 
   data.checks[step] = !data.checks[step];
   pgStore.saveSpawnTicket(data).catch(() => {});
@@ -458,8 +474,8 @@ async function handleCheck(interaction, ticketId, step) {
 // ── Envoyer le mot de passe in-game en MP ────────────────────────────────────
 async function handleSendPassword(interaction, ticketId) {
   if (!isStaff(interaction)) return interaction.reply(STAFF_ONLY_REPLY);
-  const data = activeSpawnTickets.get(ticketId);
-  if (!data) return interaction.reply({ content: '❌ Ce ticket est expiré (le bot a redémarré). Merci de contacter un Admin pour relancer la procédure si nécessaire.', ephemeral: true });
+  const data = await getOrReloadSpawnTicket(ticketId);
+  if (!data) return interaction.reply({ content: '❌ Ce ticket est introuvable. Il a peut-être déjà été finalisé ou supprimé.', ephemeral: true });
 
   const settings = getSpawnSettings();
   const password = settings.mapPassword || '';
@@ -506,8 +522,8 @@ async function handleSendPassword(interaction, ticketId) {
 // ── Débloquer les salons Discord ─────────────────────────────────────────────
 async function handleUnlock(interaction, ticketId) {
   if (!isStaff(interaction)) return interaction.reply(STAFF_ONLY_REPLY);
-  const data = activeSpawnTickets.get(ticketId);
-  if (!data) return interaction.reply({ content: '❌ Ce ticket est expiré (le bot a redémarré). Merci de contacter un Admin pour relancer la procédure si nécessaire.', ephemeral: true });
+  const data = await getOrReloadSpawnTicket(ticketId);
+  if (!data) return interaction.reply({ content: '❌ Ce ticket est introuvable. Il a peut-être déjà été finalisé ou supprimé.', ephemeral: true });
 
   const settings = getSpawnSettings();
   if (!settings.memberRoleId) {
@@ -540,8 +556,8 @@ async function handleUnlock(interaction, ticketId) {
 // ── Finaliser l'admission ─────────────────────────────────────────────────────
 async function handleFinalize(interaction, ticketId) {
   if (!isStaff(interaction)) return interaction.reply(STAFF_ONLY_REPLY);
-  const data = activeSpawnTickets.get(ticketId);
-  if (!data) return interaction.reply({ content: '❌ Ce ticket est expiré (le bot a redémarré). Merci de contacter un Admin pour relancer la procédure si nécessaire.', ephemeral: true });
+  const data = await getOrReloadSpawnTicket(ticketId);
+  if (!data) return interaction.reply({ content: '❌ Ce ticket est introuvable. Il a peut-être déjà été finalisé ou supprimé.', ephemeral: true });
 
   const { voc, enreg, password } = data.checks;
   if (!voc || !enreg || !password) {
@@ -667,7 +683,7 @@ async function handleClose(interaction, ticketId) {
 // ── Confirmer la fermeture ────────────────────────────────────────────────────
 async function handleCloseConfirm(interaction, ticketId) {
   if (!isStaff(interaction)) return interaction.reply(STAFF_ONLY_REPLY);
-  const data = activeSpawnTickets.get(ticketId);
+  const data = await getOrReloadSpawnTicket(ticketId);
   const adminName = interaction.member?.displayName || interaction.user.username;
   const userId = data?.userId;
 
@@ -736,7 +752,7 @@ async function handleCloseConfirm(interaction, ticketId) {
 // ── Réouvrir le ticket (rendre visible au joueur) ─────────────────────────────
 async function handleReopen(interaction, ticketId) {
   if (!isStaff(interaction)) return interaction.reply(STAFF_ONLY_REPLY);
-  const data = activeSpawnTickets.get(ticketId);
+  const data = await getOrReloadSpawnTicket(ticketId);
   const adminName = interaction.member?.displayName || interaction.user.username;
 
   // Restaurer l'accès du joueur

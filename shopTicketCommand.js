@@ -29,6 +29,7 @@ const { getShop, getCategories } = require('./shopManager');
 const { getPlayerInventory, addToInventory, removeFromInventory, getItemTypes } = require('./inventoryManager');
 const { getRoleIncomes } = require('./economyManager');
 const { getSettings } = require('./settingsManager');
+const pgStore = require('./pgStore');
 
 // ── Constantes ───────────────────────────────────────────────────────────────
 const SEXES = ['Mâle', 'Femelle'];
@@ -38,8 +39,47 @@ const STAT_EMOJIS = { 'Vie': '❤️', 'Énergie': '⚡', 'Nourriture': '🍖', 
 // ── Stockage en mémoire ───────────────────────────────────────────────────────
 // Map userId -> cart session (éphémère, navigation en cours)
 const activeCarts = new Map();
-// Map threadId -> orderData (ticket créé, en attente de validation admin)
+// Map orderId -> orderData (ticket créé, persisté en PostgreSQL)
 const activeOrders = new Map();
+
+// ── Init : recharger les orders ouverts depuis PostgreSQL au démarrage ────────
+async function initShopOrders(client) {
+  try {
+    const rows = await pgStore.loadAllOpenShopOrders();
+    let loaded = 0;
+    for (const data of rows) {
+      if (client) {
+        const channel = client.channels.cache.get(data.channelId);
+        if (!channel) {
+          await pgStore.deleteShopOrder(data.orderId);
+          continue;
+        }
+      }
+      activeOrders.set(data.orderId, data);
+      loaded++;
+    }
+    if (loaded > 0) console.log(`✅ [ShopTicket] ${loaded} order(s) rechargé(s) depuis PostgreSQL`);
+  } catch (err) {
+    console.error('[ShopTicket] Erreur chargement orders depuis DB:', err.message);
+  }
+}
+
+// ── Reconstruction depuis DB si order introuvable en mémoire ──────────────────
+async function getOrReloadOrder(orderId, channelId) {
+  if (activeOrders.has(orderId)) return activeOrders.get(orderId);
+  try {
+    const rows = await pgStore.loadAllOpenShopOrders();
+    for (const data of rows) {
+      if (data.orderId === orderId || (channelId && data.channelId === channelId)) {
+        activeOrders.set(data.orderId, data);
+        return data;
+      }
+    }
+  } catch (e) {
+    console.error('[ShopTicket] Erreur rechargement order:', e.message);
+  }
+  return null;
+}
 
 // ── Génération d'ID ───────────────────────────────────────────────────────────
 function genId() {
@@ -1450,7 +1490,7 @@ async function handleShopTicketInteraction(interaction) {
   // ── Bouton admin : forcer paiement direct (sans choix joueur) ───────────────
   if (id.startsWith('st_admin_force_validate::')) {
     const orderId = id.split('::')[1];
-    const order = activeOrders.get(orderId);
+    const order = await getOrReloadOrder(orderId, interaction.channelId);
     if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
     // Injecter un paymentChoice "direct" puis valider
     order.paymentChoice = { id: 'direct', label: 'Paiement direct (forcé par admin)', coveredItemIds: [] };
@@ -1466,7 +1506,7 @@ async function handleShopTicketInteraction(interaction) {
   // ── Bouton admin : modifier ─────────────────────────────────────────────────
   if (id.startsWith('st_admin_modify::')) {
     const orderId = id.split('::')[1];
-    const order = activeOrders.get(orderId);
+    const order = await getOrReloadOrder(orderId, interaction.channelId);
     if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -1488,7 +1528,7 @@ async function handleShopTicketInteraction(interaction) {
 
   if (id.startsWith('st_admin_remove_item::')) {
     const orderId = id.split('::')[1];
-    const order = activeOrders.get(orderId);
+    const order = await getOrReloadOrder(orderId, interaction.channelId);
     if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
     if (order.cart.items.length === 0) return interaction.update({ content: '❌ La commande est vide.', components: [] });
     const options = order.cart.items.slice(0, 25).map(item => {
@@ -1509,7 +1549,7 @@ async function handleShopTicketInteraction(interaction) {
 
   if (id.startsWith('st_admin_edit_comment::')) {
     const orderId = id.split('::')[1];
-    const order = activeOrders.get(orderId);
+    const order = await getOrReloadOrder(orderId, interaction.channelId);
     if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
     const modal = new ModalBuilder()
       .setCustomId(`st_admin_comment_modal::${orderId}`)
@@ -1529,7 +1569,7 @@ async function handleShopTicketInteraction(interaction) {
   // ── Select menu admin : retirer un article de la commande ────────────────────
   if (id.startsWith('st_admin_remove_select::')) {
     const orderId = id.split('::')[1];
-    const order = activeOrders.get(orderId);
+    const order = await getOrReloadOrder(orderId, interaction.channelId);
     if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
     const itemId = interaction.values[0];
     const itemIdx = order.cart.items.findIndex(i => i.id === itemId);
@@ -1552,7 +1592,7 @@ async function handleShopTicketInteraction(interaction) {
   // ── Modal admin : modifier le commentaire ────────────────────────────────────
   if (id.startsWith('st_admin_comment_modal::')) {
     const orderId = id.split('::')[1];
-    const order = activeOrders.get(orderId);
+    const order = await getOrReloadOrder(orderId, interaction.channelId);
     if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
     const newComment = interaction.fields.getTextInputValue('comment_text').trim();
     order.cart.comment = newComment || '';
@@ -1571,9 +1611,10 @@ async function handleShopTicketInteraction(interaction) {
   // ── Bouton admin : fraises récupérées in game ────────────────────────────────
   if (id.startsWith('st_admin_straw_ok::')) {
     const orderId = id.split('::')[1];
-    const order = activeOrders.get(orderId);
+    const order = await getOrReloadOrder(orderId, interaction.channelId);
     if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
     order.pendingStrawberries = 0;
+    pgStore.saveShopOrder(order).catch(() => {});
     try { await interaction.message.edit({ components: [] }); } catch (e) {}
     const adminName = interaction.member?.displayName || interaction.user.username;
     return interaction.reply({
@@ -1863,6 +1904,7 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
       status: 'pending',
     };
     activeOrders.set(orderId, orderData);
+    pgStore.saveShopOrder(orderData).catch(() => {});
 
     const recapEmbed = buildOrderRecapEmbed(cart, discount, discountRoleName, [], interaction.user.id);
     const adminBtns = buildAdminButtons(orderId);
@@ -1946,7 +1988,7 @@ async function publishShopTicketPanel(interaction) {
 
 // ── Admin : valider & encaisser ───────────────────────────────────────────────
 async function handleAdminValidate(interaction, orderId) {
-  const order = activeOrders.get(orderId);
+  const order = await getOrReloadOrder(orderId, interaction.channelId);
   if (!order) {
     return interaction.reply({ content: '❌ Commande introuvable ou déjà traitée.', ephemeral: true });
   }
@@ -2076,6 +2118,7 @@ async function handleAdminValidate(interaction, orderId) {
     order.paymentDesc = paymentDesc;
     if (pendingStrawberries > 0) order.pendingStrawberries = pendingStrawberries;
     if (pendingDiamonds > 0) order.pendingDiamonds = pendingDiamonds;
+    pgStore.saveShopOrder(order).catch(() => {});
 
     // Retirer les boutons du message admin
     try { await interaction.message.edit({ components: [] }); } catch (e) {}
@@ -2194,12 +2237,7 @@ async function handleAdminValidate(interaction, orderId) {
 
 // ── Joueur : roulette inventaire — sélectionne un retrait ────────────────────
 async function handleInvPick(interaction, orderId) {
-  let order = activeOrders.get(orderId);
-  if (!order) {
-    for (const [, o] of activeOrders) {
-      if (o.channelId === interaction.channelId) { order = o; break; }
-    }
-  }
+  const order = await getOrReloadOrder(orderId, interaction.channelId);
   if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
   if (order.status !== 'pending') return interaction.reply({ content: '⚠️ Cette commande a déjà été traitée.', ephemeral: true });
 
@@ -2237,12 +2275,7 @@ async function handleInvPick(interaction, orderId) {
 
 // ── Joueur : roulette inventaire — payer le reste (ou confirmer tout couvert) ─
 async function handleInvDirect(interaction, orderId) {
-  let order = activeOrders.get(orderId);
-  if (!order) {
-    for (const [, o] of activeOrders) {
-      if (o.channelId === interaction.channelId) { order = o; break; }
-    }
-  }
+  const order = await getOrReloadOrder(orderId, interaction.channelId);
   if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
   if (order.status !== 'pending') return interaction.reply({ content: '⚠️ Cette commande a déjà été traitée.', ephemeral: true });
 
@@ -2294,14 +2327,7 @@ async function handleInvDirect(interaction, orderId) {
 
 // ── Joueur : sélectionne son mode de paiement ─────────────────────────────────
 async function handlePayMethod(interaction, orderId, methodKey) {
-  // Chercher l'order depuis le channelId (le salon ticket)
-  let order = activeOrders.get(orderId);
-  if (!order) {
-    // Fallback : chercher par channelId
-    for (const [, o] of activeOrders) {
-      if (o.channelId === interaction.channelId) { order = o; break; }
-    }
-  }
+  const order = await getOrReloadOrder(orderId, interaction.channelId);
   if (!order) {
     return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
   }
@@ -2364,12 +2390,7 @@ async function handlePayMethod(interaction, orderId, methodKey) {
 
 // ── Joueur/Admin : voir le récap de commande ──────────────────────────────────
 async function handleViewOrder(interaction, orderId) {
-  let order = activeOrders.get(orderId);
-  if (!order) {
-    for (const [, o] of activeOrders) {
-      if (o.channelId === interaction.channelId) { order = o; break; }
-    }
-  }
+  const order = await getOrReloadOrder(orderId, interaction.channelId);
   if (!order) {
     return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
   }
@@ -2403,11 +2424,12 @@ async function handleNewOrder(interaction) {
 
 // ── Admin : annuler la commande ───────────────────────────────────────────────
 async function handleAdminCancel(interaction, orderId) {
-  const order = activeOrders.get(orderId);
+  const order = await getOrReloadOrder(orderId, interaction.channelId);
   if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
   if (order.status !== 'pending') return interaction.reply({ content: '⚠️ Cette commande a déjà été traitée.', ephemeral: true });
 
   order.status = 'cancelled';
+  pgStore.saveShopOrder(order).catch(() => {});
   try { await interaction.message.edit({ components: [] }); } catch (e) {}
 
   const adminName = interaction.member?.displayName || interaction.user.username;
@@ -2428,7 +2450,7 @@ async function handleAdminCancel(interaction, orderId) {
 
 // ── Admin : demander confirmation avant de fermer le ticket ──────────────────
 async function handleAdminClose(interaction, orderId) {
-  const order = activeOrders.get(orderId);
+  const order = await getOrReloadOrder(orderId, interaction.channelId);
 
   // Bloquer si la commande est toujours en cours (paiement non confirmé ni annulé)
   if (order && order.status === 'pending') {
@@ -2483,7 +2505,7 @@ async function handleAdminClose(interaction, orderId) {
 // ── Admin : confirme la fermeture ─────────────────────────────────────────────
 async function handleCloseConfirm(interaction, orderId) {
   const adminName = interaction.member?.displayName || interaction.user.username;
-  const order = activeOrders.get(orderId);
+  const order = await getOrReloadOrder(orderId, interaction.channelId);
   const userId = order?.userId;
 
   // ── Rapport de clôture ────────────────────────────────────────────────────
@@ -2540,6 +2562,7 @@ async function handleCloseConfirm(interaction, orderId) {
   }
 
   activeOrders.delete(orderId);
+  pgStore.deleteShopOrder(orderId).catch(() => {});
 
   // Retirer l'accès visuel du joueur
   if (userId) {
@@ -2679,7 +2702,6 @@ function buildPublicRecapEmbed(order) {
 
 // ── Commande /récap ───────────────────────────────────────────────────────────
 async function handleRecapCommand(interaction) {
-  // Vérifier que l'utilisateur est admin ticket
   if (!isTicketAdmin(interaction.member)) {
     return interaction.reply({
       content: '❌ Tu n\'as pas la permission d\'utiliser cette commande.',
@@ -2687,12 +2709,7 @@ async function handleRecapCommand(interaction) {
     });
   }
 
-  // Trouver la commande liée à ce salon
-  let order = null;
-  for (const [, o] of activeOrders) {
-    if (o.channelId === interaction.channelId) { order = o; break; }
-  }
-
+  let order = await getOrReloadOrder(null, interaction.channelId);
   if (!order) {
     return interaction.reply({
       content: '❌ Aucune commande active trouvée dans ce salon. Cette commande ne fonctionne que dans un ticket shop.',
@@ -2715,5 +2732,6 @@ module.exports = {
   handleShopTicketInteraction,
   publishShopTicketPanel,
   handleRecapCommand,
+  initShopOrders,
   activeOrders,
 };

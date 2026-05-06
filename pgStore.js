@@ -75,7 +75,35 @@ async function initTables() {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_session_expire ON session (expire)
     `);
-    console.log('✅ Tables app_data + member_history + spawn_tickets + session prêtes');
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS shop_orders (
+        order_id VARCHAR PRIMARY KEY,
+        channel_id VARCHAR NOT NULL,
+        user_id VARCHAR NOT NULL,
+        username VARCHAR,
+        data JSONB NOT NULL DEFAULT '{}',
+        status VARCHAR DEFAULT 'pending',
+        created_at BIGINT
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_shop_orders_channel ON shop_orders (channel_id)
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS reclaim_tickets (
+        ticket_id VARCHAR PRIMARY KEY,
+        channel_id VARCHAR NOT NULL,
+        user_id VARCHAR NOT NULL,
+        username VARCHAR,
+        data JSONB NOT NULL DEFAULT '{}',
+        status VARCHAR DEFAULT 'open',
+        created_at BIGINT
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_reclaim_channel ON reclaim_tickets (channel_id)
+    `);
+    console.log('✅ Tables app_data + member_history + spawn_tickets + shop_orders + reclaim_tickets + session prêtes');
   } catch (err) {
     console.error('❌ Erreur création tables:', err.message);
     usePostgres = false;
@@ -171,6 +199,102 @@ async function setData(key, value) {
   }
 }
 
+// ── Shop Orders ───────────────────────────────────────────────────────────────
+
+async function saveShopOrder(orderData) {
+  if (!usePostgres) return;
+  try {
+    await pool.query(`
+      INSERT INTO shop_orders (order_id, channel_id, user_id, username, data, status, created_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7)
+      ON CONFLICT (order_id) DO UPDATE SET
+        data = EXCLUDED.data,
+        status = EXCLUDED.status
+    `, [
+      orderData.orderId,
+      orderData.channelId,
+      orderData.userId,
+      orderData.username || null,
+      JSON.stringify(orderData),
+      orderData.status || 'pending',
+      orderData.createdAt || Date.now(),
+    ]);
+  } catch (err) {
+    console.error('❌ Erreur sauvegarde shop order:', err.message);
+  }
+}
+
+async function loadAllOpenShopOrders() {
+  if (!usePostgres) return [];
+  try {
+    const result = await pool.query(`SELECT data FROM shop_orders WHERE status NOT IN ('deleted')`);
+    return result.rows.map(row => {
+      const raw = row.data;
+      return typeof raw === 'string' ? JSON.parse(raw) : raw;
+    });
+  } catch (err) {
+    console.error('❌ Erreur chargement shop orders:', err.message);
+    return [];
+  }
+}
+
+async function deleteShopOrder(orderId) {
+  if (!usePostgres) return;
+  try {
+    await pool.query(`DELETE FROM shop_orders WHERE order_id = $1`, [orderId]);
+  } catch (err) {
+    console.error('❌ Erreur suppression shop order:', err.message);
+  }
+}
+
+// ── Reclaim Tickets ───────────────────────────────────────────────────────────
+
+async function saveReclaimTicket(ticketData) {
+  if (!usePostgres) return;
+  try {
+    await pool.query(`
+      INSERT INTO reclaim_tickets (ticket_id, channel_id, user_id, username, data, status, created_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7)
+      ON CONFLICT (ticket_id) DO UPDATE SET
+        data = EXCLUDED.data,
+        status = EXCLUDED.status
+    `, [
+      ticketData.ticketId,
+      ticketData.channelId,
+      ticketData.userId,
+      ticketData.username || null,
+      JSON.stringify(ticketData),
+      ticketData.status || 'open',
+      ticketData.createdAt || Date.now(),
+    ]);
+  } catch (err) {
+    console.error('❌ Erreur sauvegarde reclaim ticket:', err.message);
+  }
+}
+
+async function loadAllOpenReclaimTickets() {
+  if (!usePostgres) return [];
+  try {
+    const result = await pool.query(`SELECT data FROM reclaim_tickets WHERE status != 'deleted'`);
+    return result.rows.map(row => {
+      const raw = row.data;
+      return typeof raw === 'string' ? JSON.parse(raw) : raw;
+    });
+  } catch (err) {
+    console.error('❌ Erreur chargement reclaim tickets:', err.message);
+    return [];
+  }
+}
+
+async function deleteReclaimTicket(ticketId) {
+  if (!usePostgres) return;
+  try {
+    await pool.query(`DELETE FROM reclaim_tickets WHERE ticket_id = $1`, [ticketId]);
+  } catch (err) {
+    console.error('❌ Erreur suppression reclaim ticket:', err.message);
+  }
+}
+
 function isPostgres() {
   return usePostgres;
 }
@@ -179,4 +303,9 @@ function getPool() {
   return pool;
 }
 
-module.exports = { initPool, initTables, getData, setData, isPostgres, getPool, saveSpawnTicket, loadAllOpenSpawnTickets, deleteSpawnTicket };
+module.exports = {
+  initPool, initTables, getData, setData, isPostgres, getPool,
+  saveSpawnTicket, loadAllOpenSpawnTickets, deleteSpawnTicket,
+  saveShopOrder, loadAllOpenShopOrders, deleteShopOrder,
+  saveReclaimTicket, loadAllOpenReclaimTickets, deleteReclaimTicket,
+};

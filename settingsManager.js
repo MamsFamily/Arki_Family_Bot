@@ -131,6 +131,15 @@ const DEFAULTS = {
     buttonLabel: '🎟️ Rejoindre l\'événement',
     welcomeMessage: 'Bienvenue {user} dans l\'événement **{event}** !\n\nUn membre du staff va bientôt te rejoindre.',
   },
+  reclaimTicket: {
+    categoryId: '',
+    staffRoleIds: [],
+    notifChannelId: '',
+    panelDescription: '',
+    panelImageUrl: '',
+    buttonLabel: '📋 Ouvrir une réclamation',
+    welcomeMessage: 'Bienvenue {user} !\n\nDis-nous ce qui s\'est passé en sélectionnant le type de réclamation ci-dessous.\nL\'équipe staff traitera ta demande dès que possible.',
+  },
   aliases: {},
   nitradoFtp: {},
   // nitradoFtp est un objet keyed par serviceId : { [serviceId]: { host, port, user, password, secure } }

@@ -37,9 +37,10 @@ const { initSpecialPacks, getSpecialPacks, getSpecialPack } = require('./special
 const economyManager = require('./economyManager');
 const xpManager = require('./xpManager');
 const { handleShopCommand, handleShopInteraction } = require('./shopCommand');
-const { handleShopTicketCommand, handleShopTicketInteraction, publishShopTicketPanel, handleRecapCommand } = require('./shopTicketCommand');
+const { handleShopTicketCommand, handleShopTicketInteraction, publishShopTicketPanel, handleRecapCommand, initShopOrders } = require('./shopTicketCommand');
 const { handleSpawnTicketCommand, handleSpawnTicketInteraction, initSpawnTickets } = require('./spawnTicketCommand');
 const { publishEventPanel, handleEventTicketInteraction } = require('./eventTicketCommand');
+const { handleReclaimCommand, handleReclaimTicketInteraction, initReclaimTickets } = require('./reclaimTicketCommand');
 const restartScheduler = require('./nitradoRestartScheduler');
 const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
 const { registerCasinoHandlers } = require('./casino/casinoHandler');
@@ -575,6 +576,8 @@ client.once('clientReady', async () => {
   if (pgStore.isPostgres()) {
     await pgStore.initTables();
     await initSpawnTickets(client);
+    await initShopOrders(client);
+    await initReclaimTickets(client);
   }
   await initConfig();
   await initSettings();
@@ -1163,6 +1166,21 @@ client.on('interactionCreate', async interaction => {
       console.error('[EventTicket] Erreur interaction:', err);
       try {
         const reply = { content: '❌ Une erreur est survenue avec le ticket événement.', ephemeral: true };
+        if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
+        else await interaction.reply(reply);
+      } catch (e) {}
+    }
+    return;
+  }
+
+  // ── Reclaim Ticket (boutons + selects + modals) ──
+  if (interaction.customId && interaction.customId.startsWith('rcl_')) {
+    try {
+      await handleReclaimTicketInteraction(interaction);
+    } catch (err) {
+      console.error('[ReclaimTicket] Erreur interaction:', err);
+      try {
+        const reply = { content: '❌ Une erreur est survenue dans le ticket de réclamation.', ephemeral: true };
         if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
         else await interaction.reply(reply);
       } catch (e) {}
@@ -1996,6 +2014,20 @@ client.on('interactionCreate', async interaction => {
       console.error('[SpawnTicket] Erreur commande /spawn-panel:', err);
       try {
         const reply = { content: '❌ Impossible de publier le panneau spawn. Réessaie.', ephemeral: true };
+        if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
+        else await interaction.reply(reply);
+      } catch (e) {}
+    }
+    return;
+  }
+
+  if (commandName === 'reclamation-panel') {
+    try {
+      await handleReclaimCommand(interaction);
+    } catch (err) {
+      console.error('[ReclaimTicket] Erreur commande /reclamation-panel:', err);
+      try {
+        const reply = { content: '❌ Impossible de publier le panneau réclamation. Réessaie.', ephemeral: true };
         if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
         else await interaction.reply(reply);
       } catch (e) {}
