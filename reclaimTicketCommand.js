@@ -97,6 +97,20 @@ function getReclaimSettings() {
   return getSettings().reclaimTicket || {};
 }
 
+// ── Log inventaire dans le salon shop (même canal que les ventes) ─────────────
+async function sendInventoryLog(guild, message) {
+  try {
+    const settings = getSettings();
+    const shop = getShop();
+    const logChannelId = settings.guild?.inventoryLogChannelId || shop.shopTicketChannelId;
+    if (!logChannelId) return;
+    const logCh = await guild.channels.fetch(logChannelId).catch(() => null);
+    if (logCh) await logCh.send(message);
+  } catch (e) {
+    console.error('[ReclaimTicket] Erreur log inventaire:', e.message);
+  }
+}
+
 function isStaff(interaction) {
   const settings = getReclaimSettings();
   const roleIds = settings.staffRoleIds || [];
@@ -734,11 +748,19 @@ async function handleResurDeduct(interaction, ticketId) {
       data.claimData.diamondsDeducted = 500;
       data.claimData.deductedBy = adminName;
       saveTicket(data);
+      await sendInventoryLog(
+        interaction.guild,
+        `💀 **${adminName}** a prélevé **500 💎** du compte de <@${data.userId}> (\`${data.username}\`) — Résurrection dino \`${data.claimData.dinoName || '?'}\` — Ticket <#${data.channelId}>`
+      );
     } else {
       data.claimData.deductedBy = adminName;
       data.claimData.diamondsDeducted = 0;
       data.claimData.deductionNote = `Solde insuffisant (${diamonds}💎) — prélèvement manuel nécessaire`;
       saveTicket(data);
+      await sendInventoryLog(
+        interaction.guild,
+        `⚠️ **${adminName}** a tenté de prélever **500 💎** pour <@${data.userId}> (\`${data.username}\`) — solde insuffisant (**${diamonds} 💎**) — prélèvement manuel requis — Ticket <#${data.channelId}>`
+      );
     }
   } catch (e) {
     return interaction.reply({ content: `❌ Erreur lors du prélèvement : ${e.message}`, ephemeral: true });
