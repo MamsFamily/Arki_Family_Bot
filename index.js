@@ -38,7 +38,7 @@ const economyManager = require('./economyManager');
 const xpManager = require('./xpManager');
 const { handleShopCommand, handleShopInteraction } = require('./shopCommand');
 const { handleShopTicketCommand, handleShopTicketInteraction, publishShopTicketPanel, handleRecapCommand, initShopOrders } = require('./shopTicketCommand');
-const { handleSpawnTicketCommand, handleSpawnTicketInteraction, initSpawnTickets } = require('./spawnTicketCommand');
+const { handleSpawnTicketCommand, handleSpawnTicketInteraction, initSpawnTickets, getOpenSpawnTicketByUserId } = require('./spawnTicketCommand');
 const { publishEventPanel, handleEventTicketInteraction } = require('./eventTicketCommand');
 const { handleReclaimCommand, handleReclaimTicketInteraction, initReclaimTickets } = require('./reclaimTicketCommand');
 const restartScheduler = require('./nitradoRestartScheduler');
@@ -5056,11 +5056,24 @@ client.on('guildMemberAdd', async (member) => {
   }
 });
 
-client.on('guildMemberRemove', (member) => {
+client.on('guildMemberRemove', async (member) => {
   try {
     recordLeave(member.id, member.guild.id);
   } catch (err) {
     console.error('[Welcome] guildMemberRemove error:', err.message);
+  }
+
+  // ── Message auto si un ticket spawn est ouvert au nom du membre ───────────
+  try {
+    const ticket = getOpenSpawnTicketByUserId(member.id);
+    if (ticket) {
+      const channel = member.guild.channels.cache.get(ticket.channelId);
+      if (channel) {
+        await channel.send('Parti voir si l\'herbe est plus verte ailleurs 🌱🛩️');
+      }
+    }
+  } catch (err) {
+    console.error('[SpawnTicket] guildMemberRemove auto-message error:', err.message);
   }
 });
 

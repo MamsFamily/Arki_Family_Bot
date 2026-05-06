@@ -156,6 +156,10 @@ function buildChecklistComponents(data) {
       .setLabel('🎉 Finaliser l\'admission')
       .setStyle(ButtonStyle.Success)
       .setDisabled(!all3),
+    new ButtonBuilder()
+      .setCustomId(`spwn_close::${id}`)
+      .setLabel('✈️ Fermer')
+      .setStyle(ButtonStyle.Danger),
   );
 
   return [row1, row2];
@@ -896,9 +900,18 @@ async function handleSpawnTicketInteraction(interaction) {
   }
 }
 
+// ── Recherche d'un ticket spawn ouvert par userId ─────────────────────────────
+function getOpenSpawnTicketByUserId(userId) {
+  for (const data of activeSpawnTickets.values()) {
+    if (data.userId === userId && data.status !== 'closed') return data;
+  }
+  return null;
+}
+
 module.exports = {
   handleSpawnTicketCommand,
   handleSpawnTicketInteraction,
   publishSpawnPanel,
   initSpawnTickets,
+  getOpenSpawnTicketByUserId,
 };
