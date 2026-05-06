@@ -145,7 +145,7 @@ function typePrefix(type) {
 function typeLabel(type) {
   if (type === 'inventory')    return '🎒 Récupération d\'inventaire';
   if (type === 'resurrection') return '💀 Résurrection de dino';
-  if (type === 'structures')   return '🏗️ Structures abandonnées/gênantes';
+  if (type === 'structures')   return '🧱 Structures abandonnées/gênantes';
   if (type === 'autres')       return '💬 Autres demandes';
   return '📋 Réclamation';
 }
@@ -163,10 +163,10 @@ async function publishReclaimPanel(interaction) {
     .setDescription(
       settings.panelDescription ||
       '**Un problème en jeu ?** Ouvre un ticket de réclamation.\n\n' +
-      '🎒 **Récupération d\'inventaire** — Un item perdu ?\n' +
-      '💀 **Résurrection de dino** — Ton dino est mort ?\n' +
-      '🏗️ **Structures abandonnées** — Des constructions gênantes ?\n' +
-      '💬 **Autres demandes** — Autre chose ?\n\n' +
+      '🎒 **Récupération inventaire** — Tu souhaites récupérer un ou plusieurs items de ton inventaire\n' +
+      '💀 **Résurrection de dino** — Tu as l\'essence de ton Dino et tu souhaites avoir recours à un Oasisaure\n' +
+      '🧱 **Structures abandonnées** — Des constructions gênantes ou abandonnées ?\n' +
+      '💬 **Autres demandes** — Explique nous tout 📝\n\n' +
       '*Clique sur le bouton ci-dessous pour ouvrir ton ticket.*'
     );
 
@@ -177,10 +177,10 @@ async function publishReclaimPanel(interaction) {
 
   const sendOpts = { embeds: [embed], components: [new ActionRowBuilder().addComponents(btn)] };
   if (settings.panelImageUrl) {
-    embed.setImage(settings.panelImageUrl);
+    embed.setThumbnail(settings.panelImageUrl);
   } else {
     const attachment = new AttachmentBuilder(RECLAIM_IMG, { name: 'reclamation.png' });
-    embed.setImage('attachment://reclamation.png');
+    embed.setThumbnail('attachment://reclamation.png');
     sendOpts.files = [attachment];
   }
 
@@ -193,16 +193,14 @@ async function publishReclaimPanel(interaction) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 async function handleOpenReclaim(interaction) {
-  const settings = getReclaimSettings();
   const guild = interaction.guild;
-  const user = interaction.user;
-
+  const user  = interaction.user;
   const safeName = user.username.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 20);
 
-  // Vérifier si un ticket est déjà ouvert pour cet utilisateur (tous types)
+  // Vérifier si un ticket est déjà ouvert pour cet utilisateur
   const existing = guild.channels.cache.find(ch => {
     if (ch.type !== ChannelType.GuildText) return false;
-    const prefixes = ['inventaire-', 'resurrection-', 'structures-', 'autres-', 'recl-'];
+    const prefixes = ['inventaire-', 'resurrection-', 'structures-', 'autres-'];
     return prefixes.some(p => ch.name === `${p}${safeName}`);
   });
   if (existing) {
@@ -212,8 +210,52 @@ async function handleOpenReclaim(interaction) {
     });
   }
 
-  await interaction.deferReply({ ephemeral: true });
+  // Afficher le select de type AVANT la création du salon
+  const preEmbed = new EmbedBuilder()
+    .setColor(0x9b59b6)
+    .setTitle('📋 Quel type de réclamation ?')
+    .setDescription(
+      '**Sélectionne le type de ta demande** dans le menu ci-dessous.\n\n' +
+      'Un salon privé sera créé automatiquement.'
+    )
+    .setThumbnail('attachment://reclamation.png');
 
+  const preAttachment = new AttachmentBuilder(RECLAIM_IMG, { name: 'reclamation.png' });
+  return interaction.reply({
+    embeds: [preEmbed],
+    components: [buildPreTypeSelectRow()],
+    files: [preAttachment],
+    ephemeral: true,
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SÉLECTION DU TYPE AVANT OUVERTURE → CRÉATION DU SALON
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function handlePreTypeSelect(interaction) {
+  const type     = interaction.values[0];
+  const user     = interaction.user;
+  const guild    = interaction.guild;
+  const settings = getReclaimSettings();
+  const safeName = user.username.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 20);
+
+  // Double-vérification ticket existant
+  const existing = guild.channels.cache.find(ch => {
+    if (ch.type !== ChannelType.GuildText) return false;
+    const prefixes = ['inventaire-', 'resurrection-', 'structures-', 'autres-'];
+    return prefixes.some(p => ch.name === `${p}${safeName}`);
+  });
+  if (existing) {
+    return interaction.update({
+      content: `📋 Tu as déjà un ticket ouvert : <#${existing.id}>`,
+      embeds: [], components: [], files: [],
+    });
+  }
+
+  await interaction.deferUpdate();
+
+  // Permissions
   const perms = [
     { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
     {
@@ -226,7 +268,6 @@ async function handleOpenReclaim(interaction) {
       ],
     },
   ];
-
   for (const roleId of (settings.staffRoleIds || [])) {
     if (guild.roles.cache.has(roleId)) {
       perms.push({
@@ -241,9 +282,9 @@ async function handleOpenReclaim(interaction) {
     }
   }
 
-  // Création avec nom générique, renommé après sélection du type
+  // Créer le salon directement avec le bon préfixe de type
   const channel = await guild.channels.create({
-    name: `recl-${safeName}`,
+    name: `${typePrefix(type)}-${safeName}`,
     type: ChannelType.GuildText,
     parent: settings.categoryId || null,
     permissionOverwrites: perms,
@@ -257,30 +298,36 @@ async function handleOpenReclaim(interaction) {
     username: user.displayName || user.username,
     safeName,
     status: 'open',
-    type: null,
+    type,
     createdAt: Date.now(),
     claimData: {},
     staffNote: '',
   };
-
   saveTicket(ticketData);
 
   if (settings.notifChannelId) {
     const notifCh = guild.channels.cache.get(settings.notifChannelId);
-    if (notifCh) {
-      notifCh.send(`📋 **Nouvelle réclamation** — <@${user.id}> (\`${user.username}\`) → <#${channel.id}>`).catch(() => {});
-    }
+    if (notifCh) notifCh.send(`📋 **Nouvelle réclamation** — <@${user.id}> (\`${user.username}\`) → <#${channel.id}>`).catch(() => {});
   }
 
+  // Message de bienvenue dans le salon
   const welcomeAttachment = new AttachmentBuilder(RECLAIM_IMG, { name: 'reclamation.png' });
   await channel.send({
     content: `<@${user.id}>`,
     embeds: [buildWelcomeEmbed(ticketData, settings)],
-    components: [buildTypeSelectRow(ticketId)],
     files: [welcomeAttachment],
   });
 
-  await interaction.editReply({ content: `✅ Ton ticket a été ouvert : <#${channel.id}>` });
+  // Lancer le flux du type directement dans le salon (channel.send)
+  if (type === 'inventory')    await startInventoryReclaimToChannel(channel, ticketData);
+  if (type === 'resurrection') await startResurrectionReclaimToChannel(channel, ticketData, settings);
+  if (type === 'structures')   await startStructuresReclaimToChannel(channel, ticketData);
+  if (type === 'autres')       await startAutresReclaimToChannel(channel, ticketData);
+
+  await interaction.editReply({
+    content: `✅ Ton ticket a été ouvert : <#${channel.id}>`,
+    embeds: [], components: [], files: [],
+  });
 }
 
 // ── Embed de bienvenue ────────────────────────────────────────────────────────
@@ -292,35 +339,66 @@ function buildWelcomeEmbed(ticketData, settings) {
     .setColor(0x9b59b6)
     .setTitle('📋 Nouveau ticket de réclamation')
     .setDescription(msg.replace(/\{user\}/g, `<@${ticketData.userId}>`))
-    .setImage('attachment://reclamation.png')
+    .setThumbnail('attachment://reclamation.png')
     .setFooter({ text: `Ticket ID : ${ticketData.ticketId}` })
     .setTimestamp();
 }
 
-// ── Select menu du type ───────────────────────────────────────────────────────
+// ── Select menu pré-ouverture (éphémère, affiché AVANT la création du salon) ──
+function buildPreTypeSelectRow() {
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(`${PREFIX}_pretype`)
+    .setPlaceholder('📋 Choisir le type de réclamation...')
+    .addOptions([
+      {
+        label: '🎒 Récupération inventaire',
+        description: 'Récupérer un ou plusieurs items de ton inventaire',
+        value: 'inventory',
+      },
+      {
+        label: '💀 Résurrection de dino',
+        description: 'Tu as l\'essence et veux faire appel à un Oasisaure',
+        value: 'resurrection',
+      },
+      {
+        label: '🧱 Structures abandonnées',
+        description: 'Des constructions gênantes ou abandonnées ?',
+        value: 'structures',
+      },
+      {
+        label: '💬 Autres demandes',
+        description: 'Explique nous tout !',
+        value: 'autres',
+      },
+    ]);
+
+  return new ActionRowBuilder().addComponents(select);
+}
+
+// ── Select menu dans le ticket (fallback pour anciens tickets) ────────────────
 function buildTypeSelectRow(ticketId) {
   const select = new StringSelectMenuBuilder()
     .setCustomId(`${PREFIX}_type_select::${ticketId}`)
     .setPlaceholder('📋 Choisir le type de réclamation...')
     .addOptions([
       {
-        label: '🎒 Récupération d\'inventaire',
-        description: 'Tu as perdu un item de ton inventaire',
+        label: '🎒 Récupération inventaire',
+        description: 'Récupérer un ou plusieurs items de ton inventaire',
         value: 'inventory',
       },
       {
         label: '💀 Résurrection de dino',
-        description: 'Ton dino est mort — coût : 500 💎',
+        description: 'Tu as l\'essence et veux faire appel à un Oasisaure',
         value: 'resurrection',
       },
       {
-        label: '🏗️ Structures abandonnées / gênantes',
-        description: 'Des constructions bloquent ou sont abandonnées',
+        label: '🧱 Structures abandonnées',
+        description: 'Des constructions gênantes ou abandonnées ?',
         value: 'structures',
       },
       {
         label: '💬 Autres demandes',
-        description: 'Autre chose ? Décris ta situation',
+        description: 'Explique nous tout !',
         value: 'autres',
       },
     ]);
@@ -841,6 +919,139 @@ async function startStructuresReclaim(interaction, data) {
   await interaction.showModal(modal);
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// FLUX DIRECTS VERS LE SALON (channel.send) — appelés par handlePreTypeSelect
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function startInventoryReclaimToChannel(channel, data) {
+  const inv        = getPlayerInventory(data.userId);
+  const itemTypes  = getItemTypes();
+  const categories = getCategories();
+  const invLines   = [];
+  let hasItems     = false;
+
+  for (const cat of categories) {
+    const catItems = itemTypes.filter(t => t.category === cat.id);
+    const lines = [];
+    for (const t of catItems) {
+      const qty = inv[t.id] || 0;
+      if (qty > 0) {
+        const isOcc = isOccasionnelCat(cat);
+        lines.push(`${t.emoji || '📦'} **${t.name}** × ${qty.toLocaleString('fr-FR')}${isOcc ? ' ✨' : ''}`);
+        hasItems = true;
+      }
+    }
+    if (lines.length > 0) invLines.push(`**${cat.emoji || ''} ${cat.name}**\n${lines.join('\n')}`);
+  }
+
+  const invDesc = hasItems ? invLines.join('\n\n') : '*Ton inventaire est vide ou aucun item enregistré.*';
+  const embed = new EmbedBuilder()
+    .setColor(typeColor('inventory'))
+    .setTitle('🎒 Récupération d\'inventaire')
+    .setDescription(
+      `Voici ton inventaire actuel :\n\n${invDesc.slice(0, 3800)}\n\n` +
+      `---\n✨ = Item **OCCASIONNEL** (une note te sera demandée)\n\n` +
+      `**Utilise le menu ci-dessous** pour sélectionner l'item que tu souhaites récupérer.`
+    );
+
+  await channel.send({ embeds: [embed] });
+  await buildInventoryItemSelectAndSend(channel, data);
+}
+
+async function startResurrectionReclaimToChannel(channel, data, settings) {
+  const inv     = getPlayerInventory(data.userId);
+  const diamonds = inv['diamants'] || 0;
+  const enough  = diamonds >= 500;
+  const block   = settings.blockResurrectionIfInsufficient && !enough;
+
+  const statusLine = enough
+    ? '✅ Tu as suffisamment de diamants.'
+    : `⚠️ Solde insuffisant — tu as **${diamonds.toLocaleString('fr-FR')} 💎** sur les **500 💎** nécessaires.`;
+
+  const embed = new EmbedBuilder()
+    .setColor(block ? 0x95a5a6 : typeColor('resurrection'))
+    .setTitle('💀 Résurrection de dino')
+    .setDescription(
+      `**Coût :** 500 💎 prélevés depuis ton compte.\n\n` +
+      `💎 Ton solde actuel : **${diamonds.toLocaleString('fr-FR')} 💎**\n${statusLine}` +
+      (block
+        ? '\n\n❌ **Tu ne peux pas ouvrir une demande de résurrection sans les 500 💎 nécessaires.**'
+        : '\n\nLes 500 💎 seront prélevés automatiquement par le staff une fois ta demande acceptée.\n\nClique sur **Confirmer** pour renseigner les infos de ton dino.')
+    );
+
+  if (block) {
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${PREFIX}_close::${data.ticketId}`)
+        .setLabel('🔒 Fermer ce ticket')
+        .setStyle(ButtonStyle.Secondary)
+    );
+    await channel.send({ embeds: [embed], components: [row] });
+    return;
+  }
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`${PREFIX}_resur_confirm::${data.ticketId}`)
+      .setLabel('✅ Confirmer — Renseigner les infos')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(`${PREFIX}_close::${data.ticketId}`)
+      .setLabel('❌ Annuler')
+      .setStyle(ButtonStyle.Secondary),
+  );
+  await channel.send({ embeds: [embed], components: [row] });
+}
+
+async function startStructuresReclaimToChannel(channel, data) {
+  const embed = new EmbedBuilder()
+    .setColor(typeColor('structures'))
+    .setTitle('🧱 Structures abandonnées / gênantes')
+    .setDescription(
+      'Merci de nous renseigner les informations nécessaires.\n\n' +
+      'Clique sur le bouton ci-dessous pour ouvrir le formulaire.'
+    );
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`${PREFIX}_struct_form::${data.ticketId}`)
+      .setLabel('📝 Ouvrir le formulaire')
+      .setStyle(ButtonStyle.Primary),
+  );
+  await channel.send({ embeds: [embed], components: [row] });
+}
+
+async function startAutresReclaimToChannel(channel, data) {
+  const embed = new EmbedBuilder()
+    .setColor(typeColor('autres'))
+    .setTitle('💬 Autres demandes')
+    .setDescription(
+      'Merci de décrire ta demande.\n\n' +
+      'Clique sur le bouton ci-dessous pour ouvrir le formulaire.'
+    );
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`${PREFIX}_autres_form::${data.ticketId}`)
+      .setLabel('📝 Décrire ma demande')
+      .setStyle(ButtonStyle.Primary),
+  );
+  await channel.send({ embeds: [embed], components: [row] });
+}
+
+// ── Boutons formulaire (ouvrent le modal depuis l'intérieur du salon) ─────────
+async function handleStructFormBtn(interaction, ticketId) {
+  const data = await getOrReloadReclaimTicket(ticketId, interaction.channelId);
+  if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
+  try { await interaction.message.edit({ components: [] }); } catch (e) {}
+  await startStructuresReclaim(interaction, data);
+}
+
+async function handleAutresFormBtn(interaction, ticketId) {
+  const data = await getOrReloadReclaimTicket(ticketId, interaction.channelId);
+  if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
+  try { await interaction.message.edit({ components: [] }); } catch (e) {}
+  await startAutresReclaim(interaction, data);
+}
+
 async function handleStructModal(interaction, ticketId) {
   const data = await getOrReloadReclaimTicket(ticketId, interaction.channelId);
   if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
@@ -852,7 +1063,7 @@ async function handleStructModal(interaction, ticketId) {
 
   const embed = new EmbedBuilder()
     .setColor(typeColor('structures'))
-    .setTitle('🏗️ Réclamation — Structures abandonnées / gênantes')
+    .setTitle('🧱 Réclamation — Structures abandonnées / gênantes')
     .addFields(
       { name: '👤 Joueur',       value: `<@${data.userId}>`, inline: true },
       { name: '🗺️ Map',          value: data.claimData.structMap, inline: true },
@@ -1307,9 +1518,20 @@ async function handleReclaimTicketInteraction(interaction) {
   // ── Panneau : ouverture ───────────────────────────────────────────────────
   if (isBtn && id === `${PREFIX}_open`) return handleOpenReclaim(interaction);
 
-  // ── Select type ───────────────────────────────────────────────────────────
+  // ── Select type AVANT ouverture (éphémère) ────────────────────────────────
+  if (isSelect && id === `${PREFIX}_pretype`) return handlePreTypeSelect(interaction);
+
+  // ── Select type dans le ticket (fallback anciens tickets) ─────────────────
   if (isSelect && id.startsWith(`${PREFIX}_type_select::`)) {
     return handleTypeSelect(interaction, id.split('::')[1]);
+  }
+
+  // ── Formulaires structures / autres (bouton → modal depuis le salon) ──────
+  if (isBtn && id.startsWith(`${PREFIX}_struct_form::`)) {
+    return handleStructFormBtn(interaction, id.split('::')[1]);
+  }
+  if (isBtn && id.startsWith(`${PREFIX}_autres_form::`)) {
+    return handleAutresFormBtn(interaction, id.split('::')[1]);
   }
 
   // ── Inventaire : item perdu ───────────────────────────────────────────────
