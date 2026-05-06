@@ -21,6 +21,7 @@
 
 const {
   EmbedBuilder,
+  AttachmentBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
@@ -31,6 +32,9 @@ const {
   ChannelType,
   PermissionFlagsBits,
 } = require('discord.js');
+
+const path = require('path');
+const RECLAIM_IMG = path.join(__dirname, 'web/public/img/reclamation.png');
 
 const { getSettings } = require('./settingsManager');
 const { getPlayerInventory, getItemTypes, getCategories, removeFromInventory } = require('./inventoryManager');
@@ -166,17 +170,21 @@ async function publishReclaimPanel(interaction) {
       '*Clique sur le bouton ci-dessous pour ouvrir ton ticket.*'
     );
 
-  if (settings.panelImageUrl) embed.setImage(settings.panelImageUrl);
-
   const btn = new ButtonBuilder()
     .setCustomId(`${PREFIX}_open`)
     .setLabel(settings.buttonLabel || '📋 Ouvrir une réclamation')
     .setStyle(ButtonStyle.Primary);
 
-  await interaction.channel.send({
-    embeds: [embed],
-    components: [new ActionRowBuilder().addComponents(btn)],
-  });
+  const sendOpts = { embeds: [embed], components: [new ActionRowBuilder().addComponents(btn)] };
+  if (settings.panelImageUrl) {
+    embed.setImage(settings.panelImageUrl);
+  } else {
+    const attachment = new AttachmentBuilder(RECLAIM_IMG, { name: 'reclamation.png' });
+    embed.setImage('attachment://reclamation.png');
+    sendOpts.files = [attachment];
+  }
+
+  await interaction.channel.send(sendOpts);
   return interaction.reply({ content: '✅ Panneau de réclamation publié !', ephemeral: true });
 }
 
@@ -264,10 +272,12 @@ async function handleOpenReclaim(interaction) {
     }
   }
 
+  const welcomeAttachment = new AttachmentBuilder(RECLAIM_IMG, { name: 'reclamation.png' });
   await channel.send({
     content: `<@${user.id}>`,
     embeds: [buildWelcomeEmbed(ticketData, settings)],
     components: [buildTypeSelectRow(ticketId)],
+    files: [welcomeAttachment],
   });
 
   await interaction.editReply({ content: `✅ Ton ticket a été ouvert : <#${channel.id}>` });
@@ -282,6 +292,7 @@ function buildWelcomeEmbed(ticketData, settings) {
     .setColor(0x9b59b6)
     .setTitle('📋 Nouveau ticket de réclamation')
     .setDescription(msg.replace(/\{user\}/g, `<@${ticketData.userId}>`))
+    .setImage('attachment://reclamation.png')
     .setFooter({ text: `Ticket ID : ${ticketData.ticketId}` })
     .setTimestamp();
 }
@@ -1266,8 +1277,10 @@ async function sendLogRecap(guild, data, deletedBy) {
 
   const openedAt = data?.createdAt ? new Date(data.createdAt).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' }) : '?';
   embed.setFooter({ text: `Ticket ${data?.ticketId} • Ouvert le ${openedAt}` });
+  embed.setThumbnail('attachment://reclamation.png');
 
-  await logCh.send({ embeds: [embed] });
+  const recapAttachment = new AttachmentBuilder(RECLAIM_IMG, { name: 'reclamation.png' });
+  await logCh.send({ embeds: [embed], files: [recapAttachment] });
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
