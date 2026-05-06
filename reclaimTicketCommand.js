@@ -1,15 +1,22 @@
 'use strict';
 
 /**
- * reclaimTicketCommand.js
- * Système de ticket Réclamation :
- * - Panneau publié par /reclamation-panel
- * - Ouverture crée un salon privé recl-username
- * - Choix du type via select menu : Récupération inventaire | Résurrection dino | ...
- * - Flux Récupération : visu inventaire → sélection item perdu → choix item shop → note si OCCASIONNEL
- * - Flux Résurrection : info 500💎 → confirmation → formulaire dino → résumé staff
- * - Fermeture 2 étapes (comme spawn/event ticket)
- * - Persistance PostgreSQL
+ * reclaimTicketCommand.js — Système de ticket Réclamation
+ *
+ * Types disponibles (dans l'ordre du select menu) :
+ *   inventory    → Récupération d'inventaire
+ *   resurrection → Résurrection de dino (500💎, vérif auto solde, prélèvement admin)
+ *   structures   → Structures abandonnées/gênantes (map + coords + note)
+ *   autres       → Autres demandes (texte libre — toujours en dernier)
+ *
+ * Fonctionnalités :
+ *   - Salon nommé par type : inventaire-username, resurrection-username, etc.
+ *   - Renommage du salon après sélection du type
+ *   - Résurrection : blocage si solde insuffisant (configurable), bouton admin prélèvement auto
+ *   - Fermeture 2 étapes : Fermer → (Supprimer + Ajouter une note)
+ *   - Compte-rendu envoyé dans salon log admin à la suppression
+ *   - Note staff optionnelle affichée dans le compte-rendu
+ *   - Persistance PostgreSQL + rechargement propre au redémarrage
  */
 
 const {
@@ -26,7 +33,7 @@ const {
 } = require('discord.js');
 
 const { getSettings } = require('./settingsManager');
-const { getPlayerInventory, getItemTypes, getCategories } = require('./inventoryManager');
+const { getPlayerInventory, getItemTypes, getCategories, removeFromInventory } = require('./inventoryManager');
 const { getShop } = require('./shopManager');
 const { getDinoData } = require('./dinoManager');
 const pgStore = require('./pgStore');
@@ -36,7 +43,10 @@ const PREFIX = 'rcl';
 // ── Map mémoire ───────────────────────────────────────────────────────────────
 const activeReclaimTickets = new Map();
 
-// ── Init au démarrage ─────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// INIT & PERSISTENCE
+// ══════════════════════════════════════════════════════════════════════════════
+
 async function initReclaimTickets(client) {
   try {
     const rows = await pgStore.loadAllOpenReclaimTickets();
@@ -44,7 +54,10 @@ async function initReclaimTickets(client) {
     for (const data of rows) {
       if (client) {
         const channel = client.channels.cache.get(data.channelId);
-        if (!channel) { await pgStore.deleteReclaimTicket(data.ticketId); continue; }
+        if (!channel) {
+          await pgStore.deleteReclaimTicket(data.ticketId);
+          continue;
+        }
       }
       activeReclaimTickets.set(data.ticketId, data);
       loaded++;
@@ -55,13 +68,12 @@ async function initReclaimTickets(client) {
   }
 }
 
-// ── Reconstruction depuis DB si absent de la Map ──────────────────────────────
 async function getOrReloadReclaimTicket(ticketId, channelId) {
-  if (activeReclaimTickets.has(ticketId)) return activeReclaimTickets.get(ticketId);
+  if (ticketId && activeReclaimTickets.has(ticketId)) return activeReclaimTickets.get(ticketId);
   try {
     const rows = await pgStore.loadAllOpenReclaimTickets();
     for (const data of rows) {
-      if (data.ticketId === ticketId || (channelId && data.channelId === channelId)) {
+      if ((ticketId && data.ticketId === ticketId) || (channelId && data.channelId === channelId)) {
         activeReclaimTickets.set(data.ticketId, data);
         return data;
       }
@@ -72,12 +84,19 @@ async function getOrReloadReclaimTicket(ticketId, channelId) {
   return null;
 }
 
-// ── Paramètres ────────────────────────────────────────────────────────────────
+function saveTicket(data) {
+  activeReclaimTickets.set(data.ticketId, data);
+  pgStore.saveReclaimTicket(data).catch(() => {});
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════════════════════════
+
 function getReclaimSettings() {
   return getSettings().reclaimTicket || {};
 }
 
-// ── Vérification staff ────────────────────────────────────────────────────────
 function isStaff(interaction) {
   const settings = getReclaimSettings();
   const roleIds = settings.staffRoleIds || [];
@@ -85,16 +104,32 @@ function isStaff(interaction) {
   return interaction.member?.roles?.cache?.some(r => roleIds.includes(r.id)) ?? false;
 }
 
-// ── Génération ID ─────────────────────────────────────────────────────────────
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
-// ── Couleur du type ───────────────────────────────────────────────────────────
 function typeColor(type) {
-  if (type === 'inventory') return 0x3498db;
+  if (type === 'inventory')    return 0x3498db;
   if (type === 'resurrection') return 0xe74c3c;
+  if (type === 'structures')   return 0xe67e22;
+  if (type === 'autres')       return 0x95a5a6;
   return 0x9b59b6;
+}
+
+function typePrefix(type) {
+  if (type === 'inventory')    return 'inventaire';
+  if (type === 'resurrection') return 'resurrection';
+  if (type === 'structures')   return 'structures';
+  if (type === 'autres')       return 'autres';
+  return 'recl';
+}
+
+function typeLabel(type) {
+  if (type === 'inventory')    return '🎒 Récupération d\'inventaire';
+  if (type === 'resurrection') return '💀 Résurrection de dino';
+  if (type === 'structures')   return '🏗️ Structures abandonnées/gênantes';
+  if (type === 'autres')       return '💬 Autres demandes';
+  return '📋 Réclamation';
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -110,8 +145,10 @@ async function publishReclaimPanel(interaction) {
     .setDescription(
       settings.panelDescription ||
       '**Un problème en jeu ?** Ouvre un ticket de réclamation.\n\n' +
-      '🎒 **Récupération d\'inventaire** — Un item perdu ? Retrouve-le.\n' +
-      '💀 **Résurrection de dino** — Dino mort ? Ça arrive.\n\n' +
+      '🎒 **Récupération d\'inventaire** — Un item perdu ?\n' +
+      '💀 **Résurrection de dino** — Ton dino est mort ?\n' +
+      '🏗️ **Structures abandonnées** — Des constructions gênantes ?\n' +
+      '💬 **Autres demandes** — Autre chose ?\n\n' +
       '*Clique sur le bouton ci-dessous pour ouvrir ton ticket.*'
     );
 
@@ -139,9 +176,13 @@ async function handleOpenReclaim(interaction) {
   const user = interaction.user;
 
   const safeName = user.username.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 20);
-  const channelName = `recl-${safeName}`;
 
-  const existing = guild.channels.cache.find(c => c.name === channelName && !c.name.startsWith('ferme-'));
+  // Vérifier si un ticket est déjà ouvert pour cet utilisateur (tous types)
+  const existing = guild.channels.cache.find(ch => {
+    if (ch.type !== ChannelType.GuildText) return false;
+    const prefixes = ['inventaire-', 'resurrection-', 'structures-', 'autres-', 'recl-'];
+    return prefixes.some(p => ch.name === `${p}${safeName}`);
+  });
   if (existing) {
     return interaction.reply({
       content: `📋 Tu as déjà un ticket de réclamation ouvert : <#${existing.id}>`,
@@ -178,8 +219,9 @@ async function handleOpenReclaim(interaction) {
     }
   }
 
+  // Création avec nom générique, renommé après sélection du type
   const channel = await guild.channels.create({
-    name: channelName,
+    name: `recl-${safeName}`,
     type: ChannelType.GuildText,
     parent: settings.categoryId || null,
     permissionOverwrites: perms,
@@ -191,14 +233,15 @@ async function handleOpenReclaim(interaction) {
     channelId: channel.id,
     userId: user.id,
     username: user.displayName || user.username,
+    safeName,
     status: 'open',
     type: null,
     createdAt: Date.now(),
     claimData: {},
+    staffNote: '',
   };
 
-  activeReclaimTickets.set(ticketId, ticketData);
-  pgStore.saveReclaimTicket(ticketData).catch(() => {});
+  saveTicket(ticketData);
 
   if (settings.notifChannelId) {
     const notifCh = guild.channels.cache.get(settings.notifChannelId);
@@ -229,7 +272,7 @@ function buildWelcomeEmbed(ticketData, settings) {
     .setTimestamp();
 }
 
-// ── Select menu de choix du type ─────────────────────────────────────────────
+// ── Select menu du type ───────────────────────────────────────────────────────
 function buildTypeSelectRow(ticketId) {
   const select = new StringSelectMenuBuilder()
     .setCustomId(`${PREFIX}_type_select::${ticketId}`)
@@ -239,13 +282,21 @@ function buildTypeSelectRow(ticketId) {
         label: '🎒 Récupération d\'inventaire',
         description: 'Tu as perdu un item de ton inventaire',
         value: 'inventory',
-        emoji: '🎒',
       },
       {
         label: '💀 Résurrection de dino',
-        description: 'Ton dino est mort, 500💎 seront prélevés',
+        description: 'Ton dino est mort — coût : 500 💎',
         value: 'resurrection',
-        emoji: '💀',
+      },
+      {
+        label: '🏗️ Structures abandonnées / gênantes',
+        description: 'Des constructions bloquent ou sont abandonnées',
+        value: 'structures',
+      },
+      {
+        label: '💬 Autres demandes',
+        description: 'Autre chose ? Décris ta situation',
+        value: 'autres',
       },
     ]);
 
@@ -253,7 +304,7 @@ function buildTypeSelectRow(ticketId) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// CHOIX DU TYPE
+// SÉLECTION DU TYPE → RENOMMAGE DU SALON
 // ══════════════════════════════════════════════════════════════════════════════
 
 async function handleTypeSelect(interaction, ticketId) {
@@ -262,18 +313,24 @@ async function handleTypeSelect(interaction, ticketId) {
 
   const type = interaction.values[0];
   data.type = type;
-  pgStore.saveReclaimTicket(data).catch(() => {});
+  saveTicket(data);
+
+  // Renommer le salon avec le préfixe du type
+  const newName = `${typePrefix(type)}-${data.safeName || data.username.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 20)}`;
+  try { await interaction.channel.edit({ name: newName }); } catch (e) {}
 
   try { await interaction.message.edit({ components: [] }); } catch (e) {}
 
-  if (type === 'inventory') return startInventoryReclaim(interaction, data);
+  if (type === 'inventory')    return startInventoryReclaim(interaction, data);
   if (type === 'resurrection') return startResurrectionReclaim(interaction, data);
+  if (type === 'structures')   return startStructuresReclaim(interaction, data);
+  if (type === 'autres')       return startAutresReclaim(interaction, data);
 
   return interaction.reply({ content: '❌ Type inconnu.', ephemeral: true });
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// FLUX RÉCUPÉRATION D'INVENTAIRE
+// FLUX — RÉCUPÉRATION D'INVENTAIRE
 // ══════════════════════════════════════════════════════════════════════════════
 
 async function startInventoryReclaim(interaction, data) {
@@ -290,7 +347,7 @@ async function startInventoryReclaim(interaction, data) {
     for (const t of catItems) {
       const qty = inv[t.id] || 0;
       if (qty > 0) {
-        const isOcc = cat.id === 'occasionnel';
+        const isOcc = isOccasionnelCat(cat);
         lines.push(`${t.emoji || '📦'} **${t.name}** × ${qty.toLocaleString('fr-FR')}${isOcc ? ' ✨' : ''}`);
         hasItems = true;
       }
@@ -309,26 +366,29 @@ async function startInventoryReclaim(interaction, data) {
     .setTitle('🎒 Récupération d\'inventaire')
     .setDescription(
       `Voici ton inventaire actuel :\n\n${invDesc.slice(0, 3800)}\n\n` +
-      `---\n✨ = Item **OCCASIONNEL** (une note sera demandée)\n\n` +
+      `---\n✨ = Item **OCCASIONNEL** (une note te sera demandée)\n\n` +
       `**Utilise le menu ci-dessous** pour sélectionner l'item que tu souhaites récupérer.`
     );
 
   await interaction.reply({ embeds: [embed] });
-
   await buildInventoryItemSelectAndSend(interaction.channel, data);
+}
+
+function isOccasionnelCat(cat) {
+  return (cat.id || '').toLowerCase().includes('occasionnel') ||
+         (cat.name || '').toLowerCase().includes('occasionnel');
 }
 
 async function buildInventoryItemSelectAndSend(channel, data) {
   const itemTypes = getItemTypes();
   const categories = getCategories();
-
   const options = [];
 
   for (const cat of categories) {
     const catItems = itemTypes.filter(t => t.category === cat.id);
     for (const t of catItems) {
       if (options.length >= 25) break;
-      const isOcc = cat.id === 'occasionnel';
+      const isOcc = isOccasionnelCat(cat);
       options.push({
         label: `${t.name}${isOcc ? ' ✨' : ''}`.slice(0, 100),
         description: `Catégorie : ${cat.name}${isOcc ? ' — OCCASIONNEL' : ''}`.slice(0, 100),
@@ -358,20 +418,18 @@ async function buildInventoryItemSelectAndSend(channel, data) {
   });
 }
 
-// ── Joueur sélectionne l'item perdu ──────────────────────────────────────────
 async function handleInvItemLost(interaction, ticketId) {
   const data = await getOrReloadReclaimTicket(ticketId, interaction.channelId);
   if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
 
   const [itemId, isOccStr] = interaction.values[0].split('::');
   const isOccasionnel = isOccStr === '1';
-  const itemTypes = getItemTypes();
-  const itemType = itemTypes.find(t => t.id === itemId);
+  const itemType = getItemTypes().find(t => t.id === itemId);
 
   data.claimData.lostItemId = itemId;
   data.claimData.lostItemName = itemType?.name || itemId;
   data.claimData.lostItemIsOccasionnel = isOccasionnel;
-  pgStore.saveReclaimTicket(data).catch(() => {});
+  saveTicket(data);
 
   try { await interaction.message.edit({ components: [] }); } catch (e) {}
 
@@ -385,14 +443,11 @@ async function handleInvItemLost(interaction, ticketId) {
   await buildShopItemSelectAndSend(interaction.channel, data);
 }
 
-// ── Étape 2 : choisir l'item de remplacement dans le shop ────────────────────
 async function buildShopItemSelectAndSend(channel, data) {
   const shop = getShop();
   const dinos = getDinoData();
-
   const options = [];
 
-  // Ajouter les dinos du shop
   for (const dino of (dinos || [])) {
     if (options.length >= 20) break;
     if (dino.notAvailableShop) continue;
@@ -400,11 +455,9 @@ async function buildShopItemSelectAndSend(channel, data) {
       label: `🦕 ${dino.name}`.slice(0, 100),
       description: (dino.location || 'Dino').slice(0, 100),
       value: `dino::${dino.id}`,
-      emoji: '🦕',
     });
   }
 
-  // Ajouter les packs du shop
   for (const pack of (shop.packs || [])) {
     if (options.length >= 25) break;
     if (!pack.visible) continue;
@@ -412,25 +465,11 @@ async function buildShopItemSelectAndSend(channel, data) {
       label: `📦 ${pack.name}`.slice(0, 100),
       description: (pack.description || 'Pack').slice(0, 100),
       value: `pack::${pack.id}`,
-      emoji: '📦',
     });
   }
 
   if (options.length === 0) {
-    const modal = new ModalBuilder()
-      .setCustomId(`${PREFIX}_inv_shop_manual::${data.ticketId}`)
-      .setTitle('Item de remplacement');
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId('shop_item_name')
-          .setLabel('Quel item souhaites-tu récupérer ?')
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true)
-          .setPlaceholder('Ex : Argentavis, Pack Survie, ...')
-      )
-    );
-    return channel.send({ content: 'Aucun item en boutique trouvé. Un admin te contactera directement.' });
+    return channel.send({ content: '❌ Aucun item en boutique configuré. Un admin te contactera.' });
   }
 
   const select = new StringSelectMenuBuilder()
@@ -448,7 +487,6 @@ async function buildShopItemSelectAndSend(channel, data) {
   });
 }
 
-// ── Joueur sélectionne l'item du shop ────────────────────────────────────────
 async function handleInvShopItem(interaction, ticketId) {
   const data = await getOrReloadReclaimTicket(ticketId, interaction.channelId);
   if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
@@ -459,17 +497,15 @@ async function handleInvShopItem(interaction, ticketId) {
 
   let shopItemName = shopId;
   if (shopType === 'dino') {
-    const dinos = getDinoData();
-    const dino = dinos?.find(d => d.id === shopId);
+    const dino = (getDinoData() || []).find(d => d.id === shopId);
     shopItemName = dino ? `🦕 ${dino.name}` : shopId;
   } else {
-    const shop = getShop();
-    const pack = (shop.packs || []).find(p => p.id === shopId);
+    const pack = (getShop().packs || []).find(p => p.id === shopId);
     shopItemName = pack ? `📦 ${pack.name}` : shopId;
   }
 
   data.claimData.shopItemName = shopItemName;
-  pgStore.saveReclaimTicket(data).catch(() => {});
+  saveTicket(data);
 
   try { await interaction.message.edit({ components: [] }); } catch (e) {}
 
@@ -501,78 +537,75 @@ async function handleInvShopItem(interaction, ticketId) {
   await sendInventoryReclaimSummary(interaction.channel, data);
 }
 
-// ── Modal note item occasionnel ───────────────────────────────────────────────
 async function handleOccNote(interaction, ticketId) {
   const data = await getOrReloadReclaimTicket(ticketId, interaction.channelId);
   if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
 
   data.claimData.occasionnelNote = interaction.fields.getTextInputValue('occ_note');
-  pgStore.saveReclaimTicket(data).catch(() => {});
+  saveTicket(data);
 
   await interaction.reply({
-    embeds: [new EmbedBuilder()
-      .setColor(typeColor('inventory'))
-      .setDescription(`✅ Note enregistrée.`)
-    ],
+    embeds: [new EmbedBuilder().setColor(typeColor('inventory')).setDescription('✅ Note enregistrée.')],
   });
 
   await sendInventoryReclaimSummary(interaction.channel, data);
 }
 
-// ── Résumé récupération d'inventaire (affiché dans le ticket) ─────────────────
 async function sendInventoryReclaimSummary(channel, data) {
   const embed = new EmbedBuilder()
     .setColor(typeColor('inventory'))
     .setTitle('🎒 Réclamation — Récupération d\'inventaire')
     .addFields(
-      { name: '👤 Joueur', value: `<@${data.userId}>`, inline: true },
-      { name: '📦 Item perdu', value: `${data.claimData.lostItemName}${data.claimData.lostItemIsOccasionnel ? ' ✨ *(OCCASIONNEL)*' : ''}`, inline: true },
-      { name: '🛒 Item à récupérer', value: data.claimData.shopItemName || '?', inline: true },
+      { name: '👤 Joueur',         value: `<@${data.userId}>`, inline: true },
+      { name: '📦 Item perdu',     value: `${data.claimData.lostItemName}${data.claimData.lostItemIsOccasionnel ? ' ✨' : ''}`, inline: true },
+      { name: '🛒 Item à livrer',  value: data.claimData.shopItemName || '?', inline: true },
     )
-    .setTimestamp();
+    .setTimestamp()
+    .setFooter({ text: '⏳ En attente de traitement' });
 
   if (data.claimData.occasionnelNote) {
-    embed.addFields({ name: '📝 Note (item OCCASIONNEL)', value: data.claimData.occasionnelNote });
+    embed.addFields({ name: '📝 Note (OCCASIONNEL)', value: data.claimData.occasionnelNote });
   }
 
-  embed.setFooter({ text: '⏳ En attente de traitement par le staff' });
-
-  const staffRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`${PREFIX}_mark_done::${data.ticketId}`)
-      .setLabel('✅ Réclamation traitée')
-      .setStyle(ButtonStyle.Success),
-    new ButtonBuilder()
-      .setCustomId(`${PREFIX}_mark_refused::${data.ticketId}`)
-      .setLabel('❌ Refuser')
-      .setStyle(ButtonStyle.Danger),
-    new ButtonBuilder()
-      .setCustomId(`${PREFIX}_close::${data.ticketId}`)
-      .setLabel('🔒 Fermer le ticket')
-      .setStyle(ButtonStyle.Secondary),
-  );
-
-  await channel.send({ embeds: [embed], components: [staffRow] });
+  await channel.send({ embeds: [embed], components: [buildStaffActionsRow(data.ticketId)] });
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// FLUX RÉSURRECTION
+// FLUX — RÉSURRECTION DE DINO
 // ══════════════════════════════════════════════════════════════════════════════
 
 async function startResurrectionReclaim(interaction, data) {
+  const settings = getReclaimSettings();
   const inv = getPlayerInventory(data.userId);
   const diamonds = inv['diamants'] || 0;
   const enough = diamonds >= 500;
+  const block = settings.blockResurrectionIfInsufficient && !enough;
+
+  const statusLine = enough
+    ? '✅ Tu as suffisamment de diamants.'
+    : `⚠️ Solde insuffisant — tu as **${diamonds.toLocaleString('fr-FR')} 💎** sur les **500 💎** nécessaires.`;
 
   const embed = new EmbedBuilder()
-    .setColor(typeColor('resurrection'))
+    .setColor(block ? 0x95a5a6 : typeColor('resurrection'))
     .setTitle('💀 Résurrection de dino')
     .setDescription(
-      `**Coût :** 500 💎 prélevés depuis ton compte Discord.\n\n` +
-      `💎 Ton solde actuel : **${diamonds.toLocaleString('fr-FR')} 💎**\n` +
-      (enough ? '✅ Tu as suffisamment de diamants.' : `⚠️ Solde insuffisant — tu as **${diamonds.toLocaleString('fr-FR')} 💎** sur les **500 💎** nécessaires.\n\n*Le staff décidera au cas par cas.*`) +
-      `\n\n**Le staff prélèvera manuellement les 500 💎 après vérification.**\n\nClique sur **Confirmer** pour continuer et renseigner les infos de ton dino.`
+      `**Coût :** 500 💎 prélevés depuis ton compte.\n\n` +
+      `💎 Ton solde actuel : **${diamonds.toLocaleString('fr-FR')} 💎**\n${statusLine}` +
+      (block
+        ? '\n\n❌ **Tu ne peux pas ouvrir une demande de résurrection sans les 500 💎 nécessaires.**'
+        : '\n\nLes 500 💎 seront prélevés automatiquement par le staff une fois ta demande acceptée.\n\nClique sur **Confirmer** pour renseigner les infos de ton dino.')
     );
+
+  if (block) {
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${PREFIX}_close::${data.ticketId}`)
+        .setLabel('🔒 Fermer ce ticket')
+        .setStyle(ButtonStyle.Secondary),
+    );
+    await interaction.reply({ embeds: [embed], components: [row] });
+    return;
+  }
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -588,7 +621,6 @@ async function startResurrectionReclaim(interaction, data) {
   await interaction.reply({ embeds: [embed], components: [row] });
 }
 
-// ── Joueur confirme la résurrection → modal ───────────────────────────────────
 async function handleResurConfirm(interaction, ticketId) {
   const modal = new ModalBuilder()
     .setCustomId(`${PREFIX}_resur_modal::${ticketId}`)
@@ -598,7 +630,7 @@ async function handleResurConfirm(interaction, ticketId) {
     new ActionRowBuilder().addComponents(
       new TextInputBuilder()
         .setCustomId('dino_name')
-        .setLabel('Nom du dino (espèce)')
+        .setLabel('Espèce du dino')
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
         .setPlaceholder('Ex : Rex, Argentavis, Wyvern de Feu...')
@@ -614,10 +646,10 @@ async function handleResurConfirm(interaction, ticketId) {
     new ActionRowBuilder().addComponents(
       new TextInputBuilder()
         .setCustomId('dino_details')
-        .setLabel('Détails supplémentaires')
+        .setLabel('Détails (carte, nom, circonstances...)')
         .setStyle(TextInputStyle.Paragraph)
         .setRequired(false)
-        .setPlaceholder('Circonstances, carte, nom du dino, couleurs...')
+        .setPlaceholder('Sur quelle map ? Quel nom de dino ? Comment il est mort ?')
         .setMaxLength(500)
     )
   );
@@ -625,53 +657,52 @@ async function handleResurConfirm(interaction, ticketId) {
   await interaction.showModal(modal);
 }
 
-// ── Modal résurrection soumis ─────────────────────────────────────────────────
 async function handleResurModal(interaction, ticketId) {
   const data = await getOrReloadReclaimTicket(ticketId, interaction.channelId);
   if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
 
-  data.claimData.dinoName = interaction.fields.getTextInputValue('dino_name');
-  data.claimData.dinoLevel = interaction.fields.getTextInputValue('dino_level') || 'Non précisé';
+  data.claimData.dinoName    = interaction.fields.getTextInputValue('dino_name');
+  data.claimData.dinoLevel   = interaction.fields.getTextInputValue('dino_level') || 'Non précisé';
   data.claimData.dinoDetails = interaction.fields.getTextInputValue('dino_details') || '';
-  pgStore.saveReclaimTicket(data).catch(() => {});
+  saveTicket(data);
 
   await interaction.reply({
-    embeds: [new EmbedBuilder()
-      .setColor(typeColor('resurrection'))
-      .setDescription(`✅ Informations enregistrées. Résumé en cours...`)
-    ],
+    embeds: [new EmbedBuilder().setColor(typeColor('resurrection')).setDescription('✅ Informations enregistrées.')],
   });
 
   await sendResurrectionSummary(interaction.channel, data);
 }
 
-// ── Résumé résurrection ───────────────────────────────────────────────────────
 async function sendResurrectionSummary(channel, data) {
   const inv = getPlayerInventory(data.userId);
   const diamonds = inv['diamants'] || 0;
+  const enough = diamonds >= 500;
 
   const embed = new EmbedBuilder()
     .setColor(typeColor('resurrection'))
     .setTitle('💀 Réclamation — Résurrection de dino')
     .addFields(
-      { name: '👤 Joueur', value: `<@${data.userId}>`, inline: true },
-      { name: '💎 Solde actuel', value: `${diamonds.toLocaleString('fr-FR')} 💎`, inline: true },
-      { name: '💸 Coût', value: '500 💎 *(prélèvement manuel par le staff)*', inline: true },
-      { name: '🦕 Espèce', value: data.claimData.dinoName || '?', inline: true },
-      { name: '⭐ Niveau', value: data.claimData.dinoLevel || 'Non précisé', inline: true },
+      { name: '👤 Joueur',       value: `<@${data.userId}>`, inline: true },
+      { name: '💎 Solde actuel', value: `${diamonds.toLocaleString('fr-FR')} 💎 ${enough ? '✅' : '⚠️'}`, inline: true },
+      { name: '💸 Coût',        value: '500 💎', inline: true },
+      { name: '🦕 Espèce',      value: data.claimData.dinoName || '?', inline: true },
+      { name: '⭐ Niveau',       value: data.claimData.dinoLevel || 'Non précisé', inline: true },
     )
-    .setTimestamp();
+    .setTimestamp()
+    .setFooter({ text: '⏳ En attente de traitement — prélèvement 500💎 via bouton staff' });
 
   if (data.claimData.dinoDetails) {
     embed.addFields({ name: '📝 Détails', value: data.claimData.dinoDetails });
   }
 
-  embed.setFooter({ text: '⏳ En attente de traitement par le staff — prélèvement manuel des 500💎' });
+  if (!enough) {
+    embed.addFields({ name: '⚠️ Attention', value: `Solde insuffisant : **${diamonds.toLocaleString('fr-FR')} 💎** disponibles sur 500 💎 requis.` });
+  }
 
   const staffRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(`${PREFIX}_mark_done::${data.ticketId}`)
-      .setLabel('✅ Réclamation traitée')
+      .setCustomId(`${PREFIX}_resur_deduct::${data.ticketId}`)
+      .setLabel('💎 Prélever 500💎 et traiter')
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
       .setCustomId(`${PREFIX}_mark_refused::${data.ticketId}`)
@@ -679,15 +710,204 @@ async function sendResurrectionSummary(channel, data) {
       .setStyle(ButtonStyle.Danger),
     new ButtonBuilder()
       .setCustomId(`${PREFIX}_close::${data.ticketId}`)
-      .setLabel('🔒 Fermer le ticket')
+      .setLabel('🔒 Fermer')
       .setStyle(ButtonStyle.Secondary),
   );
 
   await channel.send({ embeds: [embed], components: [staffRow] });
 }
 
+// ── Admin : prélever 500💎 et marquer traité ──────────────────────────────────
+async function handleResurDeduct(interaction, ticketId) {
+  if (!isStaff(interaction)) return interaction.reply({ content: '🚫 Réservé au staff.', ephemeral: true });
+
+  const data = await getOrReloadReclaimTicket(ticketId, interaction.channelId);
+  if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
+
+  const adminName = interaction.member?.displayName || interaction.user.username;
+  const inv = getPlayerInventory(data.userId);
+  const diamonds = inv['diamants'] || 0;
+
+  try {
+    if (diamonds >= 500) {
+      await removeFromInventory(data.userId, 'diamants', 500, interaction.user.id, `Résurrection dino — Ticket ${ticketId}`);
+      data.claimData.diamondsDeducted = 500;
+      data.claimData.deductedBy = adminName;
+      saveTicket(data);
+    } else {
+      data.claimData.deductedBy = adminName;
+      data.claimData.diamondsDeducted = 0;
+      data.claimData.deductionNote = `Solde insuffisant (${diamonds}💎) — prélèvement manuel nécessaire`;
+      saveTicket(data);
+    }
+  } catch (e) {
+    return interaction.reply({ content: `❌ Erreur lors du prélèvement : ${e.message}`, ephemeral: true });
+  }
+
+  try { await interaction.message.edit({ components: [] }); } catch (e) {}
+
+  const deductedOk = data.claimData.diamondsDeducted === 500;
+
+  await interaction.reply({
+    embeds: [new EmbedBuilder()
+      .setColor(deductedOk ? 0x2ecc71 : 0xe67e22)
+      .setTitle(deductedOk ? '✅ 500 💎 prélevés — Résurrection acceptée' : '⚠️ Prélèvement partiel')
+      .setDescription(
+        deductedOk
+          ? `**${adminName}** a prélevé **500 💎** du compte de <@${data.userId}>.\n\nLa résurrection peut maintenant être effectuée en jeu.`
+          : `Solde insuffisant (**${diamonds} 💎**). Aucun prélèvement automatique.\n\n**${adminName}** doit gérer le prélèvement manuellement.`
+      )
+      .setTimestamp()
+    ],
+    components: [new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${PREFIX}_close::${ticketId}`)
+        .setLabel('🔒 Fermer le ticket')
+        .setStyle(ButtonStyle.Secondary),
+    )],
+  });
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
-// ACTIONS STAFF
+// FLUX — STRUCTURES ABANDONNÉES / GÊNANTES
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function startStructuresReclaim(interaction, data) {
+  const modal = new ModalBuilder()
+    .setCustomId(`${PREFIX}_struct_modal::${data.ticketId}`)
+    .setTitle('🏗️ Structures abandonnées / gênantes');
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('struct_map')
+        .setLabel('Sur quelle map ?')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setPlaceholder('Ex : The Island, Ragnarok, Crystal Isles...')
+    ),
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('struct_coords')
+        .setLabel('Coordonnées (lat / lon)')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setPlaceholder('Ex : 45.2 / 67.8')
+    ),
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('struct_notes')
+        .setLabel('Informations complémentaires')
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(false)
+        .setPlaceholder('Décris le problème, la taille des structures, si c\'est abandonné depuis longtemps...')
+        .setMaxLength(500)
+    )
+  );
+
+  await interaction.showModal(modal);
+}
+
+async function handleStructModal(interaction, ticketId) {
+  const data = await getOrReloadReclaimTicket(ticketId, interaction.channelId);
+  if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
+
+  data.claimData.structMap    = interaction.fields.getTextInputValue('struct_map');
+  data.claimData.structCoords = interaction.fields.getTextInputValue('struct_coords');
+  data.claimData.structNotes  = interaction.fields.getTextInputValue('struct_notes') || '';
+  saveTicket(data);
+
+  const embed = new EmbedBuilder()
+    .setColor(typeColor('structures'))
+    .setTitle('🏗️ Réclamation — Structures abandonnées / gênantes')
+    .addFields(
+      { name: '👤 Joueur',       value: `<@${data.userId}>`, inline: true },
+      { name: '🗺️ Map',          value: data.claimData.structMap, inline: true },
+      { name: '📍 Coordonnées',  value: data.claimData.structCoords, inline: true },
+    )
+    .setTimestamp()
+    .setFooter({ text: '⏳ En attente de vérification par le staff' });
+
+  if (data.claimData.structNotes) {
+    embed.addFields({ name: '📝 Notes', value: data.claimData.structNotes });
+  }
+
+  await interaction.reply({
+    embeds: [embed],
+    components: [buildStaffActionsRow(data.ticketId)],
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FLUX — AUTRES DEMANDES
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function startAutresReclaim(interaction, data) {
+  const modal = new ModalBuilder()
+    .setCustomId(`${PREFIX}_autres_modal::${data.ticketId}`)
+    .setTitle('💬 Autres demandes');
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('autres_text')
+        .setLabel('Décris ta demande')
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(true)
+        .setPlaceholder('Explique ici ta situation, ta demande ou ton problème...')
+        .setMaxLength(1000)
+    )
+  );
+
+  await interaction.showModal(modal);
+}
+
+async function handleAutresModal(interaction, ticketId) {
+  const data = await getOrReloadReclaimTicket(ticketId, interaction.channelId);
+  if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
+
+  data.claimData.autresText = interaction.fields.getTextInputValue('autres_text');
+  saveTicket(data);
+
+  const embed = new EmbedBuilder()
+    .setColor(typeColor('autres'))
+    .setTitle('💬 Réclamation — Autres demandes')
+    .addFields(
+      { name: '👤 Joueur',  value: `<@${data.userId}>`, inline: true },
+      { name: '📝 Demande', value: data.claimData.autresText },
+    )
+    .setTimestamp()
+    .setFooter({ text: '⏳ En attente de réponse du staff' });
+
+  await interaction.reply({
+    embeds: [embed],
+    components: [buildStaffActionsRow(data.ticketId)],
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BOUTONS STAFF COMMUNS
+// ══════════════════════════════════════════════════════════════════════════════
+
+function buildStaffActionsRow(ticketId) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`${PREFIX}_mark_done::${ticketId}`)
+      .setLabel('✅ Réclamation traitée')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`${PREFIX}_mark_refused::${ticketId}`)
+      .setLabel('❌ Refuser')
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId(`${PREFIX}_close::${ticketId}`)
+      .setLabel('🔒 Fermer le ticket')
+      .setStyle(ButtonStyle.Secondary),
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ACTIONS STAFF — TRAITÉ / REFUSÉ
 // ══════════════════════════════════════════════════════════════════════════════
 
 async function handleMarkDone(interaction, ticketId) {
@@ -698,7 +918,8 @@ async function handleMarkDone(interaction, ticketId) {
 
   const adminName = interaction.member?.displayName || interaction.user.username;
   data.status = 'done';
-  pgStore.saveReclaimTicket(data).catch(() => {});
+  data.claimData.resolvedBy = adminName;
+  saveTicket(data);
 
   try { await interaction.message.edit({ components: [] }); } catch (e) {}
 
@@ -706,10 +927,7 @@ async function handleMarkDone(interaction, ticketId) {
     embeds: [new EmbedBuilder()
       .setColor(0x2ecc71)
       .setTitle('✅ Réclamation traitée')
-      .setDescription(
-        `La réclamation de <@${data.userId}> a été **traitée** par **${adminName}**.\n\n` +
-        `Le ticket peut maintenant être fermé.`
-      )
+      .setDescription(`La réclamation de <@${data.userId}> a été **traitée** par **${adminName}**.\n\nLe ticket peut maintenant être fermé.`)
       .setTimestamp()
     ],
     components: [new ActionRowBuilder().addComponents(
@@ -726,12 +944,6 @@ async function handleMarkRefused(interaction, ticketId) {
 
   const data = await getOrReloadReclaimTicket(ticketId, interaction.channelId);
   if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
-
-  const adminName = interaction.member?.displayName || interaction.user.username;
-  data.status = 'refused';
-  pgStore.saveReclaimTicket(data).catch(() => {});
-
-  try { await interaction.message.edit({ components: [] }); } catch (e) {}
 
   const modal = new ModalBuilder()
     .setCustomId(`${PREFIX}_refuse_reason::${ticketId}`)
@@ -756,13 +968,22 @@ async function handleRefuseReason(interaction, ticketId) {
   const adminName = interaction.member?.displayName || interaction.user.username;
   const reason = interaction.fields.getTextInputValue('reason') || 'Aucun motif précisé.';
 
+  if (data) {
+    data.status = 'refused';
+    data.claimData.refusedBy = adminName;
+    data.claimData.refuseReason = reason;
+    saveTicket(data);
+  }
+
+  try { await interaction.message.edit({ components: [] }); } catch (e) {}
+
   await interaction.reply({
     content: `<@${data?.userId || ''}>`,
     embeds: [new EmbedBuilder()
       .setColor(0xe74c3c)
       .setTitle('❌ Réclamation refusée')
       .setDescription(
-        `Ta réclamation a été **refusée** par **${adminName}**.\n\n**Motif :** ${reason}\n\n*Si tu penses qu'il y a une erreur, n'hésite pas à contacter le staff directement.*`
+        `Ta réclamation a été **refusée** par **${adminName}**.\n\n**Motif :** ${reason}\n\n*Pour toute question, contacte directement le staff.*`
       )
       .setTimestamp()
     ],
@@ -776,7 +997,7 @@ async function handleRefuseReason(interaction, ticketId) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// FERMETURE (2 étapes)
+// FERMETURE — 2 ÉTAPES
 // ══════════════════════════════════════════════════════════════════════════════
 
 async function handleClose(interaction, ticketId) {
@@ -786,7 +1007,7 @@ async function handleClose(interaction, ticketId) {
     embeds: [new EmbedBuilder()
       .setColor(0xe67e22)
       .setTitle('⚠️ Fermer ce ticket ?')
-      .setDescription('Le joueur n\'aura plus accès à ce salon.\nLe ticket restera visible pour le staff jusqu\'à sa suppression.')
+      .setDescription('Le joueur n\'aura plus accès à ce salon.\nVous pourrez ensuite ajouter une note ou supprimer le ticket.')
     ],
     components: [new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -809,20 +1030,21 @@ async function handleCloseConfirm(interaction, ticketId) {
   const adminName = interaction.member?.displayName || interaction.user.username;
   const userId = data?.userId;
 
+  // Retirer l'accès du joueur
   if (userId) {
-    try {
-      await interaction.channel.permissionOverwrites.edit(userId, { ViewChannel: false, SendMessages: false });
-    } catch (e) {}
+    try { await interaction.channel.permissionOverwrites.edit(userId, { ViewChannel: false, SendMessages: false }); } catch (e) {}
   }
 
-  try {
-    const newName = `ferme-${interaction.channel.name}`.slice(0, 100);
-    await interaction.channel.edit({ name: newName, reason: `Ticket fermé par ${adminName}` });
-  } catch (e) {}
+  // Renommer avec préfixe "ferme-"
+  const currentName = interaction.channel.name;
+  const closedName = `ferme-${currentName}`.slice(0, 100);
+  try { await interaction.channel.edit({ name: closedName, reason: `Ticket fermé par ${adminName}` }); } catch (e) {}
 
   if (data) {
-    data.status = 'closed';
-    pgStore.saveReclaimTicket(data).catch(() => {});
+    if (data.status === 'open') data.status = 'closed';
+    data.claimData.closedBy = adminName;
+    data.claimData.closedAt = Date.now();
+    saveTicket(data);
   }
 
   try {
@@ -830,24 +1052,29 @@ async function handleCloseConfirm(interaction, ticketId) {
       embeds: [new EmbedBuilder()
         .setColor(0x95a5a6)
         .setTitle('🔒 Ticket fermé')
-        .setDescription(`Fermé par **${adminName}**.\nLe joueur ne voit plus ce salon.`)
+        .setDescription(`Fermé par **${adminName}**. Le joueur ne peut plus voir ce salon.`)
       ],
       components: [],
     });
   } catch (e) {}
 
+  // Message dans le ticket avec boutons Supprimer + Ajouter note
   await interaction.channel.send({
     embeds: [new EmbedBuilder()
       .setColor(0x95a5a6)
       .setTitle('🔒 Ticket fermé')
       .setDescription(
-        `Ce ticket a été fermé par **${adminName}**.\n` +
+        `Ce ticket a été fermé par **${adminName}**.\n\n` +
         `Le joueur n'a plus accès à ce salon.\n\n` +
-        `Supprime le ticket quand tu es prêt(e).`
+        `Vous pouvez **ajouter une note staff** ou **supprimer le ticket** directement.`
       )
       .setTimestamp()
     ],
     components: [new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${PREFIX}_add_note::${ticketId}`)
+        .setLabel('📝 Ajouter une note')
+        .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId(`${PREFIX}_delete::${ticketId}`)
         .setLabel('🗑️ Supprimer le ticket')
@@ -856,17 +1083,85 @@ async function handleCloseConfirm(interaction, ticketId) {
   }).catch(() => {});
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// NOTE STAFF
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function handleAddNote(interaction, ticketId) {
+  if (!isStaff(interaction)) return interaction.reply({ content: '🚫 Réservé au staff.', ephemeral: true });
+
+  const modal = new ModalBuilder()
+    .setCustomId(`${PREFIX}_note_modal::${ticketId}`)
+    .setTitle('📝 Note staff');
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('note_text')
+        .setLabel('Note interne (affichée dans le compte-rendu)')
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(true)
+        .setPlaceholder('Ex : Structure supprimée le 06/05 — Dino ressuscité correctement...')
+        .setMaxLength(500)
+    )
+  );
+
+  return interaction.showModal(modal);
+}
+
+async function handleNoteModal(interaction, ticketId) {
+  if (!isStaff(interaction)) return interaction.reply({ content: '🚫 Réservé au staff.', ephemeral: true });
+
+  const data = await getOrReloadReclaimTicket(ticketId, interaction.channelId);
+  if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
+
+  const adminName = interaction.member?.displayName || interaction.user.username;
+  const noteText  = interaction.fields.getTextInputValue('note_text');
+
+  data.staffNote = noteText;
+  data.claimData.noteBy = adminName;
+  saveTicket(data);
+
+  try { await interaction.message.edit({ components: [] }); } catch (e) {}
+
+  await interaction.reply({
+    embeds: [new EmbedBuilder()
+      .setColor(0x3498db)
+      .setTitle('📝 Note enregistrée')
+      .setDescription(`**Note de ${adminName} :**\n${noteText}`)
+      .setTimestamp()
+    ],
+    components: [new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${PREFIX}_delete::${ticketId}`)
+        .setLabel('🗑️ Supprimer le ticket')
+        .setStyle(ButtonStyle.Danger),
+    )],
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SUPPRESSION + COMPTE-RENDU LOG
+// ══════════════════════════════════════════════════════════════════════════════
+
 async function handleDelete(interaction, ticketId) {
   if (!isStaff(interaction)) return interaction.reply({ content: '🚫 Réservé au staff.', ephemeral: true });
 
+  const data = await getOrReloadReclaimTicket(ticketId, interaction.channelId);
   const adminName = interaction.member?.displayName || interaction.user.username;
+
+  // Envoyer le compte-rendu dans le salon log avant suppression
+  try {
+    await sendLogRecap(interaction.guild, data, adminName);
+  } catch (e) {
+    console.error('[ReclaimTicket] Erreur envoi log:', e.message);
+  }
 
   try {
     await interaction.update({
       embeds: [new EmbedBuilder()
         .setColor(0xe74c3c)
-        .setTitle('🗑️ Suppression en cours…')
-        .setDescription('Ce salon sera supprimé dans 3 secondes.')
+        .setTitle('🗑️ Suppression dans 3 secondes…')
+        .setDescription('Le compte-rendu a été envoyé dans le salon admin.')
       ],
       components: [],
     });
@@ -883,6 +1178,76 @@ async function handleDelete(interaction, ticketId) {
   }, 3000);
 }
 
+// ── Compte-rendu dans le salon log ───────────────────────────────────────────
+async function sendLogRecap(guild, data, deletedBy) {
+  const settings = getReclaimSettings();
+  const logChannelId = settings.logChannelId;
+  if (!logChannelId) return;
+
+  const logCh = guild.channels.cache.get(logChannelId);
+  if (!logCh) return;
+
+  const type = data?.type;
+  const cd   = data?.claimData || {};
+
+  const embed = new EmbedBuilder()
+    .setColor(type ? typeColor(type) : 0x9b59b6)
+    .setTitle(`📋 Compte-rendu — ${typeLabel(type)}`)
+    .addFields(
+      { name: '👤 Joueur',       value: `<@${data?.userId}> (\`${data?.username}\`)`, inline: true },
+      { name: '📁 Statut final', value: data?.status === 'done' ? '✅ Traité' : data?.status === 'refused' ? '❌ Refusé' : '🔒 Fermé', inline: true },
+      { name: '🗑️ Supprimé par', value: deletedBy, inline: true },
+    )
+    .setTimestamp();
+
+  // Champs spécifiques au type
+  if (type === 'inventory') {
+    embed.addFields(
+      { name: '📦 Item perdu',    value: `${cd.lostItemName || '?'}${cd.lostItemIsOccasionnel ? ' ✨' : ''}`, inline: true },
+      { name: '🛒 Item à livrer', value: cd.shopItemName || '?', inline: true },
+    );
+    if (cd.occasionnelNote) embed.addFields({ name: '📝 Note OCCASIONNEL', value: cd.occasionnelNote });
+  }
+
+  if (type === 'resurrection') {
+    embed.addFields(
+      { name: '🦕 Espèce', value: cd.dinoName || '?', inline: true },
+      { name: '⭐ Niveau', value: cd.dinoLevel || '?', inline: true },
+      { name: '💎 Prélèvement', value: cd.diamondsDeducted === 500 ? `✅ 500💎 prélevés par ${cd.deductedBy}` : (cd.deductionNote || '⚠️ Non prélevé automatiquement'), inline: false },
+    );
+    if (cd.dinoDetails) embed.addFields({ name: '📝 Détails', value: cd.dinoDetails });
+  }
+
+  if (type === 'structures') {
+    embed.addFields(
+      { name: '🗺️ Map',         value: cd.structMap || '?', inline: true },
+      { name: '📍 Coordonnées', value: cd.structCoords || '?', inline: true },
+    );
+    if (cd.structNotes) embed.addFields({ name: '📝 Notes', value: cd.structNotes });
+  }
+
+  if (type === 'autres') {
+    embed.addFields({ name: '📝 Demande', value: cd.autresText || '?' });
+  }
+
+  // Actions staff
+  const actions = [];
+  if (cd.resolvedBy)  actions.push(`✅ Traité par **${cd.resolvedBy}**`);
+  if (cd.refusedBy)   actions.push(`❌ Refusé par **${cd.refusedBy}** — ${cd.refuseReason || ''}`);
+  if (cd.closedBy)    actions.push(`🔒 Fermé par **${cd.closedBy}**`);
+  if (actions.length) embed.addFields({ name: '👮 Actions staff', value: actions.join('\n') });
+
+  // Note staff
+  if (data?.staffNote) {
+    embed.addFields({ name: `📝 Note staff${cd.noteBy ? ` (${cd.noteBy})` : ''}`, value: data.staffNote });
+  }
+
+  const openedAt = data?.createdAt ? new Date(data.createdAt).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' }) : '?';
+  embed.setFooter({ text: `Ticket ${data?.ticketId} • Ouvert le ${openedAt}` });
+
+  await logCh.send({ embeds: [embed] });
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // COMMANDE SLASH
 // ══════════════════════════════════════════════════════════════════════════════
@@ -893,92 +1258,104 @@ async function handleReclaimCommand(interaction) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// DISPATCHER
+// DISPATCHER PRINCIPAL
 // ══════════════════════════════════════════════════════════════════════════════
 
 async function handleReclaimTicketInteraction(interaction) {
-  const isBtn = interaction.isButton();
-  const isSelect = interaction.isStringSelectMenu();
-  const isModal = interaction.isModalSubmit();
-
   const id = interaction.customId;
   if (!id || !id.startsWith(`${PREFIX}_`)) return;
 
-  // ── Bouton ouverture ──────────────────────────────────────────────────────
-  if (id === `${PREFIX}_open`) return handleOpenReclaim(interaction);
+  const isBtn    = interaction.isButton();
+  const isSelect = interaction.isStringSelectMenu();
+  const isModal  = interaction.isModalSubmit();
+
+  // ── Panneau : ouverture ───────────────────────────────────────────────────
+  if (isBtn && id === `${PREFIX}_open`) return handleOpenReclaim(interaction);
 
   // ── Select type ───────────────────────────────────────────────────────────
   if (isSelect && id.startsWith(`${PREFIX}_type_select::`)) {
-    const ticketId = id.split('::')[1];
-    return handleTypeSelect(interaction, ticketId);
+    return handleTypeSelect(interaction, id.split('::')[1]);
   }
 
-  // ── Select item perdu ─────────────────────────────────────────────────────
+  // ── Inventaire : item perdu ───────────────────────────────────────────────
   if (isSelect && id.startsWith(`${PREFIX}_inv_item_lost::`)) {
-    const ticketId = id.split('::')[1];
-    return handleInvItemLost(interaction, ticketId);
+    return handleInvItemLost(interaction, id.split('::')[1]);
   }
 
-  // ── Select item shop ──────────────────────────────────────────────────────
+  // ── Inventaire : item shop ────────────────────────────────────────────────
   if (isSelect && id.startsWith(`${PREFIX}_inv_shop_item::`)) {
-    const ticketId = id.split('::')[1];
-    return handleInvShopItem(interaction, ticketId);
+    return handleInvShopItem(interaction, id.split('::')[1]);
   }
 
-  // ── Modal note occasionnel ────────────────────────────────────────────────
+  // ── Inventaire : note OCCASIONNEL ─────────────────────────────────────────
   if (isModal && id.startsWith(`${PREFIX}_inv_occ_note::`)) {
-    const ticketId = id.split('::')[1];
-    return handleOccNote(interaction, ticketId);
+    return handleOccNote(interaction, id.split('::')[1]);
   }
 
   // ── Résurrection : confirmation ───────────────────────────────────────────
   if (isBtn && id.startsWith(`${PREFIX}_resur_confirm::`)) {
-    const ticketId = id.split('::')[1];
-    return handleResurConfirm(interaction, ticketId);
+    return handleResurConfirm(interaction, id.split('::')[1]);
   }
 
-  // ── Résurrection : modal ──────────────────────────────────────────────────
+  // ── Résurrection : modal infos ────────────────────────────────────────────
   if (isModal && id.startsWith(`${PREFIX}_resur_modal::`)) {
-    const ticketId = id.split('::')[1];
-    return handleResurModal(interaction, ticketId);
+    return handleResurModal(interaction, id.split('::')[1]);
+  }
+
+  // ── Résurrection : prélèvement admin ─────────────────────────────────────
+  if (isBtn && id.startsWith(`${PREFIX}_resur_deduct::`)) {
+    return handleResurDeduct(interaction, id.split('::')[1]);
+  }
+
+  // ── Structures : modal ────────────────────────────────────────────────────
+  if (isModal && id.startsWith(`${PREFIX}_struct_modal::`)) {
+    return handleStructModal(interaction, id.split('::')[1]);
+  }
+
+  // ── Autres : modal ────────────────────────────────────────────────────────
+  if (isModal && id.startsWith(`${PREFIX}_autres_modal::`)) {
+    return handleAutresModal(interaction, id.split('::')[1]);
   }
 
   // ── Staff : traité ────────────────────────────────────────────────────────
   if (isBtn && id.startsWith(`${PREFIX}_mark_done::`)) {
-    const ticketId = id.split('::')[1];
-    return handleMarkDone(interaction, ticketId);
+    return handleMarkDone(interaction, id.split('::')[1]);
   }
 
-  // ── Staff : refuser ───────────────────────────────────────────────────────
+  // ── Staff : refus + modal ─────────────────────────────────────────────────
   if (isBtn && id.startsWith(`${PREFIX}_mark_refused::`)) {
-    const ticketId = id.split('::')[1];
-    return handleMarkRefused(interaction, ticketId);
+    return handleMarkRefused(interaction, id.split('::')[1]);
   }
 
-  // ── Modal motif de refus ──────────────────────────────────────────────────
   if (isModal && id.startsWith(`${PREFIX}_refuse_reason::`)) {
-    const ticketId = id.split('::')[1];
-    return handleRefuseReason(interaction, ticketId);
+    return handleRefuseReason(interaction, id.split('::')[1]);
   }
 
   // ── Fermeture ─────────────────────────────────────────────────────────────
   if (isBtn && id.startsWith(`${PREFIX}_close::`)) {
-    const ticketId = id.split('::')[1];
-    return handleClose(interaction, ticketId);
+    return handleClose(interaction, id.split('::')[1]);
   }
 
   if (isBtn && id.startsWith(`${PREFIX}_close_confirm::`)) {
-    const ticketId = id.split('::')[1];
-    return handleCloseConfirm(interaction, ticketId);
+    return handleCloseConfirm(interaction, id.split('::')[1]);
   }
 
   if (isBtn && id.startsWith(`${PREFIX}_close_cancel::`)) {
     return interaction.update({ components: [] });
   }
 
+  // ── Note staff ────────────────────────────────────────────────────────────
+  if (isBtn && id.startsWith(`${PREFIX}_add_note::`)) {
+    return handleAddNote(interaction, id.split('::')[1]);
+  }
+
+  if (isModal && id.startsWith(`${PREFIX}_note_modal::`)) {
+    return handleNoteModal(interaction, id.split('::')[1]);
+  }
+
+  // ── Suppression ───────────────────────────────────────────────────────────
   if (isBtn && id.startsWith(`${PREFIX}_delete::`)) {
-    const ticketId = id.split('::')[1];
-    return handleDelete(interaction, ticketId);
+    return handleDelete(interaction, id.split('::')[1]);
   }
 }
 
