@@ -177,10 +177,10 @@ async function publishReclaimPanel(interaction) {
 
   const sendOpts = { embeds: [embed], components: [new ActionRowBuilder().addComponents(btn)] };
   if (settings.panelImageUrl) {
-    embed.setThumbnail(settings.panelImageUrl);
+    embed.setImage(settings.panelImageUrl);
   } else {
     const attachment = new AttachmentBuilder(RECLAIM_IMG, { name: 'reclamation.png' });
-    embed.setThumbnail('attachment://reclamation.png');
+    embed.setImage('attachment://reclamation.png');
     sendOpts.files = [attachment];
   }
 
@@ -433,91 +433,369 @@ async function handleTypeSelect(interaction, ticketId) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// FLUX — RÉCUPÉRATION D'INVENTAIRE
+// FLUX — RÉCLAMATION INVENTAIRE (SYSTÈME PANIER) — prefix rcl_ic_
 // ══════════════════════════════════════════════════════════════════════════════
-
-async function startInventoryReclaim(interaction, data) {
-  const inv = getPlayerInventory(data.userId);
-  const itemTypes = getItemTypes();
-  const categories = getCategories();
-
-  const invLines = [];
-  let hasItems = false;
-
-  for (const cat of categories) {
-    const catItems = itemTypes.filter(t => t.category === cat.id);
-    const lines = [];
-    for (const t of catItems) {
-      const qty = inv[t.id] || 0;
-      if (qty > 0) {
-        const isOcc = isOccasionnelCat(cat);
-        lines.push(`${t.emoji || '📦'} **${t.name}** × ${qty.toLocaleString('fr-FR')}${isOcc ? ' ✨' : ''}`);
-        hasItems = true;
-      }
-    }
-    if (lines.length > 0) {
-      invLines.push(`**${cat.emoji || ''} ${cat.name}**\n${lines.join('\n')}`);
-    }
-  }
-
-  const invDesc = hasItems
-    ? invLines.join('\n\n')
-    : '*Ton inventaire est vide ou aucun item enregistré.*';
-
-  const embed = new EmbedBuilder()
-    .setColor(typeColor('inventory'))
-    .setTitle('🎒 Récupération d\'inventaire')
-    .setDescription(
-      `Voici ton inventaire actuel :\n\n${invDesc.slice(0, 3800)}\n\n` +
-      `---\n✨ = Item **OCCASIONNEL** (une note te sera demandée)\n\n` +
-      `**Utilise le menu ci-dessous** pour sélectionner l'item que tu souhaites récupérer.`
-    );
-
-  await interaction.reply({ embeds: [embed] });
-  await buildInventoryItemSelectAndSend(interaction.channel, data);
-}
 
 function isOccasionnelCat(cat) {
   return (cat.id || '').toLowerCase().includes('occasionnel') ||
          (cat.name || '').toLowerCase().includes('occasionnel');
 }
 
-async function buildInventoryItemSelectAndSend(channel, data) {
-  const itemTypes = getItemTypes();
-  const categories = getCategories();
-  const options = [];
+// ── Stock disponible = inventaire - panier en cours ──────────────────────────
+function getAvailableStock(userId, cart) {
+  const inv = getPlayerInventory(userId);
+  const reserved = {};
+  for (const entry of (cart || [])) {
+    reserved[entry.itemId] = (reserved[entry.itemId] || 0) + entry.qty;
+  }
+  const result = {};
+  for (const [id, qty] of Object.entries(inv)) {
+    result[id] = Math.max(0, qty - (reserved[id] || 0));
+  }
+  return result;
+}
 
+// ── Embed principal du panier ─────────────────────────────────────────────────
+function buildInvCartEmbed(data) {
+  const inv        = getPlayerInventory(data.userId);
+  const cart       = data.claimData.invCart || [];
+  const itemTypes  = getItemTypes();
+  const categories = getCategories();
+  const available  = getAvailableStock(data.userId, cart);
+
+  const stockLines = [];
   for (const cat of categories) {
-    const catItems = itemTypes.filter(t => t.category === cat.id);
-    for (const t of catItems) {
-      if (options.length >= 25) break;
-      const isOcc = isOccasionnelCat(cat);
-      options.push({
-        label: `${t.name}${isOcc ? ' ✨' : ''}`.slice(0, 100),
-        description: `Catégorie : ${cat.name}${isOcc ? ' — OCCASIONNEL' : ''}`.slice(0, 100),
-        value: `${t.id}::${isOcc ? '1' : '0'}`,
-        emoji: t.emoji || '📦',
-      });
-    }
-    if (options.length >= 25) break;
+    const catItems = itemTypes.filter(t => t.category === cat.id && (inv[t.id] || 0) > 0);
+    if (catItems.length === 0) continue;
+    const lines = catItems.map(t => {
+      const total    = inv[t.id] || 0;
+      const avail    = available[t.id] ?? total;
+      const reserved = total - avail;
+      if (reserved > 0) {
+        return `${t.emoji || '📦'} **${t.name}** : ~~${total}~~ → **${avail} disponible** *(${reserved} dans le panier)*`;
+      }
+      return `${t.emoji || '📦'} **${t.name}** × ${total}`;
+    });
+    stockLines.push(`**${cat.emoji || ''} ${cat.name}**\n${lines.join('\n')}`);
   }
 
-  if (options.length === 0) {
-    return channel.send({ content: '❌ Aucun type d\'item configuré. Contacte un admin.' });
+  const cartLines = cart.map(e => `• ${e.emoji || '📦'} **${e.itemName}** × ${e.qty}`);
+
+  let desc = '';
+  if (stockLines.length > 0) {
+    desc += `📦 **Ton stock :**\n${stockLines.join('\n\n')}\n\n`;
+  } else {
+    desc += '❌ *Ton inventaire est vide — aucun item à réclamer.*\n\n';
+  }
+
+  if (cart.length > 0) {
+    desc += `🛒 **Panier :**\n${cartLines.join('\n')}\n\n`;
+    desc += `*${cart.reduce((s, e) => s + e.qty, 0)} article(s) — ${cart.length} type(s)*`;
+  } else {
+    desc += '🛒 **Panier vide** — utilise ➕ pour ajouter des articles.';
+  }
+
+  return new EmbedBuilder()
+    .setColor(typeColor('inventory'))
+    .setTitle('🎒 Réclamation Inventaire')
+    .setDescription(desc.slice(0, 4096))
+    .setFooter({ text: `Ticket ${data.ticketId}` })
+    .setTimestamp();
+}
+
+// ── Lignes de boutons du panier ───────────────────────────────────────────────
+function buildInvCartRows(ticketId, cart) {
+  const hasCart = cart && cart.length > 0;
+  const row1 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rcl_ic_add::${ticketId}`)
+      .setLabel('➕ Ajouter un article')
+      .setStyle(ButtonStyle.Primary),
+  );
+  if (hasCart) {
+    row1.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`rcl_ic_rmv_sel::${ticketId}`)
+        .setLabel('🗑️ Retirer')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`rcl_ic_confirm::${ticketId}`)
+        .setLabel('✅ Confirmer la commande')
+        .setStyle(ButtonStyle.Success),
+    );
+  }
+  return [
+    row1,
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${PREFIX}_close::${ticketId}`)
+        .setLabel('🔒 Annuler / Fermer')
+        .setStyle(ButtonStyle.Danger),
+    ),
+  ];
+}
+
+// ── Afficher le panier initial dans le salon ──────────────────────────────────
+async function startInvCartFlow(channel, data) {
+  const inv       = getPlayerInventory(data.userId);
+  const itemTypes = getItemTypes();
+  const hasInv    = itemTypes.some(t => (inv[t.id] || 0) > 0);
+
+  if (!hasInv) {
+    await channel.send({
+      embeds: [new EmbedBuilder()
+        .setColor(0xe74c3c)
+        .setTitle('🎒 Inventaire vide')
+        .setDescription('Ton inventaire ne contient aucun item à réclamer.\n\nContacte un admin si tu penses que c\'est une erreur.')
+        .setFooter({ text: `Ticket ${data.ticketId}` })
+      ],
+      components: [new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`${PREFIX}_close::${data.ticketId}`)
+          .setLabel('🔒 Fermer le ticket')
+          .setStyle(ButtonStyle.Secondary),
+      )],
+    });
+    return;
+  }
+
+  if (!data.claimData.invCart) data.claimData.invCart = [];
+  saveTicket(data);
+
+  await channel.send({
+    embeds: [buildInvCartEmbed(data)],
+    components: buildInvCartRows(data.ticketId, data.claimData.invCart),
+  });
+}
+
+// ── Ancien point d'entrée (fallback handleTypeSelect anciens tickets) ─────────
+async function startInventoryReclaim(interaction, data) {
+  try { await interaction.message?.edit({ components: [] }); } catch (e) {}
+  await interaction.reply({ embeds: [new EmbedBuilder().setColor(typeColor('inventory')).setDescription('🎒 Chargement du panier…')], ephemeral: true });
+  await startInvCartFlow(interaction.channel, data);
+}
+
+// ── ➕ Ajouter : afficher select catégorie ────────────────────────────────────
+async function handleInvAddBtn(interaction, ticketId) {
+  const data = await getOrReloadReclaimTicket(ticketId, interaction.channelId);
+  if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
+
+  const available  = getAvailableStock(data.userId, data.claimData.invCart || []);
+  const itemTypes  = getItemTypes();
+  const categories = getCategories();
+
+  const catsWithItems = categories.filter(cat =>
+    itemTypes.some(t => t.category === cat.id && (available[t.id] || 0) > 0)
+  );
+
+  if (catsWithItems.length === 0) {
+    return interaction.reply({ content: '❌ Plus aucun article disponible dans ton stock.', ephemeral: true });
   }
 
   const select = new StringSelectMenuBuilder()
-    .setCustomId(`${PREFIX}_inv_item_lost::${data.ticketId}`)
-    .setPlaceholder('Quel item as-tu perdu ?')
-    .addOptions(options);
+    .setCustomId(`rcl_ic_cat::${ticketId}`)
+    .setPlaceholder('Dans quelle catégorie ?')
+    .addOptions(catsWithItems.slice(0, 25).map(cat => ({
+      label: `${cat.emoji || '📦'} ${cat.name}`,
+      value: cat.id,
+    })));
 
-  await channel.send({
-    embeds: [new EmbedBuilder()
-      .setColor(typeColor('inventory'))
-      .setTitle('📦 Étape 1 — Quel item as-tu perdu ?')
-      .setDescription('Sélectionne l\'item que tu n\'as plus et que tu veux récupérer.')
+  await interaction.update({
+    embeds: [buildInvCartEmbed(data)],
+    components: [
+      new ActionRowBuilder().addComponents(select),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`rcl_ic_back::${ticketId}`).setLabel('↩️ Retour').setStyle(ButtonStyle.Secondary),
+      ),
     ],
-    components: [new ActionRowBuilder().addComponents(select)],
+  });
+}
+
+// ── Catégorie sélectionnée : afficher items disponibles ───────────────────────
+async function handleInvCatSelect(interaction, ticketId) {
+  const data = await getOrReloadReclaimTicket(ticketId, interaction.channelId);
+  if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
+
+  const catId     = interaction.values[0];
+  const available = getAvailableStock(data.userId, data.claimData.invCart || []);
+  const itemTypes = getItemTypes();
+  const items     = itemTypes.filter(t => t.category === catId && (available[t.id] || 0) > 0);
+
+  if (items.length === 0) {
+    return interaction.reply({ content: '❌ Plus aucun article disponible dans cette catégorie.', ephemeral: true });
+  }
+
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(`rcl_ic_item::${ticketId}::${catId}`)
+    .setPlaceholder('Quel article réclamer ?')
+    .addOptions(items.slice(0, 25).map(t => ({
+      label: `${t.emoji || '📦'} ${t.name}`,
+      description: `Dispo : ${available[t.id] || 0}`,
+      value: t.id,
+    })));
+
+  await interaction.update({
+    embeds: [buildInvCartEmbed(data)],
+    components: [
+      new ActionRowBuilder().addComponents(select),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`rcl_ic_back::${ticketId}`).setLabel('↩️ Retour').setStyle(ButtonStyle.Secondary),
+      ),
+    ],
+  });
+}
+
+// ── Item sélectionné : afficher select quantité ───────────────────────────────
+async function handleInvItemSelect(interaction, ticketId) {
+  const data = await getOrReloadReclaimTicket(ticketId, interaction.channelId);
+  if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
+
+  const itemId    = interaction.values[0];
+  const available = getAvailableStock(data.userId, data.claimData.invCart || []);
+  const avail     = available[itemId] || 0;
+  const itemType  = getItemTypes().find(t => t.id === itemId);
+
+  if (avail <= 0) return interaction.reply({ content: '❌ Aucun stock disponible pour cet item.', ephemeral: true });
+
+  const maxQty = Math.min(avail, 25);
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(`rcl_ic_qty::${ticketId}`)
+    .setPlaceholder(`Quantité à réclamer (dispo : ${avail})`)
+    .addOptions(Array.from({ length: maxQty }, (_, i) => ({
+      label: `${i + 1}`,
+      description: `${i + 1}× ${itemType?.name || itemId}`,
+      value: `${itemId}::${i + 1}`,
+    })));
+
+  await interaction.update({
+    embeds: [buildInvCartEmbed(data)],
+    components: [
+      new ActionRowBuilder().addComponents(select),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`rcl_ic_back::${ticketId}`).setLabel('↩️ Retour').setStyle(ButtonStyle.Secondary),
+      ),
+    ],
+  });
+}
+
+// ── Quantité sélectionnée : ajouter au panier + mise à jour embed ─────────────
+async function handleInvQtySelect(interaction, ticketId) {
+  const data = await getOrReloadReclaimTicket(ticketId, interaction.channelId);
+  if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
+
+  const [itemId, qtyStr] = interaction.values[0].split('::');
+  const qty      = parseInt(qtyStr, 10);
+  const itemType = getItemTypes().find(t => t.id === itemId);
+
+  if (!data.claimData.invCart) data.claimData.invCart = [];
+
+  const available = getAvailableStock(data.userId, data.claimData.invCart);
+  if ((available[itemId] || 0) < qty) {
+    return interaction.reply({ content: '❌ Stock insuffisant. Vérifie ton inventaire.', ephemeral: true });
+  }
+
+  const existing = data.claimData.invCart.find(e => e.itemId === itemId);
+  if (existing) {
+    existing.qty += qty;
+  } else {
+    data.claimData.invCart.push({ itemId, itemName: itemType?.name || itemId, emoji: itemType?.emoji || '📦', qty });
+  }
+  saveTicket(data);
+
+  await interaction.update({
+    embeds: [buildInvCartEmbed(data)],
+    components: buildInvCartRows(ticketId, data.claimData.invCart),
+  });
+}
+
+// ── Retour au panier ──────────────────────────────────────────────────────────
+async function handleInvBackBtn(interaction, ticketId) {
+  const data = await getOrReloadReclaimTicket(ticketId, interaction.channelId);
+  if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
+  await interaction.update({ embeds: [buildInvCartEmbed(data)], components: buildInvCartRows(ticketId, data.claimData.invCart || []) });
+}
+
+// ── 🗑️ Retirer : afficher select des articles du panier ──────────────────────
+async function handleInvRmvSelBtn(interaction, ticketId) {
+  const data = await getOrReloadReclaimTicket(ticketId, interaction.channelId);
+  if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
+
+  const cart = data.claimData.invCart || [];
+  if (cart.length === 0) return interaction.reply({ content: '🛒 Le panier est vide.', ephemeral: true });
+
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(`rcl_ic_remove::${ticketId}`)
+    .setPlaceholder('Quel article retirer du panier ?')
+    .addOptions(cart.map(e => ({
+      label: `${e.emoji || '📦'} ${e.itemName} × ${e.qty}`,
+      description: `Supprimer entièrement ${e.itemName} du panier`,
+      value: e.itemId,
+    })));
+
+  await interaction.update({
+    embeds: [buildInvCartEmbed(data)],
+    components: [
+      new ActionRowBuilder().addComponents(select),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`rcl_ic_back::${ticketId}`).setLabel('↩️ Retour').setStyle(ButtonStyle.Secondary),
+      ),
+    ],
+  });
+}
+
+// ── Suppression d'un article du panier ───────────────────────────────────────
+async function handleInvRemoveSelect(interaction, ticketId) {
+  const data = await getOrReloadReclaimTicket(ticketId, interaction.channelId);
+  if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
+
+  const itemId = interaction.values[0];
+  data.claimData.invCart = (data.claimData.invCart || []).filter(e => e.itemId !== itemId);
+  saveTicket(data);
+
+  await interaction.update({ embeds: [buildInvCartEmbed(data)], components: buildInvCartRows(ticketId, data.claimData.invCart) });
+}
+
+// ── ✅ Confirmer → récapitulatif staff ────────────────────────────────────────
+async function handleInvConfirmBtn(interaction, ticketId) {
+  const data = await getOrReloadReclaimTicket(ticketId, interaction.channelId);
+  if (!data) return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
+
+  const cart = data.claimData.invCart || [];
+  if (cart.length === 0) {
+    return interaction.reply({ content: '🛒 Le panier est vide.', ephemeral: true });
+  }
+
+  // Vérification finale : stock suffisant pour chaque article
+  const inv     = getPlayerInventory(data.userId);
+  const issues  = cart.filter(e => (inv[e.itemId] || 0) < e.qty);
+  if (issues.length > 0) {
+    return interaction.reply({
+      content: `❌ Stock insuffisant pour : ${issues.map(e => `**${e.itemName}**`).join(', ')}. Retire ces articles du panier.`,
+      ephemeral: true,
+    });
+  }
+
+  data.status = 'pending';
+  saveTicket(data);
+
+  try { await interaction.message.edit({ components: [] }); } catch (e) {}
+
+  const cartLines = cart.map(e => `• ${e.emoji || '📦'} **${e.itemName}** × ${e.qty}`).join('\n');
+  const total     = cart.reduce((s, e) => s + e.qty, 0);
+
+  await interaction.reply({
+    embeds: [new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle('✅ Commande envoyée au staff')
+      .addFields(
+        { name: '👤 Joueur',              value: `<@${data.userId}> (\`${data.username}\`)`, inline: true },
+        { name: '📦 Articles demandés',    value: cartLines },
+        { name: '🔢 Total',               value: `${total} article(s)`, inline: true },
+      )
+      .setTimestamp()
+      .setFooter({ text: '⏳ En attente de livraison par le staff' })
+    ],
+    components: [buildStaffActionsRow(ticketId)],
   });
 }
 
@@ -924,38 +1202,7 @@ async function startStructuresReclaim(interaction, data) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 async function startInventoryReclaimToChannel(channel, data) {
-  const inv        = getPlayerInventory(data.userId);
-  const itemTypes  = getItemTypes();
-  const categories = getCategories();
-  const invLines   = [];
-  let hasItems     = false;
-
-  for (const cat of categories) {
-    const catItems = itemTypes.filter(t => t.category === cat.id);
-    const lines = [];
-    for (const t of catItems) {
-      const qty = inv[t.id] || 0;
-      if (qty > 0) {
-        const isOcc = isOccasionnelCat(cat);
-        lines.push(`${t.emoji || '📦'} **${t.name}** × ${qty.toLocaleString('fr-FR')}${isOcc ? ' ✨' : ''}`);
-        hasItems = true;
-      }
-    }
-    if (lines.length > 0) invLines.push(`**${cat.emoji || ''} ${cat.name}**\n${lines.join('\n')}`);
-  }
-
-  const invDesc = hasItems ? invLines.join('\n\n') : '*Ton inventaire est vide ou aucun item enregistré.*';
-  const embed = new EmbedBuilder()
-    .setColor(typeColor('inventory'))
-    .setTitle('🎒 Récupération d\'inventaire')
-    .setDescription(
-      `Voici ton inventaire actuel :\n\n${invDesc.slice(0, 3800)}\n\n` +
-      `---\n✨ = Item **OCCASIONNEL** (une note te sera demandée)\n\n` +
-      `**Utilise le menu ci-dessous** pour sélectionner l'item que tu souhaites récupérer.`
-    );
-
-  await channel.send({ embeds: [embed] });
-  await buildInventoryItemSelectAndSend(channel, data);
+  await startInvCartFlow(channel, data);
 }
 
 async function startResurrectionReclaimToChannel(channel, data, settings) {
@@ -1163,17 +1410,36 @@ async function handleMarkDone(interaction, ticketId) {
   const adminName = interaction.member?.displayName || interaction.user.username;
   data.status = 'done';
   data.claimData.resolvedBy = adminName;
-  saveTicket(data);
 
+  // ── Déduction automatique pour les tickets inventaire avec panier ──────────
+  const deductionLines = [];
+  if (data.type === 'inventory') {
+    const cart = data.claimData.invCart || [];
+    for (const entry of cart) {
+      try {
+        await removeFromInventory(data.userId, entry.itemId, entry.qty, interaction.user.id, `Réclamation inventaire — Ticket ${ticketId}`);
+        deductionLines.push(`• ${entry.emoji || '📦'} **${entry.itemName}** × ${entry.qty} déduit`);
+      } catch (err) {
+        deductionLines.push(`• ⚠️ ${entry.itemName} × ${entry.qty} — erreur déduction : ${err.message}`);
+      }
+    }
+  }
+
+  saveTicket(data);
   try { await interaction.message.edit({ components: [] }); } catch (e) {}
 
+  const embed = new EmbedBuilder()
+    .setColor(0x2ecc71)
+    .setTitle('✅ Réclamation traitée')
+    .setDescription(`La réclamation de <@${data.userId}> a été **traitée** par **${adminName}**.\n\nLe ticket peut maintenant être fermé.`)
+    .setTimestamp();
+
+  if (deductionLines.length > 0) {
+    embed.addFields({ name: '📦 Inventaire déduit', value: deductionLines.join('\n') });
+  }
+
   await interaction.reply({
-    embeds: [new EmbedBuilder()
-      .setColor(0x2ecc71)
-      .setTitle('✅ Réclamation traitée')
-      .setDescription(`La réclamation de <@${data.userId}> a été **traitée** par **${adminName}**.\n\nLe ticket peut maintenant être fermé.`)
-      .setTimestamp()
-    ],
+    embeds: [embed],
     components: [new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`${PREFIX}_close::${ticketId}`)
@@ -1533,6 +1799,18 @@ async function handleReclaimTicketInteraction(interaction) {
   if (isBtn && id.startsWith(`${PREFIX}_autres_form::`)) {
     return handleAutresFormBtn(interaction, id.split('::')[1]);
   }
+
+  // ── Panier inventaire (rcl_ic_) ───────────────────────────────────────────
+  if (isBtn  && id.startsWith('rcl_ic_add::'))     return handleInvAddBtn(interaction, id.split('::')[1]);
+  if (isBtn  && id.startsWith('rcl_ic_back::'))    return handleInvBackBtn(interaction, id.split('::')[1]);
+  if (isBtn  && id.startsWith('rcl_ic_rmv_sel::')) return handleInvRmvSelBtn(interaction, id.split('::')[1]);
+  if (isBtn  && id.startsWith('rcl_ic_confirm::')) return handleInvConfirmBtn(interaction, id.split('::')[1]);
+  if (isSelect && id.startsWith('rcl_ic_cat::'))   return handleInvCatSelect(interaction, id.split('::')[1]);
+  if (isSelect && id.startsWith('rcl_ic_item::'))  return handleInvItemSelect(interaction, id.split('::')[1]);
+  if (isSelect && id.startsWith('rcl_ic_qty::')) {
+    return handleInvQtySelect(interaction, id.split('::')[1]);
+  }
+  if (isSelect && id.startsWith('rcl_ic_remove::')) return handleInvRemoveSelect(interaction, id.split('::')[1]);
 
   // ── Inventaire : item perdu ───────────────────────────────────────────────
   if (isSelect && id.startsWith(`${PREFIX}_inv_item_lost::`)) {
