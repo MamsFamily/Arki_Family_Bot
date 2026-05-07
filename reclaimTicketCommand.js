@@ -207,14 +207,6 @@ async function handleOpenReclaim(interaction) {
   const user    = interaction.user;
   const safeName = user.username.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 20);
 
-  const existing = guild.channels.cache.find(ch => {
-    if (ch.type !== ChannelType.GuildText) return false;
-    return ['inventaire-', 'resurrection-', 'structures-', 'autres-'].some(p => ch.name === `${p}${safeName}`);
-  });
-  if (existing) {
-    return interaction.reply({ content: `📋 Tu as déjà un ticket ouvert : <#${existing.id}>`, ephemeral: true });
-  }
-
   const preEmbed = new EmbedBuilder()
     .setColor(0x9b59b6)
     .setTitle('📋 Quel type de réclamation ?')
@@ -236,13 +228,15 @@ async function handlePreTypeSelect(interaction) {
   const settings = getReclaimSettings();
   const safeName = user.username.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 20);
 
-  // Ticket déjà ouvert ?
-  const existing = guild.channels.cache.find(ch => {
-    if (ch.type !== ChannelType.GuildText) return false;
-    return ['inventaire-', 'resurrection-', 'structures-', 'autres-'].some(p => ch.name === `${p}${safeName}`);
-  });
+  // Ticket du même type déjà ouvert ?
+  const typeToPrefix = { inventory: 'inventaire-', resurrection: 'resurrection-', structures: 'structures-', autres: 'autres-' };
+  const prefix = typeToPrefix[type] || `${type}-`;
+  const existing = guild.channels.cache.find(ch =>
+    ch.type === ChannelType.GuildText && ch.name === `${prefix}${safeName}`
+  );
   if (existing) {
-    return interaction.update({ content: `📋 Tu as déjà un ticket ouvert : <#${existing.id}>`, embeds: [], components: [], files: [] });
+    const typeLabels = { inventory: 'inventaire', resurrection: 'résurrection', structures: 'structures', autres: 'autre demande' };
+    return interaction.update({ content: `📋 Tu as déjà un ticket **${typeLabels[type] || type}** ouvert : <#${existing.id}>\nTu peux ouvrir un ticket d'un autre type si besoin.`, embeds: [], components: [], files: [] });
   }
 
   // Pour les structures : afficher le formulaire AVANT de créer le salon
@@ -346,13 +340,12 @@ async function handleStructPreTypeModal(interaction) {
   const settings = getReclaimSettings();
   const safeName = user.username.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 20);
 
-  // Vérif ticket existant
-  const existing = guild.channels.cache.find(ch => {
-    if (ch.type !== ChannelType.GuildText) return false;
-    return ['inventaire-', 'resurrection-', 'structures-', 'autres-'].some(p => ch.name === `${p}${safeName}`);
-  });
+  // Vérif ticket du même type (structures) déjà ouvert
+  const existing = guild.channels.cache.find(ch =>
+    ch.type === ChannelType.GuildText && ch.name === `structures-${safeName}`
+  );
   if (existing) {
-    return interaction.reply({ content: `📋 Tu as déjà un ticket ouvert : <#${existing.id}>`, ephemeral: true });
+    return interaction.reply({ content: `📋 Tu as déjà un ticket **structures** ouvert : <#${existing.id}>\nTu peux ouvrir un ticket d'un autre type si besoin.`, ephemeral: true });
   }
 
   await interaction.deferReply({ ephemeral: true });
