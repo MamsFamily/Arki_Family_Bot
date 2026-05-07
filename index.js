@@ -40,7 +40,7 @@ const { handleShopCommand, handleShopInteraction } = require('./shopCommand');
 const { handleShopTicketCommand, handleShopTicketInteraction, publishShopTicketPanel, handleRecapCommand, initShopOrders } = require('./shopTicketCommand');
 const { handleSpawnTicketCommand, handleSpawnTicketInteraction, initSpawnTickets, getOpenSpawnTicketByUserId } = require('./spawnTicketCommand');
 const { publishEventPanel, handleEventTicketInteraction } = require('./eventTicketCommand');
-const { handleReclaimCommand, handleReclaimTicketInteraction, initReclaimTickets } = require('./reclaimTicketCommand');
+const { handleReclaimCommand, handleReclaimTicketInteraction, initReclaimTickets, handleReclaimRecapCommand } = require('./reclaimTicketCommand');
 const restartScheduler = require('./nitradoRestartScheduler');
 const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
 const { registerCasinoHandlers } = require('./casino/casinoHandler');
@@ -1981,7 +1981,11 @@ client.on('interactionCreate', async interaction => {
 
   if (commandName === 'recap') {
     try {
-      await handleRecapCommand(interaction);
+      // Essayer d'abord dans un ticket inventaire de réclamation
+      const handledByReclaim = await handleReclaimRecapCommand(interaction);
+      if (!handledByReclaim) {
+        await handleRecapCommand(interaction);
+      }
     } catch (err) {
       console.error('[Récap] Erreur commande /récap:', err);
       try {
