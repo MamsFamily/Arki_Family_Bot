@@ -500,15 +500,16 @@ function buildInvCartEmbed(data) {
   }
 
   const cartLines = cart.map(e => {
-    let line = `• ${e.emoji || '📦'} **${e.itemName}** × ${e.qty}`;
+    let line = `• **${e.itemName}** × ${e.qty}`;
     if (e.details && e.details.length > 0) {
       line += '\n' + e.details.map(d => {
-        if (d.isCouple) return `  > 💑 Couple — ♂️ ${d.maleStat} / ♀️ ${d.femaleStat}`;
-        return `  > ${d.dinoName}${d.variant && d.variant !== 'base' ? ` (${d.variant})` : ''} — ${d.sex} — ${d.stat}`;
+        const v = d.variant && d.variant !== 'base' ? ` (${d.variant})` : '';
+        if (d.isCouple) return `  > ${d.dinoName}${v} — Couple ♀ ${d.femaleStat} / ♂ ${d.maleStat}`;
+        return `  > ${d.dinoName}${v} — ${d.sex} — ${d.stat}`;
       }).join('\n');
     }
-    if (e.packName) line += `\n  > 📦 ${e.packName}`;
-    if (e.note) line += `\n  > 📝 ${e.note.slice(0, 80)}`;
+    if (e.packName) line += `\n  > ${e.packName}`;
+    if (e.note)     line += `\n  > 💬 ${e.note.slice(0, 80)}`;
     return line;
   });
 
@@ -1263,32 +1264,31 @@ async function handleInvDoneBtn(interaction, ticketId) {
 
 function buildInvCartSummaryLines(cart) {
   return cart.map(e => {
-    let line = `• ${menuEmoji(e.emoji, '📦')} **${e.itemName}** × ${e.qty}`;
     if (e.details && e.details.length > 0) {
-      line += '\n' + e.details.map(d => {
-        if (d.isCouple) return `  ↳ 💑 Couple — ♂️ ${d.maleStat} / ♀️ ${d.femaleStat}`;
+      const dinoLines = e.details.map(d => {
         const v = d.variant && d.variant !== 'base' ? ` (${d.variant})` : '';
-        return `  ↳ 🦕 ${d.dinoName}${v} — ${d.sex} — ${d.stat}`;
+        if (d.isCouple) return `• ${d.dinoName}${v}\n  ◦ Couple - ♀ ${d.femaleStat} / ♂ ${d.maleStat}`;
+        return `• ${d.dinoName}${v}\n  ◦ ${d.sex} - ${d.stat}`;
       }).join('\n');
+      return `**${e.itemName} × ${e.qty} :**\n${dinoLines}`;
     }
-    if (e.packName) line += `\n  ↳ 📦 ${e.packName}`;
-    if (e.note)     line += `\n  ↳ 📝 ${e.note.slice(0, 120)}`;
-    return line;
-  }).join('\n');
+    if (e.packName) return `**${e.itemName} × ${e.qty} :**\n• ${e.packName}`;
+    if (e.note)     return `**${e.itemName} × ${e.qty} :**\n💬 ${e.note.slice(0, 200)}`;
+    return `**${e.itemName} × ${e.qty}**`;
+  }).join('\n\n');
 }
 
 async function sendInvCartSummary(interaction, data) {
-  const cart      = data.claimData.invCart || [];
-  const cartLines = buildInvCartSummaryLines(cart);
-  const total     = cart.reduce((s, e) => s + e.qty, 0);
+  const cart    = data.claimData.invCart || [];
+  const total   = cart.reduce((s, e) => s + e.qty, 0);
+  const summary = buildInvCartSummaryLines(cart);
 
   const embed = new EmbedBuilder()
     .setColor(0x3498db)
     .setTitle('🎒 Réclamation Inventaire — Liste en attente de livraison')
-    .addFields(
-      { name: '👤 Joueur',           value: `<@${data.userId}> (\`${data.username}\`)`, inline: true },
-      { name: '🔢 Total articles',   value: `${total}`,                                  inline: true },
-      { name: '📦 Articles demandés', value: cartLines.slice(0, 1024) || '—' },
+    .setDescription(
+      `**Joueur :** <@${data.userId}> (\`${data.username}\`) — **${total} article(s)**\n\n` +
+      `**Panier :**\n\n${summary}`.slice(0, 4096)
     )
     .setTimestamp()
     .setFooter({ text: '⏳ En attente de livraison — retrait inventaire à confirmer par le staff' });
@@ -2114,22 +2114,24 @@ async function handleReclaimRecapCommand(interaction) {
   const data = await getOrReloadReclaimTicket(null, interaction.channelId);
   if (!data || data.type !== 'inventory') return false; // pas un ticket inventaire
 
-  const cart = data.claimData.invCart || [];
+  const cart    = data.claimData.invCart || [];
+  const total   = cart.reduce((s, e) => s + e.qty, 0);
+  const statusLabels = { open: 'En cours', pending: 'En attente de livraison', done: 'Traitée', closed: 'Fermée', refused: 'Refusée' };
+
+  let desc = `**Joueur :** <@${data.userId}> (\`${data.username}\`)\n`;
+  desc += `**Statut :** ${statusLabels[data.status] || data.status}`;
+  if (cart.length > 0) {
+    desc += ` — **${total} article(s)**\n\n**Panier :**\n\n${buildInvCartSummaryLines(cart)}`;
+  } else {
+    desc += '\n\n*Panier vide.*';
+  }
+
   const embed = new EmbedBuilder()
     .setColor(typeColor('inventory'))
     .setTitle('🎒 Récapitulatif — Réclamation Inventaire')
-    .addFields(
-      { name: '👤 Joueur', value: `<@${data.userId}> (\`${data.username}\`)`, inline: true },
-      { name: '📁 Statut', value: data.status, inline: true },
-    )
+    .setDescription(desc.slice(0, 4096))
     .setTimestamp()
     .setFooter({ text: `Ticket ${data.ticketId}` });
-
-  if (cart.length > 0) {
-    embed.addFields({ name: '🛒 Panier', value: buildInvCartSummaryLines(cart).slice(0, 1024) });
-  } else {
-    embed.setDescription('*Panier vide ou ticket non inventaire.*');
-  }
 
   await interaction.reply({ embeds: [embed] });
   return true;
