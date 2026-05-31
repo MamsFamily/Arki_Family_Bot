@@ -1387,6 +1387,50 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
+    // ── Annulation distributions votes (rollback) ────────────────────────────
+    if (interaction.customId === 'vote_rollback_cancel') {
+      return interaction.update({ content: '✅ Annulation abandonnée.', embeds: [], components: [] });
+    }
+
+    if (interaction.customId.startsWith('vote_rollback_confirm::')) {
+      if (!hasRoulettePermission(interaction.member)) {
+        return interaction.reply({ content: '❌ Réservé aux administrateurs.', ephemeral: true });
+      }
+      const rawMois = interaction.customId.split('::')[1];
+      await interaction.deferUpdate();
+
+      const { transactions: allTx } = getTransactions({ limit: 999999 });
+      const regex = new RegExp(`votes\\s+${rawMois}`, 'i');
+      const toRollback = allTx.filter(tx => tx.type === 'add' && regex.test(tx.reason));
+
+      if (toRollback.length === 0) {
+        return interaction.editReply({ content: `❌ Plus aucune transaction à annuler pour **${rawMois}**.`, embeds: [], components: [] });
+      }
+
+      let success = 0, failed = 0;
+      const report = [];
+      for (const tx of toRollback) {
+        try {
+          await removeFromInventory(tx.playerId, tx.itemTypeId, tx.quantity, interaction.user.id, `Rollback votes ${rawMois}`);
+          success++;
+        } catch (e) {
+          failed++;
+          report.push(`❌ <@${tx.playerId}> — ${tx.itemTypeId} × ${tx.quantity} : ${e.message}`);
+        }
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(success > 0 ? 0x2ecc71 : 0xe74c3c)
+        .setTitle(`✅ Rollback votes ${rawMois} terminé`)
+        .setDescription(
+          `**${success}** transaction(s) annulée(s) avec succès.\n` +
+          (failed > 0 ? `**${failed}** erreur(s).\n\n${report.join('\n').slice(0, 1800)}` : '')
+        )
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed], components: [] });
+    }
+
     const isVoteAdmin = interaction.customId.startsWith('vote_dup') || interaction.customId.startsWith('vote_ignore_') || interaction.customId.startsWith('vote_assign_');
     if (isVoteAdmin && interaction.member && !hasRoulettePermission(interaction.member)) {
       return interaction.reply({ content: '❌ Seuls les administrateurs et Modos peuvent valider les distributions.', ephemeral: true });
@@ -2267,6 +2311,70 @@ client.on('interactionCreate', async interaction => {
         content: '❌ Une erreur est survenue lors de la récupération du classement.',
       });
     }
+  }
+
+  // ── /annuler-votes-mois ────────────────────────────────────────────────────
+  if (commandName === 'annuler-votes-mois') {
+    if (!hasRoulettePermission(interaction.member)) {
+      return interaction.reply({ content: '❌ Réservé aux administrateurs.', ephemeral: true });
+    }
+
+    const votesConfig = getVotesConfig();
+    const now = new Date();
+    const rawMois = (interaction.options.getString('mois') || votesConfig.MONTHS_FR[now.getMonth()]).toUpperCase().trim();
+
+    // Récupère toutes les transactions du mois concerné (type 'add', reason contient "votes <mois>")
+    const { transactions: allTx } = getTransactions({ limit: 999999 });
+
+    const regex = new RegExp(`votes\\s+${rawMois}`, 'i');
+    const toRollback = allTx.filter(tx => tx.type === 'add' && regex.test(tx.reason));
+
+    if (toRollback.length === 0) {
+      return interaction.reply({
+        content: `❌ Aucune transaction de récompenses votes trouvée pour le mois **${rawMois}**.`,
+        ephemeral: true,
+      });
+    }
+
+    // Résumé par joueur
+    const byPlayer = {};
+    for (const tx of toRollback) {
+      if (!byPlayer[tx.playerId]) byPlayer[tx.playerId] = [];
+      byPlayer[tx.playerId].push(tx);
+    }
+
+    const lines = Object.entries(byPlayer).map(([pid, txs]) => {
+      const detail = txs.map(t => `  • ${t.quantity} × \`${t.itemTypeId}\` — ${t.reason}`).join('\n');
+      return `<@${pid}>\n${detail}`;
+    });
+
+    const preview = lines.join('\n').slice(0, 3800);
+    const nbPlayers = Object.keys(byPlayer).length;
+
+    const confirmBtn = new ButtonBuilder()
+      .setCustomId(`vote_rollback_confirm::${rawMois}`)
+      .setLabel(`⚠️ Confirmer l'annulation — ${rawMois}`)
+      .setStyle(ButtonStyle.Danger);
+    const cancelBtn = new ButtonBuilder()
+      .setCustomId('vote_rollback_cancel')
+      .setLabel('Annuler')
+      .setStyle(ButtonStyle.Secondary);
+
+    const embed = new EmbedBuilder()
+      .setColor(0xe74c3c)
+      .setTitle(`🔁 Annulation distributions votes — ${rawMois}`)
+      .setDescription(
+        `**${toRollback.length} transactions** seront annulées pour **${nbPlayers} joueur(s)**.\n\n` +
+        `Les items et diamants seront retirés de leurs inventaires.\n\n` +
+        `**Détail :**\n${preview}`
+      )
+      .setFooter({ text: 'Cette action est irréversible. Confirme uniquement si les distributions ont été faites plusieurs fois.' });
+
+    return interaction.reply({
+      embeds: [embed],
+      components: [new ActionRowBuilder().addComponents(confirmBtn, cancelBtn)],
+      ephemeral: true,
+    });
   }
 
   if (commandName === 'publish-votes') {

@@ -40,6 +40,18 @@ const commands = [
     description: 'Publie le rapport de distribution : qui a été payé, qui ne l\'a pas été (Admin et Modo)',
   },
   {
+    name: 'annuler-votes-mois',
+    description: 'Annule et rembourse toutes les distributions de récompenses votes d\'un mois (Admin)',
+    options: [
+      {
+        name: 'mois',
+        type: 3,
+        description: 'Nom du mois en français (ex: juin, JUIN). Défaut : mois en cours.',
+        required: false,
+      },
+    ],
+  },
+  {
     name: 'dino-roulette',
     description: 'Lance la roulette Dino Shiny avec le top 10 des votants (Admin et Modo)',
   },
