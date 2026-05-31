@@ -75,7 +75,17 @@
               <label for="dinoShinyItemId">Item Dino Shiny</label>
               <select name="dinoShinyItemId" id="dinoShinyItemId" class="form-select">
                 <option value="">— Aucun (pas de distribution automatique) —</option>
-                <% if (typeof specialPacks !== 'undefined') { %>
+                <% if (typeof itemTypes !== 'undefined' && itemTypes.length > 0) { %>
+                  <% const categories = [...new Set(itemTypes.map(t => t.category || 'other'))]; %>
+                  <% categories.forEach(cat => { %>
+                    <% const group = itemTypes.filter(t => (t.category || 'other') === cat); %>
+                    <optgroup label="<%= cat %>">
+                      <% group.forEach(item => { %>
+                        <option value="<%= item.id %>" <%= (settings.rewards.dinoShinyItemId === item.id) ? 'selected' : '' %>><%= item.emoji || '' %> <%= item.name %> (<%= item.id %>)</option>
+                      <% }); %>
+                    </optgroup>
+                  <% }); %>
+                <% } else if (typeof specialPacks !== 'undefined') { %>
                   <% specialPacks.forEach(pack => { %>
                     <option value="<%= pack.id %>" <%= (settings.rewards.dinoShinyItemId === pack.id) ? 'selected' : '' %>><%= pack.name %></option>
                   <% }); %>

@@ -371,6 +371,20 @@ function buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus
 }
 
 async function autoPublishVotes() {
+  // Marquer immédiatement pour couper la boucle de rattrapage même en cas de crash
+  try {
+    const nowForKey = new Date();
+    const pmForKey = parseInt(new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', month: 'numeric' }).format(nowForKey), 10);
+    const pyForKey  = parseInt(new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', year:  'numeric' }).format(nowForKey), 10);
+    const prevMonForKey = pmForKey === 1 ? 12 : pmForKey - 1;
+    const prevYrForKey  = pmForKey === 1 ? pyForKey - 1 : pyForKey;
+    const earlyKey = `${prevYrForKey}-${String(prevMonForKey).padStart(2, '0')}`;
+    await pgStore.setData('vote_last_publish', earlyKey);
+    console.log(`🔒 [AUTO-VOTES] Clé rattrapage posée : ${earlyKey}`);
+  } catch (e) {
+    console.warn('[AUTO-VOTES] Impossible de poser la clé anti-rattrapage:', e.message);
+  }
+
   try {
     const votesConfig = getVotesConfig();
     const guildId = votesConfig.GUILD_ID;

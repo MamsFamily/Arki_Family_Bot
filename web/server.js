@@ -697,7 +697,9 @@ function createWebServer(discordClient) {
     const settings = getSettings();
     const { getSpecialPacks } = require('../specialPacksManager');
     const specialPacks = getSpecialPacks().packs || [];
-    res.render('rewards', { settings, specialPacks, success: null, error: null });
+    const { getItemTypes } = require('../inventoryManager');
+    const itemTypes = getItemTypes() || [];
+    res.render('rewards', { settings, specialPacks, itemTypes, success: null, error: null });
   });
 
   app.post('/rewards', requireAdmin, async (req, res) => {
@@ -720,7 +722,9 @@ function createWebServer(discordClient) {
     const settings = getSettings();
     const { getSpecialPacks } = require('../specialPacksManager');
     const specialPacks = getSpecialPacks().packs || [];
-    res.render('rewards', { settings, specialPacks, success: 'Récompenses sauvegardées !', error: null });
+    const { getItemTypes } = require('../inventoryManager');
+    const itemTypes = getItemTypes() || [];
+    res.render('rewards', { settings, specialPacks, itemTypes, success: 'Récompenses sauvegardées !', error: null });
   });
 
   app.get('/message', requireAdmin, (req, res) => {
