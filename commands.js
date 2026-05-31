@@ -22,6 +22,14 @@ const commands = [
   {
     name: 'publish-votes',
     description: 'Publie les résultats des votes mensuels (Admin et Modo)',
+    options: [
+      {
+        name: 'mois',
+        type: 3,
+        description: 'Forcer le nom du mois (ex: mai, MAI). Utile si lancé en fin de mois.',
+        required: false,
+      },
+    ],
   },
   {
     name: 'test-votes',
@@ -30,10 +38,26 @@ const commands = [
   {
     name: 'pay-votes',
     description: 'Distribue uniquement les diamants sans publier de message (Admin et Modo)',
+    options: [
+      {
+        name: 'mois',
+        type: 3,
+        description: 'Forcer le nom du mois (ex: mai, MAI). Utile si lancé en fin de mois.',
+        required: false,
+      },
+    ],
   },
   {
     name: 'distribution_recompenses',
     description: 'Publie la liste complète des votes avec récompenses distribuées (Admin et Modo)',
+    options: [
+      {
+        name: 'mois',
+        type: 3,
+        description: 'Forcer le nom du mois (ex: mai, MAI). Utile si lancé en fin de mois.',
+        required: false,
+      },
+    ],
   },
   {
     name: 'vote-rapport',

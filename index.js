@@ -2403,8 +2403,9 @@ client.on('interactionCreate', async interaction => {
       const memberIndex = await buildMemberIndex(guild);
 
       const now = new Date();
-      const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
-      const monthName = monthNameFr(lastMonth);
+      const lastMonthIdx = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+      const moisOverride = interaction.options.getString('mois');
+      const monthName = moisOverride ? moisOverride.toUpperCase().trim() : monthNameFr(lastMonthIdx);
 
       let adminChannel = null;
       try {
@@ -2735,8 +2736,9 @@ client.on('interactionCreate', async interaction => {
       const memberIndex = await buildMemberIndex(guild);
 
       const now = new Date();
-      const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
-      const monthName = monthNameFr(lastMonth);
+      const lastMonthIdx = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+      const moisOverride = interaction.options.getString('mois');
+      const monthName = moisOverride ? moisOverride.toUpperCase().trim() : monthNameFr(lastMonthIdx);
 
       let listMessage = `@here\n# 📋 Liste complète des votes de ${monthName}\n\n`;
 
@@ -2901,8 +2903,9 @@ client.on('interactionCreate', async interaction => {
       const memberIndex = await buildMemberIndex(guild);
 
       const now = new Date();
-      const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
-      const monthName = monthNameFr(lastMonth);
+      const lastMonthIdx = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+      const moisOverride = interaction.options.getString('mois');
+      const monthName = moisOverride ? moisOverride.toUpperCase().trim() : monthNameFr(lastMonthIdx);
 
       let adminChannel = null;
       try {
