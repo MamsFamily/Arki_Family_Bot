@@ -2321,7 +2321,9 @@ client.on('interactionCreate', async interaction => {
 
     const votesConfig = getVotesConfig();
     const now = new Date();
-    const rawMois = (interaction.options.getString('mois') || votesConfig.MONTHS_FR[now.getMonth()]).toUpperCase().trim();
+    // Par défaut : le mois PRÉCÉDENT (les distributions publiées ce mois couvrent les votes du mois dernier)
+    const lastMonthIdx = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+    const rawMois = (interaction.options.getString('mois') || votesConfig.MONTHS_FR[lastMonthIdx]).toUpperCase().trim();
 
     // Récupère toutes les transactions du mois concerné (type 'add', reason contient "votes <mois>")
     const { transactions: allTx } = getTransactions({ limit: 999999 });
