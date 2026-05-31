@@ -1396,22 +1396,35 @@ client.on('interactionCreate', async interaction => {
       if (!hasRoulettePermission(interaction.member)) {
         return interaction.reply({ content: '❌ Réservé aux administrateurs.', ephemeral: true });
       }
-      const rawMois = interaction.customId.split('::')[1];
       await interaction.deferUpdate();
 
+      const payload = interaction.customId.split('::')[1]; // "DATE:2026-06-01T..." ou "NAME:MAI"
+      const [mode, value] = payload.split(/:(.+)/);        // split sur le premier ":" seulement
+
       const { transactions: allTx } = getTransactions({ limit: 999999 });
-      const regex = new RegExp(`votes\\s+${rawMois}`, 'i');
-      const toRollback = allTx.filter(tx => tx.type === 'add' && regex.test(tx.reason));
+      const voteRegex = /votes\s+/i;
+
+      let toRollback, rollbackLabel;
+      if (mode === 'DATE') {
+        toRollback = allTx.filter(tx =>
+          tx.type === 'add' && voteRegex.test(tx.reason) && tx.timestamp >= value
+        );
+        rollbackLabel = `distribués depuis le ${new Date(value).toLocaleDateString('fr-FR')}`;
+      } else {
+        const nameRegex = new RegExp(`votes\\s+${value}`, 'i');
+        toRollback = allTx.filter(tx => tx.type === 'add' && nameRegex.test(tx.reason));
+        rollbackLabel = value;
+      }
 
       if (toRollback.length === 0) {
-        return interaction.editReply({ content: `❌ Plus aucune transaction à annuler pour **${rawMois}**.`, embeds: [], components: [] });
+        return interaction.editReply({ content: `❌ Plus aucune transaction à annuler (${rollbackLabel}).`, embeds: [], components: [] });
       }
 
       let success = 0, failed = 0;
       const report = [];
       for (const tx of toRollback) {
         try {
-          await removeFromInventory(tx.playerId, tx.itemTypeId, tx.quantity, interaction.user.id, `Rollback votes ${rawMois}`);
+          await removeFromInventory(tx.playerId, tx.itemTypeId, tx.quantity, interaction.user.id, `Rollback votes ${rollbackLabel}`);
           success++;
         } catch (e) {
           failed++;
@@ -1421,8 +1434,9 @@ client.on('interactionCreate', async interaction => {
 
       const embed = new EmbedBuilder()
         .setColor(success > 0 ? 0x2ecc71 : 0xe74c3c)
-        .setTitle(`✅ Rollback votes ${rawMois} terminé`)
+        .setTitle('✅ Rollback votes terminé')
         .setDescription(
+          `**Filtre :** ${rollbackLabel}\n` +
           `**${success}** transaction(s) annulée(s) avec succès.\n` +
           (failed > 0 ? `**${failed}** erreur(s).\n\n${report.join('\n').slice(0, 1800)}` : '')
         )
@@ -2319,21 +2333,36 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: '❌ Réservé aux administrateurs.', ephemeral: true });
     }
 
-    const votesConfig = getVotesConfig();
-    const now = new Date();
-    // Par défaut : le mois PRÉCÉDENT (les distributions publiées ce mois couvrent les votes du mois dernier)
-    const lastMonthIdx = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
-    const rawMois = (interaction.options.getString('mois') || votesConfig.MONTHS_FR[lastMonthIdx]).toUpperCase().trim();
-
-    // Récupère toutes les transactions du mois concerné (type 'add', reason contient "votes <mois>")
     const { transactions: allTx } = getTransactions({ limit: 999999 });
+    const voteRegex = /votes\s+/i;
+    const moisParam = interaction.options.getString('mois');
 
-    const regex = new RegExp(`votes\\s+${rawMois}`, 'i');
-    const toRollback = allTx.filter(tx => tx.type === 'add' && regex.test(tx.reason));
+    let toRollback, label, confirmId;
+
+    if (moisParam) {
+      // Mode NOM : filtre par nom de mois dans la raison (peu importe la date)
+      const rawMois = moisParam.toUpperCase().trim();
+      const nameRegex = new RegExp(`votes\\s+${rawMois}`, 'i');
+      toRollback = allTx.filter(tx => tx.type === 'add' && nameRegex.test(tx.reason));
+      label = `récompenses votes "${rawMois}" (toutes dates)`;
+      confirmId = `vote_rollback_confirm::NAME:${rawMois}`;
+    } else {
+      // Mode DATE : filtre par date ≥ 1er du mois en cours → uniquement ce qui a été distribué CE mois-ci
+      const now = new Date();
+      const debutMois = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const moisLabel = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric', timeZone: 'Europe/Paris' }).format(now);
+      toRollback = allTx.filter(tx =>
+        tx.type === 'add' &&
+        voteRegex.test(tx.reason) &&
+        tx.timestamp >= debutMois
+      );
+      label = `récompenses votes distribuées depuis le 1er ${moisLabel}`;
+      confirmId = `vote_rollback_confirm::DATE:${debutMois}`;
+    }
 
     if (toRollback.length === 0) {
       return interaction.reply({
-        content: `❌ Aucune transaction de récompenses votes trouvée pour le mois **${rawMois}**.`,
+        content: `❌ Aucune transaction trouvée pour : ${label}.`,
         ephemeral: true,
       });
     }
@@ -2346,7 +2375,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     const lines = Object.entries(byPlayer).map(([pid, txs]) => {
-      const detail = txs.map(t => `  • ${t.quantity} × \`${t.itemTypeId}\` — ${t.reason}`).join('\n');
+      const detail = txs.map(t => `  • ${t.quantity} × \`${t.itemTypeId}\` — ${t.reason} *(${new Date(t.timestamp).toLocaleDateString('fr-FR')})*`).join('\n');
       return `<@${pid}>\n${detail}`;
     });
 
@@ -2354,8 +2383,8 @@ client.on('interactionCreate', async interaction => {
     const nbPlayers = Object.keys(byPlayer).length;
 
     const confirmBtn = new ButtonBuilder()
-      .setCustomId(`vote_rollback_confirm::${rawMois}`)
-      .setLabel(`⚠️ Confirmer l'annulation — ${rawMois}`)
+      .setCustomId(confirmId)
+      .setLabel(`⚠️ Confirmer l'annulation (${toRollback.length} tx)`)
       .setStyle(ButtonStyle.Danger);
     const cancelBtn = new ButtonBuilder()
       .setCustomId('vote_rollback_cancel')
@@ -2364,13 +2393,13 @@ client.on('interactionCreate', async interaction => {
 
     const embed = new EmbedBuilder()
       .setColor(0xe74c3c)
-      .setTitle(`🔁 Annulation distributions votes — ${rawMois}`)
+      .setTitle('🔁 Annulation distributions votes')
       .setDescription(
-        `**${toRollback.length} transactions** seront annulées pour **${nbPlayers} joueur(s)**.\n\n` +
-        `Les items et diamants seront retirés de leurs inventaires.\n\n` +
+        `**Filtre :** ${label}\n` +
+        `**${toRollback.length} transactions** pour **${nbPlayers} joueur(s)**\n\n` +
         `**Détail :**\n${preview}`
       )
-      .setFooter({ text: 'Cette action est irréversible. Confirme uniquement si les distributions ont été faites plusieurs fois.' });
+      .setFooter({ text: 'Cette action est irréversible.' });
 
     return interaction.reply({
       embeds: [embed],
