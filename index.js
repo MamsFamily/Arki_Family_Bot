@@ -2344,47 +2344,50 @@ client.on('interactionCreate', async interaction => {
       const rawMois = moisParam.toUpperCase().trim();
       const nameRegex = new RegExp(`votes\\s+${rawMois}`, 'i');
       toRollback = allTx.filter(tx => tx.type === 'add' && nameRegex.test(tx.reason));
-      label = `récompenses votes "${rawMois}" (toutes dates)`;
+      label = `"Votes ${rawMois}" — toutes dates`;
       confirmId = `vote_rollback_confirm::NAME:${rawMois}`;
     } else {
-      // Mode DATE : filtre par date ≥ 1er du mois en cours → uniquement ce qui a été distribué CE mois-ci
+      // Mode DATE : 1er du mois EN COURS heure Paris (CEST = UTC+2 avr-oct, CET = UTC+1 sinon)
       const now = new Date();
-      const debutMois = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const parisMonth = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Paris', month: 'numeric' }).format(now), 10);
+      const parisYear  = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Paris', year:  'numeric' }).format(now), 10);
+      const parisOffsetH = (parisMonth >= 4 && parisMonth <= 10) ? 2 : 1;
+      const debutMois = new Date(Date.UTC(parisYear, parisMonth - 1, 1) - parisOffsetH * 3600000).toISOString();
       const moisLabel = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric', timeZone: 'Europe/Paris' }).format(now);
       toRollback = allTx.filter(tx =>
-        tx.type === 'add' &&
-        voteRegex.test(tx.reason) &&
-        tx.timestamp >= debutMois
+        tx.type === 'add' && voteRegex.test(tx.reason) && tx.timestamp >= debutMois
       );
-      label = `récompenses votes distribuées depuis le 1er ${moisLabel}`;
+      label = `distributions votes depuis le 1er ${moisLabel} 00h00 (Paris)`;
       confirmId = `vote_rollback_confirm::DATE:${debutMois}`;
     }
 
     if (toRollback.length === 0) {
-      return interaction.reply({
-        content: `❌ Aucune transaction trouvée pour : ${label}.`,
-        ephemeral: true,
-      });
+      return interaction.reply({ content: `❌ Aucune transaction trouvée — filtre : ${label}.`, ephemeral: true });
     }
 
-    // Résumé par joueur
+    // Résumé CONSOLIDÉ par joueur (total par item, pas une ligne par tx)
     const byPlayer = {};
     for (const tx of toRollback) {
-      if (!byPlayer[tx.playerId]) byPlayer[tx.playerId] = [];
-      byPlayer[tx.playerId].push(tx);
+      if (!byPlayer[tx.playerId]) byPlayer[tx.playerId] = {};
+      byPlayer[tx.playerId][tx.itemTypeId] = (byPlayer[tx.playerId][tx.itemTypeId] || 0) + tx.quantity;
     }
 
-    const lines = Object.entries(byPlayer).map(([pid, txs]) => {
-      const detail = txs.map(t => `  • ${t.quantity} × \`${t.itemTypeId}\` — ${t.reason} *(${new Date(t.timestamp).toLocaleDateString('fr-FR')})*`).join('\n');
-      return `<@${pid}>\n${detail}`;
+    const nbPlayers = Object.keys(byPlayer).length;
+    const totalDiamants = Object.values(byPlayer).reduce((s, items) => s + (items.diamants || 0), 0);
+
+    const summaryLines = Object.entries(byPlayer).map(([pid, items]) => {
+      const parts = Object.entries(items)
+        .map(([item, qty]) => item === 'diamants' ? `${qty} 💎` : `${qty}× \`${item}\``)
+        .join(' + ');
+      return `<@${pid}> → ${parts}`;
     });
 
-    const preview = lines.join('\n').slice(0, 3800);
-    const nbPlayers = Object.keys(byPlayer).length;
+    const preview = summaryLines.join('\n').slice(0, 3600);
+    const truncated = summaryLines.join('\n').length > 3600 ? `\n*… (liste tronquée — ${nbPlayers} joueurs au total)*` : '';
 
     const confirmBtn = new ButtonBuilder()
       .setCustomId(confirmId)
-      .setLabel(`⚠️ Confirmer l'annulation (${toRollback.length} tx)`)
+      .setLabel(`⚠️ Confirmer — ${nbPlayers} joueurs, ${totalDiamants.toLocaleString('fr-FR')} 💎`)
       .setStyle(ButtonStyle.Danger);
     const cancelBtn = new ButtonBuilder()
       .setCustomId('vote_rollback_cancel')
@@ -2393,13 +2396,13 @@ client.on('interactionCreate', async interaction => {
 
     const embed = new EmbedBuilder()
       .setColor(0xe74c3c)
-      .setTitle('🔁 Annulation distributions votes')
+      .setTitle('🔁 Annulation distributions votes — aperçu')
       .setDescription(
         `**Filtre :** ${label}\n` +
-        `**${toRollback.length} transactions** pour **${nbPlayers} joueur(s)**\n\n` +
-        `**Détail :**\n${preview}`
+        `**Total :** ${toRollback.length} transactions — **${nbPlayers} joueurs** — **${totalDiamants.toLocaleString('fr-FR')} 💎** à retirer\n\n` +
+        `**Résumé par joueur :**\n${preview}${truncated}`
       )
-      .setFooter({ text: 'Cette action est irréversible.' });
+      .setFooter({ text: 'Les montants ci-dessus seront RETIRÉS des inventaires. Vérifie avant de confirmer.' });
 
     return interaction.reply({
       embeds: [embed],
