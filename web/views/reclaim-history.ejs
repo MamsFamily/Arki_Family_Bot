@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Historique Réclamations — Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .rh-filter-bar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .rh-filter-bar input, .rh-filter-bar select {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-size: 14px;
+    }
+    .rh-filter-bar button {
+      padding: 8px 18px;
+      border-radius: 8px;
+      border: none;
+      background: var(--accent, #7c5cfc);
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .rh-filter-bar a.rh-reset {
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      font-size: 13px;
+      text-decoration: none;
+    }
+    .rh-count { font-size: 13px; color: var(--text-muted); margin-left: auto; }
+
+    .rh-table { width: 100%; border-collapse: collapse; }
+    .rh-table th {
+      text-align: left;
+      padding: 10px 14px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-color);
+    }
+    .rh-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255,255,255,.04);
+      vertical-align: middle;
+      font-size: 14px;
+    }
+    .rh-table tr:last-child td { border-bottom: none; }
+    .rh-table tr:hover td { background: var(--bg-hover, rgba(255,255,255,.03)); }
+
+    .rh-badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .rh-badge-inventory  { background: rgba(124,92,252,.2); color: #a78bfa; border: 1px solid rgba(124,92,252,.3); }
+    .rh-badge-resurrection { background: rgba(231,76,60,.15); color: #e74c3c; border: 1px solid rgba(231,76,60,.3); }
+    .rh-badge-structures { background: rgba(52,152,219,.15); color: #3498db; border: 1px solid rgba(52,152,219,.3); }
+    .rh-badge-autres     { background: rgba(149,165,166,.12); color: #95a5a6; border: 1px solid rgba(149,165,166,.25); }
+
+    .rh-status-done     { color: #2ecc71; font-weight: 700; }
+    .rh-status-refused  { color: #e74c3c; font-weight: 700; }
+    .rh-status-closed   { color: #95a5a6; font-weight: 700; }
+
+    .rh-link {
+      color: var(--accent, #7c5cfc);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .rh-link:hover { text-decoration: underline; }
+
+    /* Pagination */
+    .rh-pagination { display: flex; gap: 6px; align-items: center; justify-content: center; margin-top: 20px; flex-wrap: wrap; }
+    .rh-pagination a, .rh-pagination span {
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      text-decoration: none;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+    }
+    .rh-pagination a:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .rh-pagination .rh-page-active { background: var(--accent, #7c5cfc); color: #fff; border-color: var(--accent, #7c5cfc); }
+
+    /* Detail view */
+    .rh-detail-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    .rh-detail-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 14px;
+      padding: 6px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+    }
+    .rh-detail-back:hover { color: var(--text-primary); background: var(--bg-hover); }
+    .rh-detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .rh-detail-field {
+      background: var(--bg-input, rgba(255,255,255,.04));
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .rh-detail-field-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .rh-detail-field-value {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .rh-detail-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 18px 20px;
+      margin-bottom: 16px;
+    }
+    .rh-detail-section h3 {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--text-muted);
+      margin: 0 0 12px;
+    }
+    .rh-cart-item { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.05); font-size: 14px; }
+    .rh-cart-item:last-child { border-bottom: none; }
+    .rh-empty { color: var(--text-muted); font-style: italic; font-size: 14px; }
+    .rh-ticket-id { font-family: monospace; font-size: 12px; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <%- include('sidebar', { path: '/reclaim-history', role, botUser, discordUser }) %>
+  <main class="main-content">
+    <div class="page-header">
+      <h1>📋 Historique des réclamations</h1>
+    </div>
+
+    <% if (detail) { %>
+    <!-- ─── VUE DÉTAIL ─────────────────────────────────────────────────────── -->
+    <%
+      const cd = detail.claimData || {};
+      const typeLabels = { inventory: '📦 Inventaire', resurrection: '💀 Résurrection', structures: '🏗️ Structures', autres: '💬 Autres' };
+      const typeLabel = typeLabels[detail.type] || detail.type || '—';
+      const statusLabel = detail.status === 'done' ? '✅ Traité' : detail.status === 'refused' ? '❌ Refusé' : '🔒 Fermé';
+      const statusClass = detail.status === 'done' ? 'rh-status-done' : detail.status === 'refused' ? 'rh-status-refused' : 'rh-status-closed';
+      const openedDate = detail.createdAt ? new Date(detail.createdAt).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' }) : '—';
+      const closedDate = detail._closedAt ? new Date(Number(detail._closedAt)).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' }) : '—';
+    %>
+    <div class="rh-detail-header">
+      <a href="/reclaim-history" class="rh-detail-back">← Retour à la liste</a>
+      <span class="rh-badge rh-badge-<%= detail.type %>"><%= typeLabel %></span>
+      <span class="<%= statusClass %>"><%= statusLabel %></span>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2>Ticket <span class="rh-ticket-id"><%= detail.ticketId %></span></h2>
+      </div>
+      <div class="card-body">
+        <div class="rh-detail-grid">
+          <div class="rh-detail-field">
+            <div class="rh-detail-field-label">👤 Joueur</div>
+            <div class="rh-detail-field-value"><%= detail.username || '—' %></div>
+          </div>
+          <div class="rh-detail-field">
+            <div class="rh-detail-field-label">📁 Statut final</div>
+            <div class="rh-detail-field-value <%= statusClass %>"><%= statusLabel %></div>
+          </div>
+          <div class="rh-detail-field">
+            <div class="rh-detail-field-label">🗂️ Type</div>
+            <div class="rh-detail-field-value"><%= typeLabel %></div>
+          </div>
+          <div class="rh-detail-field">
+            <div class="rh-detail-field-label">📅 Ouvert le</div>
+            <div class="rh-detail-field-value" style="font-size:13px;"><%= openedDate %></div>
+          </div>
+          <div class="rh-detail-field">
+            <div class="rh-detail-field-label">🔒 Fermé le</div>
+            <div class="rh-detail-field-value" style="font-size:13px;"><%= closedDate %></div>
+          </div>
+        </div>
+
+        <% if (detail.type === 'inventory') { %>
+          <% const cart = cd.invCart || []; %>
+          <div class="rh-detail-section">
+            <h3>📦 Panier réclamé</h3>
+            <% if (cart.length > 0) { %>
+              <% cart.forEach(entry => { %>
+                <div class="rh-cart-item">
+                  <strong><%= entry.itemName || entry.itemId || '?' %></strong> × <%= entry.qty %>
+                  <% if (entry.dinos && entry.dinos.length > 0) { %>
+                    <ul style="margin:4px 0 0 16px; padding:0; list-style:disc; font-size:13px; color:var(--text-muted);">
+                      <% entry.dinos.forEach(d => { %>
+                        <li><%= d.name || '?' %><% if (d.sex) { %> — <%= d.sex %><% } %><% if (d.stat) { %> — <%= d.stat %><% } %></li>
+                      <% }); %>
+                    </ul>
+                  <% } %>
+                </div>
+              <% }); %>
+            <% } else if (cd.lostItemName) { %>
+              <p class="rh-cart-item">Item perdu : <strong><%= cd.lostItemName %></strong><% if (cd.lostItemIsOccasionnel) { %> ✨<% } %></p>
+              <p class="rh-cart-item">Item à livrer : <strong><%= cd.shopItemName || '?' %></strong></p>
+              <% if (cd.occasionnelNote) { %><p style="color:var(--text-muted);font-size:13px;">📝 <%= cd.occasionnelNote %></p><% } %>
+            <% } else { %>
+              <p class="rh-empty">Panier vide</p>
+            <% } %>
+          </div>
+        <% } %>
+
+        <% if (detail.type === 'resurrection') { %>
+          <div class="rh-detail-section">
+            <h3>💎 Prélèvement diamants</h3>
+            <p style="font-size:15px;">
+              <% if (cd.diamondsDeducted === 500) { %>
+                ✅ 500💎 prélevés par <strong><%= cd.deductedBy || '?' %></strong>
+              <% } else { %>
+                ⚠️ <%= cd.deductionNote || 'Non prélevé' %>
+              <% } %>
+            </p>
+          </div>
+        <% } %>
+
+        <% if (detail.type === 'structures') { %>
+          <div class="rh-detail-section">
+            <h3>🗺️ Localisation</h3>
+            <p style="font-size:14px;">Map : <strong><%= cd.structMap || '?' %></strong> — Coords : <strong><%= cd.structCoords || '?' %></strong></p>
+            <% if (cd.structNotes) { %><p style="color:var(--text-muted);font-size:13px;">📝 <%= cd.structNotes %></p><% } %>
+          </div>
+        <% } %>
+
+        <% if (detail.type === 'autres') { %>
+          <div class="rh-detail-section">
+            <h3>💬 Demande</h3>
+            <p style="font-size:14px; white-space:pre-wrap;"><%= cd.autresText || '(texte libre dans le ticket)' %></p>
+          </div>
+        <% } %>
+
+        <% const actions = []; %>
+        <% if (cd.resolvedBy) { actions.push('✅ Traité par ' + cd.resolvedBy); } %>
+        <% if (cd.refusedBy)  { actions.push('❌ Refusé par ' + cd.refusedBy + (cd.refuseReason ? ' — ' + cd.refuseReason : '')); } %>
+        <% if (cd.closedBy)   { actions.push('🔒 Fermé par ' + cd.closedBy); } %>
+        <% if (actions.length > 0 || detail.staffNote) { %>
+          <div class="rh-detail-section">
+            <h3>👮 Actions staff</h3>
+            <% actions.forEach(a => { %><p style="font-size:14px;margin:4px 0;"><%= a %></p><% }); %>
+            <% if (detail.staffNote) { %><p style="font-size:13px;color:var(--text-muted);margin-top:8px;">📝 Note : <%= detail.staffNote %></p><% } %>
+          </div>
+        <% } %>
+      </div>
+    </div>
+
+    <% } else { %>
+    <!-- ─── VUE LISTE ──────────────────────────────────────────────────────── -->
+    <form method="GET" action="/reclaim-history" class="rh-filter-bar">
+      <select name="type">
+        <option value="">Tous les types</option>
+        <option value="inventory"   <%= filter.type === 'inventory'   ? 'selected' : '' %>>📦 Inventaire</option>
+        <option value="resurrection"<%= filter.type === 'resurrection'? 'selected' : '' %>>💀 Résurrection</option>
+        <option value="structures"  <%= filter.type === 'structures'  ? 'selected' : '' %>>🏗️ Structures</option>
+        <option value="autres"      <%= filter.type === 'autres'      ? 'selected' : '' %>>💬 Autres</option>
+      </select>
+      <input type="text" name="username" placeholder="Rechercher un joueur…" value="<%= filter.username %>">
+      <button type="submit">🔍 Filtrer</button>
+      <% if (filter.type || filter.username) { %>
+        <a href="/reclaim-history" class="rh-reset">✕ Réinitialiser</a>
+      <% } %>
+      <span class="rh-count"><%= total %> ticket<%= total !== 1 ? 's' : '' %> archivé<%= total !== 1 ? 's' : '' %></span>
+    </form>
+
+    <div class="card">
+      <div class="card-body" style="padding:0;">
+        <% if (tickets.length === 0) { %>
+          <p style="padding:32px;text-align:center;color:var(--text-muted);">Aucun ticket archivé<% if (filter.type || filter.username) { %> pour ces filtres<% } %>.</p>
+        <% } else { %>
+        <table class="rh-table">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Joueur</th>
+              <th>Statut</th>
+              <th>Ouvert le</th>
+              <th>Fermé le</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% tickets.forEach(t => { %>
+            <%
+              const tLabels = { inventory: '📦 Inventaire', resurrection: '💀 Résurrection', structures: '🏗️ Structures', autres: '💬 Autres' };
+              const tBadge  = t.type || 'autres';
+              const tLabel  = tLabels[t.type] || t.type || '—';
+              const tStatus = t.status === 'done' ? '✅ Traité' : t.status === 'refused' ? '❌ Refusé' : '🔒 Fermé';
+              const tStatusCls = t.status === 'done' ? 'rh-status-done' : t.status === 'refused' ? 'rh-status-refused' : 'rh-status-closed';
+              const tOpened = t.createdAt ? new Date(t.createdAt).toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' }) : '—';
+              const tClosed = t._closedAt ? new Date(Number(t._closedAt)).toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' }) : '—';
+            %>
+            <tr>
+              <td><span class="rh-badge rh-badge-<%= tBadge %>"><%= tLabel %></span></td>
+              <td><strong><%= t.username || '—' %></strong></td>
+              <td class="<%= tStatusCls %>"><%= tStatus %></td>
+              <td style="color:var(--text-muted);font-size:13px;"><%= tOpened %></td>
+              <td style="color:var(--text-muted);font-size:13px;"><%= tClosed %></td>
+              <td><a href="/reclaim-history/<%= t.ticketId %>" class="rh-link">Voir →</a></td>
+            </tr>
+            <% }); %>
+          </tbody>
+        </table>
+        <% } %>
+      </div>
+    </div>
+
+    <% if (totalPages > 1) { %>
+    <div class="rh-pagination">
+      <% if (currentPage > 1) { %>
+        <a href="/reclaim-history?type=<%= filter.type %>&username=<%= encodeURIComponent(filter.username) %>&page=<%= currentPage - 1 %>">← Précédent</a>
+      <% } %>
+      <% for (let p = 1; p <= totalPages; p++) { %>
+        <% if (Math.abs(p - currentPage) <= 2 || p === 1 || p === totalPages) { %>
+          <a href="/reclaim-history?type=<%= filter.type %>&username=<%= encodeURIComponent(filter.username) %>&page=<%= p %>"
+             class="<%= p === currentPage ? 'rh-page-active' : '' %>"><%= p %></a>
+        <% } else if (Math.abs(p - currentPage) === 3) { %>
+          <span>…</span>
+        <% } %>
+      <% } %>
+      <% if (currentPage < totalPages) { %>
+        <a href="/reclaim-history?type=<%= filter.type %>&username=<%= encodeURIComponent(filter.username) %>&page=<%= currentPage + 1 %>">Suivant →</a>
+      <% } %>
+    </div>
+    <% } %>
+
+    <% } %>
+  </main>
+</body>
+</html>

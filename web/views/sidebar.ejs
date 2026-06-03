@@ -95,6 +95,9 @@
     <a href="/tickets" class="nav-link <%= path === '/tickets' ? 'active' : '' %>">
       <span class="icon">🎫</span> Tickets
     </a>
+    <a href="/reclaim-history" class="nav-link <%= path && path.startsWith('/reclaim-history') ? 'active' : '' %>">
+      <span class="icon">📋</span> Historique Réclamations
+    </a>
     <% } %>
 
     <div class="nav-section">Événements</div>

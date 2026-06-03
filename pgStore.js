@@ -103,6 +103,8 @@ async function initTables() {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_reclaim_channel ON reclaim_tickets (channel_id)
     `);
+    // Migration : colonne closed_at (ajout si absente)
+    await pool.query(`ALTER TABLE reclaim_tickets ADD COLUMN IF NOT EXISTS closed_at BIGINT`);
     console.log('✅ Tables app_data + member_history + spawn_tickets + shop_orders + reclaim_tickets + session prêtes');
   } catch (err) {
     console.error('❌ Erreur création tables:', err.message);
@@ -295,6 +297,68 @@ async function deleteReclaimTicket(ticketId) {
   }
 }
 
+async function archiveReclaimTicket(ticketId) {
+  if (!usePostgres) return;
+  try {
+    await pool.query(
+      `UPDATE reclaim_tickets SET status = 'deleted', closed_at = $2 WHERE ticket_id = $1`,
+      [ticketId, Date.now()]
+    );
+  } catch (err) {
+    console.error('❌ Erreur archivage reclaim ticket:', err.message);
+  }
+}
+
+async function loadReclaimHistory({ limit = 50, offset = 0, type = null, username = null } = {}) {
+  if (!usePostgres) return [];
+  try {
+    const params = [];
+    let where = `status = 'deleted'`;
+    if (type) { params.push(type); where += ` AND data->>'type' = $${params.length}`; }
+    if (username) { params.push(`%${username}%`); where += ` AND username ILIKE $${params.length}`; }
+    params.push(limit, offset);
+    const q = `SELECT data, closed_at FROM reclaim_tickets WHERE ${where} ORDER BY closed_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`;
+    const result = await pool.query(q, params);
+    return result.rows.map(row => {
+      const d = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+      d._closedAt = row.closed_at;
+      return d;
+    });
+  } catch (err) {
+    console.error('❌ Erreur chargement historique reclaim:', err.message);
+    return [];
+  }
+}
+
+async function countReclaimHistory({ type = null, username = null } = {}) {
+  if (!usePostgres) return 0;
+  try {
+    const params = [];
+    let where = `status = 'deleted'`;
+    if (type) { params.push(type); where += ` AND data->>'type' = $${params.length}`; }
+    if (username) { params.push(`%${username}%`); where += ` AND username ILIKE $${params.length}`; }
+    const result = await pool.query(`SELECT COUNT(*) FROM reclaim_tickets WHERE ${where}`, params);
+    return parseInt(result.rows[0].count, 10);
+  } catch (err) { return 0; }
+}
+
+async function loadReclaimTicketById(ticketId) {
+  if (!usePostgres) return null;
+  try {
+    const result = await pool.query(
+      `SELECT data, closed_at FROM reclaim_tickets WHERE ticket_id = $1`,
+      [ticketId]
+    );
+    if (!result.rows.length) return null;
+    const d = typeof result.rows[0].data === 'string' ? JSON.parse(result.rows[0].data) : result.rows[0].data;
+    d._closedAt = result.rows[0].closed_at;
+    return d;
+  } catch (err) {
+    console.error('❌ Erreur chargement reclaim ticket by id:', err.message);
+    return null;
+  }
+}
+
 function isPostgres() {
   return usePostgres;
 }
@@ -308,4 +372,5 @@ module.exports = {
   saveSpawnTicket, loadAllOpenSpawnTickets, deleteSpawnTicket,
   saveShopOrder, loadAllOpenShopOrders, deleteShopOrder,
   saveReclaimTicket, loadAllOpenReclaimTickets, deleteReclaimTicket,
+  archiveReclaimTicket, loadReclaimHistory, countReclaimHistory, loadReclaimTicketById,
 };

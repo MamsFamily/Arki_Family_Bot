@@ -59,7 +59,7 @@ async function initReclaimTickets(client) {
     for (const data of rows) {
       if (client) {
         const ch = client.channels.cache.get(data.channelId);
-        if (!ch) { await pgStore.deleteReclaimTicket(data.ticketId); continue; }
+        if (!ch) { await pgStore.archiveReclaimTicket(data.ticketId); continue; }
       }
       activeReclaimTickets.set(data.ticketId, data);
       loaded++;
@@ -2032,7 +2032,7 @@ async function handleDelete(interaction, ticketId) {
     try {
       await interaction.channel.delete(`Ticket supprimé par ${adminName}`);
       activeReclaimTickets.delete(ticketId);
-      await pgStore.deleteReclaimTicket(ticketId);
+      await pgStore.archiveReclaimTicket(ticketId);
     } catch (err) { console.error('[ReclaimTicket] Erreur suppression:', err.message); }
   }, 3000);
 }
@@ -2046,6 +2046,11 @@ async function sendLogRecap(guild, data, deletedBy) {
   const type = data?.type;
   const cd   = data?.claimData || {};
 
+  const dashboardPublicUrl = process.env.DASHBOARD_PUBLIC_URL
+    || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null);
+  const historyUrl = dashboardPublicUrl && data?.ticketId
+    ? `${dashboardPublicUrl}/reclaim-history/${data.ticketId}` : null;
+
   const embed = new EmbedBuilder()
     .setColor(type ? typeColor(type) : 0x9b59b6)
     .setTitle(`📋 Compte-rendu — ${typeLabel(type)}`)
@@ -2053,7 +2058,9 @@ async function sendLogRecap(guild, data, deletedBy) {
       { name: '👤 Joueur',       value: `<@${data?.userId}> (\`${data?.username}\`)`, inline: true },
       { name: '📁 Statut final', value: data?.status === 'done' ? '✅ Traité' : data?.status === 'refused' ? '❌ Refusé' : '🔒 Fermé', inline: true },
       { name: '🗑️ Supprimé par', value: deletedBy, inline: true },
-    )
+    );
+  if (historyUrl) embed.setURL(historyUrl);
+  embed
     .setTimestamp();
 
   if (type === 'inventory') {

@@ -1023,6 +1023,35 @@ function createWebServer(discordClient) {
     res.redirect('/tickets?success=Param%C3%A8tres+tickets+shop+sauvegard%C3%A9s+!');
   });
 
+  // ── Historique tickets réclamation ──────────────────────────────────────────
+  app.get('/reclaim-history', requireAdmin, async (req, res) => {
+    const { type, username, page } = req.query;
+    const currentPage = Math.max(1, parseInt(page) || 1);
+    const LIMIT = 25;
+    const offset = (currentPage - 1) * LIMIT;
+    const filters = { type: type || null, username: username || null };
+    const [tickets, total] = await Promise.all([
+      pgStore.loadReclaimHistory({ limit: LIMIT, offset, ...filters }),
+      pgStore.countReclaimHistory(filters),
+    ]);
+    res.render('reclaim-history', {
+      tickets, total, currentPage,
+      totalPages: Math.ceil(total / LIMIT) || 1,
+      filter: { type: type || '', username: username || '' },
+      detail: null,
+    });
+  });
+
+  app.get('/reclaim-history/:ticketId', requireAdmin, async (req, res) => {
+    const detail = await pgStore.loadReclaimTicketById(req.params.ticketId);
+    if (!detail) return res.redirect('/reclaim-history');
+    res.render('reclaim-history', {
+      tickets: [], total: 0, currentPage: 1, totalPages: 1,
+      filter: { type: '', username: '' },
+      detail,
+    });
+  });
+
   app.post('/shop/categories', requireAuth, async (req, res) => {
     const { catId, name, emoji, color } = req.body;
     if (!name || !name.trim()) return res.redirect('/shop?error=Nom+de+cat%C3%A9gorie+requis');
