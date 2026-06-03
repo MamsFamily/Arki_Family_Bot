@@ -1023,6 +1023,35 @@ function createWebServer(discordClient) {
     res.redirect('/tickets?success=Param%C3%A8tres+tickets+shop+sauvegard%C3%A9s+!');
   });
 
+  // ── Historique tickets shop ──────────────────────────────────────────────────
+  app.get('/shop-history', requireAdmin, async (req, res) => {
+    const { username, page } = req.query;
+    const currentPage = Math.max(1, parseInt(page) || 1);
+    const LIMIT = 25;
+    const offset = (currentPage - 1) * LIMIT;
+    const filters = { username: username || null };
+    const [orders, total] = await Promise.all([
+      pgStore.loadShopHistory({ limit: LIMIT, offset, ...filters }),
+      pgStore.countShopHistory(filters),
+    ]);
+    res.render('shop-history', {
+      orders, total, currentPage,
+      totalPages: Math.ceil(total / LIMIT) || 1,
+      filter: { username: username || '' },
+      detail: null,
+    });
+  });
+
+  app.get('/shop-history/:orderId', requireAdmin, async (req, res) => {
+    const detail = await pgStore.loadShopOrderById(req.params.orderId);
+    if (!detail) return res.redirect('/shop-history');
+    res.render('shop-history', {
+      orders: [], total: 0, currentPage: 1, totalPages: 1,
+      filter: { username: '' },
+      detail,
+    });
+  });
+
   // ── Historique tickets réclamation ──────────────────────────────────────────
   app.get('/reclaim-history', requireAdmin, async (req, res) => {
     const { type, username, page } = req.query;

@@ -51,7 +51,7 @@ async function initShopOrders(client) {
       if (client) {
         const channel = client.channels.cache.get(data.channelId);
         if (!channel) {
-          await pgStore.deleteShopOrder(data.orderId);
+          await pgStore.archiveShopOrder(data.orderId);
           continue;
         }
       }
@@ -2513,13 +2513,25 @@ async function handleCloseConfirm(interaction, orderId) {
 
   // ── Rapport de clôture ────────────────────────────────────────────────────
   if (order) {
+    // Conserver le statut final dans les données avant archivage
+    order.closedStatus = order.status === 'paid' ? 'paid' : 'closed';
+    order.closedBy = adminName;
+    pgStore.saveShopOrder(order).catch(() => {});
+    // Archiver (soft-delete) immédiatement pour couper le lien actif
+    pgStore.archiveShopOrder(orderId).catch(() => {});
+
     try {
       const isPaid = order.status === 'paid';
+      const dashboardPublicUrl = process.env.DASHBOARD_PUBLIC_URL
+        || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null);
+      const historyUrl = dashboardPublicUrl ? `${dashboardPublicUrl}/shop-history/${orderId}` : null;
+
       const rapportEmbed = new EmbedBuilder()
         .setColor(isPaid ? 0x2ecc71 : 0x95a5a6)
         .setTitle('📋 Rapport de clôture du ticket')
         .setFooter({ text: `Fermé par ${adminName}` })
         .setTimestamp();
+      if (historyUrl) rapportEmbed.setURL(historyUrl);
 
       // Joueur
       rapportEmbed.addFields({ name: '👤 Joueur', value: `<@${userId}>`, inline: true });
@@ -2565,7 +2577,6 @@ async function handleCloseConfirm(interaction, orderId) {
   }
 
   activeOrders.delete(orderId);
-  pgStore.deleteShopOrder(orderId).catch(() => {});
 
   // Retirer l'accès visuel du joueur
   if (userId) {

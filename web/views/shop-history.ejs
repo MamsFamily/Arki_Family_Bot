@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Historique Shop — Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .sh-filter-bar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .sh-filter-bar input {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-size: 14px;
+    }
+    .sh-filter-bar button {
+      padding: 8px 18px;
+      border-radius: 8px;
+      border: none;
+      background: var(--accent, #7c5cfc);
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .sh-filter-bar a.sh-reset {
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      font-size: 13px;
+      text-decoration: none;
+    }
+    .sh-count { font-size: 13px; color: var(--text-muted); margin-left: auto; }
+
+    .sh-table { width: 100%; border-collapse: collapse; }
+    .sh-table th {
+      text-align: left;
+      padding: 10px 14px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-color);
+    }
+    .sh-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255,255,255,.04);
+      vertical-align: middle;
+      font-size: 14px;
+    }
+    .sh-table tr:last-child td { border-bottom: none; }
+    .sh-table tr:hover td { background: var(--bg-hover, rgba(255,255,255,.03)); }
+
+    .sh-badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .sh-badge-paid   { background: rgba(46,204,113,.15);  color: #2ecc71; border: 1px solid rgba(46,204,113,.3); }
+    .sh-badge-closed { background: rgba(149,165,166,.12); color: #95a5a6; border: 1px solid rgba(149,165,166,.25); }
+
+    .sh-link {
+      color: var(--accent, #7c5cfc);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .sh-link:hover { text-decoration: underline; }
+
+    /* Pagination */
+    .sh-pagination { display: flex; gap: 6px; align-items: center; justify-content: center; margin-top: 20px; flex-wrap: wrap; }
+    .sh-pagination a, .sh-pagination span {
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      text-decoration: none;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+    }
+    .sh-pagination a:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .sh-pagination .sh-page-active { background: var(--accent, #7c5cfc); color: #fff; border-color: var(--accent, #7c5cfc); }
+
+    /* Detail view */
+    .sh-detail-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 14px;
+      padding: 6px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .sh-detail-back:hover { color: var(--text-primary); background: var(--bg-hover); }
+    .sh-detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .sh-detail-field {
+      background: var(--bg-input, rgba(255,255,255,.04));
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .sh-detail-field-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-bottom: 6px; }
+    .sh-detail-field-value { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+    .sh-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 18px 20px;
+      margin-bottom: 16px;
+    }
+    .sh-section h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin: 0 0 12px; }
+    .sh-item-row { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.05); font-size: 14px; }
+    .sh-item-row:last-child { border-bottom: none; }
+    .sh-order-id { font-family: monospace; font-size: 12px; color: var(--text-muted); }
+    .sh-warning { color: #e67e22; font-size: 13px; margin-top: 6px; }
+    .sh-paid-green { color: #2ecc71; font-weight: 700; }
+    .sh-closed-grey { color: #95a5a6; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <%- include('sidebar', { path: '/shop-history', role, botUser, discordUser }) %>
+  <main class="main-content">
+    <div class="page-header">
+      <h1>🛒 Historique des tickets shop</h1>
+    </div>
+
+    <% if (detail) { %>
+    <!-- ─── VUE DÉTAIL ─────────────────────────────────────────────────────── -->
+    <%
+      const isPaid = detail.closedStatus === 'paid' || detail.status === 'paid';
+      const openedDate = detail.createdAt ? new Date(detail.createdAt).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' }) : '—';
+      const closedDate = detail._closedAt  ? new Date(Number(detail._closedAt)).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' }) : '—';
+      const items = detail.cart?.items || [];
+    %>
+    <a href="/shop-history" class="sh-detail-back">← Retour à la liste</a>
+
+    <div class="card">
+      <div class="card-header">
+        <h2>Commande <span class="sh-order-id"><%= detail.orderId %></span>
+          &nbsp;<span class="sh-badge <%= isPaid ? 'sh-badge-paid' : 'sh-badge-closed' %>"><%= isPaid ? '✅ Encaissée' : '🚫 Fermée sans encaissement' %></span>
+        </h2>
+      </div>
+      <div class="card-body">
+        <div class="sh-detail-grid">
+          <div class="sh-detail-field">
+            <div class="sh-detail-field-label">👤 Joueur</div>
+            <div class="sh-detail-field-value"><%= detail.username || '—' %></div>
+          </div>
+          <div class="sh-detail-field">
+            <div class="sh-detail-field-label">📦 Statut</div>
+            <div class="sh-detail-field-value <%= isPaid ? 'sh-paid-green' : 'sh-closed-grey' %>"><%= isPaid ? '✅ Encaissée' : '🚫 Sans encaissement' %></div>
+          </div>
+          <% if (detail.closedBy) { %>
+          <div class="sh-detail-field">
+            <div class="sh-detail-field-label">🔒 Fermé par</div>
+            <div class="sh-detail-field-value"><%= detail.closedBy %></div>
+          </div>
+          <% } %>
+          <div class="sh-detail-field">
+            <div class="sh-detail-field-label">📅 Ouvert le</div>
+            <div class="sh-detail-field-value" style="font-size:13px;"><%= openedDate %></div>
+          </div>
+          <div class="sh-detail-field">
+            <div class="sh-detail-field-label">🔒 Fermé le</div>
+            <div class="sh-detail-field-value" style="font-size:13px;"><%= closedDate %></div>
+          </div>
+          <% if (detail.discount > 0) { %>
+          <div class="sh-detail-field">
+            <div class="sh-detail-field-label">🏷️ Réduction appliquée</div>
+            <div class="sh-detail-field-value">−<%= detail.discount %>% <%= detail.discountRoleName ? '(' + detail.discountRoleName + ')' : '' %></div>
+          </div>
+          <% } %>
+        </div>
+
+        <% if (items.length > 0) { %>
+        <div class="sh-section">
+          <h3>🛒 Articles commandés</h3>
+          <% items.forEach(item => { %>
+          <div class="sh-item-row">
+            <strong><%= item.name %></strong>
+            <% if ((item.qty || item.quantity) > 1) { %> ×<%= item.qty || item.quantity %><% } %>
+            <% if (item.variant || item.variantLabel) { %> — <em><%= item.variant || item.variantLabel %></em><% } %>
+            <% if (item.comment) { %><br><span style="color:var(--text-muted);font-size:13px;">"<%= item.comment %>"</span><% } %>
+          </div>
+          <% }); %>
+          <% if (detail.cart?.comment) { %><p style="margin-top:10px;font-size:13px;color:var(--text-muted);">💬 Note : <%= detail.cart.comment %></p><% } %>
+        </div>
+        <% } %>
+
+        <% if (isPaid && detail.paymentDesc) { %>
+        <div class="sh-section">
+          <h3>💳 Paiement effectué</h3>
+          <pre style="white-space:pre-wrap;font-size:13px;color:var(--text-primary);margin:0;font-family:inherit;"><%= detail.paymentDesc %></pre>
+          <% if ((detail.pendingDiamonds > 0) || (detail.pendingStrawberries > 0)) { %>
+            <div class="sh-warning">
+              ⚠️ Solde insuffisant — reste dû :
+              <% if (detail.pendingDiamonds > 0) { %><br>💎 <%= detail.pendingDiamonds.toLocaleString('fr-FR') %> diamants<% } %>
+              <% if (detail.pendingStrawberries > 0) { %><br>🍓 <%= detail.pendingStrawberries.toLocaleString('fr-FR') %> fraises<% } %>
+            </div>
+          <% } %>
+        </div>
+        <% } %>
+      </div>
+    </div>
+
+    <% } else { %>
+    <!-- ─── VUE LISTE ──────────────────────────────────────────────────────── -->
+    <form method="GET" action="/shop-history" class="sh-filter-bar">
+      <input type="text" name="username" placeholder="Rechercher un joueur…" value="<%= filter.username %>">
+      <button type="submit">🔍 Filtrer</button>
+      <% if (filter.username) { %>
+        <a href="/shop-history" class="sh-reset">✕ Réinitialiser</a>
+      <% } %>
+      <span class="sh-count"><%= total %> commande<%= total !== 1 ? 's' : '' %> archivée<%= total !== 1 ? 's' : '' %></span>
+    </form>
+
+    <div class="card">
+      <div class="card-body" style="padding:0;">
+        <% if (orders.length === 0) { %>
+          <p style="padding:32px;text-align:center;color:var(--text-muted);">Aucune commande archivée<% if (filter.username) { %> pour ce joueur<% } %>.</p>
+        <% } else { %>
+        <table class="sh-table">
+          <thead>
+            <tr>
+              <th>Joueur</th>
+              <th>Articles</th>
+              <th>Statut</th>
+              <th>Fermé par</th>
+              <th>Ouvert le</th>
+              <th>Fermé le</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% orders.forEach(o => { %>
+            <%
+              const oPaid = o.closedStatus === 'paid' || o.status === 'paid';
+              const oItems = o.cart?.items || [];
+              const oSummary = oItems.length > 0
+                ? oItems.slice(0,2).map(i => i.name + (i.qty > 1 ? ' ×' + i.qty : '')).join(', ') + (oItems.length > 2 ? ` +${oItems.length - 2}` : '')
+                : '—';
+              const oOpened = o.createdAt ? new Date(o.createdAt).toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' }) : '—';
+              const oClosed = o._closedAt  ? new Date(Number(o._closedAt)).toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' }) : '—';
+            %>
+            <tr>
+              <td><strong><%= o.username || '—' %></strong></td>
+              <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--text-muted);"><%= oSummary %></td>
+              <td><span class="sh-badge <%= oPaid ? 'sh-badge-paid' : 'sh-badge-closed' %>"><%= oPaid ? '✅ Encaissée' : '🚫 Fermée' %></span></td>
+              <td style="font-size:13px;color:var(--text-muted);"><%= o.closedBy || '—' %></td>
+              <td style="color:var(--text-muted);font-size:13px;"><%= oOpened %></td>
+              <td style="color:var(--text-muted);font-size:13px;"><%= oClosed %></td>
+              <td><a href="/shop-history/<%= o.orderId %>" class="sh-link">Voir →</a></td>
+            </tr>
+            <% }); %>
+          </tbody>
+        </table>
+        <% } %>
+      </div>
+    </div>
+
+    <% if (totalPages > 1) { %>
+    <div class="sh-pagination">
+      <% if (currentPage > 1) { %>
+        <a href="/shop-history?username=<%= encodeURIComponent(filter.username) %>&page=<%= currentPage - 1 %>">← Précédent</a>
+      <% } %>
+      <% for (let p = 1; p <= totalPages; p++) { %>
+        <% if (Math.abs(p - currentPage) <= 2 || p === 1 || p === totalPages) { %>
+          <a href="/shop-history?username=<%= encodeURIComponent(filter.username) %>&page=<%= p %>"
+             class="<%= p === currentPage ? 'sh-page-active' : '' %>"><%= p %></a>
+        <% } else if (Math.abs(p - currentPage) === 3) { %>
+          <span>…</span>
+        <% } %>
+      <% } %>
+      <% if (currentPage < totalPages) { %>
+        <a href="/shop-history?username=<%= encodeURIComponent(filter.username) %>&page=<%= currentPage + 1 %>">Suivant →</a>
+      <% } %>
+    </div>
+    <% } %>
+
+    <% } %>
+  </main>
+</body>
+</html>

@@ -89,6 +89,8 @@ async function initTables() {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_shop_orders_channel ON shop_orders (channel_id)
     `);
+    // Migration : colonne closed_at (ajout si absente)
+    await pool.query(`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS closed_at BIGINT`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS reclaim_tickets (
         ticket_id VARCHAR PRIMARY KEY,
@@ -249,6 +251,68 @@ async function deleteShopOrder(orderId) {
   }
 }
 
+async function archiveShopOrder(orderId) {
+  if (!usePostgres) return;
+  try {
+    await pool.query(
+      `UPDATE shop_orders SET status = 'deleted', closed_at = $2 WHERE order_id = $1`,
+      [orderId, Date.now()]
+    );
+  } catch (err) {
+    console.error('❌ Erreur archivage shop order:', err.message);
+  }
+}
+
+async function loadShopHistory({ limit = 25, offset = 0, status = null, username = null } = {}) {
+  if (!usePostgres) return [];
+  try {
+    const params = [];
+    let where = `status = 'deleted'`;
+    if (status)   { params.push(status);           where += ` AND data->>'closedStatus' = $${params.length}`; }
+    if (username) { params.push(`%${username}%`);  where += ` AND username ILIKE $${params.length}`; }
+    params.push(limit, offset);
+    const q = `SELECT data, closed_at FROM shop_orders WHERE ${where} ORDER BY closed_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`;
+    const result = await pool.query(q, params);
+    return result.rows.map(row => {
+      const d = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+      d._closedAt = row.closed_at;
+      return d;
+    });
+  } catch (err) {
+    console.error('❌ Erreur chargement historique shop:', err.message);
+    return [];
+  }
+}
+
+async function countShopHistory({ status = null, username = null } = {}) {
+  if (!usePostgres) return 0;
+  try {
+    const params = [];
+    let where = `status = 'deleted'`;
+    if (status)   { params.push(status);           where += ` AND data->>'closedStatus' = $${params.length}`; }
+    if (username) { params.push(`%${username}%`);  where += ` AND username ILIKE $${params.length}`; }
+    const result = await pool.query(`SELECT COUNT(*) FROM shop_orders WHERE ${where}`, params);
+    return parseInt(result.rows[0].count, 10);
+  } catch (err) { return 0; }
+}
+
+async function loadShopOrderById(orderId) {
+  if (!usePostgres) return null;
+  try {
+    const result = await pool.query(
+      `SELECT data, closed_at FROM shop_orders WHERE order_id = $1`,
+      [orderId]
+    );
+    if (!result.rows.length) return null;
+    const d = typeof result.rows[0].data === 'string' ? JSON.parse(result.rows[0].data) : result.rows[0].data;
+    d._closedAt = result.rows[0].closed_at;
+    return d;
+  } catch (err) {
+    console.error('❌ Erreur chargement shop order by id:', err.message);
+    return null;
+  }
+}
+
 // ── Reclaim Tickets ───────────────────────────────────────────────────────────
 
 async function saveReclaimTicket(ticketData) {
@@ -371,6 +435,7 @@ module.exports = {
   initPool, initTables, getData, setData, isPostgres, getPool,
   saveSpawnTicket, loadAllOpenSpawnTickets, deleteSpawnTicket,
   saveShopOrder, loadAllOpenShopOrders, deleteShopOrder,
+  archiveShopOrder, loadShopHistory, countShopHistory, loadShopOrderById,
   saveReclaimTicket, loadAllOpenReclaimTickets, deleteReclaimTicket,
   archiveReclaimTicket, loadReclaimHistory, countReclaimHistory, loadReclaimTicketById,
 };
