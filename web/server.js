@@ -107,6 +107,17 @@ function createWebServer(discordClient) {
     res.redirect('/login');
   }
 
+  function requireAdminOrStaff(req, res, next) {
+    if (req.session && req.session.authenticated && req.session.discordUser &&
+        (req.session.role === 'admin' || req.session.role === 'staff')) {
+      return next();
+    }
+    if (req.session && req.session.authenticated && req.session.discordUser) {
+      return res.redirect('/');
+    }
+    res.redirect('/login');
+  }
+
   // ─── API PUBLIQUE INVENTAIRE ────────────────────────────────────────────────
   function validateApiKey(req) {
     const settings = getSettings();
@@ -1024,7 +1035,7 @@ function createWebServer(discordClient) {
   });
 
   // ── Historique tickets shop ──────────────────────────────────────────────────
-  app.get('/shop-history', requireAdmin, async (req, res) => {
+  app.get('/shop-history', requireAdminOrStaff, async (req, res) => {
     const { username, page } = req.query;
     const currentPage = Math.max(1, parseInt(page) || 1);
     const LIMIT = 25;
@@ -1042,7 +1053,7 @@ function createWebServer(discordClient) {
     });
   });
 
-  app.get('/shop-history/:orderId', requireAdmin, async (req, res) => {
+  app.get('/shop-history/:orderId', requireAdminOrStaff, async (req, res) => {
     const detail = await pgStore.loadShopOrderById(req.params.orderId);
     if (!detail) return res.redirect('/shop-history');
     res.render('shop-history', {
@@ -1053,7 +1064,7 @@ function createWebServer(discordClient) {
   });
 
   // ── Historique tickets réclamation ──────────────────────────────────────────
-  app.get('/reclaim-history', requireAdmin, async (req, res) => {
+  app.get('/reclaim-history', requireAdminOrStaff, async (req, res) => {
     const { type, username, page } = req.query;
     const currentPage = Math.max(1, parseInt(page) || 1);
     const LIMIT = 25;
@@ -1071,7 +1082,7 @@ function createWebServer(discordClient) {
     });
   });
 
-  app.get('/reclaim-history/:ticketId', requireAdmin, async (req, res) => {
+  app.get('/reclaim-history/:ticketId', requireAdminOrStaff, async (req, res) => {
     const detail = await pgStore.loadReclaimTicketById(req.params.ticketId);
     if (!detail) return res.redirect('/reclaim-history');
     res.render('reclaim-history', {

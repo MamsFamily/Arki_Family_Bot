@@ -95,13 +95,13 @@
     <a href="/tickets" class="nav-link <%= path === '/tickets' ? 'active' : '' %>">
       <span class="icon">🎫</span> Tickets
     </a>
+    <% } %>
     <a href="/reclaim-history" class="nav-link <%= path && path.startsWith('/reclaim-history') ? 'active' : '' %>">
       <span class="icon">📋</span> Historique Réclamations
     </a>
     <a href="/shop-history" class="nav-link <%= path && path.startsWith('/shop-history') ? 'active' : '' %>">
       <span class="icon">🛒</span> Historique Shop
     </a>
-    <% } %>
 
     <div class="nav-section">Événements</div>
     <a href="/giveaways" class="nav-link <%= path === '/giveaways' ? 'active' : '' %>">
