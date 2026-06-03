@@ -412,6 +412,10 @@ const commands = [
     name: 'reclamation-panel',
     description: '📋 Publie le panneau de réclamation dans ce salon (Admin uniquement)',
   },
+  {
+    name: 'anniversaire',
+    description: '🎂 Enregistre ou modifie ta date d\'anniversaire',
+  },
 ];
 
 module.exports = commands;

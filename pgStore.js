@@ -109,7 +109,19 @@ async function initTables() {
     // Migration : colonnes closed_at + messages (ajout si absentes)
     await pool.query(`ALTER TABLE reclaim_tickets ADD COLUMN IF NOT EXISTS closed_at BIGINT`);
     await pool.query(`ALTER TABLE reclaim_tickets ADD COLUMN IF NOT EXISTS messages JSONB`);
-    console.log('✅ Tables app_data + member_history + spawn_tickets + shop_orders + reclaim_tickets + session prêtes');
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS birthdays (
+        user_id VARCHAR PRIMARY KEY,
+        username VARCHAR,
+        day SMALLINT NOT NULL,
+        month SMALLINT NOT NULL,
+        year SMALLINT,
+        registered_at BIGINT,
+        updated_at BIGINT,
+        last_celebrated SMALLINT
+      )
+    `);
+    console.log('✅ Tables app_data + member_history + spawn_tickets + shop_orders + reclaim_tickets + birthdays + session prêtes');
   } catch (err) {
     console.error('❌ Erreur création tables:', err.message);
     usePostgres = false;
@@ -447,6 +459,80 @@ async function saveReclaimMessages(ticketId, messages) {
   } catch (err) { console.error('❌ Erreur sauvegarde messages reclaim:', err.message); }
 }
 
+// ── Birthdays ─────────────────────────────────────────────────────────────────
+
+async function saveBirthday({ userId, username, day, month, year = null }) {
+  if (!usePostgres) return;
+  try {
+    const now = Date.now();
+    await pool.query(`
+      INSERT INTO birthdays (user_id, username, day, month, year, registered_at, updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$6)
+      ON CONFLICT (user_id) DO UPDATE SET
+        username = EXCLUDED.username,
+        day = EXCLUDED.day,
+        month = EXCLUDED.month,
+        year = EXCLUDED.year,
+        updated_at = EXCLUDED.updated_at
+    `, [userId, username, day, month, year || null, now]);
+  } catch (err) { console.error('❌ Erreur saveBirthday:', err.message); }
+}
+
+async function getBirthday(userId) {
+  if (!usePostgres) return null;
+  try {
+    const r = await pool.query(`SELECT * FROM birthdays WHERE user_id = $1`, [userId]);
+    return r.rows[0] || null;
+  } catch (err) { return null; }
+}
+
+async function getAllBirthdays() {
+  if (!usePostgres) return [];
+  try {
+    const r = await pool.query(`SELECT * FROM birthdays ORDER BY month, day`);
+    return r.rows;
+  } catch (err) { return []; }
+}
+
+async function getBirthdaysOfDay(day, month) {
+  if (!usePostgres) return [];
+  try {
+    const r = await pool.query(
+      `SELECT * FROM birthdays WHERE day = $1 AND month = $2`,
+      [day, month]
+    );
+    return r.rows;
+  } catch (err) { return []; }
+}
+
+async function getBirthdaysOfMonth(month) {
+  if (!usePostgres) return [];
+  try {
+    const r = await pool.query(
+      `SELECT * FROM birthdays WHERE month = $1 ORDER BY day`,
+      [month]
+    );
+    return r.rows;
+  } catch (err) { return []; }
+}
+
+async function setBirthdayCelebrated(userId, year) {
+  if (!usePostgres) return;
+  try {
+    await pool.query(
+      `UPDATE birthdays SET last_celebrated = $2 WHERE user_id = $1`,
+      [userId, year]
+    );
+  } catch (err) { console.error('❌ Erreur setBirthdayCelebrated:', err.message); }
+}
+
+async function deleteBirthday(userId) {
+  if (!usePostgres) return;
+  try {
+    await pool.query(`DELETE FROM birthdays WHERE user_id = $1`, [userId]);
+  } catch (err) { console.error('❌ Erreur deleteBirthday:', err.message); }
+}
+
 function isPostgres() {
   return usePostgres;
 }
@@ -462,4 +548,6 @@ module.exports = {
   archiveShopOrder, loadShopHistory, countShopHistory, loadShopOrderById, saveShopMessages,
   saveReclaimTicket, loadAllOpenReclaimTickets, deleteReclaimTicket,
   archiveReclaimTicket, loadReclaimHistory, countReclaimHistory, loadReclaimTicketById, saveReclaimMessages,
+  saveBirthday, getBirthday, getAllBirthdays, getBirthdaysOfDay, getBirthdaysOfMonth,
+  setBirthdayCelebrated, deleteBirthday,
 };

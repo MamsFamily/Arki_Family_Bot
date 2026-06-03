@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anniversaires — Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .bd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+    @media (max-width: 900px) { .bd-grid { grid-template-columns: 1fr; } }
+
+    .bd-section { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px 22px; }
+    .bd-section h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin: 0 0 16px; }
+
+    .bd-field { margin-bottom: 14px; }
+    .bd-field label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .05em; }
+    .bd-field input[type="text"], .bd-field input[type="number"], .bd-field select, .bd-field textarea {
+      width: 100%; padding: 9px 12px; border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-input, rgba(255,255,255,.05));
+      color: var(--text-primary); font-size: 14px; box-sizing: border-box;
+    }
+    .bd-field textarea { min-height: 68px; resize: vertical; font-family: inherit; }
+    .bd-toggle { display: flex; align-items: center; gap: 10px; }
+    .bd-toggle input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent,#7c5cfc); cursor: pointer; }
+    .bd-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+    .bd-save-btn {
+      padding: 10px 24px; border-radius: 8px; border: none;
+      background: var(--accent,#7c5cfc); color: #fff; font-weight: 700; cursor: pointer; font-size: 14px;
+    }
+    .bd-save-btn:hover { filter: brightness(1.1); }
+    .bd-test-btn {
+      padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border-color);
+      background: transparent; color: var(--text-muted); font-size: 13px; cursor: pointer;
+    }
+    .bd-test-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+    /* Table anniversaires */
+    .bd-table { width: 100%; border-collapse: collapse; }
+    .bd-table th {
+      text-align: left; padding: 10px 14px; font-size: 11px;
+      text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted);
+      border-bottom: 1px solid var(--border-color);
+    }
+    .bd-table td { padding: 11px 14px; border-bottom: 1px solid rgba(255,255,255,.04); font-size: 14px; vertical-align: middle; }
+    .bd-table tr:last-child td { border-bottom: none; }
+    .bd-table tr:hover td { background: rgba(255,255,255,.03); }
+    .bd-del-btn {
+      padding: 4px 12px; border-radius: 6px; border: 1px solid rgba(231,76,60,.4);
+      background: transparent; color: #e74c3c; font-size: 12px; cursor: pointer;
+    }
+    .bd-del-btn:hover { background: rgba(231,76,60,.1); }
+    .bd-today { background: rgba(255,107,157,.1) !important; }
+    .bd-today td { color: #ff6b9d; }
+    .bd-upcoming-soon { background: rgba(255,193,7,.06) !important; }
+
+    /* Widget mois prochain */
+    .bd-recap-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px 22px; margin-bottom: 24px; }
+    .bd-recap-card h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin: 0 0 14px; }
+    .bd-recap-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+    .bd-recap-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 8px; background: rgba(255,107,157,.07); border: 1px solid rgba(255,107,157,.15); }
+    .bd-recap-date { font-weight: 700; font-size: 15px; color: #ff6b9d; min-width: 40px; }
+    .bd-recap-name { font-size: 14px; color: var(--text-primary); }
+    .bd-recap-age  { font-size: 12px; color: var(--text-muted); margin-left: auto; }
+
+    .bd-enabled-on  { color: #2ecc71; font-weight: 700; }
+    .bd-enabled-off { color: #e74c3c; font-weight: 700; }
+    .bd-status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    .bd-status-dot-on  { background: #2ecc71; }
+    .bd-status-dot-off { background: #e74c3c; }
+
+    .toast-ok  { display:none; padding:10px 18px; border-radius:8px; background:rgba(46,204,113,.15); border:1px solid rgba(46,204,113,.3); color:#2ecc71; font-size:13px; margin-bottom:16px; }
+    .toast-err { display:none; padding:10px 18px; border-radius:8px; background:rgba(231,76,60,.12); border:1px solid rgba(231,76,60,.25); color:#e74c3c; font-size:13px; margin-bottom:16px; }
+  </style>
+</head>
+<body>
+  <%- include('sidebar', { path: '/birthdays', role, botUser, discordUser }) %>
+  <main class="main-content">
+    <div class="page-header">
+      <h1>🎂 Système d'anniversaires</h1>
+      <span>
+        <span class="bd-status-dot <%= settings.enabled ? 'bd-status-dot-on' : 'bd-status-dot-off' %>"></span>
+        <span class="<%= settings.enabled ? 'bd-enabled-on' : 'bd-enabled-off' %>"><%= settings.enabled ? 'Activé' : 'Désactivé' %></span>
+      </span>
+    </div>
+
+    <% if (query && query.success) { %>
+      <div class="toast-ok" style="display:block;">✅ <%= query.success %></div>
+    <% } %>
+    <% if (query && query.error) { %>
+      <div class="toast-err" style="display:block;">❌ <%= query.error %></div>
+    <% } %>
+
+    <!-- ── Widget prochains anniversaires ── -->
+    <%
+      const nextMonthName = monthNames[upcomingMonth - 1];
+    %>
+    <div class="bd-recap-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <h2 style="margin:0;">📅 Anniversaires de <%= nextMonthName %> (<%= nextMonthBirthdays.length %>)</h2>
+        <button class="bd-test-btn" id="btnTestRecap" onclick="testRecap()">📢 Publier le récap maintenant</button>
+      </div>
+      <% if (nextMonthBirthdays.length === 0) { %>
+        <p style="color:var(--text-muted);font-size:13px;">Aucun anniversaire enregistré pour <%= nextMonthName %>.</p>
+      <% } else { %>
+        <ul class="bd-recap-list">
+          <% nextMonthBirthdays.sort((a,b) => a.day - b.day).forEach(b => { %>
+            <li class="bd-recap-item">
+              <span class="bd-recap-date"><%= String(b.day).padStart(2,'0') %></span>
+              <span class="bd-recap-name"><%= b.username %></span>
+              <% if (b.year) { %><span class="bd-recap-age"><%= currentYear - b.year + (upcomingMonth > new Date().getMonth() + 1 ? 1 : 0) %> ans</span><% } %>
+            </li>
+          <% }); %>
+        </ul>
+      <% } %>
+    </div>
+
+    <!-- ── Paramètres ── -->
+    <form method="POST" action="/birthdays/settings">
+      <div class="bd-grid">
+        <!-- Colonne gauche : config générale -->
+        <div class="bd-section">
+          <h2>⚙️ Configuration</h2>
+          <div class="bd-field">
+            <div class="bd-toggle">
+              <input type="checkbox" name="enabled" id="enabled" <%= settings.enabled ? 'checked' : '' %>>
+              <label for="enabled" style="text-transform:none;font-size:14px;color:var(--text-primary);">Activer le système d'anniversaires</label>
+            </div>
+          </div>
+          <div class="bd-field">
+            <label>Salon de publication (ID)</label>
+            <input type="text" name="channelId" value="<%= settings.channelId %>" placeholder="ID du salon Discord">
+            <p class="bd-hint">Salon où seront publiés les messages d'anniversaire et le récap mensuel.</p>
+          </div>
+          <div class="bd-field">
+            <label>Rôle anniversaire (ID)</label>
+            <input type="text" name="roleId" value="<%= settings.roleId %>" placeholder="ID du rôle Discord">
+            <p class="bd-hint">Rôle attribué toute la journée et retiré à 23h50.</p>
+          </div>
+          <div class="bd-field">
+            <div class="bd-toggle">
+              <input type="checkbox" name="dmEnabled" id="dmEnabled" <%= settings.dmEnabled ? 'checked' : '' %>>
+              <label for="dmEnabled" style="text-transform:none;font-size:14px;color:var(--text-primary);">Envoyer un DM au joueur le jour J</label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Colonne droite : cadeaux -->
+        <div class="bd-section">
+          <h2>🎁 Cadeau offert</h2>
+          <div class="bd-field">
+            <label>💎 Diamants</label>
+            <input type="number" name="giftDiamonds" value="<%= settings.giftDiamonds %>" min="0" step="50">
+          </div>
+          <div class="bd-field">
+            <label>🍓 Fraises</label>
+            <input type="number" name="giftStrawberries" value="<%= settings.giftStrawberries %>" min="0" step="50">
+          </div>
+          <div class="bd-field">
+            <label>Item supplémentaire (optionnel)</label>
+            <select name="giftItemId">
+              <option value="">— Aucun item —</option>
+              <% itemTypes.forEach(cat => { %>
+                <% if (cat.items) { %>
+                  <optgroup label="<%= cat.label %>">
+                    <% cat.items.forEach(it => { %>
+                      <option value="<%= it.id %>" <%= settings.giftItemId === it.id ? 'selected' : '' %>><%= it.label || it.id %></option>
+                    <% }); %>
+                  </optgroup>
+                <% } else { %>
+                  <option value="<%= cat.id %>" <%= settings.giftItemId === cat.id ? 'selected' : '' %>><%= cat.label || cat.id %></option>
+                <% } %>
+              <% }); %>
+            </select>
+          </div>
+          <div class="bd-field">
+            <label>Quantité de l'item</label>
+            <input type="number" name="giftItemQty" value="<%= settings.giftItemQty %>" min="1" step="1">
+          </div>
+        </div>
+      </div>
+
+      <!-- Messages -->
+      <div class="bd-section" style="margin-bottom:20px;">
+        <h2>✉️ Messages personnalisables</h2>
+        <p style="font-size:12px;color:var(--text-muted);margin:-8px 0 16px;">Variables disponibles : <code>{user}</code> (mention), <code>{age}</code> (affiche "X ans" si l'année est connue), <code>{month}</code> (pour le récap)</p>
+        <div class="bd-grid">
+          <div class="bd-field">
+            <label>Message public (salon)</label>
+            <textarea name="publicMessage"><%= settings.publicMessage %></textarea>
+          </div>
+          <div class="bd-field">
+            <label>Message DM (privé)</label>
+            <textarea name="dmMessage"><%= settings.dmMessage %></textarea>
+          </div>
+        </div>
+        <div class="bd-field">
+          <label>Message intro récap mensuel</label>
+          <textarea name="monthRecapMessage" style="min-height:50px;"><%= settings.monthRecapMessage %></textarea>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <button type="submit" class="bd-save-btn">💾 Sauvegarder</button>
+        <button type="button" class="bd-test-btn" onclick="testCelebrate()">🎉 Tester la célébration du jour</button>
+      </div>
+    </form>
+
+    <!-- ── Liste des anniversaires enregistrés ── -->
+    <div class="card" style="margin-top:28px;">
+      <div class="card-header">
+        <h2>👥 Anniversaires enregistrés (<%= allBirthdays.length %>)</h2>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <% if (allBirthdays.length === 0) { %>
+          <p style="padding:28px;text-align:center;color:var(--text-muted);">Aucun anniversaire enregistré. Les joueurs peuvent utiliser <code>/anniversaire</code> pour s'inscrire.</p>
+        <% } else { %>
+          <table class="bd-table">
+            <thead>
+              <tr>
+                <th>Joueur</th>
+                <th>Date</th>
+                <th>Âge</th>
+                <th>Enregistré le</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <%
+                const todayParts = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit' }).format(new Date()).split('/');
+                const todayDay = parseInt(todayParts[0], 10);
+                const todayMonth = parseInt(todayParts[1], 10);
+              %>
+              <% allBirthdays.forEach(b => { %>
+                <%
+                  const isToday = b.day === todayDay && b.month === todayMonth;
+                  const age = b.year ? currentYear - b.year : null;
+                  const dateStr = String(b.day).padStart(2,'0') + ' ' + monthNames[b.month - 1] + (b.year ? ' ' + b.year : '');
+                  const regDate = b.registered_at ? new Date(Number(b.registered_at)).toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' }) : '—';
+                %>
+                <tr class="<%= isToday ? 'bd-today' : '' %>">
+                  <td><strong><%= isToday ? '🎂 ' : '' %><%= b.username %></strong><br><span style="font-size:11px;color:var(--text-muted);font-family:monospace;"><%= b.user_id %></span></td>
+                  <td><%= dateStr %></td>
+                  <td><%= age !== null ? age + ' ans' : '<span style="color:var(--text-muted);">—</span>' %></td>
+                  <td style="color:var(--text-muted);font-size:13px;"><%= regDate %></td>
+                  <td>
+                    <form method="POST" action="/birthdays/delete" onsubmit="return confirm('Supprimer l\'anniversaire de <%= b.username %> ?')">
+                      <input type="hidden" name="userId" value="<%= b.user_id %>">
+                      <button type="submit" class="bd-del-btn">🗑️ Supprimer</button>
+                    </form>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        <% } %>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    async function testCelebrate() {
+      const btn = document.getElementById ? event.target : null;
+      if (btn) btn.disabled = true;
+      try {
+        const r = await fetch('/birthdays/test-celebrate', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+        const d = await r.json();
+        alert(d.ok ? '✅ Célébration du jour déclenchée !' : '❌ Erreur : ' + d.error);
+      } catch (e) { alert('❌ Erreur réseau'); }
+      if (btn) btn.disabled = false;
+    }
+    async function testRecap() {
+      const btn = document.getElementById('btnTestRecap');
+      if (btn) btn.disabled = true;
+      try {
+        const r = await fetch('/birthdays/test-recap', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+        const d = await r.json();
+        alert(d.ok ? '✅ Récap publié !' : '❌ Erreur : ' + d.error);
+      } catch (e) { alert('❌ Erreur réseau'); }
+      if (btn) btn.disabled = false;
+    }
+  </script>
+</body>
+</html>

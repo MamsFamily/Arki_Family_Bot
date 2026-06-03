@@ -45,6 +45,7 @@ const restartScheduler = require('./nitradoRestartScheduler');
 const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
 const { registerCasinoHandlers } = require('./casino/casinoHandler');
 const boosterReproManager = require('./boosterReproManager');
+const birthdayManager = require('./birthdayManager');
 
 
 const openaiConfig = {};
@@ -604,6 +605,9 @@ client.once('clientReady', async () => {
   config = getConfig();
 
   createWebServer(client);
+
+  // Initialiser les crons anniversaires
+  birthdayManager.initBirthdayCron(client);
 
   // Initialiser les plannings de redémarrage ARK SA + polling 60s
   await restartScheduler.init().catch(e => console.error('[RestartSched] init error:', e.message));
@@ -1859,6 +1863,18 @@ client.on('interactionCreate', async interaction => {
   }
 
   if (interaction.isModalSubmit()) {
+    if (interaction.customId === 'birthday_register_modal') {
+      try {
+        await birthdayManager.handleBirthdayModalSubmit(interaction);
+      } catch (err) {
+        console.error('[Birthday] Erreur modal:', err);
+        try {
+          if (interaction.replied || interaction.deferred) await interaction.followUp({ content: '❌ Erreur enregistrement anniversaire.', ephemeral: true });
+          else await interaction.reply({ content: '❌ Erreur enregistrement anniversaire.', ephemeral: true });
+        } catch (e) {}
+      }
+      return;
+    }
     if (interaction.customId.startsWith('inv_libre_')) {
       const context = pendingLibreItems.get(interaction.customId);
       if (!context) {
@@ -2090,6 +2106,20 @@ client.on('interactionCreate', async interaction => {
       console.error('[SpawnTicket] Erreur commande /spawn-panel:', err);
       try {
         const reply = { content: '❌ Impossible de publier le panneau spawn. Réessaie.', ephemeral: true };
+        if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
+        else await interaction.reply(reply);
+      } catch (e) {}
+    }
+    return;
+  }
+
+  if (commandName === 'anniversaire') {
+    try {
+      await birthdayManager.handleBirthdayCommand(interaction);
+    } catch (err) {
+      console.error('[Birthday] Erreur commande /anniversaire:', err);
+      try {
+        const reply = { content: '❌ Erreur lors de l\'ouverture du formulaire. Réessaie.', ephemeral: true };
         if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
         else await interaction.reply(reply);
       } catch (e) {}

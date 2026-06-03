@@ -35,6 +35,7 @@ const economyManager = require('../economyManager');
 const xpManager = require('../xpManager');
 
 const pgStore = require('../pgStore');
+const birthdayManager = require('../birthdayManager');
 
 function createWebServer(discordClient) {
   const app = express();
@@ -1090,6 +1091,70 @@ function createWebServer(discordClient) {
       filter: { type: '', username: '' },
       detail,
     });
+  });
+
+  // ── Anniversaires ────────────────────────────────────────────────────────────
+  app.get('/birthdays', requireAdmin, async (req, res) => {
+    const settings = { ...birthdayManager.getDefaultBirthdaySettings(), ...birthdayManager.getBirthdaySettings() };
+    const allBirthdays = await pgStore.getAllBirthdays();
+    const { month: currentMonth, year: currentYear } = birthdayManager.MONTH_NAMES_FR
+      ? (() => { const d = new Date(); return { month: d.getMonth() + 1, year: d.getFullYear() }; })()
+      : { month: 1, year: new Date().getFullYear() };
+    const upcomingMonth = currentMonth === 12 ? 1 : currentMonth + 1;
+    const nextMonthBirthdays = await pgStore.getBirthdaysOfMonth(upcomingMonth);
+    const itemTypes = inventoryManager.getItemTypes ? inventoryManager.getItemTypes() : [];
+    res.render('birthdays', {
+      settings, allBirthdays, nextMonthBirthdays, currentYear,
+      monthNames: birthdayManager.MONTH_NAMES_FR,
+      upcomingMonth, itemTypes,
+    });
+  });
+
+  app.post('/birthdays/settings', requireAdmin, async (req, res) => {
+    try {
+      const {
+        enabled, channelId, roleId, dmEnabled,
+        giftDiamonds, giftStrawberries, giftItemId, giftItemQty,
+        publicMessage, dmMessage, monthRecapMessage,
+      } = req.body;
+      await birthdayManager.saveBirthdaySettings({
+        enabled:          enabled === 'on' || enabled === 'true',
+        channelId:        channelId || '',
+        roleId:           roleId || '',
+        dmEnabled:        dmEnabled === 'on' || dmEnabled === 'true',
+        giftDiamonds:     parseInt(giftDiamonds, 10) || 0,
+        giftStrawberries: parseInt(giftStrawberries, 10) || 0,
+        giftItemId:       giftItemId || '',
+        giftItemQty:      parseInt(giftItemQty, 10) || 1,
+        publicMessage:    publicMessage || '',
+        dmMessage:        dmMessage || '',
+        monthRecapMessage: monthRecapMessage || '',
+      });
+      res.redirect('/birthdays?success=Paramètres+anniversaire+sauvegardés+!');
+    } catch (err) {
+      console.error('[Birthdays] Erreur sauvegarde settings:', err.message);
+      res.redirect('/birthdays?error=Erreur+sauvegarde');
+    }
+  });
+
+  app.post('/birthdays/delete', requireAdmin, async (req, res) => {
+    const { userId } = req.body;
+    if (userId) await pgStore.deleteBirthday(userId);
+    res.redirect('/birthdays?success=Anniversaire+supprimé');
+  });
+
+  app.post('/birthdays/test-celebrate', requireAdmin, async (req, res) => {
+    try {
+      if (discordClient) await birthdayManager.celebrateBirthdays(discordClient);
+      res.json({ ok: true });
+    } catch (err) { res.json({ ok: false, error: err.message }); }
+  });
+
+  app.post('/birthdays/test-recap', requireAdmin, async (req, res) => {
+    try {
+      if (discordClient) await birthdayManager.publishMonthRecap(discordClient);
+      res.json({ ok: true });
+    } catch (err) { res.json({ ok: false, error: err.message }); }
   });
 
   app.post('/shop/categories', requireAuth, async (req, res) => {
