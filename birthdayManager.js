@@ -177,10 +177,8 @@ async function handleBirthdayModalSubmit(interaction) {
     .setDescription(`<@${interaction.user.id}> a enregistré son anniversaire le **${dateStr}** 🎉\nUn cadeau et un message spécial l'attendent ce jour-là 🎁`)
     .setFooter({ text: 'Modifiable à tout moment avec /anniversaire' });
 
-  // Message public visible de tous, supprimé automatiquement après 30 secondes
+  // Message public visible de tous dans le salon
   await interaction.reply({ embeds: [embed], ephemeral: false });
-  const msg = await interaction.fetchReply().catch(() => null);
-  if (msg) setTimeout(() => msg.delete().catch(() => {}), 30_000);
 }
 
 // ── /anniversaire-a-venir ──────────────────────────────────────────────────────
