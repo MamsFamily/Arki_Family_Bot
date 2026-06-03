@@ -2127,6 +2127,20 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
+  if (commandName === 'anniversaire-a-venir') {
+    try {
+      await birthdayManager.handleUpcomingBirthdaysCommand(interaction);
+    } catch (err) {
+      console.error('[Birthday] Erreur commande /anniversaire-a-venir:', err);
+      try {
+        const reply = { content: '❌ Impossible d\'afficher les anniversaires à venir.', ephemeral: true };
+        if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
+        else await interaction.reply(reply);
+      } catch (e) {}
+    }
+    return;
+  }
+
   if (commandName === 'reclamation-panel') {
     try {
       await handleReclaimCommand(interaction);

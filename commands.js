@@ -416,6 +416,10 @@ const commands = [
     name: 'anniversaire',
     description: '🎂 Enregistre ou modifie ta date d\'anniversaire',
   },
+  {
+    name: 'anniversaire-a-venir',
+    description: '🎂 Affiche les 10 prochains anniversaires du serveur',
+  },
 ];
 
 module.exports = commands;

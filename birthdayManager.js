@@ -174,10 +174,75 @@ async function handleBirthdayModalSubmit(interaction) {
   const embed = new EmbedBuilder()
     .setColor(0xff6b9d)
     .setTitle('🎂 Anniversaire enregistré !')
-    .setDescription(`Ta date d'anniversaire **${dateStr}** a été enregistrée.\nTu recevras un cadeau et un message spécial ce jour-là 🎁`)
-    .setFooter({ text: 'Tu peux modifier ta date à tout moment avec /anniversaire' });
+    .setDescription(`<@${interaction.user.id}> a enregistré son anniversaire le **${dateStr}** 🎉\nUn cadeau et un message spécial l'attendent ce jour-là 🎁`)
+    .setFooter({ text: 'Modifiable à tout moment avec /anniversaire' });
 
-  return interaction.reply({ embeds: [embed], ephemeral: true });
+  // Message public visible de tous, supprimé automatiquement après 30 secondes
+  await interaction.reply({ embeds: [embed], ephemeral: false });
+  const msg = await interaction.fetchReply().catch(() => null);
+  if (msg) setTimeout(() => msg.delete().catch(() => {}), 30_000);
+}
+
+// ── /anniversaire-a-venir ──────────────────────────────────────────────────────
+
+function daysUntilNextBirthday(day, month) {
+  const now = new Date();
+  const parisNow = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(now).reduce((acc, p) => { acc[p.type] = parseInt(p.value, 10); return acc; }, {});
+
+  const todayOrd = parisNow.month * 100 + parisNow.day;
+  const bdOrd    = month * 100 + day;
+
+  // Calculer delta en jours (approximatif, suffisant pour trier)
+  let targetYear = parisNow.year;
+  if (bdOrd < todayOrd) targetYear++;
+
+  const target = new Date(targetYear, month - 1, day);
+  const today  = new Date(parisNow.year, parisNow.month - 1, parisNow.day);
+  return Math.round((target - today) / 86_400_000);
+}
+
+async function handleUpcomingBirthdaysCommand(interaction) {
+  await interaction.deferReply({ ephemeral: false });
+
+  const all = await pgStore.getAllBirthdays();
+  if (!all.length) {
+    return interaction.editReply({ content: '🎂 Aucun anniversaire enregistré sur le serveur.' });
+  }
+
+  const { day: todayDay, month: todayMonth, year: currentYear } = getParisDayMonth();
+  const todayOrd = todayMonth * 100 + todayDay;
+
+  const sorted = all
+    .map(b => ({ ...b, daysLeft: daysUntilNextBirthday(b.day, b.month) }))
+    .sort((a, b) => a.daysLeft - b.daysLeft)
+    .slice(0, 10);
+
+  const lines = sorted.map((b, i) => {
+    const dd   = String(b.day).padStart(2, '0');
+    const mm   = MONTH_NAMES_FR[b.month - 1];
+    // Année du prochain anniversaire = currentYear si pas encore passé, sinon +1
+    const bdOrd = b.month * 100 + b.day;
+    const nextYear = bdOrd >= todayOrd ? currentYear : currentYear + 1;
+    const age  = b.year ? ` *(${nextYear - b.year} ans)*` : '';
+    const when = b.daysLeft === 0
+      ? "**Aujourd'hui ! 🎂**"
+      : b.daysLeft === 1
+        ? '*Demain !*'
+        : `dans **${b.daysLeft}** jours`;
+    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `**${i + 1}.**`;
+    return `${medal} <@${b.user_id}> — ${dd} ${mm}${age} — ${when}`;
+  });
+
+  const embed = new EmbedBuilder()
+    .setColor(0xff6b9d)
+    .setTitle('🎂 Prochains anniversaires')
+    .setDescription(lines.join('\n'))
+    .setFooter({ text: `${all.length} anniversaire${all.length > 1 ? 's' : ''} enregistré${all.length > 1 ? 's' : ''} sur le serveur` })
+    .setTimestamp();
+
+  return interaction.editReply({ embeds: [embed] });
 }
 
 // ── Célébration du jour ───────────────────────────────────────────────────────
@@ -354,6 +419,7 @@ function initBirthdayCron(client) {
 module.exports = {
   handleBirthdayCommand,
   handleBirthdayModalSubmit,
+  handleUpcomingBirthdaysCommand,
   celebrateBirthdays,
   removeBirthdayRoles,
   publishMonthRecap,
