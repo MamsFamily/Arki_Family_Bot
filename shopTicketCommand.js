@@ -2531,7 +2531,7 @@ async function handleCloseConfirm(interaction, orderId) {
         .setTitle('📋 Rapport de clôture du ticket')
         .setFooter({ text: `Fermé par ${adminName}` })
         .setTimestamp();
-      if (historyUrl) rapportEmbed.setURL(historyUrl);
+      if (historyUrl) rapportEmbed.addFields({ name: '🔗 Historique Dashboard', value: `[Voir la commande sur le dashboard](${historyUrl})`, inline: false });
 
       // Joueur
       rapportEmbed.addFields({ name: '👤 Joueur', value: `<@${userId}>`, inline: true });
