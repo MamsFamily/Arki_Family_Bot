@@ -2009,6 +2009,47 @@ async function handleNoteModal(interaction, ticketId) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// CAPTURE MESSAGES DISCORD
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function captureChannelMessages(channel) {
+  const allMessages = [];
+  let lastId = null;
+  try {
+    while (true) {
+      const opts = { limit: 100 };
+      if (lastId) opts.before = lastId;
+      const fetched = await channel.messages.fetch(opts);
+      if (fetched.size === 0) break;
+      fetched.forEach(msg => {
+        allMessages.push({
+          id: msg.id,
+          authorId: msg.author.id,
+          authorName: msg.member?.displayName || msg.author.username,
+          authorAvatar: msg.author.displayAvatarURL({ size: 64 }),
+          content: msg.content || '',
+          timestamp: msg.createdTimestamp,
+          attachments: [...msg.attachments.values()].map(a => ({
+            url: a.url, name: a.name, contentType: a.contentType || '',
+          })),
+          embeds: msg.embeds.slice(0, 3).map(e => ({
+            title: e.title || '', description: e.description || '',
+            color: e.color, image: e.image?.url || null,
+          })),
+          reactions: [...msg.reactions.cache.values()].map(r => ({
+            emoji: r.emoji.toString(), count: r.count,
+          })),
+          isBot: msg.author.bot,
+        });
+      });
+      if (fetched.size < 100) break;
+      lastId = fetched.last()?.id;
+    }
+  } catch (e) { console.error('[captureChannelMessages] Erreur:', e.message); }
+  return allMessages.sort((a, b) => a.timestamp - b.timestamp);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // SUPPRESSION + COMPTE-RENDU LOG
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -2019,6 +2060,10 @@ async function handleDelete(interaction, ticketId) {
   const adminName = interaction.member?.displayName || interaction.user.username;
 
   try { await sendLogRecap(interaction.guild, data, adminName); } catch (e) { console.error('[ReclaimTicket] Erreur log:', e.message); }
+
+  // Capturer l'intégralité des messages du salon avant suppression
+  const capturedMessages = await captureChannelMessages(interaction.channel);
+  pgStore.saveReclaimMessages(ticketId, capturedMessages).catch(() => {});
 
   try {
     await interaction.update({

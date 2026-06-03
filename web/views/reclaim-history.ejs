@@ -158,6 +158,28 @@
     .rh-cart-item:last-child { border-bottom: none; }
     .rh-empty { color: var(--text-muted); font-style: italic; font-size: 14px; }
     .rh-ticket-id { font-family: monospace; font-size: 12px; color: var(--text-muted); }
+    /* ── Transcript chat ── */
+    .tc-wrap { display: flex; flex-direction: column; gap: 1px; max-height: 70vh; overflow-y: auto; padding-right: 4px; }
+    .tc-msg { display: flex; gap: 12px; padding: 5px 6px; border-radius: 6px; }
+    .tc-msg:hover { background: rgba(255,255,255,.03); }
+    .tc-avatar { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; object-fit: cover; background: var(--bg-input,#2a2a3a); }
+    .tc-body { flex: 1; min-width: 0; }
+    .tc-header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; flex-wrap: wrap; }
+    .tc-author { font-weight: 700; font-size: 14px; color: var(--text-primary); }
+    .tc-author-bot { color: #5865f2; }
+    .tc-bot-tag { font-size: 9px; font-weight: 800; background: #5865f2; color: #fff; border-radius: 3px; padding: 1px 4px; letter-spacing: .04em; }
+    .tc-ts { font-size: 11px; color: var(--text-muted); }
+    .tc-content { font-size: 14px; color: var(--text-primary); white-space: pre-wrap; word-break: break-word; line-height: 1.5; }
+    .tc-attachments { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+    .tc-img { max-width: 360px; max-height: 260px; border-radius: 8px; object-fit: contain; background: var(--bg-input,#2a2a3a); display: block; }
+    .tc-file { color: var(--accent,#7c5cfc); font-size: 13px; text-decoration: none; }
+    .tc-file:hover { text-decoration: underline; }
+    .tc-reactions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    .tc-reaction { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 12px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); font-size: 13px; }
+    .tc-embed { margin-top: 6px; border-left: 4px solid; border-radius: 4px; padding: 8px 10px; background: rgba(255,255,255,.04); max-width: 440px; }
+    .tc-embed-title { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+    .tc-embed-desc { font-size: 13px; color: var(--text-muted); white-space: pre-wrap; }
+    .tc-embed-img { max-width: 100%; max-height: 200px; border-radius: 4px; margin-top: 6px; }
   </style>
 </head>
 <body>
@@ -279,6 +301,59 @@
           </div>
         <% } %>
       </div>
+    </div>
+
+    <%
+      const msgs = Array.isArray(detail._messages) ? detail._messages : [];
+    %>
+    <div class="rh-detail-section" style="margin-top:16px;">
+      <h3>💬 Historique du salon (<%= msgs.length %> message<%= msgs.length !== 1 ? 's' : '' %>)</h3>
+      <% if (msgs.length === 0) { %>
+        <p style="color:var(--text-muted);font-size:13px;text-align:center;padding:12px 0;">Aucun message capturé (ticket créé avant cette fonctionnalité).</p>
+      <% } else { %>
+        <p style="font-size:11px;color:var(--text-muted);margin:-4px 0 10px;">⚠️ Les URLs d'images Discord peuvent expirer après quelques semaines.</p>
+        <div class="tc-wrap">
+          <% msgs.forEach(function(m) { %>
+          <div class="tc-msg">
+            <img class="tc-avatar" src="<%= m.authorAvatar %>" alt="" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 36 36%22><rect width=%2236%22 height=%2236%22 rx=%2218%22 fill=%22%235865f2%22/><text x=%2218%22 y=%2224%22 text-anchor=%22middle%22 font-size=%2218%22 fill=%22white%22>?</text></svg>'">
+            <div class="tc-body">
+              <div class="tc-header">
+                <span class="tc-author <%= m.isBot ? 'tc-author-bot' : '' %>"><%= m.authorName %></span>
+                <% if (m.isBot) { %><span class="tc-bot-tag">BOT</span><% } %>
+                <span class="tc-ts"><%= new Date(m.timestamp).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' }) %></span>
+              </div>
+              <% if (m.content) { %><div class="tc-content"><%= m.content %></div><% } %>
+              <% if (m.attachments && m.attachments.length > 0) { %>
+                <div class="tc-attachments">
+                  <% m.attachments.forEach(function(a) { %>
+                    <% const isImg = a.contentType && a.contentType.startsWith('image'); %>
+                    <% if (isImg) { %>
+                      <img src="<%= a.url %>" alt="<%= a.name %>" class="tc-img" onerror="this.outerHTML='<span style=\'color:var(--text-muted);font-size:12px;\'>🖼️ Image expirée : <%= a.name %></span>'">
+                    <% } else { %>
+                      <a href="<%= a.url %>" target="_blank" class="tc-file">📎 <%= a.name %></a>
+                    <% } %>
+                  <% }); %>
+                </div>
+              <% } %>
+              <% if (m.embeds && m.embeds.length > 0) { %>
+                <% m.embeds.forEach(function(e) { if (!e.title && !e.description && !e.image) return; %>
+                  <div class="tc-embed" style="border-color: <%= e.color ? '#' + e.color.toString(16).padStart(6,'0') : '#5865f2' %>">
+                    <% if (e.title) { %><div class="tc-embed-title"><%= e.title %></div><% } %>
+                    <% if (e.description) { %><div class="tc-embed-desc"><%= e.description.slice(0, 300) %><%= e.description.length > 300 ? '…' : '' %></div><% } %>
+                    <% if (e.image) { %><img src="<%= e.image %>" alt="" class="tc-embed-img" onerror="this.style.display='none'"><% } %>
+                  </div>
+                <% }); %>
+              <% } %>
+              <% if (m.reactions && m.reactions.length > 0) { %>
+                <div class="tc-reactions">
+                  <% m.reactions.forEach(function(r) { %><span class="tc-reaction"><%= r.emoji %> <strong><%= r.count %></strong></span><% }); %>
+                </div>
+              <% } %>
+            </div>
+          </div>
+          <% }); %>
+        </div>
+      <% } %>
     </div>
 
     <% } else { %>

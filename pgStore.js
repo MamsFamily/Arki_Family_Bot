@@ -89,8 +89,9 @@ async function initTables() {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_shop_orders_channel ON shop_orders (channel_id)
     `);
-    // Migration : colonne closed_at (ajout si absente)
+    // Migration : colonnes closed_at + messages (ajout si absentes)
     await pool.query(`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS closed_at BIGINT`);
+    await pool.query(`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS messages JSONB`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS reclaim_tickets (
         ticket_id VARCHAR PRIMARY KEY,
@@ -105,8 +106,9 @@ async function initTables() {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_reclaim_channel ON reclaim_tickets (channel_id)
     `);
-    // Migration : colonne closed_at (ajout si absente)
+    // Migration : colonnes closed_at + messages (ajout si absentes)
     await pool.query(`ALTER TABLE reclaim_tickets ADD COLUMN IF NOT EXISTS closed_at BIGINT`);
+    await pool.query(`ALTER TABLE reclaim_tickets ADD COLUMN IF NOT EXISTS messages JSONB`);
     console.log('✅ Tables app_data + member_history + spawn_tickets + shop_orders + reclaim_tickets + session prêtes');
   } catch (err) {
     console.error('❌ Erreur création tables:', err.message);
@@ -300,17 +302,28 @@ async function loadShopOrderById(orderId) {
   if (!usePostgres) return null;
   try {
     const result = await pool.query(
-      `SELECT data, closed_at FROM shop_orders WHERE order_id = $1`,
+      `SELECT data, closed_at, messages FROM shop_orders WHERE order_id = $1`,
       [orderId]
     );
     if (!result.rows.length) return null;
     const d = typeof result.rows[0].data === 'string' ? JSON.parse(result.rows[0].data) : result.rows[0].data;
-    d._closedAt = result.rows[0].closed_at;
+    d._closedAt  = result.rows[0].closed_at;
+    d._messages  = result.rows[0].messages || [];
     return d;
   } catch (err) {
     console.error('❌ Erreur chargement shop order by id:', err.message);
     return null;
   }
+}
+
+async function saveShopMessages(orderId, messages) {
+  if (!usePostgres) return;
+  try {
+    await pool.query(
+      `UPDATE shop_orders SET messages = $2 WHERE order_id = $1`,
+      [orderId, JSON.stringify(messages)]
+    );
+  } catch (err) { console.error('❌ Erreur sauvegarde messages shop:', err.message); }
 }
 
 // ── Reclaim Tickets ───────────────────────────────────────────────────────────
@@ -410,17 +423,28 @@ async function loadReclaimTicketById(ticketId) {
   if (!usePostgres) return null;
   try {
     const result = await pool.query(
-      `SELECT data, closed_at FROM reclaim_tickets WHERE ticket_id = $1`,
+      `SELECT data, closed_at, messages FROM reclaim_tickets WHERE ticket_id = $1`,
       [ticketId]
     );
     if (!result.rows.length) return null;
     const d = typeof result.rows[0].data === 'string' ? JSON.parse(result.rows[0].data) : result.rows[0].data;
     d._closedAt = result.rows[0].closed_at;
+    d._messages = result.rows[0].messages || [];
     return d;
   } catch (err) {
     console.error('❌ Erreur chargement reclaim ticket by id:', err.message);
     return null;
   }
+}
+
+async function saveReclaimMessages(ticketId, messages) {
+  if (!usePostgres) return;
+  try {
+    await pool.query(
+      `UPDATE reclaim_tickets SET messages = $2 WHERE ticket_id = $1`,
+      [ticketId, JSON.stringify(messages)]
+    );
+  } catch (err) { console.error('❌ Erreur sauvegarde messages reclaim:', err.message); }
 }
 
 function isPostgres() {
@@ -435,7 +459,7 @@ module.exports = {
   initPool, initTables, getData, setData, isPostgres, getPool,
   saveSpawnTicket, loadAllOpenSpawnTickets, deleteSpawnTicket,
   saveShopOrder, loadAllOpenShopOrders, deleteShopOrder,
-  archiveShopOrder, loadShopHistory, countShopHistory, loadShopOrderById,
+  archiveShopOrder, loadShopHistory, countShopHistory, loadShopOrderById, saveShopMessages,
   saveReclaimTicket, loadAllOpenReclaimTickets, deleteReclaimTicket,
-  archiveReclaimTicket, loadReclaimHistory, countReclaimHistory, loadReclaimTicketById,
+  archiveReclaimTicket, loadReclaimHistory, countReclaimHistory, loadReclaimTicketById, saveReclaimMessages,
 };
