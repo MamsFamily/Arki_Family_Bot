@@ -52,6 +52,7 @@ function getDefaultBirthdaySettings() {
     giftDiamonds:     500,
     giftStrawberries: 0,
     giftItemId:       '',
+    giftItemName:     '',
     giftItemQty:      1,
     // Messages
     publicMessage:    '🎂 Joyeux anniversaire {user} ! Tout le serveur Arki te souhaite une merveilleuse journée ! 🎉',
@@ -239,7 +240,15 @@ async function celebrateBirthdays(client) {
       await addToInventory(entry.user_id, 'fraises', settings.giftStrawberries, 'system', `🎂 Cadeau anniversaire`).catch(() => {});
     }
     if (settings.giftItemId && settings.giftItemQty > 0) {
-      await addToInventory(entry.user_id, settings.giftItemId, settings.giftItemQty, 'system', `🎂 Cadeau anniversaire`).catch(() => {});
+      let itemKey = settings.giftItemId;
+      if (itemKey === '__libre__') {
+        const nom = (settings.giftItemName || '').trim();
+        if (nom) itemKey = `[libre] ${nom}`;
+        else itemKey = null;
+      }
+      if (itemKey) {
+        await addToInventory(entry.user_id, itemKey, settings.giftItemQty, 'system', `🎂 Cadeau anniversaire`).catch(() => {});
+      }
     }
 
     // ── DM privé ──

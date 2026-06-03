@@ -159,20 +159,33 @@
           </div>
           <div class="bd-field">
             <label>Item supplémentaire (optionnel)</label>
-            <select name="giftItemId">
+            <%
+              const catLabels = { currency: '💰 Monnaies', consumable: '🧪 Consommables', dino: '🦎 Dinos', equipment: '🎒 Équipement' };
+              const grouped = {};
+              itemTypes.forEach(it => {
+                const cat = it.category || 'autre';
+                if (!grouped[cat]) grouped[cat] = [];
+                grouped[cat].push(it);
+              });
+            %>
+            <select name="giftItemId" id="giftItemId" onchange="toggleLibreField()">
               <option value="">— Aucun item —</option>
-              <% itemTypes.forEach(cat => { %>
-                <% if (cat.items) { %>
-                  <optgroup label="<%= cat.label %>">
-                    <% cat.items.forEach(it => { %>
-                      <option value="<%= it.id %>" <%= settings.giftItemId === it.id ? 'selected' : '' %>><%= it.label || it.id %></option>
-                    <% }); %>
-                  </optgroup>
-                <% } else { %>
-                  <option value="<%= cat.id %>" <%= settings.giftItemId === cat.id ? 'selected' : '' %>><%= cat.label || cat.id %></option>
-                <% } %>
+              <% Object.entries(grouped).forEach(([cat, items]) => { %>
+                <optgroup label="<%= catLabels[cat] || cat %>">
+                  <% items.forEach(it => { %>
+                    <option value="<%= it.id %>" <%= settings.giftItemId === it.id ? 'selected' : '' %>>
+                      <%= it.emoji ? it.emoji + ' ' : '' %><%= it.name || it.id %>
+                    </option>
+                  <% }); %>
+                </optgroup>
               <% }); %>
+              <option value="__libre__" <%= settings.giftItemId === '__libre__' ? 'selected' : '' %>>✨ Item occasionnel (nom libre)</option>
             </select>
+          </div>
+          <div class="bd-field" id="libreNameField" style="display:<%= settings.giftItemId === '__libre__' ? 'block' : 'none' %>;">
+            <label>Nom de l'item occasionnel</label>
+            <input type="text" name="giftItemName" value="<%= settings.giftItemName || '' %>" placeholder="ex : Skin Exclusif Anniversaire">
+            <p class="bd-hint">Ce nom sera affiché dans l'inventaire du joueur sous la forme 📦 Nom.</p>
           </div>
           <div class="bd-field">
             <label>Quantité de l'item</label>
@@ -260,6 +273,12 @@
   </main>
 
   <script>
+    function toggleLibreField() {
+      const sel = document.getElementById('giftItemId');
+      const field = document.getElementById('libreNameField');
+      if (field) field.style.display = sel && sel.value === '__libre__' ? 'block' : 'none';
+    }
+
     async function testCelebrate() {
       const btn = document.getElementById ? event.target : null;
       if (btn) btn.disabled = true;

@@ -1119,7 +1119,7 @@ function createWebServer(discordClient) {
     try {
       const {
         enabled, channelId, roleId, dmEnabled,
-        giftDiamonds, giftStrawberries, giftItemId, giftItemQty,
+        giftDiamonds, giftStrawberries, giftItemId, giftItemName, giftItemQty,
         publicMessage, dmMessage, monthRecapMessage,
       } = req.body;
       await birthdayManager.saveBirthdaySettings({
@@ -1130,6 +1130,7 @@ function createWebServer(discordClient) {
         giftDiamonds:     parseInt(giftDiamonds, 10) || 0,
         giftStrawberries: parseInt(giftStrawberries, 10) || 0,
         giftItemId:       giftItemId || '',
+        giftItemName:     (giftItemName || '').trim(),
         giftItemQty:      parseInt(giftItemQty, 10) || 1,
         publicMessage:    publicMessage || '',
         dmMessage:        dmMessage || '',
