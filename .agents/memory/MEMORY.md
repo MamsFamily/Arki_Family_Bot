@@ -1,0 +1,1 @@
+- [Discord modal timing](discord-modal-timing.md) — showModal() doit être la 1ère réponse dans les 3s : aucun await DB avant l'appel.

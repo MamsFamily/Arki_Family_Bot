@@ -109,9 +109,8 @@ async function handleBirthdayCommand(interaction) {
     });
   }
 
-  // Vérifier si déjà enregistré
-  const existing = await pgStore.getBirthday(interaction.user.id);
-
+  // showModal() doit être la première réponse dans les 3 secondes —
+  // aucun await avant l'appel (sinon Discord rejette le modal)
   const modal = new ModalBuilder()
     .setCustomId('birthday_register_modal')
     .setTitle('🎂 Ton anniversaire');
@@ -121,24 +120,21 @@ async function handleBirthdayCommand(interaction) {
     .setLabel('Jour (1–31)')
     .setStyle(TextInputStyle.Short)
     .setPlaceholder('ex : 15')
-    .setMinLength(1).setMaxLength(2).setRequired(true)
-    .setValue(existing ? String(existing.day) : '');
+    .setMinLength(1).setMaxLength(2).setRequired(true);
 
   const monthInput = new TextInputBuilder()
     .setCustomId('bday_month')
     .setLabel('Mois (1–12)')
     .setStyle(TextInputStyle.Short)
     .setPlaceholder('ex : 6')
-    .setMinLength(1).setMaxLength(2).setRequired(true)
-    .setValue(existing ? String(existing.month) : '');
+    .setMinLength(1).setMaxLength(2).setRequired(true);
 
   const yearInput = new TextInputBuilder()
     .setCustomId('bday_year')
     .setLabel('Année (optionnelle — pour afficher ton âge)')
     .setStyle(TextInputStyle.Short)
     .setPlaceholder('ex : 2000  — laisse vide pour garder la date privée')
-    .setMinLength(0).setMaxLength(4).setRequired(false)
-    .setValue(existing?.year ? String(existing.year) : '');
+    .setMinLength(0).setMaxLength(4).setRequired(false);
 
   modal.addComponents(
     new ActionRowBuilder().addComponents(dayInput),
