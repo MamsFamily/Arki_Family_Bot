@@ -1107,6 +1107,11 @@ function createWebServer(discordClient) {
       settings, allBirthdays, nextMonthBirthdays, currentYear,
       monthNames: birthdayManager.MONTH_NAMES_FR,
       upcomingMonth, itemTypes,
+      query: req.query,
+      role: req.session.role,
+      discordUser: req.session.discordUser,
+      botUser: discordClient ? discordClient.user : null,
+      path: '/birthdays',
     });
   });
 
