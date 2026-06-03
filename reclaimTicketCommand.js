@@ -2059,7 +2059,7 @@ async function sendLogRecap(guild, data, deletedBy) {
       { name: '📁 Statut final', value: data?.status === 'done' ? '✅ Traité' : data?.status === 'refused' ? '❌ Refusé' : '🔒 Fermé', inline: true },
       { name: '🗑️ Supprimé par', value: deletedBy, inline: true },
     );
-  if (historyUrl) embed.addFields({ name: '🔗 Historique Dashboard', value: `[Voir la réclamation sur le dashboard](${historyUrl})`, inline: false });
+  if (historyUrl) embed.addFields({ name: 'Historique du ticket :', value: `[Compte rendu](${historyUrl})`, inline: false });
   embed
     .setTimestamp();
 
