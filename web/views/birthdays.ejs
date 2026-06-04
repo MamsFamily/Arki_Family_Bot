@@ -145,21 +145,33 @@
             </div>
           </div>
           <div class="bd-field">
-            <label>URL publique du dashboard</label>
-            <input type="text" name="dashboardPublicUrl" value="<%= settings.dashboardPublicUrl || '' %>" placeholder="https://ton-dashboard.railway.app">
-            <p class="bd-hint">URL de base de ce dashboard Railway (sans slash final). Permet d'afficher les GIFs d'anniversaire intégrés dans les embeds Discord. Exemple&nbsp;: <code>https://mon-bot.up.railway.app</code></p>
-            <% if (settings.dashboardPublicUrl) { %>
+            <label>URL publique du dashboard <span style="font-weight:400;color:var(--text-muted);text-transform:none;">(optionnel)</span></label>
+            <input type="text" name="dashboardPublicUrl" value="<%= settings.dashboardPublicUrl || '' %>" placeholder="Laissez vide pour détection automatique">
+            <%
+              const autoUrl = process.env.RAILWAY_PUBLIC_DOMAIN
+                ? 'https://' + process.env.RAILWAY_PUBLIC_DOMAIN
+                : process.env.REPLIT_DEV_DOMAIN
+                  ? 'https://' + process.env.REPLIT_DEV_DOMAIN
+                  : null;
+              const activeUrl = (settings.dashboardPublicUrl || '').trim() || autoUrl;
+            %>
+            <% if (autoUrl && !settings.dashboardPublicUrl) { %>
+              <p style="font-size:11px;color:#2ecc71;margin:5px 0 0;">✅ URL auto-détectée : <code><%= autoUrl %></code></p>
+            <% } else if (settings.dashboardPublicUrl) { %>
+              <p style="font-size:11px;color:#2ecc71;margin:5px 0 0;">✅ URL manuelle active : <code><%= settings.dashboardPublicUrl %></code></p>
+            <% } else { %>
+              <p style="font-size:11px;color:#f1c40f;margin:5px 0 0;">⚠️ Aucune URL détectée — les embeds Discord seront envoyés sans GIF.</p>
+            <% } %>
+            <% if (activeUrl) { %>
               <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
                 <% const gifNames = ['hb1','hb2','hb3','hb4','ja1','ja2','ja3','ja4']; %>
                 <% gifNames.forEach(function(n) { %>
-                  <a href="<%= settings.dashboardPublicUrl %>/img/birthday/<%= n %>.gif" target="_blank"
+                  <a href="<%= activeUrl %>/img/birthday/<%= n %>.gif" target="_blank"
                      style="font-size:11px;color:var(--accent);text-decoration:none;border:1px solid var(--border-color);border-radius:4px;padding:2px 7px;">
                     🎞️ <%= n %>.gif
                   </a>
                 <% }); %>
               </div>
-            <% } else { %>
-              <p style="font-size:11px;color:#f1c40f;margin:6px 0 0;">⚠️ Sans URL configurée, les embeds Discord seront envoyés sans GIF.</p>
             <% } %>
           </div>
         </div>

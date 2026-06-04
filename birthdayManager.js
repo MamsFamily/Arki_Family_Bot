@@ -32,14 +32,22 @@ const LOCAL_GIF_PATHS = [
   '/img/birthday/ja4.gif',
 ];
 
-function randomGif() {
+function getDashboardBaseUrl() {
   const s = getSettings();
-  const base = (s.birthday?.dashboardPublicUrl || '').replace(/\/$/, '');
-  if (base) {
-    const path = LOCAL_GIF_PATHS[Math.floor(Math.random() * LOCAL_GIF_PATHS.length)];
-    return base + path;
-  }
+  const manual = (s.birthday?.dashboardPublicUrl || '').replace(/\/$/, '');
+  if (manual) return manual;
+  if (process.env.RAILWAY_PUBLIC_DOMAIN)
+    return 'https://' + process.env.RAILWAY_PUBLIC_DOMAIN.replace(/\/$/, '');
+  if (process.env.REPLIT_DEV_DOMAIN)
+    return 'https://' + process.env.REPLIT_DEV_DOMAIN.replace(/\/$/, '');
   return null;
+}
+
+function randomGif() {
+  const base = getDashboardBaseUrl();
+  if (!base) return null;
+  const p = LOCAL_GIF_PATHS[Math.floor(Math.random() * LOCAL_GIF_PATHS.length)];
+  return base + p;
 }
 
 // ── Settings ─────────────────────────────────────────────────────────────────
