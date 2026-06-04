@@ -19,20 +19,27 @@ const pgStore = require('./pgStore');
 const { getSettings, saveSettings } = require('./settingsManager');
 const { addToInventory } = require('./inventoryManager');
 
-// GIFs "joyeux anniversaire" / "happy birthday" aléatoires (Giphy CDN — URLs directes stables)
-const BIRTHDAY_GIFS = [
-  'https://media.giphy.com/media/g9582DNuQppxC/giphy.gif',
-  'https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif',
-  'https://media.giphy.com/media/26u4cqiYI30juCOGY/giphy.gif',
-  'https://media.giphy.com/media/Ylt47Rv3tFIBGOJfLf/giphy.gif',
-  'https://media.giphy.com/media/23is3bPe6hMcOk3Pdu/giphy.gif',
-  'https://media.giphy.com/media/TGcJpFMHMLkhy/giphy.gif',
-  'https://media.giphy.com/media/fxeeuml8GaESfmuE4z/giphy.gif',
-  'https://media.giphy.com/media/KRbRYRWgHDkZ2/giphy.gif',
+// GIFs locaux générés (texte "Happy Birthday!" / "Joyeux Anniversaire!" garanti)
+// Servis depuis web/public/img/birthday/ via le dashboard Railway
+const LOCAL_GIF_PATHS = [
+  '/img/birthday/hb1.gif',
+  '/img/birthday/hb2.gif',
+  '/img/birthday/hb3.gif',
+  '/img/birthday/hb4.gif',
+  '/img/birthday/ja1.gif',
+  '/img/birthday/ja2.gif',
+  '/img/birthday/ja3.gif',
+  '/img/birthday/ja4.gif',
 ];
 
 function randomGif() {
-  return BIRTHDAY_GIFS[Math.floor(Math.random() * BIRTHDAY_GIFS.length)];
+  const s = getSettings();
+  const base = (s.birthday?.dashboardPublicUrl || '').replace(/\/$/, '');
+  if (base) {
+    const path = LOCAL_GIF_PATHS[Math.floor(Math.random() * LOCAL_GIF_PATHS.length)];
+    return base + path;
+  }
+  return null;
 }
 
 // ── Settings ─────────────────────────────────────────────────────────────────
@@ -44,20 +51,21 @@ function getBirthdaySettings() {
 
 function getDefaultBirthdaySettings() {
   return {
-    enabled:          false,
-    channelId:        '',
-    roleId:           '',
-    dmEnabled:        true,
+    enabled:            false,
+    channelId:          '',
+    roleId:             '',
+    dmEnabled:          true,
+    dashboardPublicUrl: '',
     // Cadeaux
-    giftDiamonds:     500,
-    giftStrawberries: 0,
-    giftItemId:       '',
-    giftItemName:     '',
-    giftItemQty:      1,
+    giftDiamonds:       500,
+    giftStrawberries:   0,
+    giftItemId:         '',
+    giftItemName:       '',
+    giftItemQty:        1,
     // Messages
-    publicMessage:    '🎂 Joyeux anniversaire {user} ! Tout le serveur Arki te souhaite une merveilleuse journée ! 🎉',
-    dmMessage:        '🎂 Joyeux anniversaire {user} ! Un cadeau a été déposé dans ton inventaire. Profite bien de ta journée ! 🥳',
-    monthRecapMessage:'📅 Voici les anniversaires du mois de **{month}** ! N\'oublie pas de souhaiter à ces joueurs un joyeux anniversaire 🎂',
+    publicMessage:      '🎂 Joyeux anniversaire {user} ! Tout le serveur Arki te souhaite une merveilleuse journée ! 🎉',
+    dmMessage:          '🎂 Joyeux anniversaire {user} ! Un cadeau a été déposé dans ton inventaire. Profite bien de ta journée ! 🥳',
+    monthRecapMessage:  '📅 Voici les anniversaires du mois de **{month}** ! N\'oublie pas de souhaiter à ces joueurs un joyeux anniversaire 🎂',
   };
 }
 
@@ -279,8 +287,9 @@ async function celebrateBirthdays(client) {
     const embed = new EmbedBuilder()
       .setColor(0xff6b9d)
       .setDescription(publicText)
-      .setImage(randomGif())
       .setTimestamp();
+    const gif1 = randomGif();
+    if (gif1) embed.setImage(gif1);
 
     if (age !== null) embed.setFooter({ text: `🎂 ${age} ans aujourd'hui !` });
 
@@ -316,8 +325,9 @@ async function celebrateBirthdays(client) {
       try {
         const dmEmbed = new EmbedBuilder()
           .setColor(0xff6b9d)
-          .setDescription(dmText)
-          .setImage(randomGif());
+          .setDescription(dmText);
+        const gif2 = randomGif();
+        if (gif2) dmEmbed.setImage(gif2);
         if (age !== null) dmEmbed.setFooter({ text: `🎂 ${age} ans aujourd'hui !` });
         await member.send({ embeds: [dmEmbed] });
       } catch {}
@@ -359,8 +369,9 @@ async function testCelebrate(client, targetUserId) {
   const embed = new EmbedBuilder()
     .setColor(0xff6b9d)
     .setDescription(publicText)
-    .setImage(randomGif())
     .setTimestamp();
+  const gif3 = randomGif();
+  if (gif3) embed.setImage(gif3);
   if (age !== null) embed.setFooter({ text: `🎂 ${age} ans aujourd'hui !` });
   await channel.send({ embeds: [embed] });
 
@@ -393,8 +404,9 @@ async function testCelebrate(client, targetUserId) {
     try {
       const dmEmbed = new EmbedBuilder()
         .setColor(0xff6b9d)
-        .setDescription(dmText)
-        .setImage(randomGif());
+        .setDescription(dmText);
+      const gif4 = randomGif();
+      if (gif4) dmEmbed.setImage(gif4);
       if (age !== null) dmEmbed.setFooter({ text: `🎂 ${age} ans aujourd'hui !` });
       await member.send({ embeds: [dmEmbed] });
     } catch {}

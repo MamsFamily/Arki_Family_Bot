@@ -1119,23 +1119,24 @@ function createWebServer(discordClient) {
   app.post('/birthdays/settings', requireAdmin, async (req, res) => {
     try {
       const {
-        enabled, channelId, roleId, dmEnabled,
+        enabled, channelId, roleId, dmEnabled, dashboardPublicUrl,
         giftDiamonds, giftStrawberries, giftItemId, giftItemName, giftItemQty,
         publicMessage, dmMessage, monthRecapMessage,
       } = req.body;
       await birthdayManager.saveBirthdaySettings({
-        enabled:          enabled === 'on' || enabled === 'true',
-        channelId:        channelId || '',
-        roleId:           roleId || '',
-        dmEnabled:        dmEnabled === 'on' || dmEnabled === 'true',
-        giftDiamonds:     parseInt(giftDiamonds, 10) || 0,
-        giftStrawberries: parseInt(giftStrawberries, 10) || 0,
-        giftItemId:       giftItemId || '',
-        giftItemName:     (giftItemName || '').trim(),
-        giftItemQty:      parseInt(giftItemQty, 10) || 1,
-        publicMessage:    publicMessage || '',
-        dmMessage:        dmMessage || '',
-        monthRecapMessage: monthRecapMessage || '',
+        enabled:            enabled === 'on' || enabled === 'true',
+        channelId:          channelId || '',
+        roleId:             roleId || '',
+        dmEnabled:          dmEnabled === 'on' || dmEnabled === 'true',
+        dashboardPublicUrl: (dashboardPublicUrl || '').trim().replace(/\/$/, ''),
+        giftDiamonds:       parseInt(giftDiamonds, 10) || 0,
+        giftStrawberries:   parseInt(giftStrawberries, 10) || 0,
+        giftItemId:         giftItemId || '',
+        giftItemName:       (giftItemName || '').trim(),
+        giftItemQty:        parseInt(giftItemQty, 10) || 1,
+        publicMessage:      publicMessage || '',
+        dmMessage:          dmMessage || '',
+        monthRecapMessage:  monthRecapMessage || '',
       });
       res.redirect('/birthdays?success=Paramètres+anniversaire+sauvegardés+!');
     } catch (err) {

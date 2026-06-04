@@ -144,6 +144,24 @@
               <label for="dmEnabled" style="text-transform:none;font-size:14px;color:var(--text-primary);">Envoyer un DM au joueur le jour J</label>
             </div>
           </div>
+          <div class="bd-field">
+            <label>URL publique du dashboard</label>
+            <input type="text" name="dashboardPublicUrl" value="<%= settings.dashboardPublicUrl || '' %>" placeholder="https://ton-dashboard.railway.app">
+            <p class="bd-hint">URL de base de ce dashboard Railway (sans slash final). Permet d'afficher les GIFs d'anniversaire intégrés dans les embeds Discord. Exemple&nbsp;: <code>https://mon-bot.up.railway.app</code></p>
+            <% if (settings.dashboardPublicUrl) { %>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+                <% const gifNames = ['hb1','hb2','hb3','hb4','ja1','ja2','ja3','ja4']; %>
+                <% gifNames.forEach(function(n) { %>
+                  <a href="<%= settings.dashboardPublicUrl %>/img/birthday/<%= n %>.gif" target="_blank"
+                     style="font-size:11px;color:var(--accent);text-decoration:none;border:1px solid var(--border-color);border-radius:4px;padding:2px 7px;">
+                    🎞️ <%= n %>.gif
+                  </a>
+                <% }); %>
+              </div>
+            <% } else { %>
+              <p style="font-size:11px;color:#f1c40f;margin:6px 0 0;">⚠️ Sans URL configurée, les embeds Discord seront envoyés sans GIF.</p>
+            <% } %>
+          </div>
         </div>
 
         <!-- Colonne droite : cadeaux -->
