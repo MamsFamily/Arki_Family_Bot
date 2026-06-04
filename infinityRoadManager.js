@@ -335,58 +335,84 @@ async function handleMessage(message) {
  */
 async function assignMalusRole(guild, newUserId, newUsername, settings) {
   if (!settings.malusRoleId) {
-    console.warn('[Route Infini] Rôle malus non configuré dans les settings (malusRoleId vide).');
+    console.warn('[Fautif] malusRoleId non configuré — attribution ignorée.');
     return;
   }
 
   const durationMs = (settings.malusRoleDurationHours || 48) * 3_600_000;
   const expiresAt  = Date.now() + durationMs;
 
-  // 1. Lire l'éventuel ancien Fautif depuis la base
+  // 1. Annuler le timer en mémoire quoi qu'il arrive
+  if (currentMalusTimeout) {
+    clearTimeout(currentMalusTimeout);
+    currentMalusTimeout = null;
+    console.log('[Fautif] Timer précédent annulé.');
+  }
+
+  // 2. Retirer le rôle à l'ancien Fautif (s'il en existe un en base)
   const state = await pgStore.getInfinityRoadState();
-  if (state.malus_user_id && state.malus_expires_at && Date.now() < Number(state.malus_expires_at)) {
-    // Un Fautif actif existe — lui retirer le rôle
-    if (currentMalusTimeout) { clearTimeout(currentMalusTimeout); currentMalusTimeout = null; }
+  console.log(`[Fautif] État DB — malus_user_id=${state.malus_user_id} expires=${state.malus_expires_at} now=${Date.now()}`);
+
+  if (state.malus_user_id) {
+    // On retire le rôle même si expiré (au cas où le timer n'aurait pas pu tourner)
     try {
-      const oldMember = await guild.members.fetch(state.malus_user_id).catch(() => null);
+      const oldMember = await guild.members.fetch(state.malus_user_id).catch(e => {
+        console.warn(`[Fautif] fetch ancien membre ${state.malus_user_id} échoué : ${e.message}`);
+        return null;
+      });
       if (oldMember) {
         await oldMember.roles.remove(settings.malusRoleId);
-        console.log(`[Route Infini] Rôle Fautif retiré à ${state.malus_user_name} (nouveau casseur : ${newUsername})`);
+        console.log(`[Fautif] ✅ Rôle retiré à l'ancien Fautif ${state.malus_user_name} → transfert vers ${newUsername}`);
+      } else {
+        console.warn(`[Fautif] Ancien Fautif ${state.malus_user_name} introuvable sur le serveur (parti ?).`);
       }
     } catch (e) {
-      console.error(`[Route Infini] Impossible de retirer le rôle à l'ancien Fautif ${state.malus_user_name}:`, e.message);
+      console.error(`[Fautif] ❌ Erreur retrait rôle de ${state.malus_user_name} : ${e.message}`);
     }
   }
 
-  // 2. Attribuer le rôle au nouveau casseur
+  // 3. Attribuer le rôle au nouveau casseur
+  let newMember = null;
   try {
-    const newMember = await guild.members.fetch(newUserId).catch(() => null);
-    if (!newMember) { console.warn(`[Route Infini] Membre ${newUsername} introuvable pour le rôle malus.`); return; }
-
-    await newMember.roles.add(settings.malusRoleId);
-    console.log(`[Route Infini] Rôle Fautif attribué à ${newUsername} pour ${settings.malusRoleDurationHours || 48}h.`);
-
-    // 3. Sauvegarder en base
-    await pgStore.saveMalusState(newUserId, newUsername, expiresAt);
-
-    // 4. Timer de retrait automatique au bout de 48h
-    currentMalusTimeout = setTimeout(async () => {
-      try {
-        const m = await guild.members.fetch(newUserId).catch(() => null);
-        if (m) await m.roles.remove(settings.malusRoleId);
-      } catch (e) {
-        console.error(`[Route Infini] Échec retrait automatique rôle Fautif pour ${newUsername}:`, e.message);
-      }
-      await pgStore.clearMalusState();
-      currentMalusTimeout = null;
-      console.log(`[Route Infini] Rôle Fautif retiré automatiquement après 48h (${newUsername}).`);
-    }, durationMs);
-
+    newMember = await guild.members.fetch(newUserId).catch(e => {
+      console.warn(`[Fautif] fetch nouveau membre ${newUserId} échoué : ${e.message}`);
+      return null;
+    });
   } catch (e) {
-    console.error(`[Route Infini] Échec attribution rôle Fautif à ${newUsername}:`, e.message);
-    // Message de diagnostic dans le canal si possible — géré par l'appelant
+    console.error(`[Fautif] ❌ Impossible de récupérer le membre ${newUsername} : ${e.message}`);
+  }
+
+  if (!newMember) {
+    console.warn(`[Fautif] Membre ${newUsername} introuvable — rôle non attribué.`);
+    await pgStore.clearMalusState();
+    return;
+  }
+
+  try {
+    await newMember.roles.add(settings.malusRoleId);
+    console.log(`[Fautif] ✅ Rôle attribué à ${newUsername} pour ${settings.malusRoleDurationHours || 48}h.`);
+  } catch (e) {
+    console.error(`[Fautif] ❌ Échec attribution rôle à ${newUsername} : ${e.message} — vérifie hiérarchie et permission Gérer les rôles.`);
+    await pgStore.clearMalusState();
     throw e;
   }
+
+  // 4. Sauvegarder en base
+  await pgStore.saveMalusState(newUserId, newUsername, expiresAt);
+  console.log(`[Fautif] État sauvegardé en base (expire le ${new Date(expiresAt).toLocaleString('fr-FR')}).`);
+
+  // 5. Timer de retrait automatique
+  currentMalusTimeout = setTimeout(async () => {
+    try {
+      const m = await guild.members.fetch(newUserId).catch(() => null);
+      if (m) await m.roles.remove(settings.malusRoleId).catch(e => console.error(`[Fautif] Échec retrait auto ${newUsername} : ${e.message}`));
+    } catch (e) {
+      console.error(`[Fautif] Échec retrait automatique rôle pour ${newUsername} : ${e.message}`);
+    }
+    await pgStore.clearMalusState();
+    currentMalusTimeout = null;
+    console.log(`[Fautif] ✅ Rôle retiré automatiquement après ${settings.malusRoleDurationHours || 48}h (${newUsername}).`);
+  }, durationMs);
 }
 
 /**
