@@ -420,6 +420,10 @@ const commands = [
     name: 'anniversaire-a-venir',
     description: '🎂 Affiche les 10 prochains anniversaires du serveur',
   },
+  {
+    name: 'route-infini',
+    description: '🛣️ Affiche le compteur, le record et le classement de la Route de l\'Infini',
+  },
 ];
 
 module.exports = commands;

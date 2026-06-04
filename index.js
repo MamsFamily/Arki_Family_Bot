@@ -2146,6 +2146,64 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
+  // ── /route-infini ──────────────────────────────────────────────────────────
+  if (commandName === 'route-infini') {
+    await interaction.deferReply();
+    try {
+      const state    = await pgStore.getInfinityRoadState();
+      const stats    = await pgStore.getInfinityRoadStats({ limit: 10 });
+      const irSettings = infinityRoadManager.getIRSettings();
+
+      const current = Number(state.current_count) || 0;
+      const record  = Number(state.record) || 0;
+
+      // ── Classement
+      const medals = ['🥇', '🥈', '🥉'];
+      let classement = '';
+      if (stats.length === 0) {
+        classement = '*Aucune donnée pour l\'instant.*';
+      } else {
+        stats.forEach((s, i) => {
+          const medal = medals[i] || `**${i + 1}.**`;
+          const cassures = s.breaks > 0 ? ` *(💀 ${s.breaks} cassure${s.breaks > 1 ? 's' : ''})*` : '';
+          classement += `${medal} **${s.username}** — ${Number(s.contributions).toLocaleString('fr-FR')} nombres${cassures}\n`;
+        });
+      }
+
+      // ── Fautif actuel
+      let fautifLine = '';
+      if (state.malus_user_id && state.malus_expires_at) {
+        const remaining = Number(state.malus_expires_at) - Date.now();
+        if (remaining > 0) {
+          const heures = Math.floor(remaining / 3_600_000);
+          const minutes = Math.floor((remaining % 3_600_000) / 60_000);
+          fautifLine = `\n💀 **Fautif actuel :** <@${state.malus_user_id}> *(${heures}h${minutes}m restantes)*`;
+        }
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(0x3498db)
+        .setTitle('🛣️ Route de l\'Infini')
+        .addFields(
+          { name: '📍 Compteur actuel', value: `**${current.toLocaleString('fr-FR')}**`, inline: true },
+          { name: '🏆 Record du serveur', value: `**${record.toLocaleString('fr-FR')}**`, inline: true },
+        )
+        .addFields({ name: '📊 Top contributeurs', value: classement })
+        .setFooter({ text: 'Continue de construire la route !' })
+        .setTimestamp();
+
+      if (fautifLine) {
+        embed.setDescription(fautifLine);
+      }
+
+      await interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error('[Route Infini] Erreur /route-infini:', err);
+      await interaction.editReply({ content: '❌ Impossible d\'afficher les stats de la Route de l\'Infini.' });
+    }
+    return;
+  }
+
   if (commandName === 'reclamation-panel') {
     try {
       await handleReclaimCommand(interaction);
