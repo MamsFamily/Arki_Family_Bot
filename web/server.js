@@ -1182,23 +1182,24 @@ function createWebServer(discordClient) {
   app.post('/infinity-road/settings', requireAdmin, async (req, res) => {
     try {
       const {
-        enabled, channelId, malusRoleId, malusRoleDurationMin,
-        diamondsPer100, strawberriesPer50, strawberriesPerPalindrome,
-        countdownChancePct, breakMsg, milestoneMsg, countdownMsg, countdownFailMsg,
+        enabled, channelId, malusRoleId, malusRoleDurationHours,
+        diamondsPer100, strawberryChancePct, strawberryChanceAmount,
+        countdownChancePct, breakMsg, milestoneMsg, countdownMsg, countdownFailMsg, luckyMsg,
       } = req.body;
       await infinityRoadManager.saveIRSettings({
-        enabled:                    enabled === 'on' || enabled === 'true',
-        channelId:                  channelId || '',
-        malusRoleId:                malusRoleId || '',
-        malusRoleDurationMin:       parseInt(malusRoleDurationMin, 10) || 30,
-        diamondsPer100:             parseInt(diamondsPer100, 10) || 0,
-        strawberriesPer50:          parseInt(strawberriesPer50, 10) || 0,
-        strawberriesPerPalindrome:  parseInt(strawberriesPerPalindrome, 10) || 0,
-        countdownChancePct:         parseInt(countdownChancePct, 10) || 10,
-        breakMsg:                   breakMsg || '',
-        milestoneMsg:               milestoneMsg || '',
-        countdownMsg:               countdownMsg || '',
-        countdownFailMsg:           countdownFailMsg || '',
+        enabled:                enabled === 'on' || enabled === 'true',
+        channelId:              channelId || '',
+        malusRoleId:            malusRoleId || '',
+        malusRoleDurationHours: Math.min(48, Math.max(1, parseInt(malusRoleDurationHours, 10) || 1)),
+        diamondsPer100:         parseInt(diamondsPer100, 10) || 0,
+        strawberryChancePct:    Math.min(100, Math.max(0, parseInt(strawberryChancePct, 10) || 0)),
+        strawberryChanceAmount: parseInt(strawberryChanceAmount, 10) || 0,
+        countdownChancePct:     parseInt(countdownChancePct, 10) || 10,
+        breakMsg:               breakMsg || '',
+        milestoneMsg:           milestoneMsg || '',
+        countdownMsg:           countdownMsg || '',
+        countdownFailMsg:       countdownFailMsg || '',
+        luckyMsg:               luckyMsg || '',
       });
       res.redirect('/infinity-road?success=Paramètres+sauvegardés+!');
     } catch (err) {

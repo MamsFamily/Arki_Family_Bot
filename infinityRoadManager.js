@@ -30,16 +30,17 @@ function getDefaultSettings() {
     enabled:                false,
     channelId:              '',
     malusRoleId:            '',
-    malusRoleDurationMin:   30,
+    malusRoleDurationHours: 1,
     diamondsPer100:         200,
-    strawberriesPer50:      100,
-    strawberriesPerPalindrome: 50,
+    strawberryChancePct:    5,
+    strawberryChanceAmount: 50,
     countdownChancePct:     10,
     // Messages personnalisables
     breakMsg:      '💥 **{user}** a cassé la route au nombre **{count}** ! On repart de **0**... 😤',
     milestoneMsg:  '🎉 **{count}** atteint par **{user}** ! Incroyable ! 🏆',
     countdownMsg:  '⏳ Alerte ! Personne ne construit la route ! **60 secondes** pour poster **{next}** sinon on recule de 100 !',
     countdownFailMsg: '😬 Temps écoulé ! La route recule de **100** et tombe à **{count}**.',
+    luckyMsg:      '🍀 **{user}** a eu la main chanceuse sur le **{count}** et remporte **{amount} fraises** ! 🍓',
   };
 }
 
@@ -65,18 +66,13 @@ function isPrime(n) {
   return true;
 }
 
-function isPalindrome(n) {
-  if (n < 10) return false; // ignore 1 chiffre
-  const s = String(n);
-  return s === s.split('').reverse().join('');
-}
-
 function formatMsg(template, vars) {
   return template
-    .replace(/{user}/g,  vars.user  || '')
-    .replace(/{count}/g, vars.count !== undefined ? String(vars.count) : '')
-    .replace(/{next}/g,  vars.next  !== undefined ? String(vars.next)  : '')
-    .replace(/{record}/g,vars.record!== undefined ? String(vars.record): '');
+    .replace(/{user}/g,   vars.user   || '')
+    .replace(/{count}/g,  vars.count  !== undefined ? String(vars.count)  : '')
+    .replace(/{next}/g,   vars.next   !== undefined ? String(vars.next)   : '')
+    .replace(/{record}/g, vars.record !== undefined ? String(vars.record) : '')
+    .replace(/{amount}/g, vars.amount !== undefined ? String(vars.amount) : '');
 }
 
 // ── Paliers de célébration ────────────────────────────────────────────────────
@@ -176,20 +172,15 @@ async function processTurboEvents(n, member, channel, settings) {
     }
   }
 
-  // ── Multiples de 50 (pas 100) → fraises
-  if (n % 50 === 0 && n % 100 !== 0 && settings.strawberriesPer50 > 0) {
-    await addToInventory(member.id, 'fraises', settings.strawberriesPer50, 'route-infini', `🛣️ Route de l'infini — palier ${n}`).catch(() => {});
-    embeds.push(new EmbedBuilder()
-      .setColor(0xe91e8c)
-      .setDescription(`🍓 **${member.displayName || member.user.username}** reçoit **${settings.strawberriesPer50} fraises** pour le palier ${n} !`));
-  }
-
-  // ── Palindrome → fraises
-  if (isPalindrome(n) && n % 50 !== 0 && settings.strawberriesPerPalindrome > 0) {
-    await addToInventory(member.id, 'fraises', settings.strawberriesPerPalindrome, 'route-infini', `🛣️ Route de l'infini — palindrome ${n}`).catch(() => {});
-    embeds.push(new EmbedBuilder()
-      .setColor(0x9b59b6)
-      .setDescription(`✨ **${n}** est un palindrome ! **${member.displayName || member.user.username}** gagne **${settings.strawberriesPerPalindrome} fraises** 🍓`));
+  // ── Chance aléatoire → fraises
+  const chancePct = settings.strawberryChancePct || 0;
+  const chargeAmt = settings.strawberryChanceAmount || 50;
+  if (chancePct > 0 && chargeAmt > 0 && Math.random() * 100 < chancePct) {
+    await addToInventory(member.id, 'fraises', chargeAmt, 'route-infini', `🛣️ Route de l'infini — coup de chance sur ${n}`).catch(() => {});
+    const luckyText = formatMsg(settings.luckyMsg, {
+      user: `<@${member.id}>`, count: n, amount: chargeAmt,
+    });
+    embeds.push(new EmbedBuilder().setColor(0xe91e8c).setDescription(luckyText));
   }
 
   // ── Multiple de 13 → malédiction cosmétique
@@ -200,7 +191,7 @@ async function processTurboEvents(n, member, channel, settings) {
   }
 
   // ── Nombre premier → cosmétique
-  if (n >= 10 && n <= 500 && isPrime(n) && n % 50 !== 0 && !isPalindrome(n)) {
+  if (n >= 10 && n <= 500 && isPrime(n) && n % 100 !== 0) {
     embeds.push(new EmbedBuilder()
       .setColor(0x1abc9c)
       .setDescription(`🧠 **${n}** est un nombre premier ! Chapeau l'intellectuel !`));
@@ -275,7 +266,7 @@ async function handleMessage(message) {
     if (member && settings.malusRoleId) {
       try {
         await member.roles.add(settings.malusRoleId);
-        const durationMs = (settings.malusRoleDurationMin || 30) * 60_000;
+        const durationMs = (settings.malusRoleDurationHours || 1) * 3_600_000;
         setTimeout(async () => {
           try { await member.roles.remove(settings.malusRoleId); } catch {}
         }, durationMs);

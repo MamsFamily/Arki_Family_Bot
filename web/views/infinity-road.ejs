@@ -122,8 +122,9 @@
             <p class="ir-hint">Attribué à celui qui casse la route, retiré automatiquement après la durée définie.</p>
           </div>
           <div class="ir-field">
-            <label>Durée du malus (minutes)</label>
-            <input type="number" name="malusRoleDurationMin" value="<%= settings.malusRoleDurationMin %>" min="1" max="1440">
+            <label>Durée du malus (heures)</label>
+            <input type="number" name="malusRoleDurationHours" value="<%= settings.malusRoleDurationHours || 1 %>" min="1" max="48" step="1">
+            <p class="ir-hint">Entre 1h et 48h.</p>
           </div>
           <div class="ir-field">
             <label>% de chance de compte à rebours</label>
@@ -138,16 +139,16 @@
           <div class="ir-field">
             <label>💎 Diamants par multiple de 100</label>
             <input type="number" name="diamondsPer100" value="<%= settings.diamondsPer100 %>" min="0" step="50">
-            <p class="ir-hint">Crédités dans l'inventaire Arki de celui qui poste le nombre.</p>
+            <p class="ir-hint">Crédités dans l'inventaire Arki de celui qui poste le multiple.</p>
           </div>
           <div class="ir-field">
-            <label>🍓 Fraises par multiple de 50 (hors 100)</label>
-            <input type="number" name="strawberriesPer50" value="<%= settings.strawberriesPer50 %>" min="0" step="25">
+            <label>🍀 Chance de fraises par nombre (% par tirage)</label>
+            <input type="number" name="strawberryChancePct" value="<%= settings.strawberryChancePct %>" min="0" max="100" step="1">
+            <p class="ir-hint">Après chaque nombre valide, probabilité de déclencher un gain de fraises. 5 = 5%.</p>
           </div>
           <div class="ir-field">
-            <label>🍓 Fraises par palindrome</label>
-            <input type="number" name="strawberriesPerPalindrome" value="<%= settings.strawberriesPerPalindrome %>" min="0" step="25">
-            <p class="ir-hint">Ex : 11, 22, 121, 1221… ne s'accumule pas avec le palier de 50.</p>
+            <label>🍓 Quantité de fraises par tirage chanceux</label>
+            <input type="number" name="strawberryChanceAmount" value="<%= settings.strawberryChanceAmount %>" min="0" step="25">
           </div>
 
           <h2 style="margin-top:20px;">📋 Paliers de célébration</h2>
@@ -193,6 +194,11 @@
           <div class="ir-field">
             <label>Échec du compte à rebours (−100)</label>
             <textarea name="countdownFailMsg"><%= settings.countdownFailMsg %></textarea>
+          </div>
+          <div class="ir-field">
+            <label>Coup de chance (fraises aléatoires)</label>
+            <textarea name="luckyMsg"><%= settings.luckyMsg %></textarea>
+            <p class="ir-hint">Variables : <span class="var-tag">{user}</span> <span class="var-tag">{count}</span> <span class="var-tag">{amount}</span></p>
           </div>
         </div>
       </div>
