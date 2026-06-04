@@ -19,9 +19,11 @@ const pgStore           = require('./pgStore');
 const { getSettings, saveSettings } = require('./settingsManager');
 const { addToInventory } = require('./inventoryManager');
 
-// ── Countdown actif en mémoire ─────────────────────────────────────────────
-// channelId → { timeout, current }
-const activeCountdowns = new Map();
+// ── Countdown en mémoire ───────────────────────────────────────────────────
+// pendingCountdowns : délai de 3s avant le vrai lancement (annulable si un nombre arrive)
+// activeCountdowns  : compte à rebours de 60s en cours
+const pendingCountdowns = new Map();
+const activeCountdowns  = new Map();
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 
@@ -97,7 +99,8 @@ const SPECIAL_NUMBERS = {
 // ── Countdown aléatoire ───────────────────────────────────────────────────────
 
 async function triggerCountdown(channel, currentCount, settings) {
-  if (activeCountdowns.has(channel.id)) return; // déjà actif
+  pendingCountdowns.delete(channel.id); // on sort du délai d'attente
+  if (activeCountdowns.has(channel.id)) return; // déjà un vrai countdown actif
 
   const next = currentCount + 1;
   const msg = formatMsg(settings.countdownMsg, { next, count: currentCount });
@@ -136,6 +139,13 @@ async function triggerCountdown(channel, currentCount, settings) {
 }
 
 function cancelCountdown(channelId) {
+  // Annuler le délai de 3s (pas encore lancé)
+  const pending = pendingCountdowns.get(channelId);
+  if (pending) {
+    clearTimeout(pending);
+    pendingCountdowns.delete(channelId);
+  }
+  // Annuler le vrai countdown de 60s
   const cd = activeCountdowns.get(channelId);
   if (cd) {
     clearTimeout(cd.timeout);
@@ -183,20 +193,6 @@ async function processTurboEvents(n, member, channel, settings) {
     embeds.push(new EmbedBuilder().setColor(0xe91e8c).setDescription(luckyText));
   }
 
-  // ── Multiple de 13 → malédiction cosmétique
-  if (n % 13 === 0 && n % 100 !== 0) {
-    embeds.push(new EmbedBuilder()
-      .setColor(0x2c3e50)
-      .setDescription(`💀 **${n}** — Multiple de 13 ! La malédiction plane sur la route... Le prochain joueur doit être courageux !`));
-  }
-
-  // ── Nombre premier → cosmétique
-  if (n >= 10 && n <= 500 && isPrime(n) && n % 100 !== 0) {
-    embeds.push(new EmbedBuilder()
-      .setColor(0x1abc9c)
-      .setDescription(`🧠 **${n}** est un nombre premier ! Chapeau l'intellectuel !`));
-  }
-
   // ── Nombre spécial
   if (SPECIAL_NUMBERS[n]) {
     embeds.push(new EmbedBuilder()
@@ -212,7 +208,10 @@ async function processTurboEvents(n, member, channel, settings) {
   if (!isMilestone(n) && !activeCountdowns.has(channel.id)) {
     const chance = (settings.countdownChancePct || 10) / 100;
     if (Math.random() < chance) {
-      setTimeout(() => triggerCountdown(channel, n, settings), 3000);
+      // On stocke dans pendingCountdowns pour pouvoir l'annuler si un nombre
+      // est posté dans les 3s avant que le vrai countdown ne démarre
+      const pendingTimeout = setTimeout(() => triggerCountdown(channel, n, settings), 3000);
+      pendingCountdowns.set(channel.id, pendingTimeout);
     }
   }
 }
@@ -313,7 +312,9 @@ async function handleMessage(message) {
 async function resetGame(resetStats = false) {
   await pgStore.saveInfinityRoadState({ current_count: 0, record: 0, last_user_id: null, last_user_name: null });
   if (resetStats) await pgStore.resetInfinityRoadStats();
-  // Annuler tous les countdowns
+  // Annuler tous les countdowns (pending + actifs)
+  for (const t of pendingCountdowns.values()) clearTimeout(t);
+  pendingCountdowns.clear();
   for (const [, cd] of activeCountdowns) clearTimeout(cd.timeout);
   activeCountdowns.clear();
 }
