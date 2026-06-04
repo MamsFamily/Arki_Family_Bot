@@ -45,7 +45,8 @@ const restartScheduler = require('./nitradoRestartScheduler');
 const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
 const { registerCasinoHandlers } = require('./casino/casinoHandler');
 const boosterReproManager = require('./boosterReproManager');
-const birthdayManager = require('./birthdayManager');
+const birthdayManager    = require('./birthdayManager');
+const infinityRoadManager = require('./infinityRoadManager');
 
 
 const openaiConfig = {};
@@ -4671,6 +4672,14 @@ client.on('messageCreate', async message => {
   }
 
   if (message.author.bot || !message.guild) return;
+
+  // ── Route de l'Infini ───────────────────────────────────────────────────
+  try {
+    const handled = await infinityRoadManager.handleMessage(message);
+    if (handled) return; // le message est dans le salon route → on s'arrête là
+  } catch (e) {
+    console.error('[InfinityRoad] Erreur handleMessage:', e.message);
+  }
 
   const xpConfig = await xpManager.loadXpConfig();
 

@@ -35,7 +35,8 @@ const economyManager = require('../economyManager');
 const xpManager = require('../xpManager');
 
 const pgStore = require('../pgStore');
-const birthdayManager = require('../birthdayManager');
+const birthdayManager     = require('../birthdayManager');
+const infinityRoadManager = require('../infinityRoadManager');
 
 function createWebServer(discordClient) {
   const app = express();
@@ -1161,6 +1162,59 @@ function createWebServer(discordClient) {
       if (discordClient) await birthdayManager.publishMonthRecap(discordClient);
       res.json({ ok: true });
     } catch (err) { res.json({ ok: false, error: err.message }); }
+  });
+
+  // ── Route de l'Infini ─────────────────────────────────────────────────────
+  app.get('/infinity-road', requireAdmin, async (req, res) => {
+    const settings  = infinityRoadManager.getIRSettings();
+    const gameState = await pgStore.getInfinityRoadState();
+    const stats     = await pgStore.getInfinityRoadStats({ limit: 20 });
+    res.render('infinity-road', {
+      settings, gameState, stats,
+      query: req.query,
+      path: '/infinity-road',
+      role: req.session.role,
+      discordUser: req.session.discordUser,
+      botUser: discordClient ? discordClient.user : null,
+    });
+  });
+
+  app.post('/infinity-road/settings', requireAdmin, async (req, res) => {
+    try {
+      const {
+        enabled, channelId, malusRoleId, malusRoleDurationMin,
+        diamondsPer100, strawberriesPer50, strawberriesPerPalindrome,
+        countdownChancePct, breakMsg, milestoneMsg, countdownMsg, countdownFailMsg,
+      } = req.body;
+      await infinityRoadManager.saveIRSettings({
+        enabled:                    enabled === 'on' || enabled === 'true',
+        channelId:                  channelId || '',
+        malusRoleId:                malusRoleId || '',
+        malusRoleDurationMin:       parseInt(malusRoleDurationMin, 10) || 30,
+        diamondsPer100:             parseInt(diamondsPer100, 10) || 0,
+        strawberriesPer50:          parseInt(strawberriesPer50, 10) || 0,
+        strawberriesPerPalindrome:  parseInt(strawberriesPerPalindrome, 10) || 0,
+        countdownChancePct:         parseInt(countdownChancePct, 10) || 10,
+        breakMsg:                   breakMsg || '',
+        milestoneMsg:               milestoneMsg || '',
+        countdownMsg:               countdownMsg || '',
+        countdownFailMsg:           countdownFailMsg || '',
+      });
+      res.redirect('/infinity-road?success=Paramètres+sauvegardés+!');
+    } catch (err) {
+      console.error('[InfinityRoad] Erreur settings:', err.message);
+      res.redirect('/infinity-road?error=Erreur+sauvegarde');
+    }
+  });
+
+  app.post('/infinity-road/reset', requireAdmin, async (req, res) => {
+    try {
+      const resetStats = req.body.resetStats === 'true' || req.body.resetStats === 'on';
+      await infinityRoadManager.resetGame(resetStats);
+      res.redirect('/infinity-road?success=Partie+réinitialisée+!');
+    } catch (err) {
+      res.redirect('/infinity-road?error=Erreur+reset');
+    }
   });
 
   app.post('/shop/categories', requireAuth, async (req, res) => {

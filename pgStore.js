@@ -121,7 +121,26 @@ async function initTables() {
         last_celebrated SMALLINT
       )
     `);
-    console.log('✅ Tables app_data + member_history + spawn_tickets + shop_orders + reclaim_tickets + birthdays + session prêtes');
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS infinity_road (
+        id INTEGER PRIMARY KEY DEFAULT 1,
+        current_count BIGINT DEFAULT 0,
+        record BIGINT DEFAULT 0,
+        last_user_id VARCHAR,
+        last_user_name VARCHAR
+      )
+    `);
+    await pool.query(`INSERT INTO infinity_road (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS infinity_road_stats (
+        user_id VARCHAR PRIMARY KEY,
+        username VARCHAR,
+        contributions BIGINT DEFAULT 0,
+        breaks BIGINT DEFAULT 0,
+        last_contribution BIGINT
+      )
+    `);
+    console.log('✅ Tables app_data + member_history + spawn_tickets + shop_orders + reclaim_tickets + birthdays + infinity_road + session prêtes');
   } catch (err) {
     console.error('❌ Erreur création tables:', err.message);
     usePostgres = false;
@@ -533,6 +552,66 @@ async function deleteBirthday(userId) {
   } catch (err) { console.error('❌ Erreur deleteBirthday:', err.message); }
 }
 
+// ── Route de l'Infini ─────────────────────────────────────────────────────────
+
+async function getInfinityRoadState() {
+  if (!usePostgres) return { current_count: 0, record: 0, last_user_id: null, last_user_name: null };
+  try {
+    const r = await pool.query(`SELECT * FROM infinity_road WHERE id = 1`);
+    return r.rows[0] || { current_count: 0, record: 0, last_user_id: null, last_user_name: null };
+  } catch (err) { console.error('❌ getInfinityRoadState:', err.message); return { current_count: 0, record: 0, last_user_id: null, last_user_name: null }; }
+}
+
+async function saveInfinityRoadState({ current_count, record, last_user_id, last_user_name }) {
+  if (!usePostgres) return;
+  try {
+    await pool.query(`
+      UPDATE infinity_road SET
+        current_count = $1, record = $2, last_user_id = $3, last_user_name = $4
+      WHERE id = 1
+    `, [current_count, record, last_user_id || null, last_user_name || null]);
+  } catch (err) { console.error('❌ saveInfinityRoadState:', err.message); }
+}
+
+async function upsertInfinityRoadStat(userId, username, type) {
+  if (!usePostgres) return;
+  try {
+    if (type === 'contribution') {
+      await pool.query(`
+        INSERT INTO infinity_road_stats (user_id, username, contributions, breaks, last_contribution)
+        VALUES ($1, $2, 1, 0, $3)
+        ON CONFLICT (user_id) DO UPDATE SET
+          username = EXCLUDED.username,
+          contributions = infinity_road_stats.contributions + 1,
+          last_contribution = EXCLUDED.last_contribution
+      `, [userId, username, Date.now()]);
+    } else if (type === 'break') {
+      await pool.query(`
+        INSERT INTO infinity_road_stats (user_id, username, contributions, breaks, last_contribution)
+        VALUES ($1, $2, 0, 1, $3)
+        ON CONFLICT (user_id) DO UPDATE SET
+          username = EXCLUDED.username,
+          breaks = infinity_road_stats.breaks + 1
+      `, [userId, username, Date.now()]);
+    }
+  } catch (err) { console.error('❌ upsertInfinityRoadStat:', err.message); }
+}
+
+async function getInfinityRoadStats({ limit = 20 } = {}) {
+  if (!usePostgres) return [];
+  try {
+    const r = await pool.query(
+      `SELECT * FROM infinity_road_stats ORDER BY contributions DESC LIMIT $1`, [limit]
+    );
+    return r.rows;
+  } catch (err) { console.error('❌ getInfinityRoadStats:', err.message); return []; }
+}
+
+async function resetInfinityRoadStats() {
+  if (!usePostgres) return;
+  try { await pool.query(`DELETE FROM infinity_road_stats`); } catch (err) { console.error('❌ resetInfinityRoadStats:', err.message); }
+}
+
 function isPostgres() {
   return usePostgres;
 }
@@ -550,4 +629,6 @@ module.exports = {
   archiveReclaimTicket, loadReclaimHistory, countReclaimHistory, loadReclaimTicketById, saveReclaimMessages,
   saveBirthday, getBirthday, getAllBirthdays, getBirthdaysOfDay, getBirthdaysOfMonth,
   setBirthdayCelebrated, deleteBirthday,
+  getInfinityRoadState, saveInfinityRoadState,
+  upsertInfinityRoadStat, getInfinityRoadStats, resetInfinityRoadStats,
 };

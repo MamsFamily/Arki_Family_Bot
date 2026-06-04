@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Route de l'Infini — Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .ir-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 22px; }
+    @media (max-width: 900px) { .ir-grid { grid-template-columns: 1fr; } }
+
+    .ir-section { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px 22px; }
+    .ir-section h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin: 0 0 16px; }
+
+    .ir-field { margin-bottom: 14px; }
+    .ir-field label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .05em; }
+    .ir-field input[type="text"],
+    .ir-field input[type="number"],
+    .ir-field textarea {
+      width: 100%; padding: 9px 12px; border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-input, rgba(255,255,255,.05));
+      color: var(--text-primary); font-size: 14px; box-sizing: border-box;
+    }
+    .ir-field textarea { min-height: 60px; resize: vertical; font-family: inherit; }
+    .ir-toggle { display: flex; align-items: center; gap: 10px; }
+    .ir-toggle input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent,#7c5cfc); cursor: pointer; }
+    .ir-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+    /* Stat cards */
+    .ir-stat-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 22px; }
+    @media (max-width: 700px) { .ir-stat-row { grid-template-columns: repeat(2,1fr); } }
+    .ir-stat-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px 18px; }
+    .ir-stat-card .val { font-size: 28px; font-weight: 800; color: var(--accent,#7c5cfc); }
+    .ir-stat-card .lbl { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    /* Leaderboard */
+    .ir-table { width: 100%; border-collapse: collapse; }
+    .ir-table th { text-align:left; padding: 10px 14px; font-size: 11px; text-transform: uppercase; letter-spacing:.06em; color: var(--text-muted); border-bottom: 1px solid var(--border-color); }
+    .ir-table td { padding: 11px 14px; border-bottom: 1px solid rgba(255,255,255,.04); font-size: 14px; }
+    .ir-table tr:last-child td { border-bottom: none; }
+    .ir-table tr:hover td { background: rgba(255,255,255,.03); }
+    .rank-1 td:first-child { color: #f1c40f; }
+    .rank-2 td:first-child { color: #bdc3c7; }
+    .rank-3 td:first-child { color: #cd7f32; }
+
+    .ir-save-btn { padding: 10px 24px; border-radius: 8px; border: none; background: var(--accent,#7c5cfc); color: #fff; font-weight: 700; cursor: pointer; font-size: 14px; }
+    .ir-save-btn:hover { filter: brightness(1.1); }
+    .ir-reset-btn { padding: 9px 18px; border-radius: 8px; border: 1px solid rgba(231,76,60,.4); background: transparent; color: #e74c3c; font-size: 13px; cursor: pointer; }
+    .ir-reset-btn:hover { background: rgba(231,76,60,.1); }
+
+    .status-on  { color: #2ecc71; font-weight: 700; }
+    .status-off { color: #e74c3c; font-weight: 700; }
+    .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+    .dot-on  { background:#2ecc71; }
+    .dot-off { background:#e74c3c; }
+
+    .toast-ok  { padding:10px 18px; border-radius:8px; background:rgba(46,204,113,.15); border:1px solid rgba(46,204,113,.3); color:#2ecc71; font-size:13px; margin-bottom:16px; }
+    .toast-err { padding:10px 18px; border-radius:8px; background:rgba(231,76,60,.12); border:1px solid rgba(231,76,60,.25); color:#e74c3c; font-size:13px; margin-bottom:16px; }
+
+    .var-tag { display:inline-block; background: rgba(124,92,252,.15); border:1px solid rgba(124,92,252,.3); border-radius:5px; padding:2px 7px; font-size:11px; font-family:monospace; color: var(--accent,#7c5cfc); margin:2px; }
+  </style>
+</head>
+<body>
+  <%- include('sidebar', { path: '/infinity-road', role, botUser, discordUser }) %>
+  <main class="main-content">
+    <div class="page-header">
+      <h1>🛣️ Route de l'Infini</h1>
+      <span>
+        <span class="dot <%= settings.enabled ? 'dot-on' : 'dot-off' %>"></span>
+        <span class="<%= settings.enabled ? 'status-on' : 'status-off' %>"><%= settings.enabled ? 'Activé' : 'Désactivé' %></span>
+      </span>
+    </div>
+
+    <% if (query && query.success) { %><div class="toast-ok">✅ <%= query.success %></div><% } %>
+    <% if (query && query.error) { %><div class="toast-err">❌ <%= query.error %></div><% } %>
+
+    <!-- ── Stat cards ── -->
+    <%
+      const current = Number(gameState.current_count || 0);
+      const record  = Number(gameState.record || 0);
+    %>
+    <div class="ir-stat-row">
+      <div class="ir-stat-card">
+        <div class="val"><%= current.toLocaleString('fr-FR') %></div>
+        <div class="lbl">🔢 Nombre actuel</div>
+      </div>
+      <div class="ir-stat-card">
+        <div class="val"><%= record.toLocaleString('fr-FR') %></div>
+        <div class="lbl">🏆 Record all-time</div>
+      </div>
+      <div class="ir-stat-card">
+        <div class="val"><%= stats.length %></div>
+        <div class="lbl">👥 Joueurs actifs</div>
+      </div>
+      <div class="ir-stat-card">
+        <div class="val"><%= stats.reduce((a,s)=>a+Number(s.contributions),0).toLocaleString('fr-FR') %></div>
+        <div class="lbl">📊 Contributions totales</div>
+      </div>
+    </div>
+
+    <!-- ── Paramètres ── -->
+    <form method="POST" action="/infinity-road/settings">
+      <div class="ir-grid">
+        <!-- Config générale -->
+        <div class="ir-section">
+          <h2>⚙️ Configuration</h2>
+          <div class="ir-field">
+            <div class="ir-toggle">
+              <input type="checkbox" name="enabled" id="enabled" <%= settings.enabled ? 'checked' : '' %>>
+              <label for="enabled" style="text-transform:none;font-size:14px;color:var(--text-primary);">Activer la Route de l'Infini</label>
+            </div>
+          </div>
+          <div class="ir-field">
+            <label>Salon dédié (ID)</label>
+            <input type="text" name="channelId" value="<%= settings.channelId %>" placeholder="ID du salon Discord">
+            <p class="ir-hint">Dans ce salon : seuls les nombres sont conservés, tout texte est supprimé automatiquement.</p>
+          </div>
+          <div class="ir-field">
+            <label>Rôle malus (ID)</label>
+            <input type="text" name="malusRoleId" value="<%= settings.malusRoleId %>" placeholder="ID du rôle">
+            <p class="ir-hint">Attribué à celui qui casse la route, retiré automatiquement après la durée définie.</p>
+          </div>
+          <div class="ir-field">
+            <label>Durée du malus (minutes)</label>
+            <input type="number" name="malusRoleDurationMin" value="<%= settings.malusRoleDurationMin %>" min="1" max="1440">
+          </div>
+          <div class="ir-field">
+            <label>% de chance de compte à rebours</label>
+            <input type="number" name="countdownChancePct" value="<%= settings.countdownChancePct %>" min="0" max="100">
+            <p class="ir-hint">Après chaque nombre valide, probabilité de déclencher un compte à rebours de 60s. 10 = 10%.</p>
+          </div>
+        </div>
+
+        <!-- Récompenses -->
+        <div class="ir-section">
+          <h2>🎁 Récompenses inventaire</h2>
+          <div class="ir-field">
+            <label>💎 Diamants par multiple de 100</label>
+            <input type="number" name="diamondsPer100" value="<%= settings.diamondsPer100 %>" min="0" step="50">
+            <p class="ir-hint">Crédités dans l'inventaire Arki de celui qui poste le nombre.</p>
+          </div>
+          <div class="ir-field">
+            <label>🍓 Fraises par multiple de 50 (hors 100)</label>
+            <input type="number" name="strawberriesPer50" value="<%= settings.strawberriesPer50 %>" min="0" step="25">
+          </div>
+          <div class="ir-field">
+            <label>🍓 Fraises par palindrome</label>
+            <input type="number" name="strawberriesPerPalindrome" value="<%= settings.strawberriesPerPalindrome %>" min="0" step="25">
+            <p class="ir-hint">Ex : 11, 22, 121, 1221… ne s'accumule pas avec le palier de 50.</p>
+          </div>
+
+          <h2 style="margin-top:20px;">📋 Paliers de célébration</h2>
+          <div style="font-size:13px;color:var(--text-muted);line-height:1.7;">
+            50 · 100 · 200 · 300 · 500 · 750 · 1 000 · 1 500 · 2 000 · 3 000 · 5 000 · 7 500 · 10 000 · puis tous les 1 000
+          </div>
+
+          <h2 style="margin-top:20px;">⚡ Événements turbo</h2>
+          <div style="font-size:12px;color:var(--text-muted);line-height:1.9;">
+            <strong>× 100</strong> → 💎 Diamants + célébration<br>
+            <strong>× 50</strong> → 🍓 Fraises<br>
+            <strong>Palindrome</strong> (121, 1221…) → 🍓 Fraises<br>
+            <strong>× 13</strong> → 💀 Malédiction cosmétique<br>
+            <strong>Nombre premier</strong> ≤ 500 → 🧠 Message<br>
+            <strong>69 / 420 / 666 / 1111 / 1337…</strong> → Messages humoristiques
+          </div>
+        </div>
+      </div>
+
+      <!-- Messages -->
+      <div class="ir-section" style="margin-bottom:20px;">
+        <h2>✉️ Messages personnalisables</h2>
+        <p style="font-size:12px;color:var(--text-muted);margin:-8px 0 16px;">
+          Variables :
+          <span class="var-tag">{user}</span> mention du joueur &nbsp;
+          <span class="var-tag">{count}</span> nombre actuel &nbsp;
+          <span class="var-tag">{next}</span> prochain nombre attendu &nbsp;
+          <span class="var-tag">{record}</span> record
+        </p>
+        <div class="ir-grid">
+          <div class="ir-field">
+            <label>Message de casse (reset)</label>
+            <textarea name="breakMsg"><%= settings.breakMsg %></textarea>
+          </div>
+          <div class="ir-field">
+            <label>Message palier / record</label>
+            <textarea name="milestoneMsg"><%= settings.milestoneMsg %></textarea>
+          </div>
+          <div class="ir-field">
+            <label>Lancement du compte à rebours</label>
+            <textarea name="countdownMsg"><%= settings.countdownMsg %></textarea>
+          </div>
+          <div class="ir-field">
+            <label>Échec du compte à rebours (−100)</label>
+            <textarea name="countdownFailMsg"><%= settings.countdownFailMsg %></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:28px;">
+        <button type="submit" class="ir-save-btn">💾 Sauvegarder</button>
+      </div>
+    </form>
+
+    <!-- ── Reset ── -->
+    <div class="ir-section" style="margin-bottom:28px;border-color:rgba(231,76,60,.25);">
+      <h2>🔄 Réinitialisation</h2>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
+        <form method="POST" action="/infinity-road/reset" onsubmit="return confirm('Remettre le compteur à 0 sans effacer les stats ?')">
+          <input type="hidden" name="resetStats" value="false">
+          <button type="submit" class="ir-reset-btn">🔄 Reset compteur (garder stats)</button>
+        </form>
+        <form method="POST" action="/infinity-road/reset" onsubmit="return confirm('ATTENTION : remettre à 0 ET effacer toutes les stats de tous les joueurs ?')">
+          <input type="hidden" name="resetStats" value="true">
+          <button type="submit" class="ir-reset-btn">💣 Reset total (compteur + stats)</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ── Classement ── -->
+    <div class="card">
+      <div class="card-header">
+        <h2>🏅 Classement des joueurs (<%= stats.length %>)</h2>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <% if (!stats.length) { %>
+          <p style="padding:28px;text-align:center;color:var(--text-muted);">Aucune contribution enregistrée pour l'instant.</p>
+        <% } else { %>
+          <table class="ir-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Joueur</th>
+                <th>✅ Contributions</th>
+                <th>💥 Cassages</th>
+                <th>Ratio</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% stats.forEach((s, i) => {
+                const ratio = s.breaks > 0 ? (Number(s.contributions) / Number(s.breaks)).toFixed(1) : '∞';
+              %>
+              <tr class="rank-<%= i+1 %>">
+                <td><strong><%= i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1) %></strong></td>
+                <td><strong><%= s.username %></strong></td>
+                <td><%= Number(s.contributions).toLocaleString('fr-FR') %></td>
+                <td style="color:<%= Number(s.breaks) > 0 ? '#e74c3c' : 'var(--text-muted)' %>"><%= Number(s.breaks).toLocaleString('fr-FR') %></td>
+                <td style="color:var(--text-muted);font-size:13px;"><%= ratio %></td>
+              </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        <% } %>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
