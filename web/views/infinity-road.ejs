@@ -137,9 +137,14 @@
         <div class="ir-section">
           <h2>🎁 Récompenses inventaire</h2>
           <div class="ir-field">
+            <label>💎 Diamants par palier de célébration</label>
+            <input type="number" name="diamondsPerMilestone" value="<%= settings.diamondsPerMilestone || 0 %>" min="0" step="50">
+            <p class="ir-hint">Crédités à chaque palier : 50 · 100 · 200 · 300 · 500 · 750 · 1 000 · 1 500 · 2 000 · 3 000 · 5 000 · 7 500 · 10 000… Mettre 0 pour désactiver.</p>
+          </div>
+          <div class="ir-field">
             <label>💎 Diamants par multiple de 100</label>
             <input type="number" name="diamondsPer100" value="<%= settings.diamondsPer100 %>" min="0" step="50">
-            <p class="ir-hint">Crédités dans l'inventaire Arki de celui qui poste le multiple.</p>
+            <p class="ir-hint">Crédités à chaque ×100 (400, 600, 700, 800, 900…). Les paliers de célébration qui sont aussi un ×100 (100, 200, 500…) cumulent les deux récompenses. Mettre 0 pour désactiver.</p>
           </div>
           <div class="ir-field">
             <label>🍀 Chance de fraises par nombre (% par tirage)</label>

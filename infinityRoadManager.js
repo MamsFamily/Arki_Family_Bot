@@ -39,6 +39,7 @@ function getDefaultSettings() {
     malusRoleId:            '',
     malusRoleDurationHours: 48,
     diamondsPer100:         200,
+    diamondsPerMilestone:   0,
     strawberryChancePct:    5,
     strawberryChanceAmount: 50,
     countdownChancePct:     10,
@@ -166,24 +167,31 @@ async function processTurboEvents(n, member, channel, settings) {
   // ── Palier de célébration
   if (isMilestone(n)) {
     const isRecord = n === Number((await pgStore.getInfinityRoadState()).record);
-    embeds.push(new EmbedBuilder()
+    const milestoneEmbed = new EmbedBuilder()
       .setColor(0xf1c40f)
       .setTitle(`🏆 Palier ${n.toLocaleString('fr-FR')} atteint !`)
       .setDescription(formatMsg(settings.milestoneMsg, { count: n.toLocaleString('fr-FR'), user: `<@${member.id}>` }))
-      .setFooter({ text: isRecord ? '🌟 Nouveau record du serveur !' : `Bien joué ${member.displayName || member.user.username} !` }));
+      .setFooter({ text: isRecord ? '🌟 Nouveau record du serveur !' : `Bien joué ${member.displayName || member.user.username} !` });
+
+    // Diamants spécifiques aux paliers de célébration
+    if (settings.diamondsPerMilestone > 0) {
+      await addToInventory(member.id, 'diamants', settings.diamondsPerMilestone, 'route-infini', `🛣️ Route de l'infini — palier célébration ${n}`).catch(() => {});
+      milestoneEmbed.setDescription((milestoneEmbed.data.description || '') + `\n💎 +**${settings.diamondsPerMilestone} diamants** crédités !`);
+    }
+    embeds.push(milestoneEmbed);
   }
 
-  // ── Multiples de 100 → diamants
+  // ── Multiples de 100 → diamants (uniquement si pas déjà un palier célébration qui a donné des diamants)
   if (n % 100 === 0 && settings.diamondsPer100 > 0) {
-    await addToInventory(member.id, 'diamants', settings.diamondsPer100, 'route-infini', `🛣️ Route de l'infini — palier ${n}`).catch(() => {});
+    await addToInventory(member.id, 'diamants', settings.diamondsPer100, 'route-infini', `🛣️ Route de l'infini — ×100 au ${n}`).catch(() => {});
     if (!isMilestone(n)) {
       embeds.push(new EmbedBuilder()
         .setColor(0x3498db)
         .setDescription(`💎 **${member.displayName || member.user.username}** reçoit **${settings.diamondsPer100} diamants** pour le palier ${n} ! 🎉`));
     } else {
-      // Ajouter info diamants au milestone embed déjà créé
+      // Ajouter info diamants ×100 au milestone embed déjà créé
       const last = embeds[embeds.length - 1];
-      if (last) last.setDescription((last.data.description || '') + `\n💎 +**${settings.diamondsPer100} diamants** crédités !`);
+      if (last) last.setDescription((last.data.description || '') + `\n💎 +**${settings.diamondsPer100} diamants** (bonus ×100) !`);
     }
   }
 
