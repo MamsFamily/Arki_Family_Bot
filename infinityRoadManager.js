@@ -267,9 +267,21 @@ async function handleMessage(message) {
         await member.roles.add(settings.malusRoleId);
         const durationMs = (settings.malusRoleDurationHours || 1) * 3_600_000;
         setTimeout(async () => {
-          try { await member.roles.remove(settings.malusRoleId); } catch {}
+          try { await member.roles.remove(settings.malusRoleId); } catch (e) {
+            console.error(`[Route Infini] Échec retrait rôle malus pour ${username}:`, e.message);
+          }
         }, durationMs);
-      } catch {}
+      } catch (e) {
+        console.error(`[Route Infini] Échec attribution rôle malus (${settings.malusRoleId}) pour ${username}:`, e.message);
+        // Informer dans le canal pour diagnostic
+        message.channel.send({
+          embeds: [new EmbedBuilder()
+            .setColor(0xe67e22)
+            .setDescription(`⚠️ Impossible d'attribuer le rôle malus à <@${userId}> — vérifie que le bot a la permission **Gérer les rôles** et que le rôle malus est **en dessous** du rôle du bot dans la hiérarchie.`)],
+        }).catch(() => {});
+      }
+    } else if (!settings.malusRoleId) {
+      console.warn('[Route Infini] Rôle malus non configuré dans les settings (malusRoleId vide).');
     }
 
     // Stats
