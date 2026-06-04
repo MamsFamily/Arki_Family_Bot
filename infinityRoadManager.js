@@ -25,6 +25,11 @@ const { addToInventory } = require('./inventoryManager');
 const pendingCountdowns = new Map();
 const activeCountdowns  = new Map();
 
+// ── Fautif actuel (un seul à la fois) ──────────────────────────────────────
+// Stocké en base PostgreSQL pour survivre aux redémarrages.
+// En mémoire : le timeout actif pour l'annuler si quelqu'un d'autre casse la route.
+let currentMalusTimeout = null;
+
 // ── Settings ──────────────────────────────────────────────────────────────────
 
 function getDefaultSettings() {
@@ -32,7 +37,7 @@ function getDefaultSettings() {
     enabled:                false,
     channelId:              '',
     malusRoleId:            '',
-    malusRoleDurationHours: 1,
+    malusRoleDurationHours: 48,
     diamondsPer100:         200,
     strawberryChancePct:    5,
     strawberryChanceAmount: 50,
@@ -260,28 +265,15 @@ async function handleMessage(message) {
     // Mauvais nombre → reset
     cancelCountdown(message.channelId);
 
-    // Rôle malus
-    const member = message.member || await message.guild.members.fetch(userId).catch(() => null);
-    if (member && settings.malusRoleId) {
-      try {
-        await member.roles.add(settings.malusRoleId);
-        const durationMs = (settings.malusRoleDurationHours || 1) * 3_600_000;
-        setTimeout(async () => {
-          try { await member.roles.remove(settings.malusRoleId); } catch (e) {
-            console.error(`[Route Infini] Échec retrait rôle malus pour ${username}:`, e.message);
-          }
-        }, durationMs);
-      } catch (e) {
-        console.error(`[Route Infini] Échec attribution rôle malus (${settings.malusRoleId}) pour ${username}:`, e.message);
-        // Informer dans le canal pour diagnostic
-        message.channel.send({
-          embeds: [new EmbedBuilder()
-            .setColor(0xe67e22)
-            .setDescription(`⚠️ Impossible d'attribuer le rôle malus à <@${userId}> — vérifie que le bot a la permission **Gérer les rôles** et que le rôle malus est **en dessous** du rôle du bot dans la hiérarchie.`)],
-        }).catch(() => {});
-      }
-    } else if (!settings.malusRoleId) {
-      console.warn('[Route Infini] Rôle malus non configuré dans les settings (malusRoleId vide).');
+    // Rôle Fautif (un seul à la fois — transférable si quelqu'un d'autre casse ensuite)
+    try {
+      await assignMalusRole(message.guild, userId, username, settings);
+    } catch {
+      message.channel.send({
+        embeds: [new EmbedBuilder()
+          .setColor(0xe67e22)
+          .setDescription(`⚠️ Impossible d'attribuer le rôle **Fautif** à <@${userId}> — vérifie que le bot a la permission **Gérer les rôles** et que le rôle est **en dessous** du rôle du bot dans la hiérarchie.`)],
+      }).catch(() => {});
     }
 
     // Stats
@@ -319,6 +311,112 @@ async function handleMessage(message) {
   return true;
 }
 
+// ── Gestion du rôle Fautif (un seul à la fois, 48h, transférable) ─────────────
+
+/**
+ * Attribue le rôle malus au nouveau casseur.
+ * Si un ancien Fautif existe encore (timer non expiré), on lui retire le rôle d'abord.
+ * @param {Guild}  guild       - guilde Discord
+ * @param {string} newUserId   - ID du nouveau casseur
+ * @param {string} newUsername - Nom du nouveau casseur
+ * @param {object} settings    - settings infinityRoad (malusRoleId, malusRoleDurationHours)
+ */
+async function assignMalusRole(guild, newUserId, newUsername, settings) {
+  if (!settings.malusRoleId) {
+    console.warn('[Route Infini] Rôle malus non configuré dans les settings (malusRoleId vide).');
+    return;
+  }
+
+  const durationMs = (settings.malusRoleDurationHours || 48) * 3_600_000;
+  const expiresAt  = Date.now() + durationMs;
+
+  // 1. Lire l'éventuel ancien Fautif depuis la base
+  const state = await pgStore.getInfinityRoadState();
+  if (state.malus_user_id && state.malus_expires_at && Date.now() < Number(state.malus_expires_at)) {
+    // Un Fautif actif existe — lui retirer le rôle
+    if (currentMalusTimeout) { clearTimeout(currentMalusTimeout); currentMalusTimeout = null; }
+    try {
+      const oldMember = await guild.members.fetch(state.malus_user_id).catch(() => null);
+      if (oldMember) {
+        await oldMember.roles.remove(settings.malusRoleId);
+        console.log(`[Route Infini] Rôle Fautif retiré à ${state.malus_user_name} (nouveau casseur : ${newUsername})`);
+      }
+    } catch (e) {
+      console.error(`[Route Infini] Impossible de retirer le rôle à l'ancien Fautif ${state.malus_user_name}:`, e.message);
+    }
+  }
+
+  // 2. Attribuer le rôle au nouveau casseur
+  try {
+    const newMember = await guild.members.fetch(newUserId).catch(() => null);
+    if (!newMember) { console.warn(`[Route Infini] Membre ${newUsername} introuvable pour le rôle malus.`); return; }
+
+    await newMember.roles.add(settings.malusRoleId);
+    console.log(`[Route Infini] Rôle Fautif attribué à ${newUsername} pour ${settings.malusRoleDurationHours || 48}h.`);
+
+    // 3. Sauvegarder en base
+    await pgStore.saveMalusState(newUserId, newUsername, expiresAt);
+
+    // 4. Timer de retrait automatique au bout de 48h
+    currentMalusTimeout = setTimeout(async () => {
+      try {
+        const m = await guild.members.fetch(newUserId).catch(() => null);
+        if (m) await m.roles.remove(settings.malusRoleId);
+      } catch (e) {
+        console.error(`[Route Infini] Échec retrait automatique rôle Fautif pour ${newUsername}:`, e.message);
+      }
+      await pgStore.clearMalusState();
+      currentMalusTimeout = null;
+      console.log(`[Route Infini] Rôle Fautif retiré automatiquement après 48h (${newUsername}).`);
+    }, durationMs);
+
+  } catch (e) {
+    console.error(`[Route Infini] Échec attribution rôle Fautif à ${newUsername}:`, e.message);
+    // Message de diagnostic dans le canal si possible — géré par l'appelant
+    throw e;
+  }
+}
+
+/**
+ * À appeler au démarrage du bot : remet en place le timer si un Fautif est encore actif en base.
+ * @param {Guild} guild
+ */
+async function initMalusOnStartup(guild) {
+  try {
+    const state    = await pgStore.getInfinityRoadState();
+    const settings = getIRSettings();
+
+    if (!state.malus_user_id || !state.malus_expires_at || !settings.malusRoleId) return;
+
+    const remaining = Number(state.malus_expires_at) - Date.now();
+    if (remaining <= 0) {
+      // Déjà expiré pendant l'absence du bot → retirer le rôle et nettoyer
+      const m = await guild.members.fetch(state.malus_user_id).catch(() => null);
+      if (m) await m.roles.remove(settings.malusRoleId).catch(() => {});
+      await pgStore.clearMalusState();
+      console.log(`[Route Infini] Rôle Fautif expiré pendant le downtime — retiré à ${state.malus_user_name}.`);
+      return;
+    }
+
+    // Timer restant à remettre en place
+    console.log(`[Route Infini] Reprise : ${state.malus_user_name} est encore Fautif (${Math.round(remaining / 3_600_000 * 10) / 10}h restantes).`);
+    currentMalusTimeout = setTimeout(async () => {
+      try {
+        const m = await guild.members.fetch(state.malus_user_id).catch(() => null);
+        if (m) await m.roles.remove(settings.malusRoleId);
+      } catch (e) {
+        console.error(`[Route Infini] Échec retrait rôle Fautif au redémarrage pour ${state.malus_user_name}:`, e.message);
+      }
+      await pgStore.clearMalusState();
+      currentMalusTimeout = null;
+      console.log(`[Route Infini] Rôle Fautif retiré après reprise (${state.malus_user_name}).`);
+    }, remaining);
+
+  } catch (e) {
+    console.error('[Route Infini] initMalusOnStartup error:', e.message);
+  }
+}
+
 // ── Réinitialiser la partie ───────────────────────────────────────────────────
 
 async function resetGame(resetStats = false) {
@@ -337,4 +435,5 @@ module.exports = {
   handleMessage,
   resetGame,
   getDefaultSettings,
+  initMalusOnStartup,
 };

@@ -131,6 +131,10 @@ async function initTables() {
       )
     `);
     await pool.query(`INSERT INTO infinity_road (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);
+    // Migration : colonnes fautif actuel (un seul à la fois, transférable)
+    await pool.query(`ALTER TABLE infinity_road ADD COLUMN IF NOT EXISTS malus_user_id VARCHAR DEFAULT NULL`);
+    await pool.query(`ALTER TABLE infinity_road ADD COLUMN IF NOT EXISTS malus_user_name VARCHAR DEFAULT NULL`);
+    await pool.query(`ALTER TABLE infinity_road ADD COLUMN IF NOT EXISTS malus_expires_at BIGINT DEFAULT NULL`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS infinity_road_stats (
         user_id VARCHAR PRIMARY KEY,
@@ -573,6 +577,22 @@ async function saveInfinityRoadState({ current_count, record, last_user_id, last
   } catch (err) { console.error('❌ saveInfinityRoadState:', err.message); }
 }
 
+async function saveMalusState(userId, username, expiresAt) {
+  if (!usePostgres) return;
+  try {
+    await pool.query(`
+      UPDATE infinity_road SET malus_user_id = $1, malus_user_name = $2, malus_expires_at = $3 WHERE id = 1
+    `, [userId || null, username || null, expiresAt || null]);
+  } catch (err) { console.error('❌ saveMalusState:', err.message); }
+}
+
+async function clearMalusState() {
+  if (!usePostgres) return;
+  try {
+    await pool.query(`UPDATE infinity_road SET malus_user_id = NULL, malus_user_name = NULL, malus_expires_at = NULL WHERE id = 1`);
+  } catch (err) { console.error('❌ clearMalusState:', err.message); }
+}
+
 async function upsertInfinityRoadStat(userId, username, type) {
   if (!usePostgres) return;
   try {
@@ -629,6 +649,6 @@ module.exports = {
   archiveReclaimTicket, loadReclaimHistory, countReclaimHistory, loadReclaimTicketById, saveReclaimMessages,
   saveBirthday, getBirthday, getAllBirthdays, getBirthdaysOfDay, getBirthdaysOfMonth,
   setBirthdayCelebrated, deleteBirthday,
-  getInfinityRoadState, saveInfinityRoadState,
+  getInfinityRoadState, saveInfinityRoadState, saveMalusState, clearMalusState,
   upsertInfinityRoadStat, getInfinityRoadStats, resetInfinityRoadStats,
 };

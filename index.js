@@ -645,6 +645,10 @@ client.once('clientReady', async () => {
   // Initialiser le système booster repro (cron de restauration automatique)
   boosterReproManager.init(client);
 
+  // Reprendre le timer du Fautif actif sur la Route de l'Infini (si bot redémarré)
+  const irGuild = client.guilds.cache.first();
+  if (irGuild) await infinityRoadManager.initMalusOnStartup(irGuild).catch(e => console.error('[Route Infini] initMalusOnStartup:', e.message));
+
   console.log('✅ Bot Discord Arki Roulette est en ligne !');
   console.log(`📝 Connecté en tant que ${client.user.tag}`);
 
