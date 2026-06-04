@@ -1187,7 +1187,7 @@ function createWebServer(discordClient) {
     try {
       const {
         enabled, channelId, malusRoleId, malusRoleDurationHours,
-        diamondsPer100, diamondsPerMilestone, strawberryChancePct, strawberryChanceAmount,
+        diamondsPer100, diamondsPerMilestoneLow, diamondsPerMilestoneHigh, strawberryChancePct, strawberryChanceAmount,
         countdownChancePct, breakMsg, milestoneMsg, countdownMsg, countdownFailMsg, luckyMsg,
       } = req.body;
       await infinityRoadManager.saveIRSettings({
@@ -1195,8 +1195,9 @@ function createWebServer(discordClient) {
         channelId:              channelId || '',
         malusRoleId:            malusRoleId || '',
         malusRoleDurationHours: Math.min(48, Math.max(1, parseInt(malusRoleDurationHours, 10) || 1)),
-        diamondsPer100:         parseInt(diamondsPer100, 10) || 0,
-        diamondsPerMilestone:   parseInt(diamondsPerMilestone, 10) || 0,
+        diamondsPer100:           parseInt(diamondsPer100, 10) || 0,
+        diamondsPerMilestoneLow:  parseInt(diamondsPerMilestoneLow, 10) || 0,
+        diamondsPerMilestoneHigh: parseInt(diamondsPerMilestoneHigh, 10) || 0,
         strawberryChancePct:    Math.min(100, Math.max(0, parseInt(strawberryChancePct, 10) || 0)),
         strawberryChanceAmount: parseInt(strawberryChanceAmount, 10) || 0,
         countdownChancePct:     parseInt(countdownChancePct, 10) || 10,

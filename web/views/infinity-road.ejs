@@ -137,9 +137,14 @@
         <div class="ir-section">
           <h2>🎁 Récompenses inventaire</h2>
           <div class="ir-field">
-            <label>💎 Diamants par palier de célébration</label>
-            <input type="number" name="diamondsPerMilestone" value="<%= settings.diamondsPerMilestone || 0 %>" min="0" step="50">
-            <p class="ir-hint">Crédités à chaque palier : 50 · 100 · 200 · 300 · 500 · 750 · 1 000 · 1 500 · 2 000 · 3 000 · 5 000 · 7 500 · 10 000… Mettre 0 pour désactiver.</p>
+            <label>💎 Diamants — paliers &lt; 1 000</label>
+            <input type="number" name="diamondsPerMilestoneLow" value="<%= settings.diamondsPerMilestoneLow || 0 %>" min="0" step="50">
+            <p class="ir-hint">Paliers concernés : 50 · 100 · 200 · 300 · 500 · 750. Mettre 0 pour désactiver.</p>
+          </div>
+          <div class="ir-field">
+            <label>💎 Diamants — paliers ≥ 1 000</label>
+            <input type="number" name="diamondsPerMilestoneHigh" value="<%= settings.diamondsPerMilestoneHigh || 0 %>" min="0" step="50">
+            <p class="ir-hint">Paliers concernés : 1 000 · 1 500 · 2 000 · 3 000 · 5 000 · 7 500 · 10 000 · puis tous les 1 000. Mettre 0 pour désactiver.</p>
           </div>
           <div class="ir-field">
             <label>💎 Diamants par multiple de 100</label>

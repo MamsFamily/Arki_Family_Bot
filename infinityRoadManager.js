@@ -39,7 +39,8 @@ function getDefaultSettings() {
     malusRoleId:            '',
     malusRoleDurationHours: 48,
     diamondsPer100:         200,
-    diamondsPerMilestone:   0,
+    diamondsPerMilestoneLow:  0,
+    diamondsPerMilestoneHigh: 0,
     strawberryChancePct:    5,
     strawberryChanceAmount: 50,
     countdownChancePct:     10,
@@ -173,10 +174,13 @@ async function processTurboEvents(n, member, channel, settings) {
       .setDescription(formatMsg(settings.milestoneMsg, { count: n.toLocaleString('fr-FR'), user: `<@${member.id}>` }))
       .setFooter({ text: isRecord ? '🌟 Nouveau record du serveur !' : `Bien joué ${member.displayName || member.user.username} !` });
 
-    // Diamants spécifiques aux paliers de célébration
-    if (settings.diamondsPerMilestone > 0) {
-      await addToInventory(member.id, 'diamants', settings.diamondsPerMilestone, 'route-infini', `🛣️ Route de l'infini — palier célébration ${n}`).catch(() => {});
-      milestoneEmbed.setDescription((milestoneEmbed.data.description || '') + `\n💎 +**${settings.diamondsPerMilestone} diamants** crédités !`);
+    // Diamants spécifiques aux paliers de célébration (montant selon seuil 1000)
+    const milestoneReward = n < 1000
+      ? (settings.diamondsPerMilestoneLow  || 0)
+      : (settings.diamondsPerMilestoneHigh || 0);
+    if (milestoneReward > 0) {
+      await addToInventory(member.id, 'diamants', milestoneReward, 'route-infini', `🛣️ Route de l'infini — palier célébration ${n}`).catch(() => {});
+      milestoneEmbed.setDescription((milestoneEmbed.data.description || '') + `\n💎 +**${milestoneReward} diamants** crédités !`);
     }
     embeds.push(milestoneEmbed);
   }
