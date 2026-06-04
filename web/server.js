@@ -1152,8 +1152,11 @@ function createWebServer(discordClient) {
 
   app.post('/birthdays/test-celebrate', requireAdmin, async (req, res) => {
     try {
-      if (discordClient) await birthdayManager.celebrateBirthdays(discordClient);
-      res.json({ ok: true });
+      if (!discordClient) return res.json({ ok: false, error: 'Bot Discord non connecté.' });
+      const { userId } = req.body;
+      if (!userId || !userId.trim()) return res.json({ ok: false, error: 'userId manquant.' });
+      const result = await birthdayManager.testCelebrate(discordClient, userId.trim());
+      res.json({ ok: true, result });
     } catch (err) { res.json({ ok: false, error: err.message }); }
   });
 

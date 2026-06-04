@@ -328,6 +328,88 @@ async function celebrateBirthdays(client) {
   }
 }
 
+// ── Test de célébration (dashboard) ──────────────────────────────────────────
+// Simule une célébration complète pour un userId donné :
+// embed + GIF + rôle + toutes les récompenses. Pas d'anti-doublon.
+
+async function testCelebrate(client, targetUserId) {
+  const settings = { ...getDefaultBirthdaySettings(), ...getBirthdaySettings() };
+  if (!settings.channelId) throw new Error('Aucun salon d\'annonce configuré.');
+
+  const guild = client.guilds.cache.first();
+  if (!guild) throw new Error('Aucune guild trouvée.');
+
+  const channel = guild.channels.cache.get(settings.channelId);
+  if (!channel) throw new Error(`Salon ${settings.channelId} introuvable.`);
+
+  let member;
+  try { member = await guild.members.fetch(targetUserId); }
+  catch { throw new Error(`Membre ${targetUserId} introuvable sur le serveur.`); }
+
+  const { year: currentYear } = getParisDayMonth();
+  // Chercher l'entrée en BDD pour l'âge — facultatif, on utilise null si absent
+  const allEntries = await pgStore.getAllBirthdays();
+  const entry = allEntries.find(e => e.user_id === targetUserId);
+  const age = entry ? computeAge(entry.year, currentYear) : null;
+
+  const mention = `<@${targetUserId}>`;
+
+  // ── Embed public + GIF ──
+  const publicText = formatMessage(settings.publicMessage, { user: mention, age });
+  const embed = new EmbedBuilder()
+    .setColor(0xff6b9d)
+    .setDescription(publicText)
+    .setImage(randomGif())
+    .setTimestamp();
+  if (age !== null) embed.setFooter({ text: `🎂 ${age} ans aujourd'hui !` });
+  await channel.send({ embeds: [embed] });
+
+  // ── Rôle anniversaire ──
+  if (settings.roleId) {
+    try { await member.roles.add(settings.roleId); } catch {}
+  }
+
+  // ── Récompenses inventaire ──
+  if (settings.giftDiamonds > 0) {
+    await addToInventory(targetUserId, 'diamants', settings.giftDiamonds, 'system', `🎂 Test anniversaire`).catch(() => {});
+  }
+  if (settings.giftStrawberries > 0) {
+    await addToInventory(targetUserId, 'fraises', settings.giftStrawberries, 'system', `🎂 Test anniversaire`).catch(() => {});
+  }
+  if (settings.giftItemId && settings.giftItemQty > 0) {
+    let itemKey = settings.giftItemId;
+    if (itemKey === '__libre__') {
+      const nom = (settings.giftItemName || '').trim();
+      itemKey = nom ? `[libre] ${nom}` : null;
+    }
+    if (itemKey) {
+      await addToInventory(targetUserId, itemKey, settings.giftItemQty, 'system', `🎂 Test anniversaire`).catch(() => {});
+    }
+  }
+
+  // ── DM ──
+  if (settings.dmEnabled && settings.dmMessage) {
+    const dmText = formatMessage(settings.dmMessage, { user: member.displayName || member.user.username, age });
+    try {
+      const dmEmbed = new EmbedBuilder()
+        .setColor(0xff6b9d)
+        .setDescription(dmText)
+        .setImage(randomGif());
+      if (age !== null) dmEmbed.setFooter({ text: `🎂 ${age} ans aujourd'hui !` });
+      await member.send({ embeds: [dmEmbed] });
+    } catch {}
+  }
+
+  return {
+    username: member.displayName || member.user.username,
+    age,
+    diamonds: settings.giftDiamonds,
+    strawberries: settings.giftStrawberries,
+    item: settings.giftItemId ? (settings.giftItemName || settings.giftItemId) : null,
+    itemQty: settings.giftItemQty,
+  };
+}
+
 // ── Retrait du rôle ───────────────────────────────────────────────────────────
 
 async function removeBirthdayRoles(client) {
@@ -425,5 +507,6 @@ module.exports = {
   getBirthdaySettings,
   getDefaultBirthdaySettings,
   saveBirthdaySettings,
+  testCelebrate,
   MONTH_NAMES_FR,
 };

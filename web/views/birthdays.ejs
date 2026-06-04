@@ -216,9 +216,32 @@
 
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
         <button type="submit" class="bd-save-btn">💾 Sauvegarder</button>
-        <button type="button" class="bd-test-btn" onclick="testCelebrate()">🎉 Tester la célébration du jour</button>
       </div>
     </form>
+
+    <!-- ── Panneau de test ── -->
+    <div class="bd-section" style="margin-top:20px;margin-bottom:0;border-color:rgba(255,200,0,.2);">
+      <h2>🧪 Test de célébration</h2>
+      <p style="font-size:13px;color:var(--text-muted);margin:-8px 0 14px;">
+        Simule une célébration complète pour n'importe quel joueur : embed + GIF + rôle + toutes les récompenses.<br>
+        <strong style="color:#f1c40f;">Peut être relancé autant de fois que nécessaire</strong> — pas de blocage anti-doublon.
+      </p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+        <div style="flex:1;min-width:200px;">
+          <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">Joueur à tester</label>
+          <select id="testUserId" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-input,rgba(255,255,255,.05));color:var(--text-primary);font-size:14px;">
+            <option value="">— Sélectionner un joueur —</option>
+            <% allBirthdays.forEach(b => { %>
+              <option value="<%= b.user_id %>"><%= b.username %> (<%= String(b.day).padStart(2,'0') %>/<%= String(b.month).padStart(2,'0') %><%= b.year ? '/' + b.year : '' %>)</option>
+            <% }); %>
+          </select>
+        </div>
+        <button type="button" class="bd-save-btn" id="btnTestCelebrate" onclick="testCelebrate()" style="white-space:nowrap;">
+          🎉 Lancer le test
+        </button>
+      </div>
+      <div id="testResult" style="margin-top:12px;display:none;"></div>
+    </div>
 
     <!-- ── Liste des anniversaires enregistrés ── -->
     <div class="card" style="margin-top:28px;">
@@ -280,15 +303,35 @@
     }
 
     async function testCelebrate() {
-      const btn = document.getElementById ? event.target : null;
-      if (btn) btn.disabled = true;
+      const userId = document.getElementById('testUserId').value;
+      const btn    = document.getElementById('btnTestCelebrate');
+      const result = document.getElementById('testResult');
+      if (!userId) { result.style.display='block'; result.innerHTML='<span style="color:#e74c3c;">⚠️ Sélectionne un joueur d\'abord.</span>'; return; }
+      btn.disabled = true; btn.textContent = '⏳ En cours…';
+      result.style.display = 'none';
       try {
-        const r = await fetch('/birthdays/test-celebrate', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+        const r = await fetch('/birthdays/test-celebrate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId }) });
         const d = await r.json();
-        alert(d.ok ? '✅ Célébration du jour déclenchée !' : '❌ Erreur : ' + d.error);
-      } catch (e) { alert('❌ Erreur réseau'); }
-      if (btn) btn.disabled = false;
+        if (d.ok) {
+          const res = d.result;
+          const rewards = [];
+          if (res.diamonds)     rewards.push(`💎 ${res.diamonds.toLocaleString('fr-FR')} diamants`);
+          if (res.strawberries) rewards.push(`🍓 ${res.strawberries.toLocaleString('fr-FR')} fraises`);
+          if (res.item)         rewards.push(`📦 ${res.item} ×${res.itemQty}`);
+          result.innerHTML = `<div style="padding:10px 14px;border-radius:8px;background:rgba(46,204,113,.12);border:1px solid rgba(46,204,113,.25);font-size:13px;">
+            ✅ Célébration envoyée pour <strong>${res.username}</strong>${res.age ? ` (${res.age} ans)` : ''} !<br>
+            ${rewards.length ? 'Récompenses : ' + rewards.join(' · ') : '<span style="color:var(--text-muted);">Aucune récompense configurée</span>'}
+          </div>`;
+        } else {
+          result.innerHTML = `<div style="padding:10px 14px;border-radius:8px;background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.25);font-size:13px;color:#e74c3c;">❌ ${d.error}</div>`;
+        }
+      } catch (e) {
+        result.innerHTML = `<div style="padding:10px 14px;border-radius:8px;background:rgba(231,76,60,.1);font-size:13px;color:#e74c3c;">❌ Erreur réseau</div>`;
+      }
+      result.style.display = 'block';
+      btn.disabled = false; btn.textContent = '🎉 Lancer le test';
     }
+
     async function testRecap() {
       const btn = document.getElementById('btnTestRecap');
       if (btn) btn.disabled = true;
