@@ -19,16 +19,16 @@ const pgStore = require('./pgStore');
 const { getSettings, saveSettings } = require('./settingsManager');
 const { addToInventory } = require('./inventoryManager');
 
-// GIFs "joyeux anniversaire" / "happy birthday" aléatoires (Tenor CDN)
+// GIFs "joyeux anniversaire" / "happy birthday" aléatoires (Giphy CDN — URLs directes stables)
 const BIRTHDAY_GIFS = [
-  'https://media.tenor.com/jSmXHoChMXAAAAAC/happy-birthday.gif',
-  'https://media.tenor.com/ZvFUHwI6VhYAAAAC/joyeux-anniversaire-happy-birthday.gif',
-  'https://media.tenor.com/GGRuHJlOPg4AAAAC/happy-birthday-birthday.gif',
-  'https://media.tenor.com/1LojsGSV4YIAAAAC/joyeux-anniversaire.gif',
-  'https://media.tenor.com/IuVPuPSQdXYAAAAC/happy-birthday-birthday-cake.gif',
-  'https://media.tenor.com/SBTl9x57sT8AAAAC/happy-birthday-bonne-fete.gif',
-  'https://media.tenor.com/lEWAL0oVdEsAAAAC/joyeux-anniversaire-gateau.gif',
-  'https://media.tenor.com/KvRFNY1T8isAAAAC/happy-birthday-feliz-cumpleanos.gif',
+  'https://media.giphy.com/media/g9582DNuQppxC/giphy.gif',
+  'https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif',
+  'https://media.giphy.com/media/26u4cqiYI30juCOGY/giphy.gif',
+  'https://media.giphy.com/media/Ylt47Rv3tFIBGOJfLf/giphy.gif',
+  'https://media.giphy.com/media/23is3bPe6hMcOk3Pdu/giphy.gif',
+  'https://media.giphy.com/media/TGcJpFMHMLkhy/giphy.gif',
+  'https://media.giphy.com/media/fxeeuml8GaESfmuE4z/giphy.gif',
+  'https://media.giphy.com/media/KRbRYRWgHDkZ2/giphy.gif',
 ];
 
 function randomGif() {
