@@ -151,6 +151,25 @@
             <input type="number" name="diamondsPer100" value="<%= settings.diamondsPer100 %>" min="0" step="50">
             <p class="ir-hint">Crédités à chaque ×100 (400, 600, 700, 800, 900…). Les paliers de célébration qui sont aussi un ×100 (100, 200, 500…) cumulent les deux récompenses. Mettre 0 pour désactiver.</p>
           </div>
+          <h2 style="margin-top:20px;">💎 Diamants aléatoires progressifs</h2>
+          <p class="ir-hint" style="margin:-8px 0 12px;">À chaque nombre valide, une chance de déclencher un gain de diamants. Le montant augmente automatiquement avec la hauteur du compteur — plus la route est haute, plus on peut gagner.</p>
+          <div class="ir-field">
+            <label>% de chance par nombre</label>
+            <input type="number" name="chanceDiamondPct" value="<%= settings.chanceDiamondPct ?? 5 %>" min="0" max="100" step="0.5">
+            <p class="ir-hint">Probabilité à chaque nombre valide. 5 = 5%. Mettre 0 pour désactiver.</p>
+          </div>
+          <div class="ir-field">
+            <label>💎 Montant de base</label>
+            <input type="number" name="chanceDiamondBase" value="<%= settings.chanceDiamondBase ?? 50 %>" min="0" step="10">
+            <p class="ir-hint">Diamants gagnés au niveau 0–99. Exemple : 50.</p>
+          </div>
+          <div class="ir-field">
+            <label>💎 Bonus par tranche de 100</label>
+            <input type="number" name="chanceDiamondBonusPer100" value="<%= settings.chanceDiamondBonusPer100 ?? 10 %>" min="0" step="5">
+            <p class="ir-hint">Diamants supplémentaires ajoutés pour chaque tranche de 100 atteinte. Exemple avec base 50 + bonus 10 : niveau 300 → 50 + 30 = <strong>80 💎</strong>, niveau 1 000 → 50 + 100 = <strong>150 💎</strong>.</p>
+          </div>
+
+          <h2 style="margin-top:20px;">🍓 Fraises aléatoires</h2>
           <div class="ir-field">
             <label>🍀 Chance de fraises par nombre (% par tirage)</label>
             <input type="number" name="strawberryChancePct" value="<%= settings.strawberryChancePct %>" min="0" max="100" step="1">
@@ -208,6 +227,11 @@
           <div class="ir-field">
             <label>Coup de chance (fraises aléatoires)</label>
             <textarea name="luckyMsg"><%= settings.luckyMsg %></textarea>
+            <p class="ir-hint">Variables : <span class="var-tag">{user}</span> <span class="var-tag">{count}</span> <span class="var-tag">{amount}</span></p>
+          </div>
+          <div class="ir-field">
+            <label>Coup de chance (💎 diamants progressifs)</label>
+            <textarea name="luckyDiamondMsg"><%= settings.luckyDiamondMsg %></textarea>
             <p class="ir-hint">Variables : <span class="var-tag">{user}</span> <span class="var-tag">{count}</span> <span class="var-tag">{amount}</span></p>
           </div>
         </div>

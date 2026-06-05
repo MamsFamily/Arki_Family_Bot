@@ -1187,25 +1187,31 @@ function createWebServer(discordClient) {
     try {
       const {
         enabled, channelId, malusRoleId, malusRoleDurationHours,
-        diamondsPer100, diamondsPerMilestoneLow, diamondsPerMilestoneHigh, strawberryChancePct, strawberryChanceAmount,
-        countdownChancePct, breakMsg, milestoneMsg, countdownMsg, countdownFailMsg, luckyMsg,
+        diamondsPer100, diamondsPerMilestoneLow, diamondsPerMilestoneHigh,
+        chanceDiamondPct, chanceDiamondBase, chanceDiamondBonusPer100,
+        strawberryChancePct, strawberryChanceAmount,
+        countdownChancePct, breakMsg, milestoneMsg, countdownMsg, countdownFailMsg, luckyMsg, luckyDiamondMsg,
       } = req.body;
       await infinityRoadManager.saveIRSettings({
         enabled:                enabled === 'on' || enabled === 'true',
         channelId:              channelId || '',
         malusRoleId:            malusRoleId || '',
-        malusRoleDurationHours: Math.min(48, Math.max(1, parseInt(malusRoleDurationHours, 10) || 1)),
+        malusRoleDurationHours:   Math.min(48, Math.max(1, parseInt(malusRoleDurationHours, 10) || 1)),
         diamondsPer100:           parseInt(diamondsPer100, 10) || 0,
         diamondsPerMilestoneLow:  parseInt(diamondsPerMilestoneLow, 10) || 0,
         diamondsPerMilestoneHigh: parseInt(diamondsPerMilestoneHigh, 10) || 0,
-        strawberryChancePct:    Math.min(100, Math.max(0, parseInt(strawberryChancePct, 10) || 0)),
-        strawberryChanceAmount: parseInt(strawberryChanceAmount, 10) || 0,
-        countdownChancePct:     parseInt(countdownChancePct, 10) || 10,
+        chanceDiamondPct:         Math.min(100, Math.max(0, parseFloat(chanceDiamondPct) || 0)),
+        chanceDiamondBase:        parseInt(chanceDiamondBase, 10) || 0,
+        chanceDiamondBonusPer100: parseInt(chanceDiamondBonusPer100, 10) || 0,
+        strawberryChancePct:      Math.min(100, Math.max(0, parseInt(strawberryChancePct, 10) || 0)),
+        strawberryChanceAmount:   parseInt(strawberryChanceAmount, 10) || 0,
+        countdownChancePct:       parseInt(countdownChancePct, 10) || 10,
         breakMsg:               breakMsg || '',
         milestoneMsg:           milestoneMsg || '',
         countdownMsg:           countdownMsg || '',
         countdownFailMsg:       countdownFailMsg || '',
         luckyMsg:               luckyMsg || '',
+        luckyDiamondMsg:        luckyDiamondMsg || '',
       });
       res.redirect('/infinity-road?success=Paramètres+sauvegardés+!');
     } catch (err) {

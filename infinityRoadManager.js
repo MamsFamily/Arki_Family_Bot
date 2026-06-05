@@ -38,18 +38,23 @@ function getDefaultSettings() {
     channelId:              '',
     malusRoleId:            '',
     malusRoleDurationHours: 48,
-    diamondsPer100:         200,
+    diamondsPer100:         0,
     diamondsPerMilestoneLow:  0,
     diamondsPerMilestoneHigh: 0,
+    // Système C+D : chance aléatoire + montant progressif
+    chanceDiamondPct:        5,
+    chanceDiamondBase:       50,
+    chanceDiamondBonusPer100: 10,
     strawberryChancePct:    5,
     strawberryChanceAmount: 50,
     countdownChancePct:     10,
     // Messages personnalisables
-    breakMsg:      '💥 **{user}** a cassé la route au nombre **{count}** ! On repart de **0**... 😤',
-    milestoneMsg:  '🎉 **{count}** atteint par **{user}** ! Incroyable ! 🏆',
-    countdownMsg:  '⏳ Alerte ! Personne ne construit la route ! **60 secondes** pour poster **{next}** sinon on recule de 100 !',
-    countdownFailMsg: '😬 Temps écoulé ! La route recule de **100** et tombe à **{count}**.',
-    luckyMsg:      '🍀 **{user}** a eu la main chanceuse sur le **{count}** et remporte **{amount} fraises** ! 🍓',
+    breakMsg:           '💥 **{user}** a cassé la route au nombre **{count}** ! On repart de **0**... 😤',
+    milestoneMsg:       '🎉 **{count}** atteint par **{user}** ! Incroyable ! 🏆',
+    countdownMsg:       '⏳ Alerte ! Personne ne construit la route ! **60 secondes** pour poster **{next}** sinon on recule de 100 !',
+    countdownFailMsg:   '😬 Temps écoulé ! La route recule de **100** et tombe à **{count}**.',
+    luckyMsg:           '🍀 **{user}** a eu la main chanceuse sur le **{count}** et remporte **{amount} fraises** ! 🍓',
+    luckyDiamondMsg:    '💎 **{user}** décroche un coup de chance sur le **{count}** et remporte **{amount} diamants** ! ✨',
   };
 }
 
@@ -197,6 +202,20 @@ async function processTurboEvents(n, member, channel, settings) {
       const last = embeds[embeds.length - 1];
       if (last) last.setDescription((last.data.description || '') + `\n💎 +**${settings.diamondsPer100} diamants** (bonus ×100) !`);
     }
+  }
+
+  // ── Système C+D : chance aléatoire de diamants avec montant progressif ────
+  const cdPct  = settings.chanceDiamondPct  || 0;
+  const cdBase = settings.chanceDiamondBase || 0;
+  if (cdPct > 0 && cdBase > 0 && Math.random() * 100 < cdPct) {
+    // Montant progressif : base + bonus par tranche de 100
+    const bonus     = Math.floor(n / 100) * (settings.chanceDiamondBonusPer100 || 0);
+    const cdAmount  = cdBase + bonus;
+    await addToInventory(member.id, 'diamants', cdAmount, 'route-infini', `🛣️ Route de l'infini — chance sur ${n}`).catch(() => {});
+    const cdText = formatMsg(settings.luckyDiamondMsg || '💎 **{user}** décroche un coup de chance sur le **{count}** et remporte **{amount} diamants** ! ✨', {
+      user: `<@${member.id}>`, count: n, amount: cdAmount,
+    });
+    embeds.push(new EmbedBuilder().setColor(0x5865f2).setDescription(cdText));
   }
 
   // ── Chance aléatoire → fraises
