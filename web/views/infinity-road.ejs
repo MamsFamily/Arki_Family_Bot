@@ -156,35 +156,14 @@
           <div class="ir-field">
             <label>% de chance par nombre</label>
             <input type="number" name="chanceDiamondPct" value="<%= settings.chanceDiamondPct ?? 5 %>" min="0" max="100" step="0.5">
-            <p class="ir-hint">Probabilité à chaque nombre valide. 5 = 5%. Mettre 0 pour désactiver.</p>
-          </div>
-          <div class="ir-field">
-            <label>💎 Montant de base</label>
-            <input type="number" name="chanceDiamondBase" value="<%= settings.chanceDiamondBase ?? 50 %>" min="0" step="10">
-            <p class="ir-hint">Diamants gagnés au niveau 0–99. Exemple : 50.</p>
-          </div>
-          <div class="ir-field">
-            <label>💎 Bonus par tranche de 100</label>
-            <input type="number" name="chanceDiamondBonusPer100" value="<%= settings.chanceDiamondBonusPer100 ?? 10 %>" min="0" step="5">
-            <p class="ir-hint">Diamants supplémentaires ajoutés pour chaque tranche de 100 atteinte. Exemple avec base 50 + bonus 10 : niveau 300 → 50 + 30 = <strong>80 💎</strong>, niveau 1 000 → 50 + 100 = <strong>150 💎</strong>.</p>
+            <p class="ir-hint">Montant aléatoire entre 1 et <strong>(palier+1)×100</strong>. Niveau 50 → 1–100 💎 / Niveau 250 → 1–300 💎 / Niveau 1 000 → 1–1 100 💎. Mettre 0 pour désactiver.</p>
           </div>
 
-          <h2 style="margin-top:20px;">🍓 Fraises aléatoires progressives</h2>
-          <p class="ir-hint" style="margin:-8px 0 12px;">Même principe que les diamants — montant de base augmenté par un bonus par tranche de 100.</p>
+          <h2 style="margin-top:20px;">🍓 Fraises aléatoires</h2>
           <div class="ir-field">
             <label>% de chance par nombre</label>
-            <input type="number" name="strawberryChancePct" value="<%= settings.strawberryChancePct %>" min="0" max="100" step="1">
-            <p class="ir-hint">Probabilité à chaque nombre valide. 5 = 5%. Mettre 0 pour désactiver.</p>
-          </div>
-          <div class="ir-field">
-            <label>🍓 Montant de base</label>
-            <input type="number" name="strawberryChanceAmount" value="<%= settings.strawberryChanceAmount %>" min="0" step="10">
-            <p class="ir-hint">Fraises gagnées au niveau 0–99.</p>
-          </div>
-          <div class="ir-field">
-            <label>🍓 Bonus par tranche de 100</label>
-            <input type="number" name="strawberryBonusPer100" value="<%= settings.strawberryBonusPer100 ?? 0 %>" min="0" step="5">
-            <p class="ir-hint">Fraises supplémentaires par tranche de 100 atteinte. Mettre 0 pour désactiver la progression.</p>
+            <input type="number" name="strawberryChancePct" value="<%= settings.strawberryChancePct %>" min="0" max="100" step="0.5">
+            <p class="ir-hint">Montant aléatoire entre 1 et <strong>(palier+1)×100</strong>. Niveau 50 → 1–100 🍓 / Niveau 250 → 1–300 🍓 / Niveau 1 000 → 1–1 100 🍓. Mettre 0 pour désactiver.</p>
           </div>
 
           <h2 style="margin-top:20px;">📋 Paliers de célébration</h2>

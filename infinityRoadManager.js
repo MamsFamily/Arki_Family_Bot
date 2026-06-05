@@ -41,13 +41,9 @@ function getDefaultSettings() {
     diamondsPer100:         0,
     diamondsPerMilestoneLow:  0,
     diamondsPerMilestoneHigh: 0,
-    // Système C+D : chance aléatoire + montant progressif
+    // Récompenses aléatoires : montant entre 1 et (palier+1)×100
     chanceDiamondPct:        5,
-    chanceDiamondBase:       50,
-    chanceDiamondBonusPer100: 10,
-    strawberryChancePct:        5,
-    strawberryChanceAmount:     50,
-    strawberryBonusPer100:      0,
+    strawberryChancePct:     5,
     countdownChancePct:     10,
     // Messages personnalisables
     breakMsg:           '💥 **{user}** a cassé la route au nombre **{count}** ! On repart de **0**... 😤',
@@ -205,13 +201,11 @@ async function processTurboEvents(n, member, channel, settings) {
     }
   }
 
-  // ── Système C+D : chance aléatoire de diamants avec montant progressif ────
-  const cdPct  = settings.chanceDiamondPct  || 0;
-  const cdBase = settings.chanceDiamondBase || 0;
-  if (cdPct > 0 && cdBase > 0 && Math.random() * 100 < cdPct) {
-    // Montant progressif : base + bonus par tranche de 100
-    const bonus     = Math.floor(n / 100) * (settings.chanceDiamondBonusPer100 || 0);
-    const cdAmount  = cdBase + bonus;
+  // ── Chance aléatoire → 💎 diamants (montant aléatoire entre 1 et (palier+1)×100)
+  const cdPct = settings.chanceDiamondPct || 0;
+  if (cdPct > 0 && Math.random() * 100 < cdPct) {
+    const cdMax    = (Math.floor(n / 100) + 1) * 100;
+    const cdAmount = Math.floor(Math.random() * cdMax) + 1;
     await addToInventory(member.id, 'diamants', cdAmount, 'route-infini', `🛣️ Route de l'infini — chance sur ${n}`).catch(() => {});
     const cdText = formatMsg(settings.luckyDiamondMsg || '💎 **{user}** décroche un coup de chance sur le **{count}** et remporte **{amount} diamants** ! ✨', {
       user: `<@${member.id}>`, count: n, amount: cdAmount,
@@ -219,12 +213,11 @@ async function processTurboEvents(n, member, channel, settings) {
     embeds.push(new EmbedBuilder().setColor(0x5865f2).setDescription(cdText));
   }
 
-  // ── Chance aléatoire → fraises (avec montant progressif)
+  // ── Chance aléatoire → 🍓 fraises (montant aléatoire entre 1 et (palier+1)×100)
   const chancePct = settings.strawberryChancePct || 0;
-  const chargeBase = settings.strawberryChanceAmount || 50;
-  if (chancePct > 0 && chargeBase > 0 && Math.random() * 100 < chancePct) {
-    const berryBonus  = Math.floor(n / 100) * (settings.strawberryBonusPer100 || 0);
-    const chargeAmt   = chargeBase + berryBonus;
+  if (chancePct > 0 && Math.random() * 100 < chancePct) {
+    const berryMax = (Math.floor(n / 100) + 1) * 100;
+    const chargeAmt = Math.floor(Math.random() * berryMax) + 1;
     await addToInventory(member.id, 'fraises', chargeAmt, 'route-infini', `🛣️ Route de l'infini — coup de chance sur ${n}`).catch(() => {});
     const luckyText = formatMsg(settings.luckyMsg, {
       user: `<@${member.id}>`, count: n, amount: chargeAmt,
