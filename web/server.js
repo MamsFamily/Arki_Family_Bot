@@ -1205,6 +1205,7 @@ function createWebServer(discordClient) {
         chanceDiamondBonusPer100: parseInt(chanceDiamondBonusPer100, 10) || 0,
         strawberryChancePct:      Math.min(100, Math.max(0, parseInt(strawberryChancePct, 10) || 0)),
         strawberryChanceAmount:   parseInt(strawberryChanceAmount, 10) || 0,
+        strawberryBonusPer100:    parseInt(req.body.strawberryBonusPer100, 10) || 0,
         countdownChancePct:       parseInt(countdownChancePct, 10) || 10,
         breakMsg:               breakMsg || '',
         milestoneMsg:           milestoneMsg || '',

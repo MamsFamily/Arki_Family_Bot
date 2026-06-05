@@ -45,8 +45,9 @@ function getDefaultSettings() {
     chanceDiamondPct:        5,
     chanceDiamondBase:       50,
     chanceDiamondBonusPer100: 10,
-    strawberryChancePct:    5,
-    strawberryChanceAmount: 50,
+    strawberryChancePct:        5,
+    strawberryChanceAmount:     50,
+    strawberryBonusPer100:      0,
     countdownChancePct:     10,
     // Messages personnalisables
     breakMsg:           '💥 **{user}** a cassé la route au nombre **{count}** ! On repart de **0**... 😤',
@@ -218,10 +219,12 @@ async function processTurboEvents(n, member, channel, settings) {
     embeds.push(new EmbedBuilder().setColor(0x5865f2).setDescription(cdText));
   }
 
-  // ── Chance aléatoire → fraises
+  // ── Chance aléatoire → fraises (avec montant progressif)
   const chancePct = settings.strawberryChancePct || 0;
-  const chargeAmt = settings.strawberryChanceAmount || 50;
-  if (chancePct > 0 && chargeAmt > 0 && Math.random() * 100 < chancePct) {
+  const chargeBase = settings.strawberryChanceAmount || 50;
+  if (chancePct > 0 && chargeBase > 0 && Math.random() * 100 < chancePct) {
+    const berryBonus  = Math.floor(n / 100) * (settings.strawberryBonusPer100 || 0);
+    const chargeAmt   = chargeBase + berryBonus;
     await addToInventory(member.id, 'fraises', chargeAmt, 'route-infini', `🛣️ Route de l'infini — coup de chance sur ${n}`).catch(() => {});
     const luckyText = formatMsg(settings.luckyMsg, {
       user: `<@${member.id}>`, count: n, amount: chargeAmt,
