@@ -52,6 +52,7 @@ function getDefaultSettings() {
     countdownFailMsg:   '😬 Temps écoulé ! La route recule de **100** et tombe à **{count}**.',
     luckyMsg:           '🍀 **{user}** a eu la main chanceuse sur le **{count}** et remporte **{amount} fraises** ! 🍓',
     luckyDiamondMsg:    '💎 **{user}** décroche un coup de chance sur le **{count}** et remporte **{amount} diamants** ! ✨',
+    tierUpMsg:          '📈 La route atteint **{count}** ! Le gain par coup de chance monte à **{tier}** 💎/🍓 !',
   };
 }
 
@@ -201,26 +202,39 @@ async function processTurboEvents(n, member, channel, settings) {
     }
   }
 
-  // ── Chance aléatoire → 💎 diamants (montant aléatoire entre 1 et (palier+1)×100)
+  // ── Montant fixe par palier : (floor(n/100) + 1) × 100
+  //    0–99 → 100 / 100–199 → 200 / 200–299 → 300 …
+  const tierAmount = (Math.floor(n / 100) + 1) * 100;
+
+  // ── Annonce de montée de palier (à chaque multiple de 100, sauf 0)
+  if (n > 0 && n % 100 === 0) {
+    const nextTier = (Math.floor(n / 100) + 1) * 100;
+    const anyActive = (settings.chanceDiamondPct || 0) > 0 || (settings.strawberryChancePct || 0) > 0;
+    if (anyActive) {
+      const tierText = formatMsg(
+        settings.tierUpMsg || '📈 La route atteint **{count}** ! Le gain par coup de chance monte à **{tier}** 💎/🍓 !',
+        { count: n, tier: nextTier },
+      );
+      embeds.push(new EmbedBuilder().setColor(0xf39c12).setDescription(tierText));
+    }
+  }
+
+  // ── Chance aléatoire → 💎 diamants (montant fixe selon palier)
   const cdPct = settings.chanceDiamondPct || 0;
   if (cdPct > 0 && Math.random() * 100 < cdPct) {
-    const cdMax    = (Math.floor(n / 100) + 1) * 100;
-    const cdAmount = Math.floor(Math.random() * cdMax) + 1;
-    await addToInventory(member.id, 'diamants', cdAmount, 'route-infini', `🛣️ Route de l'infini — chance sur ${n}`).catch(() => {});
+    await addToInventory(member.id, 'diamants', tierAmount, 'route-infini', `🛣️ Route de l'infini — chance sur ${n}`).catch(() => {});
     const cdText = formatMsg(settings.luckyDiamondMsg || '💎 **{user}** décroche un coup de chance sur le **{count}** et remporte **{amount} diamants** ! ✨', {
-      user: `<@${member.id}>`, count: n, amount: cdAmount,
+      user: `<@${member.id}>`, count: n, amount: tierAmount,
     });
     embeds.push(new EmbedBuilder().setColor(0x5865f2).setDescription(cdText));
   }
 
-  // ── Chance aléatoire → 🍓 fraises (montant aléatoire entre 1 et (palier+1)×100)
+  // ── Chance aléatoire → 🍓 fraises (montant fixe selon palier)
   const chancePct = settings.strawberryChancePct || 0;
   if (chancePct > 0 && Math.random() * 100 < chancePct) {
-    const berryMax = (Math.floor(n / 100) + 1) * 100;
-    const chargeAmt = Math.floor(Math.random() * berryMax) + 1;
-    await addToInventory(member.id, 'fraises', chargeAmt, 'route-infini', `🛣️ Route de l'infini — coup de chance sur ${n}`).catch(() => {});
+    await addToInventory(member.id, 'fraises', tierAmount, 'route-infini', `🛣️ Route de l'infini — coup de chance sur ${n}`).catch(() => {});
     const luckyText = formatMsg(settings.luckyMsg, {
-      user: `<@${member.id}>`, count: n, amount: chargeAmt,
+      user: `<@${member.id}>`, count: n, amount: tierAmount,
     });
     embeds.push(new EmbedBuilder().setColor(0xe91e8c).setDescription(luckyText));
   }

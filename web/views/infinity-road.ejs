@@ -151,19 +151,20 @@
             <input type="number" name="diamondsPer100" value="<%= settings.diamondsPer100 %>" min="0" step="50">
             <p class="ir-hint">Crédités à chaque ×100 (400, 600, 700, 800, 900…). Les paliers de célébration qui sont aussi un ×100 (100, 200, 500…) cumulent les deux récompenses. Mettre 0 pour désactiver.</p>
           </div>
-          <h2 style="margin-top:20px;">💎 Diamants aléatoires progressifs</h2>
-          <p class="ir-hint" style="margin:-8px 0 12px;">À chaque nombre valide, une chance de déclencher un gain de diamants. Le montant augmente automatiquement avec la hauteur du compteur — plus la route est haute, plus on peut gagner.</p>
+          <h2 style="margin-top:20px;">💎 Diamants aléatoires par palier</h2>
+          <p class="ir-hint" style="margin:-8px 0 12px;">À chaque nombre valide, une chance de déclencher un gain fixe. Le montant dépend du palier atteint : <strong>0–99 → 100 💎 / 100–199 → 200 💎 / 200–299 → 300 💎…</strong></p>
           <div class="ir-field">
             <label>% de chance par nombre</label>
             <input type="number" name="chanceDiamondPct" value="<%= settings.chanceDiamondPct ?? 5 %>" min="0" max="100" step="0.5">
-            <p class="ir-hint">Montant aléatoire entre 1 et <strong>(palier+1)×100</strong>. Niveau 50 → 1–100 💎 / Niveau 250 → 1–300 💎 / Niveau 1 000 → 1–1 100 💎. Mettre 0 pour désactiver.</p>
+            <p class="ir-hint">Mettre 0 pour désactiver.</p>
           </div>
 
-          <h2 style="margin-top:20px;">🍓 Fraises aléatoires</h2>
+          <h2 style="margin-top:20px;">🍓 Fraises aléatoires par palier</h2>
+          <p class="ir-hint" style="margin:-8px 0 12px;">Même principe : <strong>0–99 → 100 🍓 / 100–199 → 200 🍓 / 200–299 → 300 🍓…</strong></p>
           <div class="ir-field">
             <label>% de chance par nombre</label>
             <input type="number" name="strawberryChancePct" value="<%= settings.strawberryChancePct %>" min="0" max="100" step="0.5">
-            <p class="ir-hint">Montant aléatoire entre 1 et <strong>(palier+1)×100</strong>. Niveau 50 → 1–100 🍓 / Niveau 250 → 1–300 🍓 / Niveau 1 000 → 1–1 100 🍓. Mettre 0 pour désactiver.</p>
+            <p class="ir-hint">Mettre 0 pour désactiver.</p>
           </div>
 
           <h2 style="margin-top:20px;">📋 Paliers de célébration</h2>
@@ -219,6 +220,11 @@
             <label>Coup de chance (💎 diamants progressifs)</label>
             <textarea name="luckyDiamondMsg"><%= settings.luckyDiamondMsg %></textarea>
             <p class="ir-hint">Variables : <span class="var-tag">{user}</span> <span class="var-tag">{count}</span> <span class="var-tag">{amount}</span></p>
+          </div>
+          <div class="ir-field">
+            <label>📈 Annonce de montée de palier (chaque ×100)</label>
+            <textarea name="tierUpMsg"><%= settings.tierUpMsg %></textarea>
+            <p class="ir-hint">Envoyé quand le compteur atteint un multiple de 100. Variables : <span class="var-tag">{count}</span> (ex : 100) <span class="var-tag">{tier}</span> (nouveau gain, ex : 200)</p>
           </div>
         </div>
       </div>

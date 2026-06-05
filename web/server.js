@@ -1190,7 +1190,7 @@ function createWebServer(discordClient) {
         diamondsPer100, diamondsPerMilestoneLow, diamondsPerMilestoneHigh,
         chanceDiamondPct,
         strawberryChancePct,
-        countdownChancePct, breakMsg, milestoneMsg, countdownMsg, countdownFailMsg, luckyMsg, luckyDiamondMsg,
+        countdownChancePct, breakMsg, milestoneMsg, countdownMsg, countdownFailMsg, luckyMsg, luckyDiamondMsg, tierUpMsg,
       } = req.body;
       await infinityRoadManager.saveIRSettings({
         enabled:                enabled === 'on' || enabled === 'true',
@@ -1209,6 +1209,7 @@ function createWebServer(discordClient) {
         countdownFailMsg:       countdownFailMsg || '',
         luckyMsg:               luckyMsg || '',
         luckyDiamondMsg:        luckyDiamondMsg || '',
+        tierUpMsg:              tierUpMsg || '',
       });
       res.redirect('/infinity-road?success=Paramètres+sauvegardés+!');
     } catch (err) {
