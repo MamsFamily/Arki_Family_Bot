@@ -47,6 +47,7 @@ const { registerCasinoHandlers } = require('./casino/casinoHandler');
 const boosterReproManager = require('./boosterReproManager');
 const birthdayManager    = require('./birthdayManager');
 const infinityRoadManager = require('./infinityRoadManager');
+const adminQuizManager    = require('./adminQuizManager');
 
 
 const openaiConfig = {};
@@ -645,6 +646,9 @@ client.once('clientReady', async () => {
   // Initialiser le système booster repro (cron de restauration automatique)
   boosterReproManager.init(client);
 
+  // Charger l'état du Quiz Admin
+  await adminQuizManager.loadState().catch(e => console.error('[AdminQuiz] loadState:', e.message));
+
   // Reprendre le timer du Fautif actif sur la Route de l'Infini (si bot redémarré)
   const irGuild = client.guilds.cache.first();
   if (irGuild) await infinityRoadManager.initMalusOnStartup(irGuild).catch(e => console.error('[Route Infini] initMalusOnStartup:', e.message));
@@ -724,6 +728,9 @@ client.on('messageReactionRemove', async (reaction, user) => {
   if (reaction.count === 0) {
     reactionTracker.delete(key);
   }
+
+  // Quiz Admin
+  await adminQuizManager.handleReactionRemove(reaction, user).catch(() => {});
 });
 
 client.on('messageReactionAdd', async (reaction, user) => {
@@ -746,6 +753,9 @@ client.on('messageReactionAdd', async (reaction, user) => {
       reactionTracker.delete(entries[i][0]);
     }
   }
+
+  // Quiz Admin — détection multi-réponse en temps réel
+  await adminQuizManager.handleReactionAdd(reaction, user).catch(() => {});
 
   if (reaction.emoji.id === ARTHUR_EMOJI_ID || reaction.emoji.name === 'arthur') {
     console.log(`🎭 Réaction Kaamelott détectée! Emoji: ${reaction.emoji.name} (ID: ${reaction.emoji.id})`);
@@ -2200,6 +2210,21 @@ client.on('interactionCreate', async interaction => {
     } catch (err) {
       console.error('[Route Infini] Erreur /route-infini:', err);
       await interaction.editReply({ content: '❌ Impossible d\'afficher les stats de la Route de l\'Infini.' });
+    }
+    return;
+  }
+
+  // ── /encore-en-course ──────────────────────────────────────────────────────
+  if (commandName === 'encore-en-course') {
+    try {
+      await adminQuizManager.handleEnCourseCommand(interaction);
+    } catch (err) {
+      console.error('[AdminQuiz] Erreur /encore-en-course:', err);
+      try {
+        const reply = { content: '❌ Erreur lors de l\'affichage des joueurs en course.', ephemeral: true };
+        if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
+        else await interaction.reply(reply);
+      } catch (e) {}
     }
     return;
   }

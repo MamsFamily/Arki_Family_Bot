@@ -37,6 +37,7 @@ const xpManager = require('../xpManager');
 const pgStore = require('../pgStore');
 const birthdayManager     = require('../birthdayManager');
 const infinityRoadManager = require('../infinityRoadManager');
+const adminQuizManager    = require('../adminQuizManager');
 
 function createWebServer(discordClient) {
   const app = express();
@@ -4693,6 +4694,146 @@ function createWebServer(discordClient) {
       res.redirect('/booster-repro?success=Session+annulée+(map+non+redémarrée)+!');
     } catch (e) {
       res.redirect('/booster-repro?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ══ ADMIN QUIZ ═══════════════════════════════════════════════════════════════
+
+  app.get('/admin-quiz', requireAdmin, async (req, res) => {
+    try {
+      const state = adminQuizManager.getState();
+      const itemTypes = await inventoryManager.getItemTypes().catch(() => []);
+      res.render('admin-quiz', {
+        path: '/admin-quiz',
+        role: req.session.role,
+        botUser: discordClient?.user || null,
+        discordUser: req.session.discordUser || null,
+        state,
+        itemTypes,
+        success: req.query.success || null,
+        error: req.query.error || null,
+      });
+    } catch (e) {
+      res.redirect('/?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  app.post('/admin-quiz/start', requireAdmin, async (req, res) => {
+    try {
+      const { channelId } = req.body;
+      if (!channelId) throw new Error('Salon requis');
+      await adminQuizManager.startSession({ channelId: channelId.trim() });
+      res.redirect('/admin-quiz?success=Session+démarrée+!');
+    } catch (e) {
+      res.redirect('/admin-quiz?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  app.post('/admin-quiz/stop', requireAdmin, async (req, res) => {
+    try {
+      await adminQuizManager.stopSession();
+      res.redirect('/admin-quiz?success=Session+réinitialisée+!');
+    } catch (e) {
+      res.redirect('/admin-quiz?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  app.post('/admin-quiz/config', requireAdmin, async (req, res) => {
+    try {
+      const { introMsg } = req.body;
+      const rpqItems = [].concat(req.body['rpq_itemId[]'] || []);
+      const rpqQtys  = [].concat(req.body['rpq_quantity[]'] || []);
+      const rfItems  = [].concat(req.body['rf_itemId[]'] || []);
+      const rfQtys   = [].concat(req.body['rf_quantity[]'] || []);
+
+      const rewardPerQuestion = rpqItems
+        .map((id, i) => ({ itemId: id, quantity: parseInt(rpqQtys[i]) || 1 }))
+        .filter(r => r.itemId);
+
+      const rewardFinal = rfItems
+        .map((id, i) => ({ itemId: id, quantity: parseInt(rfQtys[i]) || 1 }))
+        .filter(r => r.itemId);
+
+      await adminQuizManager.updateConfig({ introMsg, rewardPerQuestion, rewardFinal });
+      res.redirect('/admin-quiz?success=Config+sauvegardée+!');
+    } catch (e) {
+      res.redirect('/admin-quiz?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  app.post('/admin-quiz/add-question', requireAdmin, async (req, res) => {
+    try {
+      const { text, choiceA, choiceB, choiceC, choiceD, correct } = req.body;
+      if (!text || !choiceA || !choiceB || !choiceC || !choiceD) throw new Error('Tous les champs sont requis');
+      await adminQuizManager.addQuestion({
+        text: text.trim(),
+        choices: [choiceA.trim(), choiceB.trim(), choiceC.trim(), choiceD.trim()],
+        correct,
+      });
+      res.redirect('/admin-quiz?success=Question+ajoutée+!');
+    } catch (e) {
+      res.redirect('/admin-quiz?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  app.post('/admin-quiz/remove-question', requireAdmin, async (req, res) => {
+    try {
+      const idx = parseInt(req.body.idx, 10);
+      await adminQuizManager.removeQuestion(idx);
+      res.redirect('/admin-quiz?success=Question+supprimée+!');
+    } catch (e) {
+      res.redirect('/admin-quiz?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  app.post('/admin-quiz/publish-intro', requireAdmin, async (req, res) => {
+    try {
+      if (!discordClient) throw new Error('Bot Discord non connecté');
+      const guild = discordClient.guilds.cache.first();
+      if (!guild) throw new Error('Serveur introuvable');
+      await adminQuizManager.publishIntro(guild);
+      res.redirect('/admin-quiz?success=Message+d\'intro+publié+!');
+    } catch (e) {
+      res.redirect('/admin-quiz?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  app.post('/admin-quiz/publish-question', requireAdmin, async (req, res) => {
+    try {
+      if (!discordClient) throw new Error('Bot Discord non connecté');
+      const guild = discordClient.guilds.cache.first();
+      if (!guild) throw new Error('Serveur introuvable');
+      const idx = parseInt(req.body.idx, 10);
+      await adminQuizManager.publishQuestion(guild, idx);
+      res.redirect('/admin-quiz?success=Question+' + (idx + 1) + '+publiée+!');
+    } catch (e) {
+      res.redirect('/admin-quiz?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  app.post('/admin-quiz/reveal', requireAdmin, async (req, res) => {
+    try {
+      if (!discordClient) throw new Error('Bot Discord non connecté');
+      const guild = discordClient.guilds.cache.first();
+      if (!guild) throw new Error('Serveur introuvable');
+      const report = await adminQuizManager.revealAnswer(guild);
+      await adminQuizManager.postReport(guild, report);
+      res.redirect('/admin-quiz?success=Réponses+révélées+—+' + report.rewardedCount + '+récompensé(s)%2C+' + report.eliminatedCount + '+éliminé(s)');
+    } catch (e) {
+      res.redirect('/admin-quiz?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  app.post('/admin-quiz/final-reward', requireAdmin, async (req, res) => {
+    try {
+      if (!discordClient) throw new Error('Bot Discord non connecté');
+      const guild = discordClient.guilds.cache.first();
+      if (!guild) throw new Error('Serveur introuvable');
+      const result = await adminQuizManager.distributeFinalReward(guild);
+      res.redirect('/admin-quiz?success=Récompense+finale+distribuée+au+gagnant+!');
+    } catch (e) {
+      res.redirect('/admin-quiz?error=' + encodeURIComponent(e.message));
     }
   });
 

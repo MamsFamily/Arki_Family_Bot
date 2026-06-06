@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Quiz — Arki Dashboard</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    .quiz-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 900px) { .quiz-grid { grid-template-columns: 1fr; } }
+    .quiz-card { background: var(--card-bg); border-radius: 12px; padding: 1.5rem; border: 1px solid var(--border); }
+    .quiz-card h2 { margin: 0 0 1rem; font-size: 1.1rem; display: flex; align-items: center; gap: .5rem; }
+    .status-badge { display: inline-block; padding: .25rem .75rem; border-radius: 20px; font-size: .82rem; font-weight: 600; }
+    .status-active { background: #27ae6022; color: #27ae60; border: 1px solid #27ae60; }
+    .status-inactive { background: #e74c3c22; color: #e74c3c; border: 1px solid #e74c3c; }
+    .q-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .5rem; }
+    .q-item { background: var(--bg); border-radius: 8px; padding: .75rem 1rem; border: 1px solid var(--border); display: flex; align-items: flex-start; gap: .75rem; }
+    .q-item .q-num { font-weight: 700; color: var(--accent); min-width: 24px; }
+    .q-item .q-body { flex: 1; }
+    .q-item .q-text { font-weight: 600; margin-bottom: .25rem; }
+    .q-item .q-choices { font-size: .82rem; color: var(--text-muted); }
+    .q-item .q-correct { font-size: .78rem; font-weight: 700; color: #27ae60; }
+    .q-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .5rem; }
+    .btn-sm { padding: .35rem .8rem; font-size: .82rem; border-radius: 6px; border: none; cursor: pointer; font-weight: 600; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-danger { background: #e74c3c; color: #fff; }
+    .btn-secondary { background: var(--border); color: var(--text); }
+    .btn-success { background: #27ae60; color: #fff; }
+    .btn-warning { background: #f39c12; color: #fff; }
+    .btn-purple { background: #8e44ad; color: #fff; }
+    .reward-row { display: flex; gap: .5rem; align-items: center; margin-bottom: .4rem; flex-wrap: wrap; }
+    .reward-row select, .reward-row input { padding: .3rem .6rem; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: .85rem; }
+    .reward-row input[type=number] { width: 75px; }
+    .action-row { display: flex; gap: .75rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .players-grid { display: flex; flex-wrap: wrap; gap: .4rem; }
+    .player-chip { padding: .25rem .65rem; border-radius: 20px; font-size: .8rem; font-weight: 600; }
+    .chip-active { background: #27ae6022; color: #27ae60; border: 1px solid #27ae60; }
+    .chip-elim { background: #e74c3c22; color: #e74c3c; border: 1px solid #e74c3c; }
+    .alert { padding: .75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: .9rem; }
+    .alert-success { background: #27ae6022; border: 1px solid #27ae60; color: #27ae60; }
+    .alert-error { background: #e74c3c22; border: 1px solid #e74c3c; color: #e74c3c; }
+    .form-row { display: flex; gap: .5rem; flex-direction: column; margin-bottom: .75rem; }
+    .form-row label { font-size: .82rem; font-weight: 600; color: var(--text-muted); }
+    .form-row input, .form-row select, .form-row textarea { padding: .45rem .75rem; border-radius: 7px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: .9rem; }
+    .form-row textarea { resize: vertical; min-height: 80px; }
+    .letters-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; }
+    .section-sep { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
+    .current-q-box { background: var(--bg); border: 1px solid var(--accent); border-radius: 8px; padding: .75rem 1rem; margin-bottom: 1rem; }
+    .current-q-box .cq-label { font-size: .78rem; font-weight: 700; color: var(--accent); text-transform: uppercase; margin-bottom: .3rem; }
+  </style>
+</head>
+<body>
+  <%- include('sidebar', { path: '/admin-quiz', role: role, botUser: botUser, discordUser: discordUser }) %>
+  <main class="main-content">
+    <div class="page-header">
+      <h1>🎯 Quiz — Connais-tu bien tes admins ?</h1>
+      <span class="status-badge <%= state.active ? 'status-active' : 'status-inactive' %>">
+        <%= state.active ? '● Session active' : '○ Aucune session' %>
+      </span>
+    </div>
+
+    <% if (success) { %><div class="alert alert-success">✅ <%= success %></div><% } %>
+    <% if (error) { %><div class="alert alert-error">❌ <%= error %></div><% } %>
+
+    <div class="quiz-grid">
+
+      <!-- ══ Colonne gauche : Configuration & Session ══ -->
+      <div>
+
+        <!-- Démarrer / Arrêter session -->
+        <div class="quiz-card">
+          <h2>⚙️ Session</h2>
+          <% if (!state.active) { %>
+            <form method="POST" action="/admin-quiz/start">
+              <div class="form-row">
+                <label>Salon Discord (ID)</label>
+                <input type="text" name="channelId" placeholder="ex: 123456789012345678" required>
+              </div>
+              <button type="submit" class="btn-sm btn-success" style="width:100%">▶ Démarrer une nouvelle session</button>
+            </form>
+          <% } else { %>
+            <p style="margin:0 0 1rem;font-size:.9rem;">Session active dans <code>#<%= state.channelId %></code></p>
+            <div class="action-row">
+              <form method="POST" action="/admin-quiz/publish-intro" style="flex:1">
+                <button type="submit" class="btn-sm btn-primary" style="width:100%">📢 Publier l'intro</button>
+              </form>
+              <form method="POST" action="/admin-quiz/stop" onsubmit="return confirm('Réinitialiser la session ?');" style="flex:1">
+                <button type="submit" class="btn-sm btn-danger" style="width:100%">⏹ Arrêter & Réinitialiser</button>
+              </form>
+            </div>
+          <% } %>
+        </div>
+
+        <!-- Joueurs en course -->
+        <% if (state.active) { %>
+        <div class="quiz-card" style="margin-top:1rem">
+          <h2>👥 Joueurs</h2>
+          <% const active = state.participants.filter(id => !state.eliminated.includes(id)); %>
+          <% const eliminated = state.eliminated; %>
+          <p style="margin:0 0 .5rem;font-size:.85rem;color:var(--text-muted)">
+            <strong><%= active.length %></strong> en course •
+            <strong><%= eliminated.length %></strong> éliminé(s) •
+            <strong><%= state.participants.length %></strong> total
+          </p>
+          <div class="players-grid">
+            <% for (const pid of state.participants) { %>
+              <% const isElim = state.eliminated.includes(pid); %>
+              <span class="player-chip <%= isElim ? 'chip-elim' : 'chip-active' %>" title="<%= pid %>">
+                <%= isElim ? '💀' : '✅' %> <span style="font-family:monospace;font-size:.75rem"><%= pid.slice(0,8) %>…</span>
+              </span>
+            <% } %>
+            <% if (state.participants.length === 0) { %>
+              <span style="color:var(--text-muted);font-size:.85rem">Aucun participant pour l'instant</span>
+            <% } %>
+          </div>
+          <% if (active.length === 1) { %>
+          <hr class="section-sep">
+          <form method="POST" action="/admin-quiz/final-reward">
+            <button type="submit" class="btn-sm btn-warning" style="width:100%">🏆 Distribuer récompense finale</button>
+          </form>
+          <% } %>
+        </div>
+        <% } %>
+
+        <!-- Config récompenses -->
+        <div class="quiz-card" style="margin-top:1rem">
+          <h2>🎁 Récompenses</h2>
+          <form method="POST" action="/admin-quiz/config">
+            <p style="margin:0 0 .5rem;font-size:.82rem;font-weight:700;color:var(--text-muted)">PAR QUESTION (pour chaque bonne réponse)</p>
+            <div id="rewardPerQ">
+              <% for (const [i, r] of (state.config.rewardPerQuestion || []).entries()) { %>
+              <div class="reward-row">
+                <select name="rpq_itemId[]">
+                  <option value="">— Item —</option>
+                  <% for (const it of itemTypes) { %>
+                    <option value="<%= it.id %>" <%= r.itemId === it.id ? 'selected' : '' %>><%= it.emoji || '' %> <%= it.name %></option>
+                  <% } %>
+                </select>
+                <input type="number" name="rpq_quantity[]" value="<%= r.quantity || 1 %>" min="1" max="9999">
+                <button type="button" class="btn-sm btn-danger" onclick="this.parentElement.remove()">✕</button>
+              </div>
+              <% } %>
+            </div>
+            <button type="button" class="btn-sm btn-secondary" onclick="addRewardRow('rewardPerQ','rpq_itemId[]','rpq_quantity[]')" style="margin-bottom:.75rem">+ Ajouter item</button>
+
+            <hr class="section-sep">
+            <p style="margin:0 0 .5rem;font-size:.82rem;font-weight:700;color:var(--text-muted)">FINALE (dernier survivant)</p>
+            <div id="rewardFinal">
+              <% for (const [i, r] of (state.config.rewardFinal || []).entries()) { %>
+              <div class="reward-row">
+                <select name="rf_itemId[]">
+                  <option value="">— Item —</option>
+                  <% for (const it of itemTypes) { %>
+                    <option value="<%= it.id %>" <%= r.itemId === it.id ? 'selected' : '' %>><%= it.emoji || '' %> <%= it.name %></option>
+                  <% } %>
+                </select>
+                <input type="number" name="rf_quantity[]" value="<%= r.quantity || 1 %>" min="1" max="9999">
+                <button type="button" class="btn-sm btn-danger" onclick="this.parentElement.remove()">✕</button>
+              </div>
+              <% } %>
+            </div>
+            <button type="button" class="btn-sm btn-secondary" onclick="addRewardRow('rewardFinal','rf_itemId[]','rf_quantity[]')" style="margin-bottom:.75rem">+ Ajouter item</button>
+
+            <hr class="section-sep">
+            <p style="margin:0 0 .5rem;font-size:.82rem;font-weight:700;color:var(--text-muted)">MESSAGE D'INTRO</p>
+            <div class="form-row">
+              <textarea name="introMsg" rows="6"><%= state.config.introMsg || '' %></textarea>
+            </div>
+
+            <button type="submit" class="btn-sm btn-primary" style="width:100%">💾 Sauvegarder la config</button>
+          </form>
+        </div>
+
+      </div>
+
+      <!-- ══ Colonne droite : Questions & Contrôle ══ -->
+      <div>
+
+        <!-- Contrôle de la question active -->
+        <% if (state.active && state.currentQuestionIdx >= 0) { %>
+        <div class="quiz-card">
+          <h2>🎮 Question en cours</h2>
+          <% const cq = state.questions[state.currentQuestionIdx]; %>
+          <div class="current-q-box">
+            <div class="cq-label">Q<%= state.currentQuestionIdx + 1 %></div>
+            <div style="font-weight:600;margin-bottom:.25rem"><%= cq ? cq.text : '—' %></div>
+            <% if (cq) { %>
+              <div style="font-size:.82rem;color:var(--text-muted)">
+                <% for (const [i, c] of cq.choices.entries()) { %>
+                  <% const letters = ['🇦','🇧','🇨','🇩']; %>
+                  <%= letters[i] %> <%= c %><% if (i < cq.choices.length - 1) { %> &nbsp;•&nbsp; <% } %>
+                <% } %>
+              </div>
+              <div class="q-correct" style="margin-top:.3rem">Réponse : <%= ['A','B','C','D'][cq.correct] %> — <%= cq.choices[cq.correct] %></div>
+            <% } %>
+          </div>
+          <% if (!cq || !cq.revealed) { %>
+          <div class="action-row">
+            <form method="POST" action="/admin-quiz/reveal" style="flex:1">
+              <button type="submit" class="btn-sm btn-warning" style="width:100%">🔓 Révéler les réponses</button>
+            </form>
+          </div>
+          <% } else { %>
+            <p style="color:#27ae60;font-size:.85rem;font-weight:600">✅ Réponses révélées</p>
+            <% const nextIdx = state.currentQuestionIdx + 1; %>
+            <% if (nextIdx < state.questions.length) { %>
+            <form method="POST" action="/admin-quiz/publish-question">
+              <input type="hidden" name="idx" value="<%= nextIdx %>">
+              <button type="submit" class="btn-sm btn-primary" style="width:100%">▶ Publier question <%= nextIdx + 1 %></button>
+            </form>
+            <% } else { %>
+              <p style="color:var(--text-muted);font-size:.85rem">C'est la dernière question.</p>
+            <% } %>
+          <% } %>
+        </div>
+        <% } %>
+
+        <!-- Première question (si session active, aucune question en cours) -->
+        <% if (state.active && state.currentQuestionIdx < 0 && state.questions.length > 0) { %>
+        <div class="quiz-card" style="<%= state.currentQuestionIdx >= 0 ? 'margin-top:1rem' : '' %>">
+          <h2>▶ Lancer la première question</h2>
+          <form method="POST" action="/admin-quiz/publish-question">
+            <input type="hidden" name="idx" value="0">
+            <button type="submit" class="btn-sm btn-primary" style="width:100%">📤 Publier Q1</button>
+          </form>
+        </div>
+        <% } %>
+
+        <!-- Liste des questions -->
+        <div class="quiz-card" style="margin-top: <%= (state.active && state.currentQuestionIdx >= 0) ? '1rem' : '0' %>">
+          <h2>📋 Questions (<%= state.questions.length %>)</h2>
+
+          <% if (state.questions.length > 0) { %>
+          <ul class="q-list" style="margin-bottom:1rem">
+            <% for (const [i, q] of state.questions.entries()) { %>
+            <li class="q-item">
+              <span class="q-num">Q<%= i+1 %></span>
+              <div class="q-body">
+                <div class="q-text"><%= q.text %></div>
+                <div class="q-choices">
+                  <% const lts = ['A','B','C','D']; %>
+                  <% for (const [ci, ch] of q.choices.entries()) { %><%= lts[ci] %>: <%= ch %><% if(ci < q.choices.length-1){%> • <%}%><% } %>
+                </div>
+                <div class="q-correct">✓ Réponse : <%= lts[q.correct] %></div>
+                <% if (q.published) { %><span style="font-size:.75rem;color:var(--accent)">📤 Publiée<%= q.revealed ? ' • ✅ Révélée' : '' %></span><% } %>
+              </div>
+              <form method="POST" action="/admin-quiz/remove-question" onsubmit="return confirm('Supprimer cette question ?')">
+                <input type="hidden" name="idx" value="<%= i %>">
+                <button type="submit" class="btn-sm btn-danger">✕</button>
+              </form>
+            </li>
+            <% } %>
+          </ul>
+          <% } else { %>
+            <p style="color:var(--text-muted);font-size:.85rem;margin-bottom:1rem">Aucune question pour l'instant.</p>
+          <% } %>
+
+          <!-- Ajouter une question -->
+          <hr class="section-sep">
+          <h3 style="font-size:.95rem;margin:0 0 .75rem">➕ Ajouter une question</h3>
+          <form method="POST" action="/admin-quiz/add-question">
+            <div class="form-row">
+              <label>Question</label>
+              <input type="text" name="text" placeholder="Quel est le vrai prénom de l'admin X ?" required>
+            </div>
+            <div class="letters-grid">
+              <div class="form-row">
+                <label>🇦 Réponse A</label>
+                <input type="text" name="choiceA" required>
+              </div>
+              <div class="form-row">
+                <label>🇧 Réponse B</label>
+                <input type="text" name="choiceB" required>
+              </div>
+              <div class="form-row">
+                <label>🇨 Réponse C</label>
+                <input type="text" name="choiceC" required>
+              </div>
+              <div class="form-row">
+                <label>🇩 Réponse D</label>
+                <input type="text" name="choiceD" required>
+              </div>
+            </div>
+            <div class="form-row">
+              <label>Bonne réponse</label>
+              <select name="correct" required>
+                <option value="0">A</option>
+                <option value="1">B</option>
+                <option value="2">C</option>
+                <option value="3">D</option>
+              </select>
+            </div>
+            <button type="submit" class="btn-sm btn-success" style="width:100%">➕ Ajouter</button>
+          </form>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const itemOptions = `<option value="">— Item —</option>` + [
+      <% for (const it of itemTypes) { %>
+      `<option value="<%= it.id %>"><%= (it.emoji || '') + ' ' + it.name %></option>`,
+      <% } %>
+    ].join('');
+
+    function addRewardRow(containerId, nameItem, nameQty) {
+      const div = document.createElement('div');
+      div.className = 'reward-row';
+      div.innerHTML = `
+        <select name="${nameItem}">${itemOptions}</select>
+        <input type="number" name="${nameQty}" value="1" min="1" max="9999">
+        <button type="button" class="btn-sm btn-danger" onclick="this.parentElement.remove()">✕</button>
+      `;
+      document.getElementById(containerId).appendChild(div);
+    }
+  </script>
+</body>
+</html>

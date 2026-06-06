@@ -424,6 +424,10 @@ const commands = [
     name: 'route-infini',
     description: '🛣️ Affiche le compteur, le record et le classement de la Route de l\'Infini',
   },
+  {
+    name: 'encore-en-course',
+    description: '🎯 Affiche les joueurs encore en course dans le quiz admin (Admin)',
+  },
 ];
 
 module.exports = commands;
