@@ -275,10 +275,14 @@ async function postReport(guild, report) {
   const channel = await guild.channels.fetch(s.channelId).catch(() => null);
   if (!channel) return;
 
+  const rewardLine = report.rewardedCount > 0 && report.rewardLabel !== '\u2014'
+    ? `\uD83C\uDF81 **${report.rewardedCount}** joueur(s) ont r\u00E9pondu correctement \u2014 **${report.rewardLabel}** distribu\u00E9(s) \u2705`
+    : `\uD83C\uDF81 **${report.rewardedCount}** joueur(s) ont r\u00E9pondu correctement`;
+
   const desc = [
     `\u2705 **Bonne r\u00E9ponse : ${report.correctLetter} \u2014 ${report.correctText}**`,
     '',
-    `\uD83C\uDF81 **${report.rewardedCount}** joueur(s) ont re\u00E7u **${report.rewardLabel}**`,
+    rewardLine,
     `\uD83D\uDC80 **${report.eliminatedCount}** joueur(s) \u00E9limin\u00E9(s)`,
     `\uD83D\uDC65 **${report.activePlayers}** joueur(s) encore en course`,
   ].join('\n');
