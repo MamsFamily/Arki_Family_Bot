@@ -4703,7 +4703,8 @@ function createWebServer(discordClient) {
   app.get('/admin-quiz', requireAdminOrStaff, async (req, res) => {
     try {
       const state = adminQuizManager.getState();
-      const itemTypes = await inventoryManager.getItemTypes().catch(() => []);
+      let itemTypes = [];
+      try { itemTypes = inventoryManager.getItemTypes ? inventoryManager.getItemTypes() : []; } catch (_) {}
       res.render('admin-quiz', {
         path: '/admin-quiz',
         role: req.session.role,
@@ -4715,7 +4716,8 @@ function createWebServer(discordClient) {
         error: req.query.error || null,
       });
     } catch (e) {
-      res.redirect('/?error=' + encodeURIComponent(e.message));
+      console.error('[AdminQuiz] Erreur GET /admin-quiz:', e.message, e.stack);
+      res.status(500).send('Erreur page Quiz Admins : ' + e.message);
     }
   });
 
