@@ -100,15 +100,14 @@
     <a href="/infinity-road" class="nav-link <%= path === '/infinity-road' ? 'active' : '' %>">
       <span class="icon">🛣️</span> Route de l'Infini
     </a>
-    <a href="/admin-quiz" class="nav-link <%= path === '/admin-quiz' ? 'active' : '' %>">
-      <span class="icon">🎯</span> Quiz Admins
-    </a>
-
     <div class="nav-section">Tickets</div>
     <a href="/tickets" class="nav-link <%= path === '/tickets' ? 'active' : '' %>">
       <span class="icon">🎫</span> Tickets
     </a>
     <% } %>
+    <a href="/admin-quiz" class="nav-link <%= path === '/admin-quiz' ? 'active' : '' %>">
+      <span class="icon">🎯</span> Quiz Admins
+    </a>
     <a href="/reclaim-history" class="nav-link <%= path && path.startsWith('/reclaim-history') ? 'active' : '' %>">
       <span class="icon">📋</span> Historique Réclamations
     </a>

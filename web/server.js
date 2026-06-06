@@ -4700,7 +4700,7 @@ function createWebServer(discordClient) {
   // ─────────────────────────────────────────────────────────────────────────────
   // ══ ADMIN QUIZ ═══════════════════════════════════════════════════════════════
 
-  app.get('/admin-quiz', requireAdmin, async (req, res) => {
+  app.get('/admin-quiz', requireAdminOrStaff, async (req, res) => {
     try {
       const state = adminQuizManager.getState();
       const itemTypes = await inventoryManager.getItemTypes().catch(() => []);
@@ -4719,7 +4719,7 @@ function createWebServer(discordClient) {
     }
   });
 
-  app.post('/admin-quiz/start', requireAdmin, async (req, res) => {
+  app.post('/admin-quiz/start', requireAdminOrStaff, async (req, res) => {
     try {
       const { channelId } = req.body;
       if (!channelId) throw new Error('Salon requis');
@@ -4730,7 +4730,7 @@ function createWebServer(discordClient) {
     }
   });
 
-  app.post('/admin-quiz/stop', requireAdmin, async (req, res) => {
+  app.post('/admin-quiz/stop', requireAdminOrStaff, async (req, res) => {
     try {
       await adminQuizManager.stopSession();
       res.redirect('/admin-quiz?success=Session+réinitialisée+!');
@@ -4739,7 +4739,7 @@ function createWebServer(discordClient) {
     }
   });
 
-  app.post('/admin-quiz/config', requireAdmin, async (req, res) => {
+  app.post('/admin-quiz/config', requireAdminOrStaff, async (req, res) => {
     try {
       const { introMsg } = req.body;
       const rpqItems = [].concat(req.body['rpq_itemId[]'] || []);
@@ -4762,7 +4762,7 @@ function createWebServer(discordClient) {
     }
   });
 
-  app.post('/admin-quiz/add-question', requireAdmin, async (req, res) => {
+  app.post('/admin-quiz/add-question', requireAdminOrStaff, async (req, res) => {
     try {
       const { text, choiceA, choiceB, choiceC, choiceD, correct } = req.body;
       if (!text || !choiceA || !choiceB || !choiceC || !choiceD) throw new Error('Tous les champs sont requis');
@@ -4777,7 +4777,7 @@ function createWebServer(discordClient) {
     }
   });
 
-  app.post('/admin-quiz/remove-question', requireAdmin, async (req, res) => {
+  app.post('/admin-quiz/remove-question', requireAdminOrStaff, async (req, res) => {
     try {
       const idx = parseInt(req.body.idx, 10);
       await adminQuizManager.removeQuestion(idx);
@@ -4787,7 +4787,7 @@ function createWebServer(discordClient) {
     }
   });
 
-  app.post('/admin-quiz/publish-intro', requireAdmin, async (req, res) => {
+  app.post('/admin-quiz/publish-intro', requireAdminOrStaff, async (req, res) => {
     try {
       if (!discordClient) throw new Error('Bot Discord non connecté');
       const guild = discordClient.guilds.cache.first();
@@ -4799,7 +4799,7 @@ function createWebServer(discordClient) {
     }
   });
 
-  app.post('/admin-quiz/publish-question', requireAdmin, async (req, res) => {
+  app.post('/admin-quiz/publish-question', requireAdminOrStaff, async (req, res) => {
     try {
       if (!discordClient) throw new Error('Bot Discord non connecté');
       const guild = discordClient.guilds.cache.first();
@@ -4812,7 +4812,7 @@ function createWebServer(discordClient) {
     }
   });
 
-  app.post('/admin-quiz/reveal', requireAdmin, async (req, res) => {
+  app.post('/admin-quiz/reveal', requireAdminOrStaff, async (req, res) => {
     try {
       if (!discordClient) throw new Error('Bot Discord non connecté');
       const guild = discordClient.guilds.cache.first();
@@ -4825,7 +4825,7 @@ function createWebServer(discordClient) {
     }
   });
 
-  app.post('/admin-quiz/final-reward', requireAdmin, async (req, res) => {
+  app.post('/admin-quiz/final-reward', requireAdminOrStaff, async (req, res) => {
     try {
       if (!discordClient) throw new Error('Bot Discord non connecté');
       const guild = discordClient.guilds.cache.first();
