@@ -84,7 +84,8 @@ function formatMsg(template, vars) {
     .replace(/{count}/g,  vars.count  !== undefined ? String(vars.count)  : '')
     .replace(/{next}/g,   vars.next   !== undefined ? String(vars.next)   : '')
     .replace(/{record}/g, vars.record !== undefined ? String(vars.record) : '')
-    .replace(/{amount}/g, vars.amount !== undefined ? String(vars.amount) : '');
+    .replace(/{amount}/g, vars.amount !== undefined ? String(vars.amount) : '')
+    .replace(/{tier}/g,   vars.tier   !== undefined ? String(vars.tier)   : '');
 }
 
 // ── Paliers de célébration ────────────────────────────────────────────────────
