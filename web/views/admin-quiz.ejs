@@ -47,6 +47,14 @@
     .section-sep { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
     .current-q-box { background: var(--bg); border: 1px solid var(--accent); border-radius: 8px; padding: .75rem 1rem; margin-bottom: 1rem; }
     .current-q-box .cq-label { font-size: .78rem; font-weight: 700; color: var(--accent); text-transform: uppercase; margin-bottom: .3rem; }
+    .reward-summary-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: .6rem .9rem; display: flex; flex-direction: column; gap: .4rem; }
+    .reward-summary-line { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+    .rsb-label { font-size: .75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; min-width: 80px; }
+    .rsb-value { display: flex; gap: .35rem; flex-wrap: wrap; }
+    .reward-chip { display: inline-block; background: #7c5cfc22; color: var(--accent); border: 1px solid #7c5cfc55; border-radius: 20px; padding: .2rem .65rem; font-size: .8rem; font-weight: 600; }
+    details summary::-webkit-details-marker { display: none; }
+    details summary::before { content: '▶ '; font-size: .7rem; }
+    details[open] summary::before { content: '▼ '; }
   </style>
 </head>
 <body>
@@ -127,6 +135,34 @@
         <!-- Config récompenses -->
         <div class="quiz-card" style="margin-top:1rem">
           <h2>🎁 Récompenses</h2>
+
+          <%
+            function rewardSummary(list, types) {
+              if (!list || list.length === 0) return null;
+              return list.map(r => {
+                const it = types.find(t => String(t.id) === String(r.itemId));
+                const label = it ? (it.emoji ? it.emoji + ' ' + it.name : it.name) : r.itemId;
+                return `<span class="reward-chip">${label} &times; ${r.quantity || 1}</span>`;
+              }).join('');
+            }
+            const rpqHtml = rewardSummary(state.config.rewardPerQuestion, itemTypes);
+            const rfHtml  = rewardSummary(state.config.rewardFinal, itemTypes);
+          %>
+
+          <div class="reward-summary-box">
+            <div class="reward-summary-line">
+              <span class="rsb-label">Par question</span>
+              <span class="rsb-value"><%- rpqHtml || '<em style="color:var(--text-muted)">Aucune</em>' %></span>
+            </div>
+            <div class="reward-summary-line">
+              <span class="rsb-label">Finale</span>
+              <span class="rsb-value"><%- rfHtml || '<em style="color:var(--text-muted)">Aucune</em>' %></span>
+            </div>
+          </div>
+
+          <details style="margin-top:.75rem">
+            <summary style="cursor:pointer;font-size:.85rem;font-weight:700;color:var(--text-muted);user-select:none">✏️ Modifier la config</summary>
+            <div style="margin-top:.75rem">
           <form method="POST" action="/admin-quiz/config">
             <p style="margin:0 0 .5rem;font-size:.82rem;font-weight:700;color:var(--text-muted)">PAR QUESTION (pour chaque bonne réponse)</p>
             <div id="rewardPerQ">
@@ -171,6 +207,8 @@
 
             <button type="submit" class="btn-sm btn-primary" style="width:100%">💾 Sauvegarder la config</button>
           </form>
+            </div>
+          </details>
         </div>
 
       </div>
