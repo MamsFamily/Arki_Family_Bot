@@ -44,8 +44,9 @@ function createWebServer(discordClient) {
 
   // Init PostgreSQL si disponible (partagé avec Railway)
   pgStore.initPool();
-  pgStore.initTables().then(() => {
-    adminQuizManager.loadState().catch(e => console.error('[AdminQuiz] loadState au démarrage dashboard:', e.message));
+  pgStore.initTables().then(async () => {
+    await inventoryManager.initInventory().catch(e => console.error('[Inventory] initInventory au démarrage dashboard:', e.message));
+    await adminQuizManager.loadState().catch(e => console.error('[AdminQuiz] loadState au démarrage dashboard:', e.message));
   }).catch(() => {});
 
   app.set('view engine', 'ejs');
@@ -4707,8 +4708,30 @@ function createWebServer(discordClient) {
     console.log(`[AdminQuiz] GET /admin-quiz atteint — role=${req.session?.role} discordUser=${!!req.session?.discordUser}`);
     try {
       const state = adminQuizManager.getState();
+
+      // Résoudre les pseudos manquants via le bot Discord
+      if (discordClient && state.participants && state.participants.length > 0) {
+        try {
+          const settings = getSettings();
+          const guildId = settings?.guild?.guildId;
+          const guild = guildId ? await discordClient.guilds.fetch(guildId).catch(() => null) : null;
+          if (guild) {
+            for (const pid of state.participants) {
+              if (!state.participantNames[pid]) {
+                const member = await guild.members.fetch(pid).catch(() => null);
+                if (member) {
+                  state.participantNames[pid] = member.displayName || member.user.username;
+                  adminQuizManager.saveState().catch(() => {});
+                }
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
       let itemTypes = [];
       try { itemTypes = inventoryManager.getItemTypes ? inventoryManager.getItemTypes() : []; } catch (_) {}
+      console.log(`[AdminQuiz] itemTypes count=${itemTypes.length}`);
       const renderData = {
         path: '/admin-quiz',
         role: req.session.role,
