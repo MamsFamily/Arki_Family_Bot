@@ -157,7 +157,7 @@ async function publishQuestion(guild, idx) {
     : `${activePlayers.length} joueur(s) encore en course`;
 
   const choicesText = q.choices.map((c, i) => `R\u00E9ponse ${LETTERS[i]} : ${c}`).join('\n');
-  const desc = `**${q.text}**\n\n${choicesText}\n\nLa r\u00E9ponse sera donn\u00E9e par les admins \uD83D\uDD50`;
+  const desc = `**${q.text}**\n\n${choicesText}\n\nRendez vous demain vers 19h pour la r\u00E9ponse ! \uD83D\uDD50`;
 
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
