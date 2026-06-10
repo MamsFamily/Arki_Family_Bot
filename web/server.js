@@ -4759,6 +4759,46 @@ function createWebServer(discordClient) {
     }
   });
 
+  app.post('/admin-quiz/config-rpq', requireAdminOrStaff, async (req, res) => {
+    try {
+      const rpqItems = [].concat(req.body['rpq_itemId[]'] || []);
+      const rpqQtys  = [].concat(req.body['rpq_quantity[]'] || []);
+      const rewardPerQuestion = rpqItems
+        .map((id, i) => ({ itemId: id, quantity: parseInt(rpqQtys[i]) || 1 }))
+        .filter(r => r.itemId);
+      console.log(`[AdminQuiz] config-rpq → ${JSON.stringify(rewardPerQuestion)}`);
+      await adminQuizManager.updateConfig({ rewardPerQuestion });
+      res.redirect('/admin-quiz?success=Récompense+par+question+sauvegardée+!');
+    } catch (e) {
+      res.redirect('/admin-quiz?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  app.post('/admin-quiz/config-rf', requireAdminOrStaff, async (req, res) => {
+    try {
+      const rfItems = [].concat(req.body['rf_itemId[]'] || []);
+      const rfQtys  = [].concat(req.body['rf_quantity[]'] || []);
+      const rewardFinal = rfItems
+        .map((id, i) => ({ itemId: id, quantity: parseInt(rfQtys[i]) || 1 }))
+        .filter(r => r.itemId);
+      console.log(`[AdminQuiz] config-rf → ${JSON.stringify(rewardFinal)}`);
+      await adminQuizManager.updateConfig({ rewardFinal });
+      res.redirect('/admin-quiz?success=Récompense+finale+sauvegardée+!');
+    } catch (e) {
+      res.redirect('/admin-quiz?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  app.post('/admin-quiz/config-intro', requireAdminOrStaff, async (req, res) => {
+    try {
+      const { introMsg } = req.body;
+      await adminQuizManager.updateConfig({ introMsg });
+      res.redirect('/admin-quiz?success=Message+d\'intro+sauvegardé+!');
+    } catch (e) {
+      res.redirect('/admin-quiz?error=' + encodeURIComponent(e.message));
+    }
+  });
+
   app.post('/admin-quiz/start', requireAdminOrStaff, async (req, res) => {
     try {
       const { channelId } = req.body;

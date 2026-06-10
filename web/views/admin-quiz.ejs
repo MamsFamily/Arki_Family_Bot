@@ -48,8 +48,12 @@
     .current-q-box { background: var(--bg); border: 1px solid var(--accent); border-radius: 8px; padding: .75rem 1rem; margin-bottom: 1rem; }
     .current-q-box .cq-label { font-size: .78rem; font-weight: 700; color: var(--accent); text-transform: uppercase; margin-bottom: .3rem; }
     .reward-section-title { margin: 0 0 .4rem; font-size: .88rem; font-weight: 700; color: var(--text); }
-    .reward-section-sub { font-weight: 400; color: var(--text-muted); font-size: .8rem; }
-    .reward-none-hint { color: var(--text-muted); font-size: .82rem; font-style: italic; margin: .25rem 0 .5rem; }
+    .rw-display-row { display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:.5rem 0; }
+    .rw-display-info { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; flex:1; min-width:0; }
+    .rw-display-type { font-size:.85rem; font-weight:700; color:var(--text); white-space:nowrap; }
+    .rw-display-value { font-size:.88rem; color:var(--accent); font-weight:600; }
+    .rw-display-empty { font-size:.85rem; color:var(--text-muted); font-style:italic; }
+    .rw-edit-panel { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:.75rem; margin-bottom:.5rem; }
   </style>
 </head>
 <body>
@@ -131,60 +135,99 @@
         <div class="quiz-card" style="margin-top:1rem">
           <h2>🎁 Récompenses</h2>
 
-          <form method="POST" action="/admin-quiz/config">
-            <!-- ── Récompense par question ── -->
-            <p class="reward-section-title">🎯 Par question <span class="reward-section-sub">(pour chaque bonne réponse)</span></p>
-            <div id="rewardPerQ">
-              <% for (const r of (state.config.rewardPerQuestion || [])) { %>
-              <div class="reward-row">
-                <select name="rpq_itemId[]">
-                  <option value="">— Item —</option>
-                  <% for (const it of itemTypes) { %>
-                    <option value="<%= it.id %>" <%= String(r.itemId) === String(it.id) ? 'selected' : '' %>><%= it.emoji || '' %> <%= it.name %></option>
-                  <% } %>
-                </select>
-                <input type="number" name="rpq_quantity[]" value="<%= r.quantity || 1 %>" min="1" max="9999">
-                <button type="button" class="btn-sm btn-danger" onclick="this.parentElement.remove()">✕</button>
-              </div>
-              <% } %>
-              <% if (!(state.config.rewardPerQuestion || []).length) { %>
-              <p class="reward-none-hint">Aucune récompense — clique "+ Ajouter" pour en configurer une</p>
-              <% } %>
-            </div>
-            <button type="button" class="btn-sm btn-secondary" onclick="addRewardRow('rewardPerQ','rpq_itemId[]','rpq_quantity[]')">+ Ajouter item</button>
+          <%
+            function rewardLabel(list, types) {
+              if (!list || !list.length) return null;
+              return list.map(r => {
+                const it = types.find(t => String(t.id) === String(r.itemId));
+                return (it ? (it.emoji ? it.emoji + ' ' + it.name : it.name) : r.itemId) + ' × ' + (r.quantity || 1);
+              }).join(' + ');
+            }
+            const rpqLabel = rewardLabel(state.config.rewardPerQuestion, itemTypes);
+            const rfLabel  = rewardLabel(state.config.rewardFinal, itemTypes);
+          %>
 
-            <hr class="section-sep">
-
-            <!-- ── Récompense finale ── -->
-            <p class="reward-section-title">🏆 Finale <span class="reward-section-sub">(dernier survivant)</span></p>
-            <div id="rewardFinal">
-              <% for (const r of (state.config.rewardFinal || [])) { %>
-              <div class="reward-row">
-                <select name="rf_itemId[]">
-                  <option value="">— Item —</option>
-                  <% for (const it of itemTypes) { %>
-                    <option value="<%= it.id %>" <%= String(r.itemId) === String(it.id) ? 'selected' : '' %>><%= it.emoji || '' %> <%= it.name %></option>
-                  <% } %>
-                </select>
-                <input type="number" name="rf_quantity[]" value="<%= r.quantity || 1 %>" min="1" max="9999">
-                <button type="button" class="btn-sm btn-danger" onclick="this.parentElement.remove()">✕</button>
-              </div>
-              <% } %>
-              <% if (!(state.config.rewardFinal || []).length) { %>
-              <p class="reward-none-hint">Aucune récompense — clique "+ Ajouter" pour en configurer une</p>
+          <!-- ── Par question ── -->
+          <div class="rw-display-row">
+            <div class="rw-display-info">
+              <span class="rw-display-type">🎯 Par question</span>
+              <% if (rpqLabel) { %>
+                <span class="rw-display-value"><%= rpqLabel %></span>
+              <% } else { %>
+                <span class="rw-display-empty">Non configurée</span>
               <% } %>
             </div>
-            <button type="button" class="btn-sm btn-secondary" onclick="addRewardRow('rewardFinal','rf_itemId[]','rf_quantity[]')">+ Ajouter item</button>
+            <button type="button" class="btn-sm btn-secondary" onclick="toggleEdit('editRpq', this)">✏️ Modifier</button>
+          </div>
+          <div id="editRpq" class="rw-edit-panel" style="display:none">
+            <form method="POST" action="/admin-quiz/config-rpq">
+              <div id="rewardPerQ">
+                <% for (const r of (state.config.rewardPerQuestion || [])) { %>
+                <div class="reward-row">
+                  <select name="rpq_itemId[]">
+                    <option value="">— Item —</option>
+                    <% for (const it of itemTypes) { %>
+                      <option value="<%= it.id %>" <%= String(r.itemId) === String(it.id) ? 'selected' : '' %>><%= it.emoji || '' %> <%= it.name %></option>
+                    <% } %>
+                  </select>
+                  <input type="number" name="rpq_quantity[]" value="<%= r.quantity || 1 %>" min="1" max="9999">
+                  <button type="button" class="btn-sm btn-danger" onclick="this.parentElement.remove()">✕</button>
+                </div>
+                <% } %>
+              </div>
+              <div style="display:flex;gap:.5rem;margin-top:.4rem;flex-wrap:wrap">
+                <button type="button" class="btn-sm btn-secondary" onclick="addRewardRow('rewardPerQ','rpq_itemId[]','rpq_quantity[]')">+ Ajouter item</button>
+                <button type="submit" class="btn-sm btn-primary">💾 Sauvegarder</button>
+              </div>
+            </form>
+          </div>
 
-            <hr class="section-sep">
+          <hr class="section-sep">
 
-            <!-- ── Message d'intro ── -->
-            <p class="reward-section-title">💬 Message d'intro</p>
+          <!-- ── Finale ── -->
+          <div class="rw-display-row">
+            <div class="rw-display-info">
+              <span class="rw-display-type">🏆 Finale</span>
+              <% if (rfLabel) { %>
+                <span class="rw-display-value"><%= rfLabel %></span>
+              <% } else { %>
+                <span class="rw-display-empty">Non configurée</span>
+              <% } %>
+            </div>
+            <button type="button" class="btn-sm btn-secondary" onclick="toggleEdit('editRf', this)">✏️ Modifier</button>
+          </div>
+          <div id="editRf" class="rw-edit-panel" style="display:none">
+            <form method="POST" action="/admin-quiz/config-rf">
+              <div id="rewardFinal">
+                <% for (const r of (state.config.rewardFinal || [])) { %>
+                <div class="reward-row">
+                  <select name="rf_itemId[]">
+                    <option value="">— Item —</option>
+                    <% for (const it of itemTypes) { %>
+                      <option value="<%= it.id %>" <%= String(r.itemId) === String(it.id) ? 'selected' : '' %>><%= it.emoji || '' %> <%= it.name %></option>
+                    <% } %>
+                  </select>
+                  <input type="number" name="rf_quantity[]" value="<%= r.quantity || 1 %>" min="1" max="9999">
+                  <button type="button" class="btn-sm btn-danger" onclick="this.parentElement.remove()">✕</button>
+                </div>
+                <% } %>
+              </div>
+              <div style="display:flex;gap:.5rem;margin-top:.4rem;flex-wrap:wrap">
+                <button type="button" class="btn-sm btn-secondary" onclick="addRewardRow('rewardFinal','rf_itemId[]','rf_quantity[]')">+ Ajouter item</button>
+                <button type="submit" class="btn-sm btn-primary">💾 Sauvegarder</button>
+              </div>
+            </form>
+          </div>
+
+          <hr class="section-sep">
+
+          <!-- ── Message d'intro ── -->
+          <p class="reward-section-title">💬 Message d'intro</p>
+          <form method="POST" action="/admin-quiz/config-intro">
             <div class="form-row">
               <textarea name="introMsg" rows="5"><%= state.config.introMsg || '' %></textarea>
             </div>
-
-            <button type="submit" class="btn-sm btn-primary" style="width:100%;margin-top:.25rem">💾 Sauvegarder la config</button>
+            <button type="submit" class="btn-sm btn-primary" style="width:100%">💾 Sauvegarder</button>
           </form>
         </div>
 
@@ -348,6 +391,12 @@
       row.querySelector('select').name = nameItem;
       row.querySelector('input[type=number]').name = nameQty;
       document.getElementById(containerId).appendChild(clone);
+    }
+    function toggleEdit(panelId, btn) {
+      const panel = document.getElementById(panelId);
+      const open = panel.style.display === 'none';
+      panel.style.display = open ? 'block' : 'none';
+      btn.textContent = open ? '✖ Fermer' : '✏️ Modifier';
     }
   </script>
 </body>
