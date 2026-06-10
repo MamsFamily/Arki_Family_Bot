@@ -4759,16 +4759,35 @@ function createWebServer(discordClient) {
     }
   });
 
+  app.get('/admin-quiz/debug', requireAdminOrStaff, async (req, res) => {
+    try {
+      const memState = adminQuizManager.getState();
+      const pgRaw    = await pgStore.getData('admin_quiz_state');
+      res.json({
+        memory_config: memState.config,
+        postgres_config: pgRaw ? pgRaw.config : null,
+        postgres_active: pgRaw ? pgRaw.active : null,
+        usePostgres: pgStore.isPostgres(),
+      });
+    } catch (e) {
+      res.json({ error: e.message });
+    }
+  });
+
   app.post('/admin-quiz/config-rpq', requireAdminOrStaff, async (req, res) => {
     try {
+      console.log(`[AdminQuiz] config-rpq raw body: ${JSON.stringify(req.body)}`);
       const rpqItems = [].concat(req.body['rpq_itemId[]'] || []);
       const rpqQtys  = [].concat(req.body['rpq_quantity[]'] || []);
       const rewardPerQuestion = rpqItems
         .map((id, i) => ({ itemId: id, quantity: parseInt(rpqQtys[i]) || 1 }))
         .filter(r => r.itemId);
-      console.log(`[AdminQuiz] config-rpq → ${JSON.stringify(rewardPerQuestion)}`);
+      console.log(`[AdminQuiz] config-rpq parsed → ${JSON.stringify(rewardPerQuestion)}`);
       await adminQuizManager.updateConfig({ rewardPerQuestion });
-      res.redirect('/admin-quiz?success=Récompense+par+question+sauvegardée+!');
+      const afterSave = adminQuizManager.getState().config.rewardPerQuestion;
+      console.log(`[AdminQuiz] config-rpq after updateConfig → ${JSON.stringify(afterSave)}`);
+      const saved = encodeURIComponent(JSON.stringify(afterSave));
+      res.redirect(`/admin-quiz?success=Sauvegardé+:+${saved}`);
     } catch (e) {
       res.redirect('/admin-quiz?error=' + encodeURIComponent(e.message));
     }
@@ -4776,14 +4795,18 @@ function createWebServer(discordClient) {
 
   app.post('/admin-quiz/config-rf', requireAdminOrStaff, async (req, res) => {
     try {
+      console.log(`[AdminQuiz] config-rf raw body: ${JSON.stringify(req.body)}`);
       const rfItems = [].concat(req.body['rf_itemId[]'] || []);
       const rfQtys  = [].concat(req.body['rf_quantity[]'] || []);
       const rewardFinal = rfItems
         .map((id, i) => ({ itemId: id, quantity: parseInt(rfQtys[i]) || 1 }))
         .filter(r => r.itemId);
-      console.log(`[AdminQuiz] config-rf → ${JSON.stringify(rewardFinal)}`);
+      console.log(`[AdminQuiz] config-rf parsed → ${JSON.stringify(rewardFinal)}`);
       await adminQuizManager.updateConfig({ rewardFinal });
-      res.redirect('/admin-quiz?success=Récompense+finale+sauvegardée+!');
+      const afterSave = adminQuizManager.getState().config.rewardFinal;
+      console.log(`[AdminQuiz] config-rf after updateConfig → ${JSON.stringify(afterSave)}`);
+      const saved = encodeURIComponent(JSON.stringify(afterSave));
+      res.redirect(`/admin-quiz?success=Sauvegardé+:+${saved}`);
     } catch (e) {
       res.redirect('/admin-quiz?error=' + encodeURIComponent(e.message));
     }
