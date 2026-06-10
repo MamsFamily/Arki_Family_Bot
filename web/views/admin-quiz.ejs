@@ -326,26 +326,28 @@
   </main>
   </div>
 
-  <script>
-    const itemTypesData = <%- JSON.stringify(itemTypes.map(it => ({ id: String(it.id), label: (it.emoji || '') + ' ' + it.name }))) %>;
-    const itemOptions = '<option value="">\u2014 Item \u2014</option>' +
-      itemTypesData.map(it => '<option value="' + it.id + '">' + it.label + '</option>').join('');
+  <!-- Template rendu serveur — les options sont garanties d'exister -->
+  <template id="rewardRowTpl">
+    <div class="reward-row">
+      <select name="__ITEM__">
+        <option value="">— Item —</option>
+        <% for (const it of itemTypes) { %>
+          <option value="<%= it.id %>"><%= (it.emoji || '') + ' ' + it.name %></option>
+        <% } %>
+      </select>
+      <input type="number" name="__QTY__" value="1" min="1" max="9999">
+      <button type="button" class="btn-sm btn-danger" onclick="this.parentElement.remove()">✕</button>
+    </div>
+  </template>
 
+  <script>
     function addRewardRow(containerId, nameItem, nameQty) {
-      const div = document.createElement('div');
-      div.className = 'reward-row';
-      const sel = document.createElement('select');
-      sel.name = nameItem;
-      sel.innerHTML = itemOptions;
-      const inp = document.createElement('input');
-      inp.type = 'number'; inp.name = nameQty; inp.value = '1'; inp.min = '1'; inp.max = '9999';
-      inp.style.cssText = 'padding:.3rem .6rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:.85rem;width:75px';
-      const btn = document.createElement('button');
-      btn.type = 'button'; btn.className = 'btn-sm btn-danger';
-      btn.textContent = '\u2715';
-      btn.onclick = function() { this.parentElement.remove(); };
-      div.appendChild(sel); div.appendChild(inp); div.appendChild(btn);
-      document.getElementById(containerId).appendChild(div);
+      const tmpl = document.getElementById('rewardRowTpl');
+      const clone = document.importNode(tmpl.content, true);
+      const row = clone.querySelector('.reward-row');
+      row.querySelector('select').name = nameItem;
+      row.querySelector('input[type=number]').name = nameQty;
+      document.getElementById(containerId).appendChild(clone);
     }
   </script>
 </body>
