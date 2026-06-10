@@ -1,0 +1,32 @@
+You reached the start of the range
+10 juin 2026 à 09:23
+2026-06-10 07:24:42.940 UTC [76] LOG:  checkpoint starting: time
+2026-06-10 07:24:43.231 UTC [76] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.217 s, sync=0.018 s, total=0.291 s; sync files=3, longest=0.016 s, average=0.006 s; distance=6 kB, estimate=773 kB; lsn=0/D4584130, redo lsn=0/D45840D8
+[Nitrado] svc=16705597 query.players: []
+[Nitrado] svc=14174616 query.players: []
+[Nitrado] fetchPlayerNamesViaApi svc=16705597: 500
+[Nitrado] /games/players svc=14174616: [{"name":"azogdu59","id":"00027efca88b40a986ade107eb4929f1","id_type":"arksa","online":true,"actions":["kick"]},{"name":"xPERSY59x","id":"00027cd5e72e4691a87874ec586d07dc","id_type":"arksa","online":true,"actions":["kick"]}]
+[Nitrado] svc=14174616 query.players: []
+[Nitrado] /games/players svc=14174616: [{"name":"azogdu59","id":"00027efca88b40a986ade107eb4929f1","id_type":"arksa","online":true,"actions":["kick"]},{"name":"xPERSY59x","id":"00027cd5e72e4691a87874ec586d07dc","id_type":"arksa","online":true,"actions":["kick"]}]
+[Nitrado] svc=16705597 query.players: []
+[Nitrado] fetchPlayerNamesViaApi svc=16705597: 500
+2026-06-10 07:29:42.330 UTC [76] LOG:  checkpoint starting: time
+2026-06-10 07:29:54.769 UTC [76] LOG:  checkpoint complete: wrote 124 buffers (0.8%); 0 WAL file(s) added, 0 removed, 0 recycled; write=12.358 s, sync=0.028 s, total=12.439 s; sync files=12, longest=0.028 s, average=0.003 s; distance=931 kB, estimate=931 kB; lsn=0/D466CDE0, redo lsn=0/D466CD50
+npm error path /app
+npm error command failed
+npm error signal SIGTERM
+npm error command sh -c node index.js
+npm error A complete log of this run can be found in: /root/.npm/_logs/2026-06-10T07_18_45_233Z-debug-0.log
+Stopping Container
+[2026-06-10 07:36:13] [INFO    ] discord.gateway: Shard ID None has successfully RESUMED session f716cfa4f164380de47fcc49950496fe.
+[RestartSched] Sync — 1 planning(s) actif(s)
+[Nitrado] svc=17261737 query.players: []
+[Nitrado] svc=16705597 query.players: []
+[Nitrado] svc=17465557 query.players: []
+[Nitrado] /games/players svc=17261737: [{"name":"tonton68100","id":"000210292875460694d78ac365311de7","id_type":"arksa","online":true,"actions":["kick"]}]
+[Nitrado] fetchPlayerNamesViaApi svc=16705597: 500
+[Nitrado] /games/players svc=17465557: [{"name":"xPERSY59x","id":"00027cd5e72e4691a87874ec586d07dc","id_type":"arksa","online":true,"actions":["kick"]}]
+[AdminQuiz] GET /admin-quiz atteint — role=admin discordUser=true
+[AdminQuiz] GET /admin-quiz atteint — role=admin discordUser=true
+2026-06-10 07:39:42.968 UTC [76] LOG:  checkpoint starting: time
+2026-06-10 07:39:43.971 UTC [76] LOG:  checkpoint complete: wrote 10 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.917 s, sync=0.037 s, total=1.003 s; sync files=8, longest=0.034 s, average=0.005 s; distance=26 kB, estimate=840 kB; lsn=0/D46736E8, redo lsn=0/D4673690
