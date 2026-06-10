@@ -371,11 +371,22 @@ async function handleReactionAdd(reaction, user) {
   // Stocker le nom du joueur au passage
   if (user.username) s.participantNames[user.id] = user.displayName || user.username;
 
+  // Fonction helper : message éphémère (auto-supprimé après 6s)
+  async function sendEphemeral(text) {
+    try {
+      const channel = reaction.message.channel
+        || await reaction.message.guild?.channels.fetch(s.channelId).catch(() => null);
+      if (!channel) return;
+      const msg = await channel.send({ content: `<@${user.id}> ${text}`, allowedMentions: { users: [user.id] } });
+      setTimeout(() => msg.delete().catch(() => {}), 6000);
+    } catch (_) {}
+  }
+
   // Joueur éliminé qui réagit quand même
   if (s.eliminated.includes(user.id)) {
     if (!s.dmSentThisQuestion[dmKey]) {
       s.dmSentThisQuestion[dmKey] = true;
-      user.send('❌ Tu as déjà été éliminé(e) du quiz — ta réponse ne sera pas comptée.').catch(() => {});
+      await sendEphemeral('❌ Tu as déjà été éliminé(e) — ta réponse ne sera pas comptée.');
       await saveState();
     }
     return;
@@ -385,7 +396,7 @@ async function handleReactionAdd(reaction, user) {
   if (idx > 0 && !s.participants.includes(user.id)) {
     if (!s.dmSentThisQuestion[dmKey]) {
       s.dmSentThisQuestion[dmKey] = true;
-      user.send('❌ Tu n\'as pas participé dès la première question — tu ne peux plus rejoindre le quiz en cours de route. Ta réponse ne sera pas comptée.').catch(() => {});
+      await sendEphemeral('❌ Tu n\'as pas participé depuis la Q1 — tu ne peux plus rejoindre le quiz. Ta réponse ne sera pas comptée.');
       await saveState();
     }
     return;
