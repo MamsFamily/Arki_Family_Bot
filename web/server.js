@@ -4734,7 +4734,28 @@ function createWebServer(discordClient) {
 
       let itemTypes = [];
       try { itemTypes = inventoryManager.getItemTypes ? inventoryManager.getItemTypes() : []; } catch (_) {}
-      console.log(`[AdminQuiz] itemTypes count=${itemTypes.length}`);
+
+      // Récupérer la liste des salons texte du serveur Discord
+      let quizChannels = [];
+      if (discordClient) {
+        try {
+          const settings = getSettings();
+          const guildId = settings?.guild?.guildId;
+          const guild = guildId ? await discordClient.guilds.fetch(guildId).catch(() => null) : null;
+          if (guild) {
+            const categories = guild.channels.cache.filter(ch => ch.type === 4).sort((a, b) => a.position - b.position);
+            quizChannels = [...guild.channels.cache.values()]
+              .filter(ch => ch.type === 0)
+              .sort((a, b) => {
+                const catA = a.parentId ? (categories.get(a.parentId)?.position ?? 999) : -1;
+                const catB = b.parentId ? (categories.get(b.parentId)?.position ?? 999) : -1;
+                return catA !== catB ? catA - catB : a.position - b.position;
+              })
+              .map(ch => ({ id: ch.id, name: ch.name, category: ch.parentId ? (categories.get(ch.parentId)?.name || '') : '' }));
+          }
+        } catch (_) {}
+      }
+
       const renderData = {
         path: '/admin-quiz',
         role: req.session.role,
@@ -4742,6 +4763,7 @@ function createWebServer(discordClient) {
         discordUser: req.session.discordUser || null,
         state,
         itemTypes,
+        quizChannels,
         success: req.query.success || null,
         error: req.query.error || null,
       };

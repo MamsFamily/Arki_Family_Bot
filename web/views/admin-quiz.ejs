@@ -81,13 +81,26 @@
           <% if (!state.active) { %>
             <form method="POST" action="/admin-quiz/start">
               <div class="form-row">
-                <label>Salon Discord (ID)</label>
-                <input type="text" name="channelId" placeholder="ex: 123456789012345678" required>
+                <label>Salon Discord</label>
+                <% if (quizChannels && quizChannels.length > 0) { %>
+                  <select name="channelId" required style="width:100%">
+                    <option value="">— Choisir un salon —</option>
+                    <% let lastCat = null; for (const ch of quizChannels) {
+                         if (ch.category !== lastCat) { lastCat = ch.category; %>
+                      <optgroup label="<%= ch.category || 'Sans catégorie' %>">
+                    <% } %>
+                        <option value="<%= ch.id %>">#<%= ch.name %></option>
+                    <% } %>
+                  </select>
+                <% } else { %>
+                  <input type="text" name="channelId" placeholder="ID du salon (bot non connecté)" required>
+                <% } %>
               </div>
-              <button type="submit" class="btn-sm btn-success" style="width:100%">▶ Démarrer une nouvelle session</button>
+              <button type="submit" class="btn-sm btn-success" style="width:100%;margin-top:.5rem">▶ Démarrer une nouvelle session</button>
             </form>
           <% } else { %>
-            <p style="margin:0 0 1rem;font-size:.9rem;">Session active dans <code>#<%= state.channelId %></code></p>
+            <% const activeCh = quizChannels && quizChannels.find(c => c.id === state.channelId); %>
+            <p style="margin:0 0 1rem;font-size:.9rem;">Session active dans <code>#<%= activeCh ? activeCh.name : state.channelId %></code></p>
             <div class="action-row">
               <form method="POST" action="/admin-quiz/publish-intro" style="flex:1">
                 <button type="submit" class="btn-sm btn-primary" style="width:100%">📢 Publier l'intro</button>
