@@ -115,6 +115,7 @@ function createWebServer(discordClient) {
         (req.session.role === 'admin' || req.session.role === 'staff')) {
       return next();
     }
+    console.warn(`[Auth] requireAdminOrStaff REFUSÉ ${req.path} — authenticated=${req.session?.authenticated} role=${req.session?.role} hasDiscordUser=${!!req.session?.discordUser}`);
     if (req.session && req.session.authenticated && req.session.discordUser) {
       return res.redirect('/');
     }
@@ -4701,6 +4702,7 @@ function createWebServer(discordClient) {
   // ══ ADMIN QUIZ ═══════════════════════════════════════════════════════════════
 
   app.get('/admin-quiz', requireAdminOrStaff, async (req, res) => {
+    console.log(`[AdminQuiz] GET /admin-quiz atteint — role=${req.session?.role} discordUser=${!!req.session?.discordUser}`);
     try {
       const state = adminQuizManager.getState();
       let itemTypes = [];
