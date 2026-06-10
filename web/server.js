@@ -4776,16 +4776,12 @@ function createWebServer(discordClient) {
 
   app.post('/admin-quiz/config-rpq', requireAdminOrStaff, async (req, res) => {
     try {
-      const NB_ROWS = 5;
-      const rewardPerQuestion = [];
-      for (let i = 0; i < NB_ROWS; i++) {
-        const itemId = (req.body[`rpq_itemId_${i}`] || '').trim();
-        const qty    = parseInt(req.body[`rpq_qty_${i}`]) || 1;
-        if (itemId) rewardPerQuestion.push({ itemId, quantity: qty });
-      }
+      const itemId = (req.body['rpq_itemId_0'] || '').trim();
+      const qty    = Math.max(1, parseInt(req.body['rpq_qty_0']) || 1);
+      const rewardPerQuestion = itemId ? [{ itemId, quantity: qty }] : [];
       console.log(`[AdminQuiz] config-rpq → ${JSON.stringify(rewardPerQuestion)}`);
       await adminQuizManager.updateConfig({ rewardPerQuestion });
-      res.redirect('/admin-quiz?success=Récompense+par+question+sauvegardée+!');
+      res.redirect('/admin-quiz?success=Gain+par+question+sauvegardé+!');
     } catch (e) {
       res.redirect('/admin-quiz?error=' + encodeURIComponent(e.message));
     }
@@ -4793,16 +4789,12 @@ function createWebServer(discordClient) {
 
   app.post('/admin-quiz/config-rf', requireAdminOrStaff, async (req, res) => {
     try {
-      const NB_ROWS = 5;
-      const rewardFinal = [];
-      for (let i = 0; i < NB_ROWS; i++) {
-        const itemId = (req.body[`rf_itemId_${i}`] || '').trim();
-        const qty    = parseInt(req.body[`rf_qty_${i}`]) || 1;
-        if (itemId) rewardFinal.push({ itemId, quantity: qty });
-      }
+      const itemId = (req.body['rf_itemId_0'] || '').trim();
+      const qty    = Math.max(1, parseInt(req.body['rf_qty_0']) || 1);
+      const rewardFinal = itemId ? [{ itemId, quantity: qty }] : [];
       console.log(`[AdminQuiz] config-rf → ${JSON.stringify(rewardFinal)}`);
       await adminQuizManager.updateConfig({ rewardFinal });
-      res.redirect('/admin-quiz?success=Récompense+finale+sauvegardée+!');
+      res.redirect('/admin-quiz?success=Gain+vainqueur+final+sauvegardé+!');
     } catch (e) {
       res.redirect('/admin-quiz?error=' + encodeURIComponent(e.message));
     }
