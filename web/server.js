@@ -4756,6 +4756,16 @@ function createWebServer(discordClient) {
     }
   });
 
+  app.get('/admin-quiz/state.json', requireAdminOrStaff, (req, res) => {
+    const s = adminQuizManager.getState();
+    res.json({
+      active: s.active,
+      config: s.config,
+      participants: s.participants?.length,
+      participantNames: s.participantNames,
+    });
+  });
+
   app.post('/admin-quiz/start', requireAdminOrStaff, async (req, res) => {
     try {
       const { channelId } = req.body;
