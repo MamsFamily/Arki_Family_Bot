@@ -51,6 +51,7 @@
 </head>
 <body>
   <%- include('sidebar', { path: '/admin-quiz', role: role, botUser: botUser, discordUser: discordUser }) %>
+  <div class="layout">
   <main class="main-content">
     <div class="page-header">
       <h1>🎯 Quiz — Connais-tu bien tes admins ?</h1>
@@ -297,6 +298,7 @@
       </div>
     </div>
   </main>
+  </div>
 
   <script>
     const itemOptions = `<option value="">— Item —</option>` + [

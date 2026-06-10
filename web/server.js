@@ -4707,7 +4707,7 @@ function createWebServer(discordClient) {
       const state = adminQuizManager.getState();
       let itemTypes = [];
       try { itemTypes = inventoryManager.getItemTypes ? inventoryManager.getItemTypes() : []; } catch (_) {}
-      res.render('admin-quiz', {
+      const renderData = {
         path: '/admin-quiz',
         role: req.session.role,
         botUser: discordClient?.user || null,
@@ -4716,6 +4716,14 @@ function createWebServer(discordClient) {
         itemTypes,
         success: req.query.success || null,
         error: req.query.error || null,
+      };
+      res.render('admin-quiz', renderData, (err, html) => {
+        if (err) {
+          console.error('[AdminQuiz] Erreur rendu EJS:', err.message, err.stack);
+          return res.status(500).send(`<pre>Erreur rendu Quiz Admins :\n${err.message}\n\n${err.stack}</pre>`);
+        }
+        console.log(`[AdminQuiz] Rendu OK — ${html.length} bytes envoyés`);
+        res.send(html);
       });
     } catch (e) {
       console.error('[AdminQuiz] Erreur GET /admin-quiz:', e.message, e.stack);
