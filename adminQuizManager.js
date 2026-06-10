@@ -106,6 +106,13 @@ async function removeQuestion(idx) {
   await saveState();
 }
 
+async function updateQuestionCorrect(idx, correct) {
+  const s = getState();
+  if (!s.questions[idx]) throw new Error('Question introuvable');
+  s.questions[idx].correct = parseInt(correct, 10);
+  await saveState();
+}
+
 async function updateConfig(cfg) {
   const s = getState();
   s.config = { ...s.config, ...cfg };
@@ -196,7 +203,8 @@ async function revealAnswer(guild) {
 
   const eliminatedNow = [];
   const rewardedUsers = [];
-  const itemTypes = await getItemTypes().catch(() => []);
+  let itemTypes = [];
+  try { itemTypes = getItemTypes() || []; } catch (_) {}
   const rewards = s.config.rewardPerQuestion || [];
 
   for (const [uid, reactions] of userReactions) {
@@ -303,7 +311,8 @@ async function distributeFinalReward(guild) {
   }
   const winnerId = activePlayers[0];
   const rewards = s.config.rewardFinal || [];
-  const itemTypes = await getItemTypes().catch(() => []);
+  let itemTypes = [];
+  try { itemTypes = getItemTypes() || []; } catch (_) {}
 
   for (const r of rewards) {
     if (!r.itemId || !r.quantity) continue;
@@ -391,6 +400,7 @@ module.exports = {
   stopSession,
   addQuestion,
   removeQuestion,
+  updateQuestionCorrect,
   updateConfig,
   publishIntro,
   publishQuestion,

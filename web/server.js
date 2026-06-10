@@ -4799,6 +4799,18 @@ function createWebServer(discordClient) {
     }
   });
 
+  app.post('/admin-quiz/update-correct', requireAdminOrStaff, async (req, res) => {
+    try {
+      const idx = parseInt(req.body.idx, 10);
+      const correct = parseInt(req.body.correct, 10);
+      if (isNaN(idx) || isNaN(correct) || correct < 0 || correct > 3) throw new Error('Paramètres invalides');
+      await adminQuizManager.updateQuestionCorrect(idx, correct);
+      res.redirect('/admin-quiz?success=Bonne+réponse+modifiée+!');
+    } catch (e) {
+      res.redirect('/admin-quiz?error=' + encodeURIComponent(e.message));
+    }
+  });
+
   app.post('/admin-quiz/publish-intro', requireAdminOrStaff, async (req, res) => {
     try {
       if (!discordClient) throw new Error('Bot Discord non connecté');

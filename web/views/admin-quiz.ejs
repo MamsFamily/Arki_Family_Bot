@@ -244,6 +244,16 @@
                 </div>
                 <div class="q-correct">✓ Réponse : <%= lts[q.correct] %></div>
                 <% if (q.published) { %><span style="font-size:.75rem;color:var(--accent)">📤 Publiée<%= q.revealed ? ' • ✅ Révélée' : '' %></span><% } %>
+                <form method="POST" action="/admin-quiz/update-correct" style="display:inline-flex;align-items:center;gap:.35rem;margin-top:.4rem">
+                  <input type="hidden" name="idx" value="<%= i %>">
+                  <select name="correct" style="padding:.2rem .4rem;border-radius:5px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:.78rem">
+                    <option value="0" <%= q.correct===0?'selected':'' %>>A</option>
+                    <option value="1" <%= q.correct===1?'selected':'' %>>B</option>
+                    <option value="2" <%= q.correct===2?'selected':'' %>>C</option>
+                    <option value="3" <%= q.correct===3?'selected':'' %>>D</option>
+                  </select>
+                  <button type="submit" class="btn-sm btn-secondary" style="font-size:.75rem;padding:.2rem .55rem">✏️ Changer réponse</button>
+                </form>
               </div>
               <form method="POST" action="/admin-quiz/remove-question" onsubmit="return confirm('Supprimer cette question ?')">
                 <input type="hidden" name="idx" value="<%= i %>">
