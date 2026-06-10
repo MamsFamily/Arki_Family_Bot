@@ -46,7 +46,10 @@ function createWebServer(discordClient) {
   pgStore.initPool();
   pgStore.initTables().then(async () => {
     await inventoryManager.initInventory().catch(e => console.error('[Inventory] initInventory au démarrage dashboard:', e.message));
-    await adminQuizManager.loadState().catch(e => console.error('[AdminQuiz] loadState au démarrage dashboard:', e.message));
+    // loadState uniquement si dashboard standalone (sans bot) — sinon index.js le fait après ready
+    if (!discordClient) {
+      await adminQuizManager.loadState().catch(e => console.error('[AdminQuiz] loadState au démarrage dashboard:', e.message));
+    }
   }).catch(() => {});
 
   app.set('view engine', 'ejs');
@@ -4754,16 +4757,6 @@ function createWebServer(discordClient) {
       console.error('[AdminQuiz] Erreur GET /admin-quiz:', e.message, e.stack);
       res.status(500).send('Erreur page Quiz Admins : ' + e.message);
     }
-  });
-
-  app.get('/admin-quiz/state.json', requireAdminOrStaff, (req, res) => {
-    const s = adminQuizManager.getState();
-    res.json({
-      active: s.active,
-      config: s.config,
-      participants: s.participants?.length,
-      participantNames: s.participantNames,
-    });
   });
 
   app.post('/admin-quiz/start', requireAdminOrStaff, async (req, res) => {

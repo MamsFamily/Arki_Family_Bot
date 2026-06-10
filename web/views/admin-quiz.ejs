@@ -47,14 +47,9 @@
     .section-sep { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
     .current-q-box { background: var(--bg); border: 1px solid var(--accent); border-radius: 8px; padding: .75rem 1rem; margin-bottom: 1rem; }
     .current-q-box .cq-label { font-size: .78rem; font-weight: 700; color: var(--accent); text-transform: uppercase; margin-bottom: .3rem; }
-    .reward-summary-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: .6rem .9rem; display: flex; flex-direction: column; gap: .4rem; }
-    .reward-summary-line { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
-    .rsb-label { font-size: .75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; min-width: 80px; }
-    .rsb-value { display: flex; gap: .35rem; flex-wrap: wrap; }
-    .reward-chip { display: inline-block; background: #7c5cfc22; color: var(--accent); border: 1px solid #7c5cfc55; border-radius: 20px; padding: .2rem .65rem; font-size: .8rem; font-weight: 600; }
-    details summary::-webkit-details-marker { display: none; }
-    details summary::before { content: '▶ '; font-size: .7rem; }
-    details[open] summary::before { content: '▼ '; }
+    .reward-section-title { margin: 0 0 .4rem; font-size: .88rem; font-weight: 700; color: var(--text); }
+    .reward-section-sub { font-weight: 400; color: var(--text-muted); font-size: .8rem; }
+    .reward-none-hint { color: var(--text-muted); font-size: .82rem; font-style: italic; margin: .25rem 0 .5rem; }
   </style>
 </head>
 <body>
@@ -136,42 +131,11 @@
         <div class="quiz-card" style="margin-top:1rem">
           <h2>🎁 Récompenses</h2>
 
-          <%
-            function rewardSummary(list, types) {
-              if (!list || list.length === 0) return null;
-              return list.map(r => {
-                const it = types.find(t => String(t.id) === String(r.itemId));
-                const label = it ? (it.emoji ? it.emoji + ' ' + it.name : it.name) : r.itemId;
-                return `<span class="reward-chip">${label} &times; ${r.quantity || 1}</span>`;
-              }).join('');
-            }
-            const rpqHtml = rewardSummary(state.config.rewardPerQuestion, itemTypes);
-            const rfHtml  = rewardSummary(state.config.rewardFinal, itemTypes);
-          %>
-
-          <div class="reward-summary-box">
-            <div class="reward-summary-line">
-              <span class="rsb-label">Par question</span>
-              <span class="rsb-value"><%- rpqHtml || '<em style="color:var(--text-muted)">Aucune</em>' %></span>
-            </div>
-            <div class="reward-summary-line">
-              <span class="rsb-label">Finale</span>
-              <span class="rsb-value"><%- rfHtml || '<em style="color:var(--text-muted)">Aucune</em>' %></span>
-            </div>
-          </div>
-          <details style="margin-top:.4rem">
-            <summary style="cursor:pointer;font-size:.7rem;color:var(--text-muted);user-select:none">🔍 Debug — état brut sauvegardé</summary>
-            <pre style="font-size:.7rem;color:var(--text-muted);background:var(--bg);border-radius:6px;padding:.5rem;margin-top:.4rem;overflow-x:auto"><%= JSON.stringify(state.config, null, 2) %></pre>
-            <p style="font-size:.7rem;color:var(--text-muted);margin:.25rem 0 0">Items disponibles dans le select : <%= itemTypes.length %> types chargés</p>
-          </details>
-
-          <details style="margin-top:.75rem">
-            <summary style="cursor:pointer;font-size:.85rem;font-weight:700;color:var(--text-muted);user-select:none">✏️ Modifier la config</summary>
-            <div style="margin-top:.75rem">
           <form method="POST" action="/admin-quiz/config">
-            <p style="margin:0 0 .5rem;font-size:.82rem;font-weight:700;color:var(--text-muted)">PAR QUESTION (pour chaque bonne réponse)</p>
+            <!-- ── Récompense par question ── -->
+            <p class="reward-section-title">🎯 Par question <span class="reward-section-sub">(pour chaque bonne réponse)</span></p>
             <div id="rewardPerQ">
-              <% for (const [i, r] of (state.config.rewardPerQuestion || []).entries()) { %>
+              <% for (const r of (state.config.rewardPerQuestion || [])) { %>
               <div class="reward-row">
                 <select name="rpq_itemId[]">
                   <option value="">— Item —</option>
@@ -183,13 +147,18 @@
                 <button type="button" class="btn-sm btn-danger" onclick="this.parentElement.remove()">✕</button>
               </div>
               <% } %>
+              <% if (!(state.config.rewardPerQuestion || []).length) { %>
+              <p class="reward-none-hint">Aucune récompense — clique "+ Ajouter" pour en configurer une</p>
+              <% } %>
             </div>
-            <button type="button" class="btn-sm btn-secondary" onclick="addRewardRow('rewardPerQ','rpq_itemId[]','rpq_quantity[]')" style="margin-bottom:.75rem">+ Ajouter item</button>
+            <button type="button" class="btn-sm btn-secondary" onclick="addRewardRow('rewardPerQ','rpq_itemId[]','rpq_quantity[]')">+ Ajouter item</button>
 
             <hr class="section-sep">
-            <p style="margin:0 0 .5rem;font-size:.82rem;font-weight:700;color:var(--text-muted)">FINALE (dernier survivant)</p>
+
+            <!-- ── Récompense finale ── -->
+            <p class="reward-section-title">🏆 Finale <span class="reward-section-sub">(dernier survivant)</span></p>
             <div id="rewardFinal">
-              <% for (const [i, r] of (state.config.rewardFinal || []).entries()) { %>
+              <% for (const r of (state.config.rewardFinal || [])) { %>
               <div class="reward-row">
                 <select name="rf_itemId[]">
                   <option value="">— Item —</option>
@@ -201,19 +170,22 @@
                 <button type="button" class="btn-sm btn-danger" onclick="this.parentElement.remove()">✕</button>
               </div>
               <% } %>
+              <% if (!(state.config.rewardFinal || []).length) { %>
+              <p class="reward-none-hint">Aucune récompense — clique "+ Ajouter" pour en configurer une</p>
+              <% } %>
             </div>
-            <button type="button" class="btn-sm btn-secondary" onclick="addRewardRow('rewardFinal','rf_itemId[]','rf_quantity[]')" style="margin-bottom:.75rem">+ Ajouter item</button>
+            <button type="button" class="btn-sm btn-secondary" onclick="addRewardRow('rewardFinal','rf_itemId[]','rf_quantity[]')">+ Ajouter item</button>
 
             <hr class="section-sep">
-            <p style="margin:0 0 .5rem;font-size:.82rem;font-weight:700;color:var(--text-muted)">MESSAGE D'INTRO</p>
+
+            <!-- ── Message d'intro ── -->
+            <p class="reward-section-title">💬 Message d'intro</p>
             <div class="form-row">
-              <textarea name="introMsg" rows="6"><%= state.config.introMsg || '' %></textarea>
+              <textarea name="introMsg" rows="5"><%= state.config.introMsg || '' %></textarea>
             </div>
 
-            <button type="submit" class="btn-sm btn-primary" style="width:100%">💾 Sauvegarder la config</button>
+            <button type="submit" class="btn-sm btn-primary" style="width:100%;margin-top:.25rem">💾 Sauvegarder la config</button>
           </form>
-            </div>
-          </details>
         </div>
 
       </div>
