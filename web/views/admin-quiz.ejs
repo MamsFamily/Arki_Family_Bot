@@ -106,8 +106,9 @@
           <div class="players-grid">
             <% for (const pid of state.participants) { %>
               <% const isElim = state.eliminated.includes(pid); %>
+              <% const pname = (state.participantNames && state.participantNames[pid]) || pid.slice(0,8) + '…'; %>
               <span class="player-chip <%= isElim ? 'chip-elim' : 'chip-active' %>" title="<%= pid %>">
-                <%= isElim ? '💀' : '✅' %> <span style="font-family:monospace;font-size:.75rem"><%= pid.slice(0,8) %>…</span>
+                <%= isElim ? '💀' : '✅' %> <%= pname %>
               </span>
             <% } %>
             <% if (state.participants.length === 0) { %>
@@ -134,7 +135,7 @@
                 <select name="rpq_itemId[]">
                   <option value="">— Item —</option>
                   <% for (const it of itemTypes) { %>
-                    <option value="<%= it.id %>" <%= r.itemId === it.id ? 'selected' : '' %>><%= it.emoji || '' %> <%= it.name %></option>
+                    <option value="<%= it.id %>" <%= String(r.itemId) === String(it.id) ? 'selected' : '' %>><%= it.emoji || '' %> <%= it.name %></option>
                   <% } %>
                 </select>
                 <input type="number" name="rpq_quantity[]" value="<%= r.quantity || 1 %>" min="1" max="9999">
@@ -152,7 +153,7 @@
                 <select name="rf_itemId[]">
                   <option value="">— Item —</option>
                   <% for (const it of itemTypes) { %>
-                    <option value="<%= it.id %>" <%= r.itemId === it.id ? 'selected' : '' %>><%= it.emoji || '' %> <%= it.name %></option>
+                    <option value="<%= it.id %>" <%= String(r.itemId) === String(it.id) ? 'selected' : '' %>><%= it.emoji || '' %> <%= it.name %></option>
                   <% } %>
                 </select>
                 <input type="number" name="rf_quantity[]" value="<%= r.quantity || 1 %>" min="1" max="9999">
@@ -311,20 +312,24 @@
   </div>
 
   <script>
-    const itemOptions = `<option value="">— Item —</option>` + [
-      <% for (const it of itemTypes) { %>
-      `<option value="<%= it.id %>"><%= (it.emoji || '') + ' ' + it.name %></option>`,
-      <% } %>
-    ].join('');
+    const itemTypesData = <%- JSON.stringify(itemTypes.map(it => ({ id: String(it.id), label: (it.emoji || '') + ' ' + it.name }))) %>;
+    const itemOptions = '<option value="">\u2014 Item \u2014</option>' +
+      itemTypesData.map(it => '<option value="' + it.id + '">' + it.label + '</option>').join('');
 
     function addRewardRow(containerId, nameItem, nameQty) {
       const div = document.createElement('div');
       div.className = 'reward-row';
-      div.innerHTML = `
-        <select name="${nameItem}">${itemOptions}</select>
-        <input type="number" name="${nameQty}" value="1" min="1" max="9999">
-        <button type="button" class="btn-sm btn-danger" onclick="this.parentElement.remove()">✕</button>
-      `;
+      const sel = document.createElement('select');
+      sel.name = nameItem;
+      sel.innerHTML = itemOptions;
+      const inp = document.createElement('input');
+      inp.type = 'number'; inp.name = nameQty; inp.value = '1'; inp.min = '1'; inp.max = '9999';
+      inp.style.cssText = 'padding:.3rem .6rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:.85rem;width:75px';
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'btn-sm btn-danger';
+      btn.textContent = '\u2715';
+      btn.onclick = function() { this.parentElement.remove(); };
+      div.appendChild(sel); div.appendChild(inp); div.appendChild(btn);
       document.getElementById(containerId).appendChild(div);
     }
   </script>

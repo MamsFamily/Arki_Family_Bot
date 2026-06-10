@@ -4767,6 +4767,7 @@ function createWebServer(discordClient) {
         .map((id, i) => ({ itemId: id, quantity: parseInt(rfQtys[i]) || 1 }))
         .filter(r => r.itemId);
 
+      console.log(`[AdminQuiz] Config save — rpqItems=${JSON.stringify(rpqItems)} rfItems=${JSON.stringify(rfItems)} rewardPerQuestion=${JSON.stringify(rewardPerQuestion)} rewardFinal=${JSON.stringify(rewardFinal)}`);
       await adminQuizManager.updateConfig({ introMsg, rewardPerQuestion, rewardFinal });
       res.redirect('/admin-quiz?success=Config+sauvegardée+!');
     } catch (e) {

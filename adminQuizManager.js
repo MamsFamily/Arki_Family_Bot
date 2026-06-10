@@ -20,6 +20,8 @@ function defaultState() {
     eliminated: [],
     distributed: [],
     finalDistributed: null,
+    participantNames: {},
+    dmSentThisQuestion: {},
     config: {
       introMsg: defaultIntroMsg(),
       rewardPerQuestion: [],
@@ -45,6 +47,8 @@ async function loadState() {
       if (!quizState.config.rewardFinal) quizState.config.rewardFinal = [];
       if (!quizState.questionMessages) quizState.questionMessages = {};
       if (!Array.isArray(quizState.distributed)) quizState.distributed = [];
+      if (!quizState.participantNames || typeof quizState.participantNames !== 'object') quizState.participantNames = {};
+      if (!quizState.dmSentThisQuestion || typeof quizState.dmSentThisQuestion !== 'object') quizState.dmSentThisQuestion = {};
       console.log('[AdminQuiz] \u00C9tat charg\u00E9 depuis PostgreSQL');
     } else {
       quizState = defaultState();
@@ -283,22 +287,33 @@ async function postReport(guild, report) {
   const channel = await guild.channels.fetch(s.channelId).catch(() => null);
   if (!channel) return;
 
-  const rewardLine = report.rewardedCount > 0 && report.rewardLabel !== '\u2014'
-    ? `\uD83C\uDF81 **${report.rewardedCount}** joueur(s) ont r\u00E9pondu correctement \u2014 **${report.rewardLabel}** distribu\u00E9(s) \u2705`
-    : `\uD83C\uDF81 **${report.rewardedCount}** joueur(s) ont r\u00E9pondu correctement`;
-
-  const desc = [
-    `\u2705 **Bonne r\u00E9ponse : ${report.correctLetter} \u2014 ${report.correctText}**`,
+  const lines = [
+    `✅ **Bonne réponse : ${report.correctLetter} — ${report.correctText}**`,
     '',
-    rewardLine,
-    `\uD83D\uDC80 **${report.eliminatedCount}** joueur(s) \u00E9limin\u00E9(s)`,
-    `\uD83D\uDC65 **${report.activePlayers}** joueur(s) encore en course`,
-  ].join('\n');
+  ];
+
+  if (report.rewardedCount > 0 && report.rewardLabel !== '—') {
+    lines.push(`🎁 **${report.rewardedCount}** joueur(s) ont bien répondu et reçoivent **${report.rewardLabel}** ✅`);
+  } else {
+    lines.push(`🎁 **${report.rewardedCount}** joueur(s) ont bien répondu`);
+  }
+
+  if (report.eliminatedCount > 0) {
+    lines.push(`💀 **${report.eliminatedCount}** joueur(s) éliminé(s) cette question`);
+  }
+
+  lines.push('');
+  lines.push(`👥 **${report.activePlayers}** joueur(s) encore en course :`);
+  if (report.activePlayerIds && report.activePlayerIds.length > 0) {
+    lines.push(report.activePlayerIds.map(id => `<@${id}>`).join(' '));
+  } else {
+    lines.push('*Personne — fin du quiz !*');
+  }
 
   const embed = new EmbedBuilder()
     .setColor(0x2ecc71)
-    .setTitle(`\uD83D\uDCCA R\u00E9sultats \u2014 Question ${report.questionIdx + 1}`)
-    .setDescription(desc);
+    .setTitle(`📊 Résultats — Question ${report.questionIdx + 1}`)
+    .setDescription(lines.join('\n'));
 
   await channel.send({ embeds: [embed] }).catch(() => {});
 }
@@ -351,6 +366,31 @@ async function handleReactionAdd(reaction, user) {
   if (!msgId || reaction.message.id !== msgId) return;
   if (!EMOJIS.includes(reaction.emoji.name)) return;
 
+  const dmKey = `${user.id}_${idx}`;
+
+  // Stocker le nom du joueur au passage
+  if (user.username) s.participantNames[user.id] = user.displayName || user.username;
+
+  // Joueur éliminé qui réagit quand même
+  if (s.eliminated.includes(user.id)) {
+    if (!s.dmSentThisQuestion[dmKey]) {
+      s.dmSentThisQuestion[dmKey] = true;
+      user.send('❌ Tu as déjà été éliminé(e) du quiz — ta réponse ne sera pas comptée.').catch(() => {});
+      await saveState();
+    }
+    return;
+  }
+
+  // Joueur non-participant qui réagit à partir de Q2
+  if (idx > 0 && !s.participants.includes(user.id)) {
+    if (!s.dmSentThisQuestion[dmKey]) {
+      s.dmSentThisQuestion[dmKey] = true;
+      user.send('❌ Tu n\'as pas participé dès la première question — tu ne peux plus rejoindre le quiz en cours de route. Ta réponse ne sera pas comptée.').catch(() => {});
+      await saveState();
+    }
+    return;
+  }
+
   const msg = reaction.message.partial ? await reaction.message.fetch().catch(() => null) : reaction.message;
   if (!msg) return;
   let count = 0;
@@ -363,7 +403,7 @@ async function handleReactionAdd(reaction, user) {
   if (count > 1 && s.participants.includes(user.id) && !s.eliminated.includes(user.id)) {
     s.eliminated.push(user.id);
     await saveState();
-    user.send('\u26A0\uFE0F Tu as maintenu plusieurs r\u00E9ponses dans le quiz \u2014 tu es \u00E9limin\u00E9(e) !').catch(() => {});
+    user.send('⚠️ Tu as maintenu plusieurs réponses dans le quiz — tu es éliminé(e) !').catch(() => {});
   }
 }
 
