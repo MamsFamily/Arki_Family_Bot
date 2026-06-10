@@ -44,7 +44,9 @@ function createWebServer(discordClient) {
 
   // Init PostgreSQL si disponible (partagé avec Railway)
   pgStore.initPool();
-  pgStore.initTables().catch(() => {});
+  pgStore.initTables().then(() => {
+    adminQuizManager.loadState().catch(e => console.error('[AdminQuiz] loadState au démarrage dashboard:', e.message));
+  }).catch(() => {});
 
   app.set('view engine', 'ejs');
   app.set('views', path.join(__dirname, 'views'));
