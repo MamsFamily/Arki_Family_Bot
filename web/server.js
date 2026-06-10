@@ -4776,18 +4776,16 @@ function createWebServer(discordClient) {
 
   app.post('/admin-quiz/config-rpq', requireAdminOrStaff, async (req, res) => {
     try {
-      console.log(`[AdminQuiz] config-rpq raw body: ${JSON.stringify(req.body)}`);
-      const rpqItems = [].concat(req.body['rpq_itemId[]'] || []);
-      const rpqQtys  = [].concat(req.body['rpq_quantity[]'] || []);
-      const rewardPerQuestion = rpqItems
-        .map((id, i) => ({ itemId: id, quantity: parseInt(rpqQtys[i]) || 1 }))
-        .filter(r => r.itemId);
-      console.log(`[AdminQuiz] config-rpq parsed → ${JSON.stringify(rewardPerQuestion)}`);
+      const NB_ROWS = 5;
+      const rewardPerQuestion = [];
+      for (let i = 0; i < NB_ROWS; i++) {
+        const itemId = (req.body[`rpq_itemId_${i}`] || '').trim();
+        const qty    = parseInt(req.body[`rpq_qty_${i}`]) || 1;
+        if (itemId) rewardPerQuestion.push({ itemId, quantity: qty });
+      }
+      console.log(`[AdminQuiz] config-rpq → ${JSON.stringify(rewardPerQuestion)}`);
       await adminQuizManager.updateConfig({ rewardPerQuestion });
-      const afterSave = adminQuizManager.getState().config.rewardPerQuestion;
-      console.log(`[AdminQuiz] config-rpq after updateConfig → ${JSON.stringify(afterSave)}`);
-      const saved = encodeURIComponent(JSON.stringify(afterSave));
-      res.redirect(`/admin-quiz?success=Sauvegardé+:+${saved}`);
+      res.redirect('/admin-quiz?success=Récompense+par+question+sauvegardée+!');
     } catch (e) {
       res.redirect('/admin-quiz?error=' + encodeURIComponent(e.message));
     }
@@ -4795,18 +4793,16 @@ function createWebServer(discordClient) {
 
   app.post('/admin-quiz/config-rf', requireAdminOrStaff, async (req, res) => {
     try {
-      console.log(`[AdminQuiz] config-rf raw body: ${JSON.stringify(req.body)}`);
-      const rfItems = [].concat(req.body['rf_itemId[]'] || []);
-      const rfQtys  = [].concat(req.body['rf_quantity[]'] || []);
-      const rewardFinal = rfItems
-        .map((id, i) => ({ itemId: id, quantity: parseInt(rfQtys[i]) || 1 }))
-        .filter(r => r.itemId);
-      console.log(`[AdminQuiz] config-rf parsed → ${JSON.stringify(rewardFinal)}`);
+      const NB_ROWS = 5;
+      const rewardFinal = [];
+      for (let i = 0; i < NB_ROWS; i++) {
+        const itemId = (req.body[`rf_itemId_${i}`] || '').trim();
+        const qty    = parseInt(req.body[`rf_qty_${i}`]) || 1;
+        if (itemId) rewardFinal.push({ itemId, quantity: qty });
+      }
+      console.log(`[AdminQuiz] config-rf → ${JSON.stringify(rewardFinal)}`);
       await adminQuizManager.updateConfig({ rewardFinal });
-      const afterSave = adminQuizManager.getState().config.rewardFinal;
-      console.log(`[AdminQuiz] config-rf after updateConfig → ${JSON.stringify(afterSave)}`);
-      const saved = encodeURIComponent(JSON.stringify(afterSave));
-      res.redirect(`/admin-quiz?success=Sauvegardé+:+${saved}`);
+      res.redirect('/admin-quiz?success=Récompense+finale+sauvegardée+!');
     } catch (e) {
       res.redirect('/admin-quiz?error=' + encodeURIComponent(e.message));
     }
