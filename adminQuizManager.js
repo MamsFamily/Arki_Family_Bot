@@ -75,20 +75,23 @@ function getActivePlayers() {
 }
 
 async function startSession(config) {
+  const savedConfig = getState().config; // préserver le config (récompenses, intro) entre sessions
   quizState = defaultState();
   quizState.active = true;
   quizState.channelId = config.channelId;
   quizState.config = {
-    introMsg: config.introMsg || defaultIntroMsg(),
-    rewardPerQuestion: config.rewardPerQuestion || [],
-    rewardFinal: config.rewardFinal || [],
+    introMsg: config.introMsg || savedConfig?.introMsg || defaultIntroMsg(),
+    rewardPerQuestion: config.rewardPerQuestion || savedConfig?.rewardPerQuestion || [],
+    rewardFinal: config.rewardFinal || savedConfig?.rewardFinal || [],
   };
   await saveState();
   return quizState;
 }
 
 async function stopSession() {
+  const savedConfig = getState().config; // préserver le config après arrêt de session
   quizState = defaultState();
+  quizState.config = savedConfig || defaultState().config;
   await saveState();
 }
 
