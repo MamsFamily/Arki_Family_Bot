@@ -5468,7 +5468,8 @@ client.on('interactionCreate', async interaction => {
     const messageId = interaction.customId.slice('poll_modal_'.length);
     const text = interaction.fields.getTextInputValue('poll_text').trim();
     try {
-      const poll = await pollManager.addOption(messageId, text, interaction.user.id);
+      const displayName = interaction.member?.displayName || interaction.user.displayName || interaction.user.username;
+      const poll = await pollManager.addOption(messageId, text, interaction.user.id, displayName);
       const channel = await interaction.client.channels.fetch(poll.channelId).catch(() => null);
       if (channel) {
         const msg = await channel.messages.fetch(messageId).catch(() => null);

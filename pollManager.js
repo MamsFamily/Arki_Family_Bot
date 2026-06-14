@@ -28,14 +28,14 @@ async function savePoll(poll) {
   await pgStore.setData(pgKey(poll.messageId), poll);
 }
 
-async function addOption(messageId, text, userId) {
+async function addOption(messageId, text, userId, username) {
   const poll = await getPoll(messageId);
   if (!poll) throw new Error('Sondage introuvable.');
   if (poll.closed) throw new Error('Ce sondage est clôturé.');
   if (poll.options.length >= MAX_OPTIONS) throw new Error(`Maximum ${MAX_OPTIONS} réponses atteint.`);
   const dup = poll.options.find(o => o.text.toLowerCase().trim() === text.toLowerCase().trim());
   if (dup) throw new Error('Cette réponse existe déjà dans le sondage.');
-  poll.options.push({ id: poll.options.length, text: text.trim(), voters: [userId] });
+  poll.options.push({ id: poll.options.length, text: text.trim(), voters: [userId], addedBy: username || userId });
   await savePoll(poll);
   return poll;
 }
@@ -64,7 +64,8 @@ async function closePoll(messageId) {
 function buildEmbed(poll) {
   let desc = '';
   for (let i = 0; i < poll.options.length; i++) {
-    desc += `${LETTERS[i]} ${poll.options[i].text}\n`;
+    const opt = poll.options[i];
+    desc += `${LETTERS[i]} **${opt.text}** — *ajouté par ${opt.addedBy || '?'}*\n`;
   }
   if (!desc) desc = '*Aucune réponse pour l\'instant — soyez le premier à en ajouter une !*';
 
