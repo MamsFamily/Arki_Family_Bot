@@ -5385,7 +5385,7 @@ client.on('guildMemberRemove', async (member) => {
 // ══ SONDAGE (Poll) ═══════════════════════════════════════════════════════════
 client.on('interactionCreate', async interaction => {
   // ── /sondage ──
-  if (interaction.isChatInputCommand() && interaction.commandName === 'sondage') {
+  if (interaction.isChatInputCommand() && interaction.commandName === 'sondage_autonome') {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
       return interaction.reply({ content: '❌ Réservé aux admins et modérateurs.', ephemeral: true });
     }

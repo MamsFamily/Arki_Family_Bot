@@ -429,8 +429,8 @@ const commands = [
     description: '🎯 Affiche les joueurs encore en course dans le quiz admin (Admin)',
   },
   {
-    name: 'sondage',
-    description: '📊 Crée un sondage où les joueurs peuvent ajouter leurs propres réponses (Admin/Modo)',
+    name: 'sondage_autonome',
+    description: '📊 Crée un sondage où les joueurs ajoutent leurs propres réponses (Admin/Modo)',
     options: [
       {
         name: 'question',

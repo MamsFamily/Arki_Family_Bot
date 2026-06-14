@@ -62,17 +62,10 @@ async function closePoll(messageId) {
 }
 
 function buildEmbed(poll) {
-  const totalVotes = poll.options.reduce((sum, o) => sum + o.voters.length, 0);
-
   let desc = '';
   for (let i = 0; i < poll.options.length; i++) {
-    const opt = poll.options[i];
-    const count = opt.voters.length;
-    const filled = totalVotes > 0 ? Math.round((count / totalVotes) * 10) : 0;
-    const bar = '█'.repeat(filled) + '░'.repeat(10 - filled);
-    desc += `${LETTERS[i]} **${opt.text}**\n${bar} **${count}** vote${count !== 1 ? 's' : ''}\n\n`;
+    desc += `${LETTERS[i]} ${poll.options[i].text}\n`;
   }
-
   if (!desc) desc = '*Aucune réponse pour l\'instant — soyez le premier à en ajouter une !*';
 
   return new EmbedBuilder()
@@ -80,29 +73,15 @@ function buildEmbed(poll) {
     .setTitle(`📊 ${poll.question}`)
     .setDescription(desc.trimEnd())
     .setFooter({ text: poll.closed
-      ? `🔒 Sondage clôturé · ${totalVotes} vote${totalVotes !== 1 ? 's' : ''} au total`
-      : `Cliquez sur une lettre pour voter · ➕ pour ajouter votre propre réponse`,
+      ? `🔒 Sondage clôturé · ${poll.options.length} réponse${poll.options.length !== 1 ? 's' : ''}`
+      : `Cliquez sur ➕ pour ajouter votre propre réponse`,
     });
 }
 
 function buildComponents(poll) {
-  const rows = [];
-
-  if (!poll.closed && poll.options.length > 0) {
-    const voteBtns = poll.options.slice(0, MAX_OPTIONS).map((_, i) =>
-      new ButtonBuilder()
-        .setCustomId(`poll_vote_${poll.messageId}_${i}`)
-        .setLabel(String.fromCharCode(65 + i))
-        .setEmoji(LETTERS[i])
-        .setStyle(ButtonStyle.Secondary)
-    );
-    for (let i = 0; i < voteBtns.length; i += 4) {
-      rows.push(new ActionRowBuilder().addComponents(voteBtns.slice(i, i + 4)));
-    }
-  }
-
-  if (!poll.closed) {
-    rows.push(new ActionRowBuilder().addComponents(
+  if (poll.closed) return [];
+  return [
+    new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`poll_add_${poll.messageId}`)
         .setLabel('Ajouter ma réponse')
@@ -113,10 +92,8 @@ function buildComponents(poll) {
         .setLabel('Clore le sondage')
         .setStyle(ButtonStyle.Danger)
         .setEmoji('🔒'),
-    ));
-  }
-
-  return rows;
+    ),
+  ];
 }
 
 module.exports = { createPoll, getPoll, savePoll, addOption, toggleVote, closePoll, buildEmbed, buildComponents };
