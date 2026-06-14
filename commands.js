@@ -428,6 +428,18 @@ const commands = [
     name: 'encore-en-course',
     description: '🎯 Affiche les joueurs encore en course dans le quiz admin (Admin)',
   },
+  {
+    name: 'sondage',
+    description: '📊 Crée un sondage où les joueurs peuvent ajouter leurs propres réponses (Admin/Modo)',
+    options: [
+      {
+        name: 'question',
+        type: 3,
+        description: 'La question posée dans le sondage',
+        required: true,
+      },
+    ],
+  },
 ];
 
 module.exports = commands;

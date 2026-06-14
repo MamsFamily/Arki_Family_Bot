@@ -48,6 +48,7 @@ const boosterReproManager = require('./boosterReproManager');
 const birthdayManager    = require('./birthdayManager');
 const infinityRoadManager = require('./infinityRoadManager');
 const adminQuizManager    = require('./adminQuizManager');
+const pollManager         = require('./pollManager');
 
 
 const openaiConfig = {};
@@ -5377,6 +5378,107 @@ client.on('guildMemberRemove', async (member) => {
     }
   } catch (err) {
     console.error('[SpawnTicket] guildMemberRemove auto-message error:', err.message);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ══ SONDAGE (Poll) ═══════════════════════════════════════════════════════════
+client.on('interactionCreate', async interaction => {
+  // ── /sondage ──
+  if (interaction.isChatInputCommand() && interaction.commandName === 'sondage') {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+      return interaction.reply({ content: '❌ Réservé aux admins et modérateurs.', ephemeral: true });
+    }
+    const question = interaction.options.getString('question');
+    try {
+      const tmp = { messageId: '0', channelId: interaction.channelId, question, options: [], closed: false, createdBy: interaction.user.id, createdAt: Date.now() };
+      const msg = await interaction.reply({
+        embeds: [pollManager.buildEmbed(tmp)],
+        components: pollManager.buildComponents(tmp),
+        fetchReply: true,
+      });
+      const poll = await pollManager.createPoll({ messageId: msg.id, channelId: interaction.channelId, question, createdBy: interaction.user.id });
+      await msg.edit({ embeds: [pollManager.buildEmbed(poll)], components: pollManager.buildComponents(poll) });
+    } catch (err) {
+      console.error('[Poll] Erreur création sondage:', err);
+      try { await interaction.followUp({ content: '❌ Erreur lors de la création du sondage.', ephemeral: true }); } catch {}
+    }
+    return;
+  }
+
+  // ── Boutons poll ──
+  if (interaction.isButton()) {
+    const id = interaction.customId;
+
+    // Voter pour une option
+    if (id.startsWith('poll_vote_')) {
+      const parts = id.split('_'); // ['poll','vote','<msgId>','<idx>']
+      const optionIdx = parseInt(parts[parts.length - 1]);
+      const messageId = parts.slice(2, -1).join('_');
+      try {
+        const poll = await pollManager.toggleVote(messageId, optionIdx, interaction.user.id);
+        const hasVote = poll.options[optionIdx]?.voters.includes(interaction.user.id);
+        await interaction.update({ embeds: [pollManager.buildEmbed(poll)], components: pollManager.buildComponents(poll) });
+        await interaction.followUp({ content: hasVote ? `✅ Vote enregistré pour **${poll.options[optionIdx]?.text}** !` : `↩️ Vote retiré pour **${poll.options[optionIdx]?.text}**.`, ephemeral: true });
+      } catch (err) {
+        try { await interaction.reply({ content: `❌ ${err.message}`, ephemeral: true }); } catch {}
+      }
+      return;
+    }
+
+    // Ajouter une réponse → ouvre un modal
+    if (id.startsWith('poll_add_')) {
+      const messageId = id.slice('poll_add_'.length);
+      const { ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+      const modal = new ModalBuilder()
+        .setCustomId(`poll_modal_${messageId}`)
+        .setTitle('Ajouter une réponse');
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId('poll_text')
+            .setLabel('Votre réponse')
+            .setStyle(TextInputStyle.Short)
+            .setMaxLength(100)
+            .setRequired(true)
+        )
+      );
+      await interaction.showModal(modal);
+      return;
+    }
+
+    // Clore le sondage
+    if (id.startsWith('poll_close_')) {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+        return interaction.reply({ content: '❌ Réservé aux admins et modérateurs.', ephemeral: true });
+      }
+      const messageId = id.slice('poll_close_'.length);
+      try {
+        const poll = await pollManager.closePoll(messageId);
+        await interaction.update({ embeds: [pollManager.buildEmbed(poll)], components: [] });
+      } catch (err) {
+        try { await interaction.reply({ content: `❌ ${err.message}`, ephemeral: true }); } catch {}
+      }
+      return;
+    }
+  }
+
+  // ── Modal : ajout de réponse ──
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('poll_modal_')) {
+    const messageId = interaction.customId.slice('poll_modal_'.length);
+    const text = interaction.fields.getTextInputValue('poll_text').trim();
+    try {
+      const poll = await pollManager.addOption(messageId, text, interaction.user.id);
+      const channel = await interaction.client.channels.fetch(poll.channelId).catch(() => null);
+      if (channel) {
+        const msg = await channel.messages.fetch(messageId).catch(() => null);
+        if (msg) await msg.edit({ embeds: [pollManager.buildEmbed(poll)], components: pollManager.buildComponents(poll) });
+      }
+      await interaction.reply({ content: `✅ Réponse **${text}** ajoutée et votée !`, ephemeral: true });
+    } catch (err) {
+      try { await interaction.reply({ content: `❌ ${err.message}`, ephemeral: true }); } catch {}
+    }
+    return;
   }
 });
 
