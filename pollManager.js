@@ -33,6 +33,8 @@ async function addOption(messageId, text, userId, username) {
   if (!poll) throw new Error('Sondage introuvable.');
   if (poll.closed) throw new Error('Ce sondage est clôturé.');
   if (poll.options.length >= MAX_OPTIONS) throw new Error(`Maximum ${MAX_OPTIONS} réponses atteint.`);
+  const alreadyAdded = poll.options.some(o => o.voters.includes(userId));
+  if (alreadyAdded) throw new Error('Tu as déjà ajouté une réponse à ce sondage.');
   const dup = poll.options.find(o => o.text.toLowerCase().trim() === text.toLowerCase().trim());
   if (dup) throw new Error('Cette réponse existe déjà dans le sondage.');
   poll.options.push({ id: poll.options.length, text: text.trim(), voters: [userId], addedBy: username || userId });
