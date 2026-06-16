@@ -153,7 +153,13 @@
 
       <!-- ══ Classement ══ -->
       <div class="ps-card">
-        <h2>🏆 Classement des parieurs</h2>
+        <h2 style="justify-content:space-between;">
+          <span>🏆 Classement des parieurs</span>
+          <form method="POST" action="/paris-sportifs/reset-classement" style="margin:0;"
+                onsubmit="return confirm('Réinitialiser le classement ? Toutes les stats seront effacées définitivement.')">
+            <button type="submit" class="btn-sm btn-danger">🔄 Réinitialiser</button>
+          </form>
+        </h2>
         <% if (!leaderboard || leaderboard.length === 0) { %>
           <p style="color:var(--text-muted);font-size:.9rem;">Aucun pari résolu pour l'instant.</p>
         <% } else { %>

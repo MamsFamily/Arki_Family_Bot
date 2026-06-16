@@ -31,6 +31,10 @@ async function getLeaderboard() {
   return (await pgStore.getData(pgLeaderboardKey())) || {};
 }
 
+async function resetLeaderboard() {
+  await pgStore.setData(pgLeaderboardKey(), {});
+}
+
 async function updateLeaderboard(userId, username, gain) {
   const lb = await getLeaderboard();
   if (!lb[userId]) lb[userId] = { username, totalGain: 0, wins: 0, losses: 0, bets: 0 };
@@ -252,5 +256,5 @@ module.exports = {
   createMatch, getMatch, saveMatch, getAllMatches,
   placeBet, closeMatch, resolveMatch, deleteMatch,
   buildMatchEmbed, buildMatchComponents, buildResultEmbed, buildLeaderboardEmbed,
-  getLeaderboard,
+  getLeaderboard, resetLeaderboard,
 };

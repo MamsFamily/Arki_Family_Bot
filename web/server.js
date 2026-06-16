@@ -5114,6 +5114,15 @@ function createWebServer(discordClient) {
     }
   });
 
+  app.post('/paris-sportifs/reset-classement', requireAdmin, async (req, res) => {
+    try {
+      await bettingManager.resetLeaderboard();
+      res.redirect('/paris-sportifs?success=' + encodeURIComponent('Classement réinitialisé avec succès.'));
+    } catch (e) {
+      res.redirect('/paris-sportifs?error=' + encodeURIComponent(e.message));
+    }
+  });
+
   // ─────────────────────────────────────────────────────────────────────────────
 
   // Les timers et la publication Discord des giveaways sont gérés
