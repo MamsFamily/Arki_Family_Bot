@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Paris Sportifs — Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .ps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 900px) { .ps-grid { grid-template-columns: 1fr; } }
+    .ps-card { background: var(--card-bg); border-radius: 12px; padding: 1.5rem; border: 1px solid var(--border); }
+    .ps-card h2 { margin: 0 0 1rem; font-size: 1.1rem; display: flex; align-items: center; gap: .5rem; }
+    .cmd-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    .cmd-table th { text-align: left; padding: .5rem .75rem; border-bottom: 2px solid var(--border); color: var(--text-muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+    .cmd-table td { padding: .55rem .75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .cmd-table tr:last-child td { border-bottom: none; }
+    .cmd-name { font-family: monospace; font-size: .88rem; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: .15rem .5rem; white-space: nowrap; color: var(--accent); }
+    .badge { display: inline-block; padding: .2rem .55rem; border-radius: 20px; font-size: .75rem; font-weight: 700; }
+    .badge-admin { background: #e74c3c22; color: #e74c3c; border: 1px solid #e74c3c; }
+    .badge-all { background: #27ae6022; color: #27ae60; border: 1px solid #27ae60; }
+    .mult-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .mult-card { background: var(--bg); border-radius: 8px; padding: 1rem; border: 1px solid var(--border); text-align: center; }
+    .mult-card .mult-val { font-size: 2rem; font-weight: 800; color: var(--accent); }
+    .mult-card .mult-label { font-size: .82rem; color: var(--text-muted); margin-top: .25rem; }
+    .match-list { display: flex; flex-direction: column; gap: .75rem; }
+    .match-item { background: var(--bg); border-radius: 8px; padding: .85rem 1rem; border: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+    .match-item .match-name { font-weight: 700; }
+    .match-item .match-meta { font-size: .82rem; color: var(--text-muted); }
+    .match-status { font-size: .78rem; font-weight: 700; padding: .2rem .6rem; border-radius: 20px; }
+    .status-open { background: #27ae6022; color: #27ae60; border: 1px solid #27ae60; }
+    .status-closed { background: #e67e2222; color: #e67e22; border: 1px solid #e67e22; }
+    .status-resolved { background: #3498db22; color: #3498db; border: 1px solid #3498db; }
+    .match-actions { display: flex; gap: .4rem; }
+    .btn-sm { padding: .3rem .7rem; font-size: .8rem; border-radius: 6px; border: none; cursor: pointer; font-weight: 600; }
+    .btn-danger { background: #e74c3c; color: #fff; }
+    .btn-warning { background: #f39c12; color: #fff; }
+    .alert { padding: .75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: .9rem; }
+    .alert-success { background: #27ae6022; border: 1px solid #27ae60; color: #27ae60; }
+    .alert-error { background: #e74c3c22; border: 1px solid #e74c3c; color: #e74c3c; }
+    .lb-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    .lb-table th { text-align: left; padding: .5rem .75rem; border-bottom: 2px solid var(--border); color: var(--text-muted); font-size: .78rem; text-transform: uppercase; }
+    .lb-table td { padding: .55rem .75rem; border-bottom: 1px solid var(--border); }
+    .lb-table tr:last-child td { border-bottom: none; }
+    .gain-pos { color: #27ae60; font-weight: 700; }
+    .gain-neg { color: #e74c3c; font-weight: 700; }
+    .full-width { grid-column: 1 / -1; }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <%- include('sidebar') %>
+  <main class="main-content">
+    <div class="page-header">
+      <h1>⚽ Paris Sportifs</h1>
+      <p class="page-subtitle">Consultez les matchs en cours et le classement des parieurs</p>
+    </div>
+
+    <% if (typeof flash !== 'undefined' && flash) { %>
+      <div class="alert alert-<%= flash.type %>"><%= flash.msg %></div>
+    <% } %>
+
+    <div class="ps-grid">
+
+      <!-- ── Mémo des commandes Discord ── -->
+      <div class="ps-card full-width">
+        <h2>📋 Mémo — Commandes Discord</h2>
+        <table class="cmd-table">
+          <thead>
+            <tr>
+              <th>Commande</th>
+              <th>Accès</th>
+              <th>Description</th>
+              <th>Options</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="cmd-name">/pari-créer</span></td>
+              <td><span class="badge badge-admin">Admin</span></td>
+              <td>Crée un match et publie l'embed dans le salon choisi</td>
+              <td style="font-size:.8rem;color:var(--text-muted)">
+                <code>nom</code> · <code>equipe_a</code> · <code>equipe_b</code> · <code>deadline</code> (ex&nbsp;: <em>2026-06-15 20:45</em>) ·
+                <code>salon</code> · <code>mise_min</code> · <code>mise_max</code> · <code>mult_equipe</code> (défaut&nbsp;×1.5) · <code>mult_exact</code> (défaut&nbsp;×4.0)
+              </td>
+            </tr>
+            <tr>
+              <td><span class="cmd-name">/pari-fermer</span></td>
+              <td><span class="badge badge-admin">Admin</span></td>
+              <td>Ferme manuellement les paris d'un match (les paris ferment aussi automatiquement à la deadline)</td>
+              <td style="font-size:.8rem;color:var(--text-muted)"><code>match_id</code> — l'ID affiché lors de la création</td>
+            </tr>
+            <tr>
+              <td><span class="cmd-name">/pari-résoudre</span></td>
+              <td><span class="badge badge-admin">Admin</span></td>
+              <td>Entre le score officiel, calcule et distribue les gains en 💎 automatiquement</td>
+              <td style="font-size:.8rem;color:var(--text-muted)">
+                <code>match_id</code> · <code>vainqueur</code> (nom de l'équipe ou <em>Nul</em>) · <code>score</code> (ex&nbsp;: <em>2-1</em>)
+              </td>
+            </tr>
+            <tr>
+              <td><span class="cmd-name">/pari-classement</span></td>
+              <td><span class="badge badge-all">Tout le monde</span></td>
+              <td>Affiche le top 15 des parieurs avec gains/pertes cumulés</td>
+              <td style="font-size:.8rem;color:var(--text-muted)">—</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Rappel multiplicateurs -->
+        <div style="margin-top:1.25rem;">
+          <p style="font-size:.85rem;font-weight:700;margin-bottom:.75rem;color:var(--text-muted)">MULTIPLICATEURS PAR DÉFAUT</p>
+          <div class="mult-grid">
+            <div class="mult-card">
+              <div class="mult-val">×1.5</div>
+              <div class="mult-label">✅ Bonne équipe<br>(configurables à la création)</div>
+            </div>
+            <div class="mult-card">
+              <div class="mult-val">×4.0</div>
+              <div class="mult-label">🎯 Score exact<br>(configurables à la création)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Règles -->
+        <div style="margin-top:1.25rem;background:var(--bg);border-radius:8px;padding:1rem;border:1px solid var(--border);font-size:.87rem;line-height:1.7;">
+          <strong>📌 Règles du système</strong><br>
+          • Chaque joueur ne peut placer qu'<strong>un seul pari par match</strong>.<br>
+          • La mise est <strong>débitée immédiatement</strong> de l'inventaire du joueur à la soumission.<br>
+          • Les paris se ferment <strong>automatiquement</strong> à la deadline configurée.<br>
+          • Si un joueur perd, ses diamants ne sont pas remboursés.<br>
+          • Les gains sont crédités automatiquement lors du <code>/pari-résoudre</code>.
+        </div>
+      </div>
+
+      <!-- ── Matchs en cours ── -->
+      <div class="ps-card full-width">
+        <h2>🗓️ Matchs enregistrés</h2>
+        <% if (!matches || matches.length === 0) { %>
+          <p style="color:var(--text-muted);font-size:.9rem;">Aucun match enregistré pour l'instant. Créez-en un via <code>/pari-créer</code> sur Discord.</p>
+        <% } else { %>
+          <div class="match-list">
+            <% for (const m of matches) { %>
+              <div class="match-item">
+                <div>
+                  <div class="match-name">⚽ <%= m.name %></div>
+                  <div class="match-meta">
+                    ID&nbsp;: <code><%= m.id %></code> &nbsp;·&nbsp;
+                    Clôture&nbsp;: <%= new Date(m.deadline).toLocaleString('fr-FR') %> &nbsp;·&nbsp;
+                    <%= Object.keys(m.bets || {}).length %> pari(s) &nbsp;·&nbsp;
+                    Pool&nbsp;: <%= Object.values(m.bets || {}).reduce((s,b) => s + b.amount, 0) %> 💎
+                    <% if (m.result) { %>
+                      &nbsp;·&nbsp; Résultat&nbsp;: <strong><%= m.result.winnerTeam %> <%= m.result.exactScore %></strong>
+                    <% } %>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
+                  <span class="match-status <%= m.resolved ? 'status-resolved' : m.closed ? 'status-closed' : 'status-open' %>">
+                    <%= m.resolved ? '🏁 Résolu' : m.closed ? '🔒 Fermé' : '✅ Ouvert' %>
+                  </span>
+                  <% if (!m.closed && !m.resolved) { %>
+                    <form method="POST" action="/paris-sportifs/fermer" onsubmit="return confirm('Fermer les paris de ce match ?')">
+                      <input type="hidden" name="matchId" value="<%= m.id %>">
+                      <button class="btn-sm btn-warning" type="submit">🔒 Fermer</button>
+                    </form>
+                  <% } %>
+                </div>
+              </div>
+            <% } %>
+          </div>
+        <% } %>
+      </div>
+
+      <!-- ── Classement ── -->
+      <div class="ps-card full-width">
+        <h2>🏆 Classement des parieurs</h2>
+        <% if (!leaderboard || leaderboard.length === 0) { %>
+          <p style="color:var(--text-muted);font-size:.9rem;">Aucun pari résolu pour l'instant.</p>
+        <% } else { %>
+          <table class="lb-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Joueur</th>
+                <th>Gain net 💎</th>
+                <th>W / L</th>
+                <th>Total paris</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% for (let i = 0; i < leaderboard.length; i++) { const p = leaderboard[i]; %>
+              <tr>
+                <td><%= i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1 %></td>
+                <td><strong><%= p.username %></strong></td>
+                <td class="<%= p.totalGain >= 0 ? 'gain-pos' : 'gain-neg' %>">
+                  <%= p.totalGain >= 0 ? '+' : '' %><%= p.totalGain %>
+                </td>
+                <td><%= p.wins %>W / <%= p.losses %>L</td>
+                <td><%= p.bets %></td>
+              </tr>
+              <% } %>
+            </tbody>
+          </table>
+        <% } %>
+      </div>
+
+    </div>
+  </main>
+</div>
+</body>
+</html>

@@ -4964,6 +4964,58 @@ function createWebServer(discordClient) {
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // PARIS SPORTIFS
+  // ─────────────────────────────────────────────────────────────────────────────
+  const bettingManager = require('../bettingManager');
+
+  app.get('/paris-sportifs', requireAdminOrStaff, async (req, res) => {
+    try {
+      const allIds = await bettingManager.getAllMatches();
+      const matchesRaw = await Promise.all(allIds.map(id => bettingManager.getMatch(id)));
+      const matches = matchesRaw.filter(Boolean).sort((a, b) => b.createdAt - a.createdAt);
+      const lbRaw = await bettingManager.getLeaderboard();
+      const leaderboard = Object.entries(lbRaw)
+        .map(([, p]) => p)
+        .sort((a, b) => b.totalGain - a.totalGain)
+        .slice(0, 15);
+      const flash = req.query.success
+        ? { type: 'success', msg: req.query.success }
+        : req.query.error
+          ? { type: 'error', msg: req.query.error }
+          : null;
+      res.render('paris-sportifs', {
+        path: req.path,
+        role: req.session.role,
+        botUser: discordClient?.user || null,
+        discordUser: req.session.discordUser || null,
+        matches,
+        leaderboard,
+        flash,
+      });
+    } catch (e) {
+      console.error('[paris-sportifs]', e);
+      res.status(500).send('Erreur : ' + e.message);
+    }
+  });
+
+  app.post('/paris-sportifs/fermer', requireAdminOrStaff, async (req, res) => {
+    try {
+      const { matchId } = req.body;
+      const match = await bettingManager.closeMatch(matchId);
+      if (discordClient && match.channelId && match.messageId) {
+        const ch = await discordClient.channels.fetch(match.channelId).catch(() => null);
+        if (ch) {
+          const msg = await ch.messages.fetch(match.messageId).catch(() => null);
+          if (msg) await msg.edit({ embeds: [bettingManager.buildMatchEmbed(match)], components: [] });
+        }
+      }
+      res.redirect('/paris-sportifs?success=' + encodeURIComponent(`Paris fermés pour "${match.name}".`));
+    } catch (e) {
+      res.redirect('/paris-sportifs?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
 
   // Les timers et la publication Discord des giveaways sont gérés
   // exclusivement par le bot (index.js via publishAndScheduleGiveaways)
