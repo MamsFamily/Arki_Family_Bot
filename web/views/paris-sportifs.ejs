@@ -7,43 +7,76 @@
   <link rel="stylesheet" href="/css/style.css">
   <style>
     .ps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-    @media (max-width: 900px) { .ps-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 1000px) { .ps-grid { grid-template-columns: 1fr; } }
     .ps-card { background: var(--card-bg); border-radius: 12px; padding: 1.5rem; border: 1px solid var(--border); }
-    .ps-card h2 { margin: 0 0 1rem; font-size: 1.1rem; display: flex; align-items: center; gap: .5rem; }
-    .cmd-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-    .cmd-table th { text-align: left; padding: .5rem .75rem; border-bottom: 2px solid var(--border); color: var(--text-muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
-    .cmd-table td { padding: .55rem .75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
-    .cmd-table tr:last-child td { border-bottom: none; }
-    .cmd-name { font-family: monospace; font-size: .88rem; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: .15rem .5rem; white-space: nowrap; color: var(--accent); }
-    .badge { display: inline-block; padding: .2rem .55rem; border-radius: 20px; font-size: .75rem; font-weight: 700; }
-    .badge-admin { background: #e74c3c22; color: #e74c3c; border: 1px solid #e74c3c; }
-    .badge-all { background: #27ae6022; color: #27ae60; border: 1px solid #27ae60; }
-    .mult-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
-    .mult-card { background: var(--bg); border-radius: 8px; padding: 1rem; border: 1px solid var(--border); text-align: center; }
-    .mult-card .mult-val { font-size: 2rem; font-weight: 800; color: var(--accent); }
-    .mult-card .mult-label { font-size: .82rem; color: var(--text-muted); margin-top: .25rem; }
-    .match-list { display: flex; flex-direction: column; gap: .75rem; }
-    .match-item { background: var(--bg); border-radius: 8px; padding: .85rem 1rem; border: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
-    .match-item .match-name { font-weight: 700; }
-    .match-item .match-meta { font-size: .82rem; color: var(--text-muted); }
-    .match-status { font-size: .78rem; font-weight: 700; padding: .2rem .6rem; border-radius: 20px; }
-    .status-open { background: #27ae6022; color: #27ae60; border: 1px solid #27ae60; }
-    .status-closed { background: #e67e2222; color: #e67e22; border: 1px solid #e67e22; }
-    .status-resolved { background: #3498db22; color: #3498db; border: 1px solid #3498db; }
-    .match-actions { display: flex; gap: .4rem; }
+    .ps-card h2 { margin: 0 0 1.1rem; font-size: 1.1rem; display: flex; align-items: center; gap: .5rem; }
+    .full-width { grid-column: 1 / -1; }
+
+    /* Form */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    @media (max-width: 700px) { .form-grid { grid-template-columns: 1fr; } }
+    .form-group { display: flex; flex-direction: column; gap: .3rem; }
+    .form-group label { font-size: .78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+    .form-group input, .form-group select { padding: .45rem .75rem; border-radius: 7px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: .9rem; }
+    .form-group .hint { font-size: .75rem; color: var(--text-muted); }
+    .form-span2 { grid-column: 1 / -1; }
+    .btn { padding: .5rem 1.2rem; border-radius: 7px; border: none; cursor: pointer; font-weight: 700; font-size: .9rem; }
+    .btn-primary { background: var(--accent); color: #fff; }
     .btn-sm { padding: .3rem .7rem; font-size: .8rem; border-radius: 6px; border: none; cursor: pointer; font-weight: 600; }
     .btn-danger { background: #e74c3c; color: #fff; }
     .btn-warning { background: #f39c12; color: #fff; }
-    .alert { padding: .75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: .9rem; }
+    .btn-success { background: #27ae60; color: #fff; }
+    .btn-secondary { background: var(--border); color: var(--text); }
+
+    /* Alerts */
+    .alert { padding: .75rem 1rem; border-radius: 8px; margin-bottom: 1.25rem; font-size: .9rem; }
     .alert-success { background: #27ae6022; border: 1px solid #27ae60; color: #27ae60; }
     .alert-error { background: #e74c3c22; border: 1px solid #e74c3c; color: #e74c3c; }
+
+    /* Match cards */
+    .match-card { background: var(--bg); border-radius: 10px; border: 1px solid var(--border); overflow: hidden; margin-bottom: .75rem; }
+    .match-card:last-child { margin-bottom: 0; }
+    .match-head { display: flex; align-items: center; justify-content: space-between; padding: .85rem 1rem; gap: .75rem; flex-wrap: wrap; }
+    .match-head-left .match-name { font-weight: 700; font-size: 1rem; }
+    .match-head-left .match-meta { font-size: .8rem; color: var(--text-muted); margin-top: .2rem; }
+    .match-actions { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+    .match-status { font-size: .75rem; font-weight: 700; padding: .2rem .6rem; border-radius: 20px; white-space: nowrap; }
+    .status-open { background: #27ae6022; color: #27ae60; border: 1px solid #27ae60; }
+    .status-closed { background: #e67e2222; color: #e67e22; border: 1px solid #e67e22; }
+    .status-resolved { background: #3498db22; color: #3498db; border: 1px solid #3498db; }
+
+    /* Expand panels */
+    .match-panel { border-top: 1px solid var(--border); padding: 1rem; display: none; }
+    .match-panel.open { display: block; }
+    .resolve-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: .6rem; align-items: end; }
+    @media (max-width: 600px) { .resolve-form { grid-template-columns: 1fr; } }
+    .bets-list { font-size: .85rem; }
+    .bets-list table { width: 100%; border-collapse: collapse; }
+    .bets-list th { text-align: left; padding: .35rem .6rem; border-bottom: 1px solid var(--border); font-size: .75rem; color: var(--text-muted); text-transform: uppercase; }
+    .bets-list td { padding: .4rem .6rem; border-bottom: 1px solid var(--border); }
+    .bets-list tr:last-child td { border-bottom: none; }
+
+    /* Leaderboard */
     .lb-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
     .lb-table th { text-align: left; padding: .5rem .75rem; border-bottom: 2px solid var(--border); color: var(--text-muted); font-size: .78rem; text-transform: uppercase; }
     .lb-table td { padding: .55rem .75rem; border-bottom: 1px solid var(--border); }
     .lb-table tr:last-child td { border-bottom: none; }
     .gain-pos { color: #27ae60; font-weight: 700; }
     .gain-neg { color: #e74c3c; font-weight: 700; }
-    .full-width { grid-column: 1 / -1; }
+
+    /* Mémo */
+    .cmd-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    .cmd-table th { text-align: left; padding: .45rem .7rem; border-bottom: 2px solid var(--border); color: var(--text-muted); font-size: .75rem; text-transform: uppercase; }
+    .cmd-table td { padding: .5rem .7rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .cmd-table tr:last-child td { border-bottom: none; }
+    .cmd-name { font-family: monospace; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: .15rem .5rem; color: var(--accent); white-space: nowrap; }
+    .badge { display: inline-block; padding: .2rem .55rem; border-radius: 20px; font-size: .72rem; font-weight: 700; }
+    .badge-admin { background: #e74c3c22; color: #e74c3c; border: 1px solid #e74c3c; }
+    .badge-all { background: #27ae6022; color: #27ae60; border: 1px solid #27ae60; }
+
+    .section-sep { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
+    .expand-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: .8rem; padding: .2rem .5rem; border-radius: 5px; }
+    .expand-btn:hover { background: var(--border); }
   </style>
 </head>
 <body>
@@ -52,7 +85,7 @@
   <main class="main-content">
     <div class="page-header">
       <h1>⚽ Paris Sportifs</h1>
-      <p class="page-subtitle">Consultez les matchs en cours et le classement des parieurs</p>
+      <p class="page-subtitle">Créez et gérez les matchs, consultez le classement des parieurs</p>
     </div>
 
     <% if (typeof flash !== 'undefined' && flash) { %>
@@ -61,139 +94,79 @@
 
     <div class="ps-grid">
 
-      <!-- ── Mémo des commandes Discord ── -->
-      <div class="ps-card full-width">
-        <h2>📋 Mémo — Commandes Discord</h2>
-        <table class="cmd-table">
-          <thead>
-            <tr>
-              <th>Commande</th>
-              <th>Accès</th>
-              <th>Description</th>
-              <th>Options</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><span class="cmd-name">/pari-créer</span></td>
-              <td><span class="badge badge-admin">Admin</span></td>
-              <td>Crée un match et publie l'embed dans le salon choisi</td>
-              <td style="font-size:.8rem;color:var(--text-muted)">
-                <code>nom</code> · <code>equipe_a</code> · <code>equipe_b</code> · <code>deadline</code> (ex&nbsp;: <em>2026-06-15 20:45</em>) ·
-                <code>salon</code> · <code>mise_min</code> · <code>mise_max</code> · <code>mult_equipe</code> (défaut&nbsp;×1.5) · <code>mult_exact</code> (défaut&nbsp;×4.0)
-              </td>
-            </tr>
-            <tr>
-              <td><span class="cmd-name">/pari-fermer</span></td>
-              <td><span class="badge badge-admin">Admin</span></td>
-              <td>Ferme manuellement les paris d'un match (les paris ferment aussi automatiquement à la deadline)</td>
-              <td style="font-size:.8rem;color:var(--text-muted)"><code>match_id</code> — l'ID affiché lors de la création</td>
-            </tr>
-            <tr>
-              <td><span class="cmd-name">/pari-résoudre</span></td>
-              <td><span class="badge badge-admin">Admin</span></td>
-              <td>Entre le score officiel, calcule et distribue les gains en 💎 automatiquement</td>
-              <td style="font-size:.8rem;color:var(--text-muted)">
-                <code>match_id</code> · <code>vainqueur</code> (nom de l'équipe ou <em>Nul</em>) · <code>score</code> (ex&nbsp;: <em>2-1</em>)
-              </td>
-            </tr>
-            <tr>
-              <td><span class="cmd-name">/pari-classement</span></td>
-              <td><span class="badge badge-all">Tout le monde</span></td>
-              <td>Affiche le top 15 des parieurs avec gains/pertes cumulés</td>
-              <td style="font-size:.8rem;color:var(--text-muted)">—</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <!-- Rappel multiplicateurs -->
-        <div style="margin-top:1.25rem;">
-          <p style="font-size:.85rem;font-weight:700;margin-bottom:.75rem;color:var(--text-muted)">MULTIPLICATEURS PAR DÉFAUT</p>
-          <div class="mult-grid">
-            <div class="mult-card">
-              <div class="mult-val">×1.5</div>
-              <div class="mult-label">✅ Bonne équipe<br>(configurables à la création)</div>
+      <!-- ══ Créer un match ══ -->
+      <div class="ps-card">
+        <h2>➕ Créer un match</h2>
+        <form method="POST" action="/paris-sportifs/creer">
+          <div class="form-grid">
+            <div class="form-group form-span2">
+              <label>Nom du match *</label>
+              <input type="text" name="nom" placeholder="ex : France vs Espagne" required>
             </div>
-            <div class="mult-card">
-              <div class="mult-val">×4.0</div>
-              <div class="mult-label">🎯 Score exact<br>(configurables à la création)</div>
+            <div class="form-group">
+              <label>Équipe A *</label>
+              <input type="text" name="equipe_a" placeholder="France" required>
             </div>
-          </div>
-        </div>
-
-        <!-- Règles -->
-        <div style="margin-top:1.25rem;background:var(--bg);border-radius:8px;padding:1rem;border:1px solid var(--border);font-size:.87rem;line-height:1.7;">
-          <strong>📌 Règles du système</strong><br>
-          • Chaque joueur ne peut placer qu'<strong>un seul pari par match</strong>.<br>
-          • La mise est <strong>débitée immédiatement</strong> de l'inventaire du joueur à la soumission.<br>
-          • Les paris se ferment <strong>automatiquement</strong> à la deadline configurée.<br>
-          • Si un joueur perd, ses diamants ne sont pas remboursés.<br>
-          • Les gains sont crédités automatiquement lors du <code>/pari-résoudre</code>.
-        </div>
-      </div>
-
-      <!-- ── Matchs en cours ── -->
-      <div class="ps-card full-width">
-        <h2>🗓️ Matchs enregistrés</h2>
-        <% if (!matches || matches.length === 0) { %>
-          <p style="color:var(--text-muted);font-size:.9rem;">Aucun match enregistré pour l'instant. Créez-en un via <code>/pari-créer</code> sur Discord.</p>
-        <% } else { %>
-          <div class="match-list">
-            <% for (const m of matches) { %>
-              <div class="match-item">
-                <div>
-                  <div class="match-name">⚽ <%= m.name %></div>
-                  <div class="match-meta">
-                    ID&nbsp;: <code><%= m.id %></code> &nbsp;·&nbsp;
-                    Clôture&nbsp;: <%= new Date(m.deadline).toLocaleString('fr-FR') %> &nbsp;·&nbsp;
-                    <%= Object.keys(m.bets || {}).length %> pari(s) &nbsp;·&nbsp;
-                    Pool&nbsp;: <%= Object.values(m.bets || {}).reduce((s,b) => s + b.amount, 0) %> 💎
-                    <% if (m.result) { %>
-                      &nbsp;·&nbsp; Résultat&nbsp;: <strong><%= m.result.winnerTeam %> <%= m.result.exactScore %></strong>
-                    <% } %>
-                  </div>
-                </div>
-                <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
-                  <span class="match-status <%= m.resolved ? 'status-resolved' : m.closed ? 'status-closed' : 'status-open' %>">
-                    <%= m.resolved ? '🏁 Résolu' : m.closed ? '🔒 Fermé' : '✅ Ouvert' %>
-                  </span>
-                  <% if (!m.closed && !m.resolved) { %>
-                    <form method="POST" action="/paris-sportifs/fermer" onsubmit="return confirm('Fermer les paris de ce match ?')">
-                      <input type="hidden" name="matchId" value="<%= m.id %>">
-                      <button class="btn-sm btn-warning" type="submit">🔒 Fermer</button>
-                    </form>
+            <div class="form-group">
+              <label>Équipe B *</label>
+              <input type="text" name="equipe_b" placeholder="Espagne" required>
+            </div>
+            <div class="form-group form-span2">
+              <label>Clôture des paris * <span class="hint">(date et heure locale)</span></label>
+              <input type="datetime-local" name="deadline" required>
+            </div>
+            <div class="form-group form-span2">
+              <label>Salon Discord *</label>
+              <select name="channelId" required>
+                <option value="">— Choisir un salon —</option>
+                <% let lastCat = null; %>
+                <% for (const ch of channels) { %>
+                  <% if (ch.category !== lastCat) { lastCat = ch.category; %>
+                    <optgroup label="<%= ch.category || 'Sans catégorie' %>">
                   <% } %>
-                </div>
-              </div>
-            <% } %>
+                  <option value="<%= ch.id %>">#<%= ch.name %></option>
+                <% } %>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Mise minimum 💎</label>
+              <input type="number" name="mise_min" value="10" min="1">
+            </div>
+            <div class="form-group">
+              <label>Mise maximum 💎 <span class="hint">(0 = illimitée)</span></label>
+              <input type="number" name="mise_max" value="0" min="0">
+            </div>
+            <div class="form-group">
+              <label>Multiplicateur bonne équipe</label>
+              <input type="number" name="mult_equipe" value="1.5" step="0.1" min="1">
+            </div>
+            <div class="form-group">
+              <label>Multiplicateur score exact</label>
+              <input type="number" name="mult_exact" value="4.0" step="0.1" min="1">
+            </div>
+            <div class="form-span2" style="margin-top:.5rem;">
+              <button type="submit" class="btn btn-primary">⚽ Publier le match</button>
+            </div>
           </div>
-        <% } %>
+        </form>
       </div>
 
-      <!-- ── Classement ── -->
-      <div class="ps-card full-width">
+      <!-- ══ Classement ══ -->
+      <div class="ps-card">
         <h2>🏆 Classement des parieurs</h2>
         <% if (!leaderboard || leaderboard.length === 0) { %>
           <p style="color:var(--text-muted);font-size:.9rem;">Aucun pari résolu pour l'instant.</p>
         <% } else { %>
           <table class="lb-table">
             <thead>
-              <tr>
-                <th>#</th>
-                <th>Joueur</th>
-                <th>Gain net 💎</th>
-                <th>W / L</th>
-                <th>Total paris</th>
-              </tr>
+              <tr><th>#</th><th>Joueur</th><th>Gain net 💎</th><th>W / L</th><th>Paris</th></tr>
             </thead>
             <tbody>
               <% for (let i = 0; i < leaderboard.length; i++) { const p = leaderboard[i]; %>
               <tr>
                 <td><%= i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1 %></td>
                 <td><strong><%= p.username %></strong></td>
-                <td class="<%= p.totalGain >= 0 ? 'gain-pos' : 'gain-neg' %>">
-                  <%= p.totalGain >= 0 ? '+' : '' %><%= p.totalGain %>
-                </td>
+                <td class="<%= p.totalGain >= 0 ? 'gain-pos' : 'gain-neg' %>"><%= p.totalGain >= 0 ? '+' : '' %><%= p.totalGain %></td>
                 <td><%= p.wins %>W / <%= p.losses %>L</td>
                 <td><%= p.bets %></td>
               </tr>
@@ -203,8 +176,152 @@
         <% } %>
       </div>
 
+      <!-- ══ Matchs enregistrés ══ -->
+      <div class="ps-card full-width">
+        <h2>🗓️ Matchs enregistrés</h2>
+        <% if (!matches || matches.length === 0) { %>
+          <p style="color:var(--text-muted);font-size:.9rem;">Aucun match pour l'instant. Créez-en un ci-dessus.</p>
+        <% } else { %>
+          <% for (const m of matches) {
+            const betCount = Object.keys(m.bets || {}).length;
+            const pool = Object.values(m.bets || {}).reduce((s,b) => s + b.amount, 0);
+          %>
+          <div class="match-card">
+            <div class="match-head">
+              <div class="match-head-left">
+                <div class="match-name">⚽ <%= m.name %></div>
+                <div class="match-meta">
+                  ID&nbsp;: <code><%= m.id %></code> &nbsp;·&nbsp;
+                  <%= m.teamA %> vs <%= m.teamB %> &nbsp;·&nbsp;
+                  Clôture&nbsp;: <%= new Date(m.deadline).toLocaleString('fr-FR') %> &nbsp;·&nbsp;
+                  <strong><%= betCount %></strong> pari(s) · Pool&nbsp;: <strong><%= pool %> 💎</strong> &nbsp;·&nbsp;
+                  ×<%= m.multTeam %> équipe · ×<%= m.multExact %> exact
+                  <% if (m.result) { %> &nbsp;·&nbsp; 🏆 <strong><%= m.result.winnerTeam %> <%= m.result.exactScore %></strong><% } %>
+                </div>
+              </div>
+              <div class="match-actions">
+                <span class="match-status <%= m.resolved ? 'status-resolved' : m.closed ? 'status-closed' : 'status-open' %>">
+                  <%= m.resolved ? '🏁 Résolu' : m.closed ? '🔒 Fermé' : '✅ Ouvert' %>
+                </span>
+                <% if (betCount > 0) { %>
+                  <button class="btn-sm btn-secondary expand-btn" onclick="togglePanel('bets-<%= m.id %>')">👥 Paris</button>
+                <% } %>
+                <% if (!m.resolved) { %>
+                  <button class="btn-sm btn-success expand-btn" onclick="togglePanel('resolve-<%= m.id %>')">🏁 Résoudre</button>
+                <% } %>
+                <% if (!m.closed && !m.resolved) { %>
+                  <form method="POST" action="/paris-sportifs/fermer" style="display:inline;" onsubmit="return confirm('Fermer les paris de ce match ?')">
+                    <input type="hidden" name="matchId" value="<%= m.id %>">
+                    <button class="btn-sm btn-warning" type="submit">🔒 Fermer</button>
+                  </form>
+                <% } %>
+                <form method="POST" action="/paris-sportifs/supprimer" style="display:inline;" onsubmit="return confirm('Supprimer définitivement ce match ? Les paris ne seront pas remboursés.')">
+                  <input type="hidden" name="matchId" value="<%= m.id %>">
+                  <button class="btn-sm btn-danger" type="submit">🗑️</button>
+                </form>
+              </div>
+            </div>
+
+            <!-- Panel : liste des paris -->
+            <% if (betCount > 0) { %>
+            <div class="match-panel" id="bets-<%= m.id %>">
+              <div class="bets-list">
+                <table>
+                  <thead><tr><th>Joueur</th><th>Équipe</th><th>Score prédit</th><th>Mise 💎</th><th>Date</th></tr></thead>
+                  <tbody>
+                    <% for (const [uid, bet] of Object.entries(m.bets || {})) { %>
+                    <tr>
+                      <td><strong><%= bet.username %></strong></td>
+                      <td><%= bet.teamPick %></td>
+                      <td><%= bet.scorePick %></td>
+                      <td><%= bet.amount %> 💎</td>
+                      <td><%= new Date(bet.placedAt).toLocaleString('fr-FR') %></td>
+                    </tr>
+                    <% } %>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <% } %>
+
+            <!-- Panel : résoudre -->
+            <% if (!m.resolved) { %>
+            <div class="match-panel" id="resolve-<%= m.id %>">
+              <p style="font-size:.85rem;color:var(--text-muted);margin:0 0 .75rem;">
+                Entre le résultat officiel. Les gains seront distribués automatiquement et un message de résultats sera publié dans le salon Discord.
+              </p>
+              <form method="POST" action="/paris-sportifs/resoudre" class="resolve-form">
+                <input type="hidden" name="matchId" value="<%= m.id %>">
+                <div class="form-group">
+                  <label>Équipe gagnante (ou "Nul")</label>
+                  <input type="text" name="vainqueur" placeholder="<%= m.teamA %>" required>
+                </div>
+                <div class="form-group">
+                  <label>Score exact</label>
+                  <input type="text" name="score" placeholder="2-1" required>
+                </div>
+                <div class="form-group">
+                  <label>&nbsp;</label>
+                  <button type="submit" class="btn-sm btn-success" onclick="return confirm('Résoudre ce match et distribuer les gains ?')">✅ Valider</button>
+                </div>
+              </form>
+            </div>
+            <% } %>
+          </div>
+          <% } %>
+        <% } %>
+      </div>
+
+      <!-- ══ Mémo commandes ══ -->
+      <div class="ps-card full-width">
+        <h2>📋 Mémo — Commandes Discord</h2>
+        <table class="cmd-table">
+          <thead><tr><th>Commande</th><th>Accès</th><th>Description</th><th>Options</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="cmd-name">/pari-créer</span></td>
+              <td><span class="badge badge-admin">Admin</span></td>
+              <td>Crée un match via Discord (alternative au formulaire ci-dessus)</td>
+              <td style="font-size:.78rem;color:var(--text-muted)"><code>nom</code> · <code>equipe_a</code> · <code>equipe_b</code> · <code>deadline</code> · <code>salon</code> · <code>mise_min</code> · <code>mise_max</code> · <code>mult_equipe</code> · <code>mult_exact</code></td>
+            </tr>
+            <tr>
+              <td><span class="cmd-name">/pari-fermer</span></td>
+              <td><span class="badge badge-admin">Admin</span></td>
+              <td>Ferme manuellement les paris (fermeture auto à la deadline)</td>
+              <td style="font-size:.78rem;color:var(--text-muted)"><code>match_id</code></td>
+            </tr>
+            <tr>
+              <td><span class="cmd-name">/pari-résoudre</span></td>
+              <td><span class="badge badge-admin">Admin</span></td>
+              <td>Entre le score officiel et distribue les gains (alternative au bouton ci-dessus)</td>
+              <td style="font-size:.78rem;color:var(--text-muted)"><code>match_id</code> · <code>vainqueur</code> · <code>score</code></td>
+            </tr>
+            <tr>
+              <td><span class="cmd-name">/pari-classement</span></td>
+              <td><span class="badge badge-all">Tout le monde</span></td>
+              <td>Affiche le top 15 des parieurs dans Discord</td>
+              <td style="font-size:.78rem;color:var(--text-muted)">—</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top:1rem;background:var(--bg);border-radius:8px;padding:.9rem 1rem;border:1px solid var(--border);font-size:.85rem;line-height:1.8;">
+          <strong>📌 Règles</strong> &nbsp;·&nbsp;
+          1 seul pari par joueur par match &nbsp;·&nbsp;
+          La mise est débitée immédiatement &nbsp;·&nbsp;
+          Pas de remboursement en cas de perte &nbsp;·&nbsp;
+          Gains crédités automatiquement à la résolution
+        </div>
+      </div>
+
     </div>
   </main>
 </div>
+<script>
+function togglePanel(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.toggle('open');
+}
+</script>
 </body>
 </html>

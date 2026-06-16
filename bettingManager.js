@@ -225,9 +225,18 @@ function buildLeaderboardEmbed(lb) {
     .setDescription(desc);
 }
 
+async function deleteMatch(matchId) {
+  const match = await getMatch(matchId);
+  if (!match) throw new Error('Match introuvable.');
+  await pgStore.setData(pgKey(matchId), null);
+  const all = await getAllMatches();
+  await saveAllMatches(all.filter(id => id !== matchId));
+  return match;
+}
+
 module.exports = {
   createMatch, getMatch, saveMatch, getAllMatches,
-  placeBet, closeMatch, resolveMatch,
+  placeBet, closeMatch, resolveMatch, deleteMatch,
   buildMatchEmbed, buildMatchComponents, buildResultEmbed, buildLeaderboardEmbed,
   getLeaderboard,
 };

@@ -4968,6 +4968,20 @@ function createWebServer(discordClient) {
   // ─────────────────────────────────────────────────────────────────────────────
   const bettingManager = require('../bettingManager');
 
+  function getBettingChannels() {
+    const settings = getSettings();
+    const guildId = settings?.guild?.guildId;
+    const guild = discordClient ? (guildId ? discordClient.guilds.cache.get(guildId) : discordClient.guilds.cache.first()) : null;
+    if (!guild) return [];
+    const categories = guild.channels.cache.filter(ch => ch.type === 4).sort((a, b) => a.position - b.position);
+    const textChannels = guild.channels.cache.filter(ch => ch.type === 0).sort((a, b) => {
+      const catA = a.parentId ? (categories.get(a.parentId)?.position ?? 999) : -1;
+      const catB = b.parentId ? (categories.get(b.parentId)?.position ?? 999) : -1;
+      return catA !== catB ? catA - catB : a.position - b.position;
+    });
+    return textChannels.map(ch => ({ id: ch.id, name: ch.name, category: ch.parentId ? (categories.get(ch.parentId)?.name || '') : '' }));
+  }
+
   app.get('/paris-sportifs', requireAdminOrStaff, async (req, res) => {
     try {
       const allIds = await bettingManager.getAllMatches();
@@ -4990,11 +5004,60 @@ function createWebServer(discordClient) {
         discordUser: req.session.discordUser || null,
         matches,
         leaderboard,
+        channels: getBettingChannels(),
         flash,
       });
     } catch (e) {
       console.error('[paris-sportifs]', e);
       res.status(500).send('Erreur : ' + e.message);
+    }
+  });
+
+  app.post('/paris-sportifs/creer', requireAdminOrStaff, async (req, res) => {
+    try {
+      const { nom, equipe_a, equipe_b, deadline, channelId, mise_min, mise_max, mult_equipe, mult_exact } = req.body;
+      if (!nom || !equipe_a || !equipe_b || !deadline || !channelId) throw new Error('Champs obligatoires manquants.');
+      const deadlineDate = new Date(deadline);
+      if (isNaN(deadlineDate.getTime())) throw new Error('Format de date invalide.');
+      const match = await bettingManager.createMatch({
+        name: nom.trim(),
+        teamA: equipe_a.trim(),
+        teamB: equipe_b.trim(),
+        deadline: deadlineDate,
+        multTeam: mult_equipe || '1.5',
+        multExact: mult_exact || '4.0',
+        minBet: parseInt(mise_min) || 10,
+        maxBet: parseInt(mise_max) || 0,
+        channelId,
+      });
+      if (discordClient) {
+        const ch = await discordClient.channels.fetch(channelId).catch(() => null);
+        if (ch) {
+          const msg = await ch.send({ embeds: [bettingManager.buildMatchEmbed(match)], components: bettingManager.buildMatchComponents(match) });
+          match.messageId = msg.id;
+          await bettingManager.saveMatch(match);
+          // Fermeture auto
+          const msUntilClose = deadlineDate.getTime() - Date.now();
+          if (msUntilClose > 0) {
+            setTimeout(async () => {
+              try {
+                const m = await bettingManager.getMatch(match.id);
+                if (!m || m.closed || m.resolved) return;
+                await bettingManager.closeMatch(match.id);
+                const updated = await bettingManager.getMatch(match.id);
+                const channel = await discordClient.channels.fetch(updated.channelId).catch(() => null);
+                if (channel) {
+                  const message = await channel.messages.fetch(updated.messageId).catch(() => null);
+                  if (message) await message.edit({ embeds: [bettingManager.buildMatchEmbed(updated)], components: [] });
+                }
+              } catch (e) { console.error('[Pari] Erreur fermeture auto:', e); }
+            }, msUntilClose);
+          }
+        }
+      }
+      res.redirect('/paris-sportifs?success=' + encodeURIComponent(`Match "${match.name}" créé avec succès ! ID : ${match.id}`));
+    } catch (e) {
+      res.redirect('/paris-sportifs?error=' + encodeURIComponent(e.message));
     }
   });
 
@@ -5010,6 +5073,37 @@ function createWebServer(discordClient) {
         }
       }
       res.redirect('/paris-sportifs?success=' + encodeURIComponent(`Paris fermés pour "${match.name}".`));
+    } catch (e) {
+      res.redirect('/paris-sportifs?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  app.post('/paris-sportifs/resoudre', requireAdminOrStaff, async (req, res) => {
+    try {
+      const { matchId, vainqueur, score } = req.body;
+      if (!matchId || !vainqueur || !score) throw new Error('Champs obligatoires manquants.');
+      const { match, results } = await bettingManager.resolveMatch(matchId, vainqueur.trim(), score.trim());
+      if (discordClient && match.channelId) {
+        const ch = await discordClient.channels.fetch(match.channelId).catch(() => null);
+        if (ch) {
+          if (match.messageId) {
+            const msg = await ch.messages.fetch(match.messageId).catch(() => null);
+            if (msg) await msg.edit({ embeds: [bettingManager.buildMatchEmbed(match)], components: [] });
+          }
+          await ch.send({ embeds: [bettingManager.buildResultEmbed(match, results)] });
+        }
+      }
+      res.redirect('/paris-sportifs?success=' + encodeURIComponent(`Match résolu ! ${results.length} parieur(s) traité(s).`));
+    } catch (e) {
+      res.redirect('/paris-sportifs?error=' + encodeURIComponent(e.message));
+    }
+  });
+
+  app.post('/paris-sportifs/supprimer', requireAdminOrStaff, async (req, res) => {
+    try {
+      const { matchId } = req.body;
+      const match = await bettingManager.deleteMatch(matchId);
+      res.redirect('/paris-sportifs?success=' + encodeURIComponent(`Match "${match.name}" supprimé.`));
     } catch (e) {
       res.redirect('/paris-sportifs?error=' + encodeURIComponent(e.message));
     }
