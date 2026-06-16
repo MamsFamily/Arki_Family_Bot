@@ -440,6 +440,44 @@ const commands = [
       },
     ],
   },
+  {
+    name: 'pari-créer',
+    description: '⚽ Crée un match sur lequel les joueurs peuvent parier (Admin)',
+    default_member_permissions: '8',
+    options: [
+      { name: 'nom', type: 3, description: 'Nom du match (ex: France vs Espagne)', required: true },
+      { name: 'equipe_a', type: 3, description: 'Nom équipe A', required: true },
+      { name: 'equipe_b', type: 3, description: 'Nom équipe B', required: true },
+      { name: 'deadline', type: 3, description: 'Date/heure fermeture (ex: 2026-06-15 20:45)', required: true },
+      { name: 'salon', type: 7, description: 'Salon où publier le match', required: true },
+      { name: 'mise_min', type: 4, description: 'Mise minimum en diamants (défaut: 10)', required: false, min_value: 1 },
+      { name: 'mise_max', type: 4, description: 'Mise maximum en diamants (0 = illimitée)', required: false, min_value: 0 },
+      { name: 'mult_equipe', type: 3, description: 'Multiplicateur bonne équipe (défaut: 1.5)', required: false },
+      { name: 'mult_exact', type: 3, description: 'Multiplicateur score exact (défaut: 4.0)', required: false },
+    ],
+  },
+  {
+    name: 'pari-résoudre',
+    description: '🏁 Entre le résultat officiel d\'un match et distribue les gains (Admin)',
+    default_member_permissions: '8',
+    options: [
+      { name: 'match_id', type: 3, description: 'ID du match (affiché dans l\'embed)', required: true },
+      { name: 'vainqueur', type: 3, description: 'Équipe gagnante (ou "Nul")', required: true },
+      { name: 'score', type: 3, description: 'Score exact (ex: 2-1)', required: true },
+    ],
+  },
+  {
+    name: 'pari-fermer',
+    description: '🔒 Ferme manuellement les paris d\'un match (Admin)',
+    default_member_permissions: '8',
+    options: [
+      { name: 'match_id', type: 3, description: 'ID du match', required: true },
+    ],
+  },
+  {
+    name: 'pari-classement',
+    description: '🏆 Affiche le classement des parieurs',
+  },
 ];
 
 module.exports = commands;

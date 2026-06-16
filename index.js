@@ -5499,4 +5499,194 @@ if (!token) {
   process.exit(1);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ══ PARIS SPORTIFS ═══════════════════════════════════════════════════════════
+const bettingManager = require('./bettingManager');
+
+client.on('interactionCreate', async interaction => {
+
+  // ── /pari-créer ──
+  if (interaction.isChatInputCommand() && interaction.commandName === 'pari-créer') {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const channel = interaction.options.getChannel('salon');
+      const deadlineRaw = interaction.options.getString('deadline');
+      const deadline = new Date(deadlineRaw);
+      if (isNaN(deadline.getTime())) {
+        return interaction.editReply('❌ Format de date invalide. Utilise `2026-06-15 20:45`.');
+      }
+      const match = await bettingManager.createMatch({
+        name: interaction.options.getString('nom'),
+        teamA: interaction.options.getString('equipe_a'),
+        teamB: interaction.options.getString('equipe_b'),
+        deadline,
+        multTeam: interaction.options.getString('mult_equipe') || '1.5',
+        multExact: interaction.options.getString('mult_exact') || '4.0',
+        minBet: interaction.options.getInteger('mise_min') || 10,
+        maxBet: interaction.options.getInteger('mise_max') || 0,
+        channelId: channel.id,
+      });
+      const embed = bettingManager.buildMatchEmbed(match);
+      const components = bettingManager.buildMatchComponents(match);
+      const msg = await channel.send({ embeds: [embed], components });
+      match.messageId = msg.id;
+      await bettingManager.saveMatch(match);
+
+      // Programmer fermeture auto via node-cron si deadline dans le futur
+      const msUntilClose = deadline.getTime() - Date.now();
+      if (msUntilClose > 0) {
+        setTimeout(async () => {
+          try {
+            const m = await bettingManager.getMatch(match.id);
+            if (!m || m.closed || m.resolved) return;
+            await bettingManager.closeMatch(match.id);
+            const updated = await bettingManager.getMatch(match.id);
+            const ch = await interaction.client.channels.fetch(updated.channelId).catch(() => null);
+            if (ch) {
+              const message = await ch.messages.fetch(updated.messageId).catch(() => null);
+              if (message) await message.edit({ embeds: [bettingManager.buildMatchEmbed(updated)], components: [] });
+            }
+            console.log(`[Pari] Match ${match.id} (${match.name}) fermé automatiquement.`);
+          } catch (e) { console.error('[Pari] Erreur fermeture auto:', e); }
+        }, msUntilClose);
+      }
+
+      await interaction.editReply(`✅ Match créé ! ID : \`${match.id}\`\nPublié dans <#${channel.id}>.`);
+    } catch (err) {
+      console.error('[pari-créer]', err);
+      try { await interaction.editReply(`❌ ${err.message}`); } catch {}
+    }
+    return;
+  }
+
+  // ── /pari-résoudre ──
+  if (interaction.isChatInputCommand() && interaction.commandName === 'pari-résoudre') {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const matchId = interaction.options.getString('match_id');
+      const vainqueur = interaction.options.getString('vainqueur');
+      const score = interaction.options.getString('score');
+      const { match, results } = await bettingManager.resolveMatch(matchId, vainqueur, score);
+      const ch = await interaction.client.channels.fetch(match.channelId).catch(() => null);
+      if (ch) {
+        if (match.messageId) {
+          const msg = await ch.messages.fetch(match.messageId).catch(() => null);
+          if (msg) await msg.edit({ embeds: [bettingManager.buildMatchEmbed(match)], components: [] });
+        }
+        await ch.send({ embeds: [bettingManager.buildResultEmbed(match, results)] });
+      }
+      await interaction.editReply(`✅ Match résolu ! **${results.length}** parieur(s) traité(s).`);
+    } catch (err) {
+      console.error('[pari-résoudre]', err);
+      try { await interaction.editReply(`❌ ${err.message}`); } catch {}
+    }
+    return;
+  }
+
+  // ── /pari-fermer ──
+  if (interaction.isChatInputCommand() && interaction.commandName === 'pari-fermer') {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const matchId = interaction.options.getString('match_id');
+      const match = await bettingManager.closeMatch(matchId);
+      const ch = await interaction.client.channels.fetch(match.channelId).catch(() => null);
+      if (ch && match.messageId) {
+        const msg = await ch.messages.fetch(match.messageId).catch(() => null);
+        if (msg) await msg.edit({ embeds: [bettingManager.buildMatchEmbed(match)], components: [] });
+      }
+      await interaction.editReply(`✅ Paris fermés pour le match **${match.name}**.`);
+    } catch (err) {
+      try { await interaction.editReply(`❌ ${err.message}`); } catch {}
+    }
+    return;
+  }
+
+  // ── /pari-classement ──
+  if (interaction.isChatInputCommand() && interaction.commandName === 'pari-classement') {
+    try {
+      const lb = await bettingManager.getLeaderboard();
+      await interaction.reply({ embeds: [bettingManager.buildLeaderboardEmbed(lb)] });
+    } catch (err) {
+      try { await interaction.reply({ content: `❌ ${err.message}`, ephemeral: true }); } catch {}
+    }
+    return;
+  }
+
+  // ── Bouton 🎯 Placer mon pari ──
+  if (interaction.isButton() && interaction.customId.startsWith('bet_place_')) {
+    const matchId = interaction.customId.slice('bet_place_'.length);
+    try {
+      const match = await bettingManager.getMatch(matchId);
+      if (!match) return interaction.reply({ content: '❌ Match introuvable.', ephemeral: true });
+      if (match.closed || match.resolved) return interaction.reply({ content: '❌ Les paris sont clôturés.', ephemeral: true });
+      if (Date.now() > match.deadline) return interaction.reply({ content: '❌ La deadline est passée.', ephemeral: true });
+      if (match.bets[interaction.user.id]) return interaction.reply({ content: '❌ Tu as déjà placé un pari sur ce match.', ephemeral: true });
+
+      const { ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+      const modal = new ModalBuilder()
+        .setCustomId(`bet_modal_${matchId}`)
+        .setTitle(`⚽ ${match.name}`);
+
+      const teamInput = new TextInputBuilder()
+        .setCustomId('bet_team')
+        .setLabel(`Équipe gagnante (${match.teamA} / ${match.teamB} / Nul)`)
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setPlaceholder(`ex: ${match.teamA}`);
+
+      const scoreInput = new TextInputBuilder()
+        .setCustomId('bet_score')
+        .setLabel('Score prédit (ex: 2-1)')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setPlaceholder('2-1');
+
+      const amountInput = new TextInputBuilder()
+        .setCustomId('bet_amount')
+        .setLabel(`Mise en 💎 (min: ${match.minBet}${match.maxBet > 0 ? ` · max: ${match.maxBet}` : ''})`)
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setPlaceholder(String(match.minBet));
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(teamInput),
+        new ActionRowBuilder().addComponents(scoreInput),
+        new ActionRowBuilder().addComponents(amountInput),
+      );
+      await interaction.showModal(modal);
+    } catch (err) {
+      console.error('[bet_place]', err);
+      try { await interaction.reply({ content: `❌ ${err.message}`, ephemeral: true }); } catch {}
+    }
+    return;
+  }
+
+  // ── Modal soumis : pari ──
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('bet_modal_')) {
+    const matchId = interaction.customId.slice('bet_modal_'.length);
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const teamPick = interaction.fields.getTextInputValue('bet_team').trim();
+      const scorePick = interaction.fields.getTextInputValue('bet_score').trim();
+      const amount = parseInt(interaction.fields.getTextInputValue('bet_amount').trim());
+      const username = interaction.member?.displayName || interaction.user.displayName || interaction.user.username;
+
+      const match = await bettingManager.placeBet(matchId, interaction.user.id, username, teamPick, scorePick, amount);
+
+      // Mettre à jour l'embed avec le nouveau nb de parieurs
+      const ch = await interaction.client.channels.fetch(match.channelId).catch(() => null);
+      if (ch && match.messageId) {
+        const msg = await ch.messages.fetch(match.messageId).catch(() => null);
+        if (msg) await msg.edit({ embeds: [bettingManager.buildMatchEmbed(match)], components: bettingManager.buildMatchComponents(match) });
+      }
+
+      await interaction.editReply(`✅ Pari enregistré !\n**${teamPick}** · Score : **${scorePick}** · Mise : **${amount} 💎**`);
+    } catch (err) {
+      try { await interaction.editReply(`❌ ${err.message}`); } catch {}
+    }
+    return;
+  }
+
+});
+
 client.login(token);
