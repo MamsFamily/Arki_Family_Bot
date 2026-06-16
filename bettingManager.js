@@ -187,23 +187,37 @@ function buildMatchComponents(match) {
 }
 
 function buildResultEmbed(match, results) {
-  let desc = `**${match.teamA}** vs **${match.teamB}**\n`;
-  desc += `🏆 Résultat officiel : **${match.result.winnerTeam}** — **${match.result.exactScore}**\n\n`;
+  const sorted = [...results].sort((a, b) => b.netGain - a.netGain);
+  const MEDALS = ['🥇', '🥈', '🥉'];
 
-  if (results.length === 0) {
-    desc += '*Aucun pari enregistré.*';
+  let desc = `> **${match.teamA}** vs **${match.teamB}**\n`;
+  desc += `> 🏆 Résultat officiel : **${match.result.winnerTeam}** · Score : **${match.result.exactScore}**\n\n`;
+
+  if (sorted.length === 0) {
+    desc += '*Aucun pari enregistré pour ce match.*';
   } else {
-    results.sort((a, b) => b.gain - a.gain);
-    for (const r of results) {
-      const sign = r.netGain >= 0 ? `+${r.netGain}` : `${r.netGain}`;
-      desc += `**${r.username}** · Pari : ${r.bet.teamPick} ${r.bet.scorePick} (${r.bet.amount}💎) → ${r.label} → **${sign} 💎**\n`;
+    desc += `**📋 Récapitulatif des paris** *(${sorted.length} participant${sorted.length > 1 ? 's' : ''})*\n`;
+    desc += '─'.repeat(30) + '\n';
+
+    for (let i = 0; i < sorted.length; i++) {
+      const r = sorted[i];
+      const medal = i < 3 ? MEDALS[i] : `**${i + 1}.**`;
+      const gainStr = r.netGain > 0 ? `**+${r.netGain} 💎**` : r.netGain === 0 ? `0 💎` : `**${r.netGain} 💎**`;
+
+      desc += `${medal} **${r.username}**\n`;
+      desc += `　　🎯 Pari : ${r.bet.teamPick} · Score : \`${r.bet.scorePick}\` · Mise : ${r.bet.amount} 💎\n`;
+      desc += `　　${r.label} → ${gainStr}\n`;
     }
   }
+
+  const totalPool = results.reduce((s, r) => s + r.bet.amount, 0);
+  const winners = results.filter(r => r.netGain > 0).length;
 
   return new EmbedBuilder()
     .setColor(0x2ecc71)
     .setTitle(`🏁 Résultats — ${match.name}`)
-    .setDescription(desc);
+    .setDescription(desc)
+    .setFooter({ text: `Pool total : ${totalPool} 💎 · ${winners} gagnant${winners !== 1 ? 's' : ''} sur ${results.length} parieur${results.length !== 1 ? 's' : ''}` });
 }
 
 function buildLeaderboardEmbed(lb) {
