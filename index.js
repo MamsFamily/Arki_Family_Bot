@@ -919,16 +919,43 @@ async function endGiveawayNow(id, botClient) {
       }
 
       // Distribution auto dans l'inventaire (item défini OU item occasionnel)
+      const distributionLines = [];
       for (const uid of winners) {
         try {
           if (g.prize.type === 'item' && g.prize.itemId) {
             await addToInventory(uid, g.prize.itemId, g.prize.quantity, 'giveaway', g.title);
           } else if (g.prize.type === 'libre' && g.prize.name) {
-            // Item occasionnel : stocker avec le nom comme identifiant
             const libreId = 'libre_' + g.prize.name.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 40);
             await addToInventory(uid, libreId, g.prize.quantity, 'giveaway', `${g.title} — ${g.prize.name}`);
           }
-        } catch (e) {}
+          distributionLines.push(`✅ <@${uid}> — **${prizeLabel}** ×${g.prize.quantity}`);
+        } catch (e) {
+          distributionLines.push(`❌ <@${uid}> — erreur : ${e.message}`);
+        }
+      }
+
+      // Rapport de distribution dans le salon des rapports d'inventaire
+      try {
+        const settings = getSettings();
+        const logChannelId = settings.guild?.inventoryLogChannelId;
+        if (logChannelId) {
+          const logChannel = await botClient.channels.fetch(logChannelId);
+          if (logChannel) {
+            const reportEmbed = new EmbedBuilder()
+              .setColor('#f39c12')
+              .setTitle('🎁 Rapport de distribution — Giveaway')
+              .addFields(
+                { name: '🏆 Giveaway', value: g.title, inline: true },
+                { name: '🎀 Récompense', value: `${prizeLabel} ×${g.prize.quantity}`, inline: true },
+                { name: '👥 Gagnants distribués', value: distributionLines.join('\n') || '—', inline: false },
+              )
+              .setFooter({ text: `ID : ${g.id} • ${winners.length} gagnant(s)` })
+              .setTimestamp();
+            await logChannel.send({ embeds: [reportEmbed] });
+          }
+        }
+      } catch (e) {
+        console.error('[Giveaway] Erreur envoi rapport distribution:', e.message);
       }
     } else {
       await channel.send(`😔 **Fin du Giveaway "${g.title}"** — Aucun participant éligible pour le tirage.`);
