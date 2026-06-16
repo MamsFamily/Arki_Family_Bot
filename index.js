@@ -5510,11 +5510,15 @@ client.on('interactionCreate', async interaction => {
     await interaction.deferReply({ ephemeral: true });
     try {
       const channel = interaction.options.getChannel('salon');
-      const deadlineRaw = interaction.options.getString('deadline');
-      const deadline = new Date(deadlineRaw);
-      if (isNaN(deadline.getTime())) {
+      const deadlineRaw = interaction.options.getString('deadline').replace(' ', 'T');
+      // Interpréter la saisie comme heure Europe/Paris (UTC+1 hiver / UTC+2 été)
+      const naiveDL = new Date(deadlineRaw + ':00Z');
+      if (isNaN(naiveDL.getTime())) {
         return interaction.editReply('❌ Format de date invalide. Utilise `2026-06-15 20:45`.');
       }
+      const parisHDL = parseInt(naiveDL.toLocaleString('en-US', { timeZone: 'Europe/Paris', hour: '2-digit', hour12: false }));
+      const offsetHDL = ((parisHDL - naiveDL.getUTCHours()) + 24) % 24;
+      const deadline = new Date(naiveDL.getTime() - offsetHDL * 3600000);
       const match = await bettingManager.createMatch({
         name: interaction.options.getString('nom'),
         teamA: interaction.options.getString('equipe_a'),
@@ -5613,41 +5617,31 @@ client.on('interactionCreate', async interaction => {
   }
 
   // ── Bouton 🎯 Placer mon pari ──
+  // showModal en premier (sans await DB) pour respecter la fenêtre de 3s Discord
   if (interaction.isButton() && interaction.customId.startsWith('bet_place_')) {
     const matchId = interaction.customId.slice('bet_place_'.length);
     try {
-      const match = await bettingManager.getMatch(matchId);
-      if (!match) return interaction.reply({ content: '❌ Match introuvable.', ephemeral: true });
-      if (match.closed || match.resolved) return interaction.reply({ content: '❌ Les paris sont clôturés.', ephemeral: true });
-      if (Date.now() > match.deadline) return interaction.reply({ content: '❌ La deadline est passée.', ephemeral: true });
-      if (match.bets[interaction.user.id]) return interaction.reply({ content: '❌ Tu as déjà placé un pari sur ce match.', ephemeral: true });
-
-      const { ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
       const modal = new ModalBuilder()
         .setCustomId(`bet_modal_${matchId}`)
-        .setTitle(`⚽ ${match.name}`);
-
+        .setTitle('⚽ Placer mon pari');
       const teamInput = new TextInputBuilder()
         .setCustomId('bet_team')
-        .setLabel(`Équipe gagnante (${match.teamA} / ${match.teamB} / Nul)`)
+        .setLabel('Équipe gagnante (ex : France) ou "Nul"')
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
-        .setPlaceholder(`ex: ${match.teamA}`);
-
+        .setPlaceholder('France');
       const scoreInput = new TextInputBuilder()
         .setCustomId('bet_score')
-        .setLabel('Score prédit (ex: 2-1)')
+        .setLabel('Score prédit (ex : 2-1)')
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
         .setPlaceholder('2-1');
-
       const amountInput = new TextInputBuilder()
         .setCustomId('bet_amount')
-        .setLabel(`Mise en 💎 (min: ${match.minBet}${match.maxBet > 0 ? ` · max: ${match.maxBet}` : ''})`)
+        .setLabel('Mise en 💎')
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
-        .setPlaceholder(String(match.minBet));
-
+        .setPlaceholder('100');
       modal.addComponents(
         new ActionRowBuilder().addComponents(teamInput),
         new ActionRowBuilder().addComponents(scoreInput),
@@ -5661,11 +5655,11 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  // ── Modal soumis : pari ──
+  // ── Modal soumis : pari ── (validation complète ici, après deferReply)
   if (interaction.isModalSubmit() && interaction.customId.startsWith('bet_modal_')) {
     const matchId = interaction.customId.slice('bet_modal_'.length);
-    await interaction.deferReply({ ephemeral: true });
     try {
+      await interaction.deferReply({ ephemeral: true });
       const teamPick = interaction.fields.getTextInputValue('bet_team').trim();
       const scorePick = interaction.fields.getTextInputValue('bet_score').trim();
       const amount = parseInt(interaction.fields.getTextInputValue('bet_amount').trim());
@@ -5673,14 +5667,13 @@ client.on('interactionCreate', async interaction => {
 
       const match = await bettingManager.placeBet(matchId, interaction.user.id, username, teamPick, scorePick, amount);
 
-      // Mettre à jour l'embed avec le nouveau nb de parieurs
       const ch = await interaction.client.channels.fetch(match.channelId).catch(() => null);
       if (ch && match.messageId) {
         const msg = await ch.messages.fetch(match.messageId).catch(() => null);
         if (msg) await msg.edit({ embeds: [bettingManager.buildMatchEmbed(match)], components: bettingManager.buildMatchComponents(match) });
       }
 
-      await interaction.editReply(`✅ Pari enregistré !\n**${teamPick}** · Score : **${scorePick}** · Mise : **${amount} 💎**`);
+      await interaction.editReply(`✅ Pari enregistré !\n⚽ **${teamPick}** · Score : **${scorePick}** · Mise : **${amount} 💎**`);
     } catch (err) {
       try { await interaction.editReply(`❌ ${err.message}`); } catch {}
     }

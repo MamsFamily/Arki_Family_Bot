@@ -5017,8 +5017,13 @@ function createWebServer(discordClient) {
     try {
       const { nom, equipe_a, equipe_b, deadline, channelId, mise_min, mise_max, mult_equipe, mult_exact } = req.body;
       if (!nom || !equipe_a || !equipe_b || !deadline || !channelId) throw new Error('Champs obligatoires manquants.');
-      const deadlineDate = new Date(deadline);
-      if (isNaN(deadlineDate.getTime())) throw new Error('Format de date invalide.');
+      // datetime-local envoie "YYYY-MM-DDTHH:MM" sans timezone.
+      // On l'interprète comme heure Europe/Paris (UTC+1 hiver / UTC+2 été).
+      const naive = new Date(deadline + ':00Z'); // parse en UTC
+      if (isNaN(naive.getTime())) throw new Error('Format de date invalide.');
+      const parisH = parseInt(naive.toLocaleString('en-US', { timeZone: 'Europe/Paris', hour: '2-digit', hour12: false }));
+      const offsetH = ((parisH - naive.getUTCHours()) + 24) % 24;
+      const deadlineDate = new Date(naive.getTime() - offsetH * 3600000);
       const match = await bettingManager.createMatch({
         name: nom.trim(),
         teamA: equipe_a.trim(),
