@@ -461,6 +461,28 @@ function isOccasionnelCat(cat) {
          (cat.name || '').toLowerCase().includes('occasionnel');
 }
 
+// Retourne true si la clé d'inventaire est un item occasionnel (libre)
+function isLibreKey(key) {
+  return key.startsWith('[libre] ') || key.startsWith('libre_');
+}
+
+// Retourne le nom d'affichage d'un item occasionnel à partir de sa clé
+function libreDisplayName(key) {
+  if (key.startsWith('[libre] ')) return key.slice(8).trim();
+  if (key.startsWith('libre_'))   return key.slice(6).replace(/_/g, ' ').trim();
+  return key;
+}
+
+// Retourne les items occasionnels présents dans l'inventaire (clé → qty)
+function getLibreStock(userId) {
+  const inv = getPlayerInventory(userId);
+  const result = {};
+  for (const [key, qty] of Object.entries(inv)) {
+    if (isLibreKey(key) && qty > 0) result[key] = qty;
+  }
+  return result;
+}
+
 function getAvailableStock(userId, cart) {
   const inv      = getPlayerInventory(userId);
   const reserved = {};
@@ -490,6 +512,18 @@ function buildInvCartEmbed(data) {
       return `${t.emoji || '📦'} **${t.name}** × ${total}`;
     });
     stockLines.push(`**${menuEmoji(cat.emoji, '📦')} ${cat.name}**\n${lines.join('\n')}`);
+  }
+
+  // Items occasionnels (libre_* / [libre] *)
+  const libreStock = getLibreStock(data.userId);
+  if (Object.keys(libreStock).length > 0) {
+    const libreLines = Object.entries(libreStock).map(([key, total]) => {
+      const av       = avail[key] ?? total;
+      const reserved = total - av;
+      if (reserved > 0) return `🎁 **${libreDisplayName(key)}** : ~~${total}~~ → **${av} disponible** *(${reserved} dans le panier)*`;
+      return `🎁 **${libreDisplayName(key)}** × ${total}`;
+    });
+    stockLines.push(`**🎁 Items occasionnels**\n${libreLines.join('\n')}`);
   }
 
   const cartLines = cart.map(e => {
@@ -555,7 +589,8 @@ async function startInventoryReclaimToChannel(channel, data) {
 async function startInvCartFlow(channel, data) {
   const inv       = getPlayerInventory(data.userId);
   const itemTypes = getItemTypes();
-  const hasInv    = itemTypes.some(t => (inv[t.id] || 0) > 0);
+  const hasInv    = itemTypes.some(t => (inv[t.id] || 0) > 0)
+                    || Object.keys(getLibreStock(data.userId)).length > 0;
 
   if (!hasInv) {
     await channel.send({
@@ -592,16 +627,20 @@ async function handleInvAddBtn(interaction, ticketId) {
   const cats      = getCategories();
 
   const catsWithItems = cats.filter(cat => itemTypes.some(t => t.category === cat.id && (avail[t.id] || 0) > 0));
-  if (!catsWithItems.length) return interaction.reply({ content: '❌ Plus aucun article disponible.', ephemeral: true });
+  const libreAvail    = Object.entries(getLibreStock(data.userId)).filter(([k]) => (avail[k] ?? 1) > 0);
+  if (!catsWithItems.length && !libreAvail.length) return interaction.reply({ content: '❌ Plus aucun article disponible.', ephemeral: true });
+
+  const catOptions = catsWithItems.slice(0, 24).map(cat => {
+    const isDinoCat = (cat.id || '').toLowerCase() === 'dino' || (cat.name || '').toLowerCase().includes('dino');
+    const em = isDinoCat ? '🦖' : menuEmoji(cat.emoji, '📦');
+    return { label: `${em} ${cat.name}`.trim().slice(0, 100), value: cat.id };
+  });
+  if (libreAvail.length > 0) catOptions.push({ label: '🎁 Items occasionnels', description: `${libreAvail.length} item(s) disponible(s)`, value: '__occasionnel__' });
 
   const select = new StringSelectMenuBuilder()
     .setCustomId(`rcl_ic_cat::${ticketId}`)
     .setPlaceholder('Dans quelle catégorie ?')
-    .addOptions(catsWithItems.slice(0, 25).map(cat => {
-      const isDinoCat = (cat.id || '').toLowerCase() === 'dino' || (cat.name || '').toLowerCase().includes('dino');
-      const em = isDinoCat ? '🦖' : menuEmoji(cat.emoji, '📦');
-      return { label: `${em} ${cat.name}`.trim().slice(0, 100), value: cat.id };
-    }));
+    .addOptions(catOptions);
 
   await interaction.update({
     embeds: [buildInvCartEmbed(data)],
@@ -621,6 +660,31 @@ async function handleInvCatSelect(interaction, ticketId) {
 
   const catId  = interaction.values[0];
   const avail  = getAvailableStock(data.userId, data.claimData.invCart || []);
+
+  // Catégorie virtuelle : items occasionnels
+  if (catId === '__occasionnel__') {
+    const libreEntries = Object.entries(getLibreStock(data.userId))
+      .filter(([k]) => (avail[k] ?? 1) > 0);
+    if (!libreEntries.length) return interaction.reply({ content: '❌ Plus aucun item occasionnel disponible.', ephemeral: true });
+    const select = new StringSelectMenuBuilder()
+      .setCustomId(`rcl_ic_item::${ticketId}::__occasionnel__`)
+      .setPlaceholder('Quel item occasionnel réclamer ?')
+      .addOptions(libreEntries.slice(0, 25).map(([key, total]) => ({
+        label: `🎁 ${libreDisplayName(key)}`.slice(0, 100),
+        description: `Dispo : ${avail[key] ?? total}`,
+        value: key,
+      })));
+    return interaction.update({
+      embeds: [buildInvCartEmbed(data)],
+      components: [
+        new ActionRowBuilder().addComponents(select),
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId(`rcl_ic_back::${ticketId}`).setLabel('↩️ Retour').setStyle(ButtonStyle.Secondary),
+        ),
+      ],
+    });
+  }
+
   const items  = getItemTypes().filter(t => t.category === catId && (avail[t.id] || 0) > 0);
   if (!items.length) return interaction.reply({ content: '❌ Plus aucun article dans cette catégorie.', ephemeral: true });
 
@@ -655,13 +719,14 @@ async function handleInvItemSelect(interaction, ticketId) {
   const itemType = getItemTypes().find(t => t.id === itemId);
   if (av <= 0) return interaction.reply({ content: '❌ Aucun stock disponible.', ephemeral: true });
 
+  const displayName = itemType?.name || (isLibreKey(itemId) ? libreDisplayName(itemId) : itemId);
   const maxQty = Math.min(av, 25);
   const select = new StringSelectMenuBuilder()
     .setCustomId(`rcl_ic_qty::${ticketId}`)
     .setPlaceholder(`Quantité à réclamer (dispo : ${av})`)
     .addOptions(Array.from({ length: maxQty }, (_, i) => ({
       label: `${i + 1}`,
-      description: `${i + 1}× ${itemType?.name || itemId}`,
+      description: `${i + 1}× ${displayName}`,
       value: `${itemId}::${i + 1}`,
     })));
 
@@ -702,9 +767,10 @@ async function handleInvQtySelect(interaction, ticketId) {
   }
 
   // Direct : ajouter au panier
+  const friendlyName = itemType?.name || (isLibreKey(itemId) ? libreDisplayName(itemId) : itemId);
   const existing = data.claimData.invCart.find(e => e.itemId === itemId);
   if (existing) existing.qty += qty;
-  else data.claimData.invCart.push({ itemId, itemName: itemType?.name || itemId, emoji: menuEmoji(itemType?.emoji, '📦'), qty });
+  else data.claimData.invCart.push({ itemId, itemName: friendlyName, emoji: menuEmoji(itemType?.emoji, '📦'), qty });
   saveTicket(data);
 
   await interaction.update({ embeds: [buildInvCartEmbed(data)], components: buildInvCartRows(ticketId, data.claimData.invCart) });
