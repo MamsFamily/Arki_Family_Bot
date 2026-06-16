@@ -5426,24 +5426,34 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
-    // Ajouter une réponse → ouvre un modal
+    // Ajouter une réponse → vérifie d'abord, puis ouvre le modal
     if (id.startsWith('poll_add_')) {
       const messageId = id.slice('poll_add_'.length);
-      const { ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
-      const modal = new ModalBuilder()
-        .setCustomId(`poll_modal_${messageId}`)
-        .setTitle('Ajouter une réponse');
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId('poll_text')
-            .setLabel('Votre réponse')
-            .setStyle(TextInputStyle.Short)
-            .setMaxLength(100)
-            .setRequired(true)
-        )
-      );
-      await interaction.showModal(modal);
+      try {
+        const poll = await pollManager.getPoll(messageId);
+        if (!poll) return interaction.reply({ content: '❌ Sondage introuvable.', ephemeral: true });
+        if (poll.closed) return interaction.reply({ content: '🔒 Ce sondage est clôturé.', ephemeral: true });
+        if (poll.options.some(o => o.voters.includes(interaction.user.id))) {
+          return interaction.reply({ content: '❌ Tu as déjà ajouté une réponse à ce sondage. Elle ne peut pas être modifiée.', ephemeral: true });
+        }
+        const { ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+        const modal = new ModalBuilder()
+          .setCustomId(`poll_modal_${messageId}`)
+          .setTitle('Ajouter une réponse');
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('poll_text')
+              .setLabel('Votre réponse')
+              .setStyle(TextInputStyle.Short)
+              .setMaxLength(100)
+              .setRequired(true)
+          )
+        );
+        await interaction.showModal(modal);
+      } catch (err) {
+        try { await interaction.reply({ content: `❌ ${err.message}`, ephemeral: true }); } catch {}
+      }
       return;
     }
 
