@@ -2986,6 +2986,8 @@ function createWebServer(discordClient) {
     const updated = giveawayManager.getGiveaway(id);
     try {
       const channel = await client.channels.fetch(g.channelId);
+
+      // Mettre à jour l'embed Discord (bouton désactivé, couleur grise)
       if (g.messageId) {
         const msg = await channel.messages.fetch(g.messageId).catch(() => null);
         if (msg) {
@@ -2998,21 +3000,33 @@ function createWebServer(discordClient) {
           await msg.edit({ embeds: [endEmbed], components: [disabledRow] });
         }
       }
+
       const prizeLabel = buildPrizeLabelServer(g.prize);
       if (winners && winners.length > 0) {
         const winnerMentions = winners.map(uid => `<@${uid}>`).join(', ');
-        await channel.send(`🎉 **Fin du Giveaway !**\n\n🏆 Félicitations ${winnerMentions} ! Vous remportez **${prizeLabel}** !\n\n> Contactez un administrateur pour recevoir votre gain.`);
+        await channel.send(`🎉 **Fin du Giveaway !**\n\n🏆 Félicitations ${winnerMentions} ! Vous remportez **${prizeLabel}** !\n\n> ✅ Votre gain a été crédité dans votre inventaire.`);
+
+        // Distribution des récompenses dans les inventaires
+        const { addToInventory } = require('../inventoryManager');
+        for (const uid of winners) {
+          try {
+            if (g.prize.type === 'item' && g.prize.itemId) {
+              await addToInventory(uid, g.prize.itemId, g.prize.quantity, 'giveaway', g.title);
+            } else if (g.prize.type === 'libre' && g.prize.name) {
+              const libreId = 'libre_' + g.prize.name.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 40);
+              await addToInventory(uid, libreId, g.prize.quantity, 'giveaway', `${g.title} — ${g.prize.name}`);
+            }
+          } catch (e) {
+            console.error(`[Giveaway] Erreur distribution inventaire pour ${uid}:`, e.message);
+          }
+        }
+
+        // DM aux gagnants
         for (const uid of winners) {
           try {
             const user = await client.users.fetch(uid);
-            await user.send(`🎉 Félicitations ! Tu as gagné le giveaway **${g.title}** sur Arki Family !\nTu remportes : **${prizeLabel}**\nContacte un administrateur pour recevoir ton gain.`);
+            await user.send(`🎉 Félicitations ! Tu as gagné le giveaway **${g.title}** sur Arki Family !\nTu remportes : **${prizeLabel}**\n✅ Ton gain a été crédité dans ton inventaire.`);
           } catch (e) {}
-        }
-        if (g.prize.type === 'item') {
-          const { addToInventory } = require('../inventoryManager');
-          for (const uid of winners) {
-            try { await addToInventory(uid, g.prize.itemId, g.prize.quantity, 'giveaway', g.title); } catch (e) {}
-          }
         }
       } else {
         await channel.send(`😔 **Fin du Giveaway "${g.title}"** — Aucun participant éligible pour le tirage.`);
