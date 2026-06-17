@@ -171,6 +171,11 @@ function buildMapButtons(serviceId, status) {
       .setDisabled(!isOnline),
 
     new ButtonBuilder()
+      .setCustomId(`${PREFIX}_players::${serviceId}`)
+      .setLabel('👥 Joueurs')
+      .setStyle(ButtonStyle.Secondary),
+
+    new ButtonBuilder()
       .setCustomId(`${PREFIX}_refresh::${serviceId}`)
       .setLabel('🔃 Actualiser')
       .setStyle(ButtonStyle.Secondary),
@@ -205,11 +210,59 @@ function buildGlobalButtons() {
         .setStyle(ButtonStyle.Danger),
 
       new ButtonBuilder()
+        .setCustomId(`${PREFIX}_players_all`)
+        .setLabel('👥 Toutes les connexions')
+        .setStyle(ButtonStyle.Secondary),
+
+      new ButtonBuilder()
         .setCustomId(`${PREFIX}_refresh_all`)
         .setLabel('🔃 Tout actualiser')
         .setStyle(ButtonStyle.Secondary),
     ),
   ];
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PLAYER LIST HELPERS
+// ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Récupère et formate la liste de joueurs d'un serveur.
+ * Retourne un objet { title, lines } prêt à afficher.
+ */
+async function fetchFormattedPlayerList(serviceId, displayName) {
+  try {
+    const gs = await getServerDetails(serviceId);
+    if (!gs) return { title: displayName, lines: ['⚠️ Serveur introuvable.'] };
+
+    const count    = gs.query?.player_current ?? 0;
+    const max      = gs.query?.player_max     ?? '?';
+    const players  = Array.isArray(gs.query?.players) ? gs.query.players : [];
+
+    const title = `${displayName} — ${count} / ${max} joueur(s)`;
+
+    if (count === 0) {
+      return { title, lines: ['*Aucun joueur connecté.*'] };
+    }
+
+    if (!players.length) {
+      // L'API Nitrado ne retourne pas toujours la liste nominative
+      return {
+        title,
+        lines: [`**${count}** joueur(s) connecté(s) — liste nominative non disponible via l'API Nitrado.`],
+      };
+    }
+
+    const lines = players.map((p, i) => {
+      const name = p.name || p.id || `Joueur ${i + 1}`;
+      const time = p.time != null ? ` *(${Math.floor(p.time / 60)} min)*` : '';
+      return `${i + 1}. **${name}**${time}`;
+    });
+
+    return { title, lines };
+  } catch (e) {
+    return { title: displayName, lines: [`❌ Erreur : ${e.message}`] };
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -304,6 +357,24 @@ async function handleServerPanelInteraction(interaction) {
     return interaction.editReply(`☠️ **Destroy Dinos Sauvages — toutes maps**\n\n${lines.join('\n')}`);
   }
 
+  // ── Players All ──────────────────────────────────────────────────────────
+  if (id === `${PREFIX}_players_all`) {
+    await interaction.deferReply({ ephemeral: true });
+    const maps = await getMaps();
+    if (!maps.length) return interaction.editReply('❌ Aucun serveur Nitrado trouvé.');
+
+    const sections = await Promise.all(maps.map(m => fetchFormattedPlayerList(m.serviceId, m.displayName)));
+
+    let msg = `## 👥 Connexions — toutes les maps\n\n`;
+    for (const { title, lines } of sections) {
+      msg += `### ${title}\n${lines.join('\n')}\n\n`;
+    }
+
+    // Tronquer si nécessaire (limite Discord 2000 chars)
+    if (msg.length > 1950) msg = msg.slice(0, 1947) + '…';
+    return interaction.editReply(msg);
+  }
+
   // ── Refresh All ──────────────────────────────────────────────────────────
   if (id === `${PREFIX}_refresh_all`) {
     await interaction.deferReply({ ephemeral: true });
@@ -386,6 +457,15 @@ async function handleServerPanelInteraction(interaction) {
       await interaction.editReply(`❌ Erreur RCON : ${e.message}`);
     }
     return;
+  }
+
+  // ── Players (par map) ────────────────────────────────────────────────────
+  if (action === 'players') {
+    await interaction.deferReply({ ephemeral: true });
+    const { title, lines } = await fetchFormattedPlayerList(serviceId, map.displayName);
+    let msg = `## 👥 ${title}\n\n${lines.join('\n')}`;
+    if (msg.length > 1950) msg = msg.slice(0, 1947) + '…';
+    return interaction.editReply(msg);
   }
 
   // ── Refresh ──────────────────────────────────────────────────────────────
