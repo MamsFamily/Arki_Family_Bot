@@ -227,6 +227,26 @@ function buildGlobalButtons() {
 // ══════════════════════════════════════════════════════════════════════════════
 
 /**
+ * Extrait un message d'erreur clair depuis une erreur axios Nitrado RCON.
+ * HTTP 500 → l'API Nitrado ne supporte pas la commande sur ce serveur.
+ * HTTP 403 → token sans permission gameserver_commands.
+ */
+function formatRconError(e) {
+  const status     = e.response?.status;
+  const nitradoMsg = e.response?.data?.message || e.response?.data?.error || '';
+
+  if (status === 403) {
+    return 'Permission refusée (403) — le token Nitrado n\'a pas la scope `gameserver_commands`.';
+  }
+  if (status === 500) {
+    const detail = nitradoMsg ? ` (${nitradoMsg})` : '';
+    return `L'API Nitrado ne supporte pas RCON sur ce serveur${detail}.\n` +
+      `-# Vérifiez : Nitrado → Options du serveur → « Enable RCON », et que le token a la permission \`gameserver_commands\`.`;
+  }
+  return nitradoMsg || e.message || 'Erreur inconnue';
+}
+
+/**
  * Récupère et formate la liste de joueurs via RCON (ListPlayers).
  * Fallback sur le compteur REST si RCON échoue.
  * Retourne un objet { title, lines } prêt à afficher.
@@ -269,7 +289,7 @@ async function fetchFormattedPlayerList(serviceId, displayName) {
     return { title, lines };
 
   } catch (e) {
-    // RCON indisponible (serveur éteint, token sans permission RCON, etc.)
+    // RCON indisponible (serveur éteint, token sans permission, API Nitrado limite)
     if (countOnline === 0) {
       return { title, lines: ['*Aucun joueur connecté.*'] };
     }
@@ -277,7 +297,7 @@ async function fetchFormattedPlayerList(serviceId, displayName) {
       title,
       lines: [
         `**${countOnline}** joueur(s) connecté(s).`,
-        `-# Liste nominative indisponible (RCON) : ${e.message}`,
+        `-# Noms indisponibles — ${formatRconError(e)}`,
       ],
     };
   }
@@ -472,7 +492,7 @@ async function handleServerPanelInteraction(interaction) {
       const rconMsg = result?.data?.message || result?.message || 'Commande exécutée';
       await interaction.editReply(`☠️ **${map.displayName}** — Destroy Dinos Sauvages lancé.\n-# ${rconMsg}`);
     } catch (e) {
-      await interaction.editReply(`❌ Erreur RCON : ${e.message}`);
+      await interaction.editReply(`❌ **${map.displayName}** — Destroy Dinos impossible.\n${formatRconError(e)}`);
     }
     return;
   }
