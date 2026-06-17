@@ -147,7 +147,7 @@ const DEFAULTS = {
   // nitradoFtp est un objet keyed par serviceId : { [serviceId]: { host, port, user, password, secure } }
   serverPanel: {
     adminRoleIds: [],  // vide = Administrator uniquement
-    maps: [],          // [{ id, displayName, serviceId, emoji }]
+    // maps : lues depuis boosterRepro.maps (pas de config dupliquée)
   },
   boosterRepro: {
     enabled: false,

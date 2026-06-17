@@ -47,7 +47,8 @@ function getPanelSettings() {
 }
 
 function getMaps() {
-  return getPanelSettings().maps || [];
+  // Réutilise la liste de maps configurée dans Dashboard → 🧬 Booster Repro
+  return (getSettings().boosterRepro || {}).maps || [];
 }
 
 function isAuthorized(interaction) {
