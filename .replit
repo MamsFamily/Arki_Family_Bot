@@ -23,13 +23,13 @@ args = "Dashboard"
 name = "Dashboard"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "node -e \"require('./web/server').createWebServer(null)\""
-waitForPort = 5000
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node index.js"
+waitForPort = 5000
 
 [userenv]
 

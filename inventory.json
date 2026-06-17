@@ -1,0 +1,144 @@
+{
+  "itemTypes": [
+    {
+      "id": "diamants",
+      "name": "Diamants",
+      "emoji": "💎",
+      "order": 1,
+      "category": "currency"
+    },
+    {
+      "id": "fraises",
+      "name": "Fraises",
+      "emoji": "🍓",
+      "order": 2,
+      "category": "currency"
+    },
+    {
+      "id": "elements",
+      "name": "Éléments",
+      "emoji": "🧪",
+      "order": 3,
+      "category": "consumable"
+    },
+    {
+      "id": "peinture_dino",
+      "name": "Peinture Dino",
+      "emoji": "🎨",
+      "order": 4,
+      "category": "consumable"
+    },
+    {
+      "id": "pack",
+      "name": "Pack",
+      "emoji": "📦",
+      "order": 5,
+      "category": "consumable"
+    },
+    {
+      "id": "schema",
+      "name": "Schéma",
+      "emoji": "⛏",
+      "order": 6,
+      "category": "consumable"
+    },
+    {
+      "id": "chibi_skin",
+      "name": "Chibi ou skin",
+      "emoji": "🥚",
+      "order": 7,
+      "category": "consumable"
+    },
+    {
+      "id": "imprint_300",
+      "name": "Imprint 300",
+      "emoji": "3️⃣",
+      "order": 8,
+      "category": "consumable"
+    },
+    {
+      "id": "dino_epaule",
+      "name": "Dino d'épaule",
+      "emoji": "🦎",
+      "order": 9,
+      "category": "dino"
+    },
+    {
+      "id": "dino_epaule_shop",
+      "name": "Dino d'épaule Shop",
+      "emoji": "🦎",
+      "order": 10,
+      "category": "dino"
+    },
+    {
+      "id": "equip_mythique",
+      "name": "Pièce d'équipement crafté mythique",
+      "emoji": "🎒",
+      "order": 11,
+      "category": "equipment"
+    },
+    {
+      "id": "arme_mythique",
+      "name": "Arme crafté mythique",
+      "emoji": "🔫",
+      "order": 12,
+      "category": "equipment"
+    },
+    {
+      "id": "dino_dona",
+      "name": "Dino Dona",
+      "emoji": "🦕",
+      "order": 13,
+      "category": "dino"
+    }
+  ],
+  "inventories": {
+    "1493414013546004621": {
+      "diamants": 136
+    }
+  },
+  "transactions": [
+    {
+      "id": "mqi657le7osqmo",
+      "playerId": "1493414013546004621",
+      "itemTypeId": "diamants",
+      "quantity": 136,
+      "adminId": "/travail",
+      "reason": "Travail quotidien",
+      "type": "add",
+      "timestamp": "2026-06-17T14:31:02.834Z"
+    }
+  ],
+  "categories": [
+    {
+      "id": "currency",
+      "name": "Monnaie",
+      "emoji": "💰",
+      "order": 1
+    },
+    {
+      "id": "consumable",
+      "name": "Consommable",
+      "emoji": "📦",
+      "order": 2
+    },
+    {
+      "id": "dino",
+      "name": "Dino",
+      "emoji": "🦕",
+      "order": 3
+    },
+    {
+      "id": "equipment",
+      "name": "Équipement",
+      "emoji": "🛡️",
+      "order": 4
+    },
+    {
+      "id": "other",
+      "name": "Autre",
+      "emoji": "🔮",
+      "order": 5
+    }
+  ]
+}

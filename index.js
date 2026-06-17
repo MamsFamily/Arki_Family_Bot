@@ -5749,4 +5749,18 @@ client.on('interactionCreate', async interaction => {
 
 });
 
+// ── Gestionnaires d'erreurs globaux ──────────────────────────────────────────
+// Évite que le process crashe sur des erreurs réseau/interaction Discord
+client.on('error', (err) => {
+  console.error('[Discord] Erreur client (non-fatale) :', err.message);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Process] unhandledRejection :', reason?.message || reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[Process] uncaughtException :', err.message);
+});
+
 client.login(token);
