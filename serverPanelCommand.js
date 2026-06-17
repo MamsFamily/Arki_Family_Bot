@@ -227,41 +227,59 @@ function buildGlobalButtons() {
 // ══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Récupère et formate la liste de joueurs d'un serveur.
+ * Récupère et formate la liste de joueurs via RCON (ListPlayers).
+ * Fallback sur le compteur REST si RCON échoue.
  * Retourne un objet { title, lines } prêt à afficher.
  */
 async function fetchFormattedPlayerList(serviceId, displayName) {
+  // ── 1. Compteur live via REST (toujours disponible) ──────────────────────
+  let countOnline = 0;
+  let countMax    = '?';
   try {
-    const gs = await getServerDetails(serviceId);
-    if (!gs) return { title: displayName, lines: ['⚠️ Serveur introuvable.'] };
+    const gs    = await getServerDetails(serviceId);
+    countOnline = gs?.query?.player_current ?? 0;
+    countMax    = gs?.query?.player_max     ?? '?';
+  } catch { /* ignoré — on tente RCON quand même */ }
 
-    const count    = gs.query?.player_current ?? 0;
-    const max      = gs.query?.player_max     ?? '?';
-    const players  = Array.isArray(gs.query?.players) ? gs.query.players : [];
+  const title = `${displayName} — ${countOnline} / ${countMax} joueur(s)`;
 
-    const title = `${displayName} — ${count} / ${max} joueur(s)`;
+  // ── 2. Liste nominative via RCON (ListPlayers) ────────────────────────────
+  try {
+    const rconData = await sendRcon(serviceId, 'ListPlayers');
+    const raw      = rconData?.data?.message || rconData?.message || '';
 
-    if (count === 0) {
+    // Aucun joueur connecté
+    if (!raw.trim() || /no players connected/i.test(raw)) {
       return { title, lines: ['*Aucun joueur connecté.*'] };
     }
 
-    if (!players.length) {
-      // L'API Nitrado ne retourne pas toujours la liste nominative
-      return {
-        title,
-        lines: [`**${count}** joueur(s) connecté(s) — liste nominative non disponible via l'API Nitrado.`],
-      };
-    }
+    // Format ARK SA : "0. NomJoueur, EOS_xxxxxxxx\n1. Autre, EOS_yyyyyyyy"
+    const lines = raw
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => l && /^\d+\./.test(l))
+      .map(l => {
+        // "0. NomJoueur, EOS_id" → garder uniquement le nom
+        const withoutIndex = l.replace(/^\d+\.\s*/, '');
+        const name = withoutIndex.split(',')[0].trim() || withoutIndex;
+        return `• **${name}**`;
+      });
 
-    const lines = players.map((p, i) => {
-      const name = p.name || p.id || `Joueur ${i + 1}`;
-      const time = p.time != null ? ` *(${Math.floor(p.time / 60)} min)*` : '';
-      return `${i + 1}. **${name}**${time}`;
-    });
-
+    if (!lines.length) return { title, lines: ['*Aucun joueur connecté.*'] };
     return { title, lines };
+
   } catch (e) {
-    return { title: displayName, lines: [`❌ Erreur : ${e.message}`] };
+    // RCON indisponible (serveur éteint, token sans permission RCON, etc.)
+    if (countOnline === 0) {
+      return { title, lines: ['*Aucun joueur connecté.*'] };
+    }
+    return {
+      title,
+      lines: [
+        `**${countOnline}** joueur(s) connecté(s).`,
+        `-# Liste nominative indisponible (RCON) : ${e.message}`,
+      ],
+    };
   }
 }
 
