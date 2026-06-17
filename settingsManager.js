@@ -146,7 +146,7 @@ const DEFAULTS = {
   nitradoFtp: {},
   // nitradoFtp est un objet keyed par serviceId : { [serviceId]: { host, port, user, password, secure } }
   serverPanel: {
-    adminRoleIds: [],  // vide = Administrator uniquement
+    adminRoleIds: ['1157044417526509578'],  // rôle Admin Discord
     // maps : lues depuis boosterRepro.maps (pas de config dupliquée)
   },
   boosterRepro: {
@@ -244,6 +244,19 @@ async function initSettings() {
     cachedSettings = await loadSettingsFromPg();
   } else {
     cachedSettings = loadSettingsFromFile();
+  }
+
+  // Migration : peupler serverPanel.adminRoleIds depuis DEFAULTS si vide en DB
+  if (!cachedSettings.serverPanel?.adminRoleIds?.length && DEFAULTS.serverPanel?.adminRoleIds?.length) {
+    cachedSettings = {
+      ...cachedSettings,
+      serverPanel: {
+        ...cachedSettings.serverPanel,
+        adminRoleIds: [...DEFAULTS.serverPanel.adminRoleIds],
+      },
+    };
+    await saveSettings(cachedSettings);
+    console.log('🔧 serverPanel.adminRoleIds initialisé depuis les valeurs par défaut');
   }
 
   // Générer la clé API publique si absente
