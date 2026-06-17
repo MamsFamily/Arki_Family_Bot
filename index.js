@@ -45,6 +45,7 @@ const restartScheduler = require('./nitradoRestartScheduler');
 const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
 const { registerCasinoHandlers } = require('./casino/casinoHandler');
 const boosterReproManager = require('./boosterReproManager');
+const { handleServerPanelCommand, handleServerPanelInteraction } = require('./serverPanelCommand');
 const birthdayManager    = require('./birthdayManager');
 const infinityRoadManager = require('./infinityRoadManager');
 const adminQuizManager    = require('./adminQuizManager');
@@ -1249,6 +1250,21 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
+  // ── Server Panel (boutons srvp_) ──────────────────────────────────────────
+  if (interaction.isButton() && interaction.customId.startsWith('srvp_')) {
+    try {
+      await handleServerPanelInteraction(interaction);
+    } catch (err) {
+      console.error('[ServerPanel] Erreur interaction:', err);
+      try {
+        const reply = { content: '❌ Une erreur est survenue dans le panneau serveurs.', ephemeral: true };
+        if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
+        else await interaction.reply(reply);
+      } catch (e) {}
+    }
+    return;
+  }
+
   // ── Giveaway: soumission modal création ──
   if (interaction.isModalSubmit() && interaction.customId.startsWith('giveway_create_modal_')) {
     const raw = interaction.customId.replace('giveway_create_modal_', '');
@@ -2264,6 +2280,20 @@ client.on('interactionCreate', async interaction => {
       console.error('[ReclaimTicket] Erreur commande /reclamation-panel:', err);
       try {
         const reply = { content: '❌ Impossible de publier le panneau réclamation. Réessaie.', ephemeral: true };
+        if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
+        else await interaction.reply(reply);
+      } catch (e) {}
+    }
+    return;
+  }
+
+  if (commandName === 'serveur-panel') {
+    try {
+      await handleServerPanelCommand(interaction);
+    } catch (err) {
+      console.error('[ServerPanel] Erreur commande /serveur-panel:', err);
+      try {
+        const reply = { content: '❌ Impossible de publier le panneau serveurs. Réessaie.', ephemeral: true };
         if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
         else await interaction.reply(reply);
       } catch (e) {}

@@ -478,6 +478,11 @@ const commands = [
     name: 'pari-classement',
     description: '🏆 Affiche le classement des parieurs',
   },
+  {
+    name: 'serveur-panel',
+    description: '🖥️ Publie le panneau de contrôle des maps ARK dans ce salon (Admin)',
+    default_member_permissions: '8',
+  },
 ];
 
 module.exports = commands;
