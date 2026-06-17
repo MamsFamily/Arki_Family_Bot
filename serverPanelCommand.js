@@ -6,6 +6,11 @@
  * Slash command : /serveur-panel
  *   → Publie un embed par map (statut, joueurs, boutons) + un embed global
  *
+ * Source des maps :
+ *   1. Serveurs chargés dynamiquement depuis l'API Nitrado (getServices())
+ *   2. Enrichis avec displayName/emoji définis dans boosterRepro.maps si le
+ *      serviceId correspond (nommage personnalisé, optionnel)
+ *
  * Boutons (prefix srvp_) :
  *   srvp_restart::{serviceId}  — Redémarre une map
  *   srvp_stop::{serviceId}     — Éteint une map
@@ -14,11 +19,10 @@
  *   srvp_refresh::{serviceId}  — Actualise le statut d'une map
  *   srvp_restart_all           — Redémarre toutes les maps
  *   srvp_destroy_all           — DestroyWildDinos sur toutes les maps
- *   srvp_refresh_all           — Actualise tous les embeds
+ *   srvp_refresh_all           — Message informatif
  *
  * Config (settings.serverPanel) :
  *   adminRoleIds  — IDs rôles autorisés (vide = Administrator uniquement)
- *   maps          — [{ id, serviceId, displayName, emoji }]
  */
 
 const {
@@ -27,6 +31,7 @@ const {
 
 const { getSettings } = require('./settingsManager');
 const {
+  getServices,
   getServerDetails,
   restartServer,
   stopServer,
@@ -46,9 +51,31 @@ function getPanelSettings() {
   return getSettings().serverPanel || {};
 }
 
-function getMaps() {
-  // Réutilise la liste de maps configurée dans Dashboard → 🧬 Booster Repro
-  return (getSettings().boosterRepro || {}).maps || [];
+/**
+ * Charge la liste des maps depuis l'API Nitrado.
+ * Les noms/emojis définis dans boosterRepro.maps priment si le serviceId correspond.
+ * @returns {Promise<Array<{id, serviceId, displayName, emoji}>>}
+ */
+async function getMaps() {
+  const boosterMaps = (getSettings().boosterRepro || {}).maps || [];
+  const boosterIndex = Object.fromEntries(boosterMaps.map(m => [String(m.serviceId), m]));
+
+  try {
+    const services = await getServices();
+    return services.map(s => {
+      const sid    = String(s.id);
+      const custom = boosterIndex[sid];
+      return {
+        id:          sid,
+        serviceId:   sid,
+        displayName: custom?.displayName || s.details?.name || `Serveur ${sid}`,
+        emoji:       custom?.emoji || '🗺️',
+      };
+    });
+  } catch (e) {
+    console.error('[ServerPanel] Impossible de charger les services Nitrado:', e.message);
+    return [];
+  }
 }
 
 function isAuthorized(interaction) {
@@ -106,9 +133,9 @@ function buildMapEmbed(map, detail) {
     .setColor(si.color)
     .setTitle(`${em} ${map.displayName}`)
     .addFields(
-      { name: '📡 État',     value: si.label,                                 inline: true },
-      { name: '👥 Joueurs',  value: `**${playersOnline}** / ${playersMax || '?'}`, inline: true },
-      { name: '🗺️ Carte',   value: mapName || '*N/A*',                       inline: true },
+      { name: '📡 État',    value: si.label,                                 inline: true },
+      { name: '👥 Joueurs', value: `**${playersOnline}** / ${playersMax || '?'}`, inline: true },
+      { name: '🗺️ Carte',  value: mapName || '*N/A*',                       inline: true },
     )
     .setFooter({ text: `Service ID : ${map.serviceId}` })
     .setTimestamp();
@@ -194,18 +221,16 @@ async function handleServerPanelCommand(interaction) {
     return interaction.reply({ content: '❌ Accès refusé — réservé aux administrateurs.', ephemeral: true });
   }
 
-  const maps = getMaps();
-  if (!maps.length) {
-    return interaction.reply({
-      content: [
-        '❌ Aucune map configurée.',
-        'Configure les maps dans le Dashboard → **🖥️ Panneau Serveurs** → Maps.',
-      ].join('\n'),
-      ephemeral: true,
-    });
-  }
-
   await interaction.deferReply({ ephemeral: true });
+
+  const maps = await getMaps();
+
+  if (!maps.length) {
+    return interaction.editReply(
+      '❌ Aucun serveur Nitrado trouvé.\n' +
+      'Vérifie que le token Nitrado est configuré dans Dashboard → **⚙️ Nitrado** et que des serveurs sont attachés au compte.',
+    );
+  }
 
   // Publier un embed par map
   for (const map of maps) {
@@ -218,7 +243,7 @@ async function handleServerPanelCommand(interaction) {
     } catch (e) {
       console.error(`[ServerPanel] Erreur post map ${map.serviceId}:`, e.message);
       await interaction.channel.send({
-        content: `⚠️ Impossible de récupérer le statut de **${map.displayName}** (service \`${map.serviceId}\`) : ${e.message}`,
+        content: `⚠️ Impossible de récupérer le statut de **${map.displayName}** (\`${map.serviceId}\`) : ${e.message}`,
       });
     }
   }
@@ -246,11 +271,11 @@ async function handleServerPanelInteraction(interaction) {
   // ── Restart All ──────────────────────────────────────────────────────────
   if (id === `${PREFIX}_restart_all`) {
     await interaction.deferReply({ ephemeral: true });
-    const maps = getMaps();
-    if (!maps.length) return interaction.editReply('❌ Aucune map configurée.');
+    const maps = await getMaps();
+    if (!maps.length) return interaction.editReply('❌ Aucun serveur Nitrado trouvé.');
 
     const serviceIds = maps.map(m => m.serviceId);
-    const results = await restartAll(serviceIds, 'Redémarrage global depuis le panneau Discord');
+    const results    = await restartAll(serviceIds, 'Redémarrage global depuis le panneau Discord');
 
     const lines = maps.map(map => {
       const r = results.find(r => r.id === map.serviceId);
@@ -264,10 +289,10 @@ async function handleServerPanelInteraction(interaction) {
   // ── Destroy All ──────────────────────────────────────────────────────────
   if (id === `${PREFIX}_destroy_all`) {
     await interaction.deferReply({ ephemeral: true });
-    const maps = getMaps();
-    if (!maps.length) return interaction.editReply('❌ Aucune map configurée.');
+    const maps = await getMaps();
+    if (!maps.length) return interaction.editReply('❌ Aucun serveur Nitrado trouvé.');
 
-    const serviceIds = maps.map(m => m.serviceId);
+    const serviceIds  = maps.map(m => m.serviceId);
     const rconResults = await sendRconToMany(serviceIds, 'DestroyWildDinos');
 
     const lines = maps.map(map => {
@@ -286,14 +311,15 @@ async function handleServerPanelInteraction(interaction) {
   }
 
   // ── Actions par map ──────────────────────────────────────────────────────
-  const withoutPrefix = id.slice(`${PREFIX}_`.length);        // e.g. "restart::12345"
+  const withoutPrefix = id.slice(`${PREFIX}_`.length);   // e.g. "restart::12345"
   const sep = withoutPrefix.indexOf('::');
   if (sep === -1) return interaction.reply({ content: '❌ Action inconnue.', ephemeral: true });
 
-  const action    = withoutPrefix.slice(0, sep);              // "restart"
-  const serviceId = withoutPrefix.slice(sep + 2);             // "12345"
+  const action    = withoutPrefix.slice(0, sep);          // "restart"
+  const serviceId = withoutPrefix.slice(sep + 2);         // "12345"
 
-  const maps  = getMaps();
+  // Résolution du displayName depuis l'API ou boosterRepro
+  const maps  = await getMaps();
   const map   = maps.find(m => m.serviceId === serviceId) || { displayName: serviceId, serviceId, emoji: '🗺️' };
 
   // Helper : rafraîchir l'embed après une action
@@ -353,7 +379,7 @@ async function handleServerPanelInteraction(interaction) {
   if (action === 'destroy') {
     await interaction.deferReply({ ephemeral: true });
     try {
-      const result = await sendRcon(serviceId, 'DestroyWildDinos');
+      const result  = await sendRcon(serviceId, 'DestroyWildDinos');
       const rconMsg = result?.data?.message || result?.message || 'Commande exécutée';
       await interaction.editReply(`☠️ **${map.displayName}** — Destroy Dinos Sauvages lancé.\n-# ${rconMsg}`);
     } catch (e) {
