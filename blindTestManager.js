@@ -686,6 +686,8 @@ function handleMessage(message) {
 
   if (titleFound || artistFound) {
     message.react('✅').catch(() => {});
+  } else {
+    message.react('❌').catch(() => {});
   }
 
   return false;
