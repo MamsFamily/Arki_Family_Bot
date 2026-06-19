@@ -121,11 +121,20 @@ function checkAnswer(messageContent, song) {
 // API DEEZER — extrait 30s
 // ══════════════════════════════════════════════════════════════════════════════
 
+// Mots-clés indiquant une version live à exclure
+const LIVE_KEYWORDS = ['live', 'concert', 'en direct', 'live at', 'live from', 'in concert', 'unplugged session'];
+
+function isLiveTrack(track) {
+  const title  = normalize(track.title || '');
+  const album  = normalize(track.album?.title || '');
+  return LIVE_KEYWORDS.some(kw => title.includes(kw) || album.includes(kw));
+}
+
 async function getDeezerPreview(song) {
   const query = `${song.title} ${song.artist}`;
-  const url   = `https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=10`;
+  const url   = `https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=20`;
   const res   = await axios.get(url, { timeout: 8000 });
-  const tracks = (res.data?.data || []).filter(t => t.preview);
+  const tracks = (res.data?.data || []).filter(t => t.preview && !isLiveTrack(t));
   if (!tracks.length) throw new Error('Aucun extrait disponible');
   const best = tracks.find(t =>
     normalize(t.title).includes(normalize(song.title)) ||
@@ -544,9 +553,11 @@ async function runRound(game) {
 
   // ── Comptabilisation de la manche ─────────────────────────────────────────
   game.completedRounds++;
-  game.roundAnswers = new Map();
-  game.firstFullId  = null;
+  game.roundAnswers    = new Map();
+  game.firstFullId     = null;
   game.acceptingAnswers = false;
+  game.titleClaimedAt  = null;  // timestamp du 1er joueur à trouver le titre
+  game.artistClaimedAt = null;  // timestamp du 1er joueur à trouver l'artiste
 
   // ── Embed de la manche ────────────────────────────────────────────────────
   const roundEmbed = new EmbedBuilder()
@@ -667,6 +678,9 @@ async function endGame(game) {
 // HANDLERS PUBLICS
 // ══════════════════════════════════════════════════════════════════════════════
 
+// Fenêtre (ms) dans laquelle deux réponses simultanées sont toutes deux acceptées
+const SIMULTANEOUS_MS = 1500;
+
 function handleMessage(message) {
   const game = activeGames.get(message.guildId);
   if (!game || !game.isRunning || !game.acceptingAnswers) return false;
@@ -678,13 +692,29 @@ function handleMessage(message) {
   const song     = game.songs[game.songIndex - 1];
   if (!song) return false;
 
+  const now  = Date.now();
   const prev = game.roundAnswers.get(userId) || { username, titleFound: false, artistFound: false };
-  const { titleFound, artistFound } = checkAnswer(message.content, song);
+
+  // Ce que le message trouve brut
+  const { titleFound: rawTitle, artistFound: rawArtist } = checkAnswer(message.content, song);
+
+  // Filtre par verrouillage : un point n'est accordé que si
+  //   — personne ne l'a encore trouvé (claimedAt null)
+  //   — OU on est dans la fenêtre de simultanéité (≤ 1.5s après le 1er)
+  //   — OU ce joueur l'avait déjà trouvé lui-même (pas de doublon)
+  const titleEligible  = rawTitle  && !prev.titleFound  &&
+    (!game.titleClaimedAt  || (now - game.titleClaimedAt)  <= SIMULTANEOUS_MS);
+  const artistEligible = rawArtist && !prev.artistFound &&
+    (!game.artistClaimedAt || (now - game.artistClaimedAt) <= SIMULTANEOUS_MS);
+
+  // Enregistrement des timestamps à la 1ère découverte
+  if (titleEligible  && !game.titleClaimedAt)  game.titleClaimedAt  = now;
+  if (artistEligible && !game.artistClaimedAt) game.artistClaimedAt = now;
 
   const updated = {
     username,
-    titleFound:  prev.titleFound  || titleFound,
-    artistFound: prev.artistFound || artistFound,
+    titleFound:  prev.titleFound  || titleEligible,
+    artistFound: prev.artistFound || artistEligible,
   };
 
   game.roundAnswers.set(userId, updated);
@@ -693,7 +723,8 @@ function handleMessage(message) {
     game.firstFullId = userId;
   }
 
-  if (titleFound || artistFound) {
+  // Réaction : ✅ si au moins un point gagné ce message, ❌ sinon
+  if (titleEligible || artistEligible) {
     message.react('✅').catch(() => {});
   } else {
     message.react('❌').catch(() => {});
