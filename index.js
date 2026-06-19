@@ -82,6 +82,19 @@ const client = new Client({
   ],
 });
 
+// ── Correctif voice gateway ────────────────────────────────────────────────
+// Discord.js v14 conditionne l'appel à client.voice.onVoiceStateUpdate() par
+// une vérification du cache membre (member?.user.id === client.user.id).
+// Si le bot n'est pas encore dans le cache au moment où le VOICE_STATE_UPDATE
+// arrive, le payload n'est jamais transmis à @discordjs/voice → connexion
+// bloquée en "signalling" indéfiniment.
+// Solution : écouter l'événement raw et court-circuiter la vérification cache.
+client.on('raw', (packet) => {
+  if (packet.t === 'VOICE_STATE_UPDATE' && packet.d?.user_id === client.user?.id) {
+    client.voice?.onVoiceStateUpdate?.(packet.d);
+  }
+});
+
 let config = { rouletteChoices: [], rouletteTitle: 'ARKI' };
 
 // Stocke temporairement le contexte des modaux d'item libre

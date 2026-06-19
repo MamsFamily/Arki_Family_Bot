@@ -1,3 +1,5 @@
 - [Discord modal timing](discord-modal-timing.md) — showModal() doit être la 1ère réponse dans les 3s : aucun await DB avant l'appel.
 - [Discord admin role](discord-admin-role.md) — ID du rôle admin Discord à utiliser pour les permissions bot/panel
 - [Workflow startup](workflow-startup.md) — doit être `node index.js` (bot + web), pas `createWebServer(null)` seul.
+---
+- [Voice gateway signalling fix](voice-gateway-fix.md) — Discord.js v14 : connexion vocale bloquée en signalling si bot pas en cache membre, fix via listener raw.
