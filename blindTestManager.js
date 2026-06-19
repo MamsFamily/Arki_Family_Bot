@@ -205,36 +205,36 @@ async function connectToVoice(voiceChannel) {
     };
   };
 
-  // Logs sur les packets voix bruts (avant joinVoiceChannel pour ne pas rater les events sync)
+  // Capture des messages debug @discordjs/voice (close codes, état UDP, erreurs)
+  const debugLog = [];
   const rawVoiceListener = (packet) => {
-    if (packet.t === 'VOICE_STATE_UPDATE') {
-      console.log(`[BlindTest][Voice] RAW VOICE_STATE_UPDATE reçu — user_id=${packet.d?.user_id} session_id=${packet.d?.session_id} guild_id=${packet.d?.guild_id}`);
-    }
-    if (packet.t === 'VOICE_SERVER_UPDATE') {
-      console.log(`[BlindTest][Voice] RAW VOICE_SERVER_UPDATE reçu — guild_id=${packet.d?.guild_id} endpoint=${packet.d?.endpoint}`);
-    }
+    if (packet.t === 'VOICE_STATE_UPDATE')  console.log(`[BlindTest][Voice] RAW VSU user=${packet.d?.user_id} session=${packet.d?.session_id}`);
+    if (packet.t === 'VOICE_SERVER_UPDATE') console.log(`[BlindTest][Voice] RAW VSRVU endpoint=${packet.d?.endpoint}`);
   };
   client.on('raw', rawVoiceListener);
 
-  // Log de chaque transition d'état — attaché AVANT joinVoiceChannel pour capter les transitions synchrones
   const stateLog = [];
   const onStateChange = (oldState, newState) => {
     stateLog.push(newState.status);
     console.log(`[BlindTest][Voice] ${oldState.status} → ${newState.status}`);
   };
 
-  // Créer une connexion temporaire pour pré-attacher le listener
-  // (impossible sans joinVoiceChannel, on attache immédiatement après)
   const connection = joinVoiceChannel({
     channelId:      voiceChannel.id,
     guildId:        guild.id,
     adapterCreator: customAdapterCreator,
     selfDeaf:       false,
     selfMute:       false,
+    debug:          true,  // active les logs internes Networking (close codes, UDP, etc.)
   });
 
-  // Attacher immédiatement — les transitions synchrones du constructeur se produisent
-  // dans createVoiceConnection (après le retour de new VoiceConnection), donc on les capte
+  // Capture des messages debug (close codes, erreurs, état UDP)
+  connection.on('debug', (msg) => {
+    const short = msg.replace(/\s+/g, ' ').trim().slice(0, 120);
+    debugLog.push(short);
+    console.log('[VoiceDebug]', short);
+  });
+
   connection.on('stateChange', onStateChange);
   console.log(`[BlindTest][Voice] Connexion créée — état initial : ${connection.state.status}`);
 
@@ -244,13 +244,15 @@ async function connectToVoice(voiceChannel) {
     connection.off('stateChange', onStateChange);
     client.off('raw', rawVoiceListener);
     const lastState = stateLog[stateLog.length - 1] || connection.state.status || 'initial';
-    console.error(`[BlindTest][Voice] Timeout — état final : ${connection.state.status} — transitions : ${stateLog.join(' → ') || 'aucune'} — sendPayload: ${sendPayloadDiag}`);
+    console.error(`[BlindTest][Voice] Timeout — état: ${connection.state.status} — transitions: ${stateLog.join(' → ') || 'aucune'} — sendPayload: ${sendPayloadDiag}`);
     connection.destroy();
-    // Message lisible directement dans Discord (pas besoin des logs Railway)
+    // Les 5 derniers messages debug contiennent le close code et l'état UDP
+    const lastDebug = debugLog.slice(-5).join('\n') || 'aucun';
     throw new Error(
       `Connexion vocale échouée (état: **${lastState}**)\n` +
       `• sendPayload: \`${sendPayloadDiag}\`\n` +
-      `• transitions: \`${stateLog.join(' → ') || 'aucune'}\``
+      `• transitions: \`${stateLog.join(' → ') || 'aucune'}\`\n` +
+      `• debug:\n\`\`\`\n${lastDebug}\n\`\`\``
     );
   }
 
