@@ -106,6 +106,7 @@
 
   <div class="bt-grid">
     <!-- Paramètres de jeu -->
+    <% if (role === 'admin') { %>
     <div class="bt-section">
       <h2>⚙️ Paramètres de jeu</h2>
       <form method="POST" action="/blind-test/settings">
@@ -139,6 +140,7 @@
         <button type="submit" class="bt-save-btn">💾 Sauvegarder</button>
       </form>
     </div>
+    <% } %>
 
     <!-- Réinitialisation classement -->
     <div class="bt-section">
@@ -177,9 +179,11 @@
           <div>Aucune donnée de classement pour l'instant.</div>
         </div>
       <% } %>
+      <% if (role === 'admin') { %>
       <button type="button" class="bt-reset-btn" onclick="document.getElementById('confirmReset').classList.add('show')">
         🗑️ Réinitialiser le classement
       </button>
+      <% } %>
     </div>
   </div>
 

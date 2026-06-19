@@ -100,9 +100,11 @@
     <a href="/infinity-road" class="nav-link <%= path === '/infinity-road' ? 'active' : '' %>">
       <span class="icon">🛣️</span> Route de l'Infini
     </a>
+    <% } %>
     <a href="/blind-test" class="nav-link <%= path === '/blind-test' ? 'active' : '' %>">
       <span class="icon">🎵</span> Blind Test
     </a>
+    <% if (role === 'admin') { %>
     <div class="nav-section">Tickets</div>
     <a href="/tickets" class="nav-link <%= path === '/tickets' ? 'active' : '' %>">
       <span class="icon">🎫</span> Tickets

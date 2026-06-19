@@ -1237,7 +1237,7 @@ function createWebServer(discordClient) {
   });
 
   // ── Blind Test ──────────────────────────────────────────────────────────────
-  app.get('/blind-test', requireAdmin, async (req, res) => {
+  app.get('/blind-test', requireAdminOrStaff, async (req, res) => {
     const blindTestManager = require('../blindTestManager');
     const library          = require('../blindTestLibrary.json');
     const settings   = await blindTestManager.loadSettings();
