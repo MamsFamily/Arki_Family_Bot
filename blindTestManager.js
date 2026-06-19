@@ -205,8 +205,9 @@ async function connectToVoice(voiceChannel) {
     };
   };
 
-  // Capture des messages debug @discordjs/voice (close codes, état UDP, erreurs)
-  const debugLog = [];
+  // Capture des messages debug @discordjs/voice + close code de chaque networking
+  const debugLog   = [];
+  let   closeCode  = null;
   const rawVoiceListener = (packet) => {
     if (packet.t === 'VOICE_STATE_UPDATE')  console.log(`[BlindTest][Voice] RAW VSU user=${packet.d?.user_id} session=${packet.d?.session_id}`);
     if (packet.t === 'VOICE_SERVER_UPDATE') console.log(`[BlindTest][Voice] RAW VSRVU endpoint=${packet.d?.endpoint}`);
@@ -217,6 +218,14 @@ async function connectToVoice(voiceChannel) {
   const onStateChange = (oldState, newState) => {
     stateLog.push(newState.status);
     console.log(`[BlindTest][Voice] ${oldState.status} → ${newState.status}`);
+    // Attacher le listener de close code dès qu'un networking est disponible
+    const net = Reflect.get(newState, 'networking');
+    if (net) {
+      net.once('close', (code) => {
+        closeCode = code ?? 'undefined';
+        console.log(`[BlindTest][Voice] networking CLOSE code=${closeCode}`);
+      });
+    }
   };
 
   const connection = joinVoiceChannel({
@@ -225,17 +234,27 @@ async function connectToVoice(voiceChannel) {
     adapterCreator: customAdapterCreator,
     selfDeaf:       false,
     selfMute:       false,
-    debug:          true,  // active les logs internes Networking (close codes, UDP, etc.)
+    debug:          true,
   });
 
-  // Capture des messages debug (close codes, erreurs, état UDP)
+  // Capture tous les messages debug (pas seulement les 5 derniers — on filtrera après)
   connection.on('debug', (msg) => {
-    const short = msg.replace(/\s+/g, ' ').trim().slice(0, 120);
+    const short = msg.replace(/\s+/g, ' ').trim().slice(0, 140);
     debugLog.push(short);
     console.log('[VoiceDebug]', short);
   });
 
   connection.on('stateChange', onStateChange);
+
+  // Attacher close listener sur le networking initial si déjà disponible
+  const initialNet = Reflect.get(connection.state, 'networking');
+  if (initialNet) {
+    initialNet.once('close', (code) => {
+      closeCode = code ?? 'undefined';
+      console.log(`[BlindTest][Voice] networking CLOSE (initial) code=${closeCode}`);
+    });
+  }
+
   console.log(`[BlindTest][Voice] Connexion créée — état initial : ${connection.state.status}`);
 
   try {
@@ -246,13 +265,17 @@ async function connectToVoice(voiceChannel) {
     const lastState = stateLog[stateLog.length - 1] || connection.state.status || 'initial';
     console.error(`[BlindTest][Voice] Timeout — état: ${connection.state.status} — transitions: ${stateLog.join(' → ') || 'aucune'} — sendPayload: ${sendPayloadDiag}`);
     connection.destroy();
-    // Les 5 derniers messages debug contiennent le close code et l'état UDP
-    const lastDebug = debugLog.slice(-5).join('\n') || 'aucun';
+    // Filtrer les lignes debug les plus utiles (close, error, state change)
+    const importantDebug = debugLog
+      .filter(l => /close|error|code|state change/i.test(l))
+      .slice(-6)
+      .join('\n') || debugLog.slice(-4).join('\n') || 'aucun';
     throw new Error(
       `Connexion vocale échouée (état: **${lastState}**)\n` +
       `• sendPayload: \`${sendPayloadDiag}\`\n` +
       `• transitions: \`${stateLog.join(' → ') || 'aucune'}\`\n` +
-      `• debug:\n\`\`\`\n${lastDebug}\n\`\`\``
+      `• close code: \`${closeCode ?? 'non capturé'}\`\n` +
+      `• debug:\n\`\`\`\n${importantDebug}\n\`\`\``
     );
   }
 
