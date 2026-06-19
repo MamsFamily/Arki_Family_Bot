@@ -33,6 +33,19 @@ const {
   if (found) console.log(`[BlindTest] ✅ Chiffrement vocal : ${found}`);
   else console.warn('[BlindTest] ⚠️  Aucune lib de chiffrement vocal trouvée (sodium-native / libsodium-wrappers / tweetnacl) — la connexion vocale échouera.');
 })();
+
+// S'assurer que ffmpeg-static est détecté par prism-media (requis sur Railway où ffmpeg n'est pas dans le PATH)
+(function setupFfmpeg() {
+  try {
+    const ffmpegPath = require('ffmpeg-static');
+    if (ffmpegPath && !process.env.FFMPEG_PATH) {
+      process.env.FFMPEG_PATH = ffmpegPath;
+      console.log(`[BlindTest] ✅ ffmpeg-static : ${ffmpegPath}`);
+    }
+  } catch {
+    console.warn('[BlindTest] ⚠️  ffmpeg-static introuvable — le transcodage audio MP3→Opus échouera.');
+  }
+})();
 const pgStore      = require('./pgStore');
 
 const library = require('./blindTestLibrary.json');
@@ -298,26 +311,40 @@ function playPreview(player, previewUrl, maxMs) {
   return new Promise(async (resolve) => {
     let timeout;
 
+    const onError = (err) => {
+      console.error('[BlindTest][Audio] ❌ Erreur player:', err?.message || err);
+      clearTimeout(timeout);
+      player.removeListener(AudioPlayerStatus.Idle, onIdle);
+      resolve('error');
+    };
+
+    const onIdle = () => {
+      clearTimeout(timeout);
+      player.removeListener('error', onError);
+      resolve('finished');
+    };
+
     try {
+      console.log('[BlindTest][Audio] Téléchargement preview:', previewUrl);
       const response = await axios({ url: previewUrl, method: 'GET', responseType: 'stream', timeout: 10000 });
       const resource = createAudioResource(response.data, { inputType: StreamType.Arbitrary });
 
-      player.play(resource);
-
-      const onIdle = () => {
-        clearTimeout(timeout);
-        player.removeListener(AudioPlayerStatus.Idle, onIdle);
-        resolve('finished');
-      };
+      player.once('error', onError);
       player.once(AudioPlayerStatus.Idle, onIdle);
+      player.play(resource);
+      console.log('[BlindTest][Audio] ▶️  Lecture lancée, état player:', player.state.status);
 
       timeout = setTimeout(() => {
         player.removeListener(AudioPlayerStatus.Idle, onIdle);
+        player.removeListener('error', onError);
         player.stop(true);
         resolve('timeout');
       }, maxMs);
 
     } catch (err) {
+      console.error('[BlindTest][Audio] ❌ Erreur fetch/resource:', err?.message || err);
+      player.removeListener('error', onError);
+      player.removeListener(AudioPlayerStatus.Idle, onIdle);
       clearTimeout(timeout);
       resolve('error');
     }
