@@ -1236,6 +1236,58 @@ function createWebServer(discordClient) {
     }
   });
 
+  // ── Blind Test ──────────────────────────────────────────────────────────────
+  app.get('/blind-test', requireAdmin, async (req, res) => {
+    const blindTestManager = require('../blindTestManager');
+    const library          = require('../blindTestLibrary.json');
+    const settings   = await blindTestManager.loadSettings();
+    const board      = await blindTestManager.loadLeaderboard(
+      discordClient?.guilds?.cache?.first()?.id || ''
+    );
+    const leaderboard = Object.entries(board)
+      .map(([, v]) => v)
+      .sort((a, b) => b.total - a.total);
+    const topScore = leaderboard.length ? leaderboard[0].total : 0;
+    res.render('blind-test', {
+      settings,
+      leaderboard,
+      stats: { totalPlayers: leaderboard.length, topScore },
+      songCount: library.songs.length,
+      query: req.query,
+      path: '/blind-test',
+      role: req.session.role,
+      discordUser: req.session.discordUser,
+      botUser: discordClient ? discordClient.user : null,
+    });
+  });
+
+  app.post('/blind-test/settings', requireAdmin, async (req, res) => {
+    try {
+      const blindTestManager = require('../blindTestManager');
+      await blindTestManager.saveSettings({
+        roundCount:    parseInt(req.body.roundCount,    10) || 15,
+        roundDuration: parseInt(req.body.roundDuration, 10) || 25,
+        pauseBetween:  parseInt(req.body.pauseBetween,  10) || 8,
+      });
+      res.redirect('/blind-test?success=Paramètres+sauvegardés+!');
+    } catch (err) {
+      console.error('[BlindTest] Erreur settings:', err.message);
+      res.redirect('/blind-test?error=Erreur+lors+de+la+sauvegarde');
+    }
+  });
+
+  app.post('/blind-test/reset', requireAdmin, async (req, res) => {
+    try {
+      const blindTestManager = require('../blindTestManager');
+      const guildId = discordClient?.guilds?.cache?.first()?.id || '';
+      await blindTestManager.resetLeaderboard(guildId);
+      res.redirect('/blind-test?success=Classement+réinitialisé+!');
+    } catch (err) {
+      console.error('[BlindTest] Erreur reset:', err.message);
+      res.redirect('/blind-test?error=Erreur+lors+de+la+réinitialisation');
+    }
+  });
+
   app.post('/shop/categories', requireAuth, async (req, res) => {
     const { catId, name, emoji, color } = req.body;
     if (!name || !name.trim()) return res.redirect('/shop?error=Nom+de+cat%C3%A9gorie+requis');

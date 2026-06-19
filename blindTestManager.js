@@ -189,6 +189,26 @@ function leaveVoice(game) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// SETTINGS (persistés en PostgreSQL)
+// ══════════════════════════════════════════════════════════════════════════════
+
+const SETTINGS_KEY     = 'blindtest_settings';
+const DEFAULT_SETTINGS = { roundCount: 15, roundDuration: 25, pauseBetween: 8 };
+
+async function loadSettings() {
+  try { return Object.assign({}, DEFAULT_SETTINGS, await pgStore.getData(SETTINGS_KEY) || {}); }
+  catch { return { ...DEFAULT_SETTINGS }; }
+}
+
+async function saveSettings(settings) {
+  await pgStore.setData(SETTINGS_KEY, {
+    roundCount:    Math.min(25, Math.max(5,  settings.roundCount    || 15)),
+    roundDuration: Math.min(30, Math.max(15, settings.roundDuration || 25)),
+    pauseBetween:  Math.min(15, Math.max(5,  settings.pauseBetween  || 8)),
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // PERSISTANCE DU CLASSEMENT
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -199,6 +219,10 @@ async function loadLeaderboard(guildId) {
 
 async function saveLeaderboard(guildId, board) {
   try { await pgStore.setData(LEADERBOARD_KEY(guildId), board); } catch {}
+}
+
+async function resetLeaderboard(guildId) {
+  await pgStore.setData(LEADERBOARD_KEY(guildId), {});
 }
 
 async function addScores(guildId, scoreMap) {
@@ -255,6 +279,12 @@ async function startGame(interaction) {
 
   await interaction.deferReply();
 
+  // ── Chargement des settings dynamiques ────────────────────────────────────
+  const cfg = await loadSettings();
+  const roundCount    = cfg.roundCount;
+  const roundDuration = cfg.roundDuration * 1000;
+  const pauseBetween  = cfg.pauseBetween  * 1000;
+
   // ── Connexion vocale ───────────────────────────────────────────────────────
   let voiceConnection, player;
   try {
@@ -263,7 +293,7 @@ async function startGame(interaction) {
     return interaction.editReply({ content: `❌ ${err.message}` });
   }
 
-  const songs = shuffle(library.songs).slice(0, ROUND_COUNT);
+  const songs = shuffle(library.songs).slice(0, roundCount);
 
   const game = {
     guildId,
@@ -279,6 +309,8 @@ async function startGame(interaction) {
     voiceConnection,
     player,
     voiceChannelName: voiceChannel.name,
+    roundDuration,
+    pauseBetween,
   };
 
   activeGames.set(guildId, game);
@@ -288,9 +320,9 @@ async function startGame(interaction) {
     .setTitle('🎵 Blind Test — C\'est parti !')
     .setDescription(
       `🎙️ Le bot a rejoint **${voiceChannel.name}** et va jouer les extraits directement !\n\n` +
-      `**${ROUND_COUNT} manches** — ${ROUND_DURATION / 1000} secondes par extrait\n\n` +
+      `**${roundCount} manches** — ${roundDuration / 1000} secondes par extrait\n\n` +
       '📝 **Comment jouer ?**\n' +
-      '→ Écoutez l\'extrait en vocal, puis tapez dans **ce salon texte**.\n' +
+      '→ Écoutez l\'extrait en vocal, puis tapez dans **ce salon**.\n' +
       '→ **Titre trouvé = 1 pt** • **Artiste trouvé = 1 pt**\n' +
       '→ Premier à trouver les deux : **+1 pt bonus** ⚡\n\n' +
       '*Bonne chance à tous !*'
@@ -325,7 +357,7 @@ async function runRound(game) {
     .setDescription(
       `🎙️ Écoutez dans **${game.voiceChannelName}** !\n\n` +
       '**Quelle est cette chanson ?**\n\n' +
-      `⏱️ Vous avez **${ROUND_DURATION / 1000} secondes** pour répondre.\n` +
+      `⏱️ Vous avez **${game.roundDuration / 1000} secondes** pour répondre.\n` +
       '-# Tapez le titre et/ou le nom de l\'artiste dans ce salon.'
     )
     .setFooter({ text: `Question ${game.currentRound} sur ${game.songs.length}` });
@@ -338,18 +370,17 @@ async function runRound(game) {
 
   if (previewUrl && game.player && game.voiceConnection) {
     // Lance l'audio ET le timer en parallèle
-    const audioPromise = playPreview(game.player, previewUrl, ROUND_DURATION);
+    const audioPromise = playPreview(game.player, previewUrl, game.roundDuration);
 
     game.timer = setTimeout(async () => {
       game.timer = null;
       game.acceptingAnswers = false;
       if (game.player) game.player.stop(true);
       await revealRound(game, channel, song);
-    }, ROUND_DURATION);
+    }, game.roundDuration);
 
     await audioPromise;
   } else {
-    // Pas d'extrait disponible — on attend quand même le timer
     if (!previewUrl) {
       await channel.send('⚠️ *Extrait audio indisponible pour ce titre — tentez votre chance !*');
     }
@@ -357,7 +388,7 @@ async function runRound(game) {
       game.timer = null;
       game.acceptingAnswers = false;
       await revealRound(game, channel, song);
-    }, ROUND_DURATION);
+    }, game.roundDuration);
   }
 }
 
@@ -404,16 +435,16 @@ async function revealRound(game, channel, song) {
     )
     .setFooter({
       text: game.currentRound < game.songs.length
-        ? `Prochaine manche dans ${PAUSE_BETWEEN / 1000}s…`
+        ? `Prochaine manche dans ${game.pauseBetween / 1000}s…`
         : 'Fin de partie dans quelques secondes…',
     });
 
   await channel.send({ embeds: [revealEmbed] });
 
   if (game.currentRound < game.songs.length) {
-    game.timer = setTimeout(() => runRound(game), PAUSE_BETWEEN);
+    game.timer = setTimeout(() => runRound(game), game.pauseBetween);
   } else {
-    game.timer = setTimeout(() => endGame(game), PAUSE_BETWEEN);
+    game.timer = setTimeout(() => endGame(game), game.pauseBetween);
   }
 }
 
@@ -521,4 +552,4 @@ async function showLeaderboard(interaction) {
   return interaction.reply({ embeds: [embed] });
 }
 
-module.exports = { startGame, stopGame, handleMessage, showLeaderboard };
+module.exports = { startGame, stopGame, handleMessage, showLeaderboard, loadSettings, saveSettings, loadLeaderboard, resetLeaderboard };
