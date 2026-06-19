@@ -72,25 +72,46 @@ async function refreshInventoryCache() {
 
 async function initInventory() {
   if (pgStore.isPostgres()) {
-    let pgItemTypes = await pgStore.getData(PG_KEY_ITEM_TYPES);
+    const fileData = loadFromFile();
+
+    // Chaque clé est vérifiée et migrée INDÉPENDAMMENT.
+    // On ne touche jamais une clé qui existe déjà dans PG — même si une autre
+    // clé est absente — pour éviter d'écraser des données réelles lors d'une
+    // erreur PG transitoire au démarrage.
+    const [pgItemTypes, pgInventories, pgTransactions, pgCategories] = await Promise.all([
+      pgStore.getData(PG_KEY_ITEM_TYPES),
+      pgStore.getData(PG_KEY_INVENTORIES),
+      pgStore.getData(PG_KEY_TRANSACTIONS),
+      pgStore.getData(PG_KEY_CATEGORIES),
+    ]);
+
     if (!pgItemTypes) {
-      const fileData = loadFromFile();
       await pgStore.setData(PG_KEY_ITEM_TYPES, fileData.itemTypes || DEFAULT_ITEM_TYPES);
-      await pgStore.setData(PG_KEY_INVENTORIES, fileData.inventories || {});
-      await pgStore.setData(PG_KEY_TRANSACTIONS, fileData.transactions || []);
-      await pgStore.setData(PG_KEY_CATEGORIES, fileData.categories || DEFAULT_CATEGORIES);
-      console.log('📦 Inventaire migré vers PostgreSQL');
+      console.log('📦 item_types migré vers PostgreSQL');
     }
-    cachedItemTypes = await pgStore.getData(PG_KEY_ITEM_TYPES) || DEFAULT_ITEM_TYPES;
-    cachedInventories = await pgStore.getData(PG_KEY_INVENTORIES) || {};
-    cachedTransactions = await pgStore.getData(PG_KEY_TRANSACTIONS) || [];
-    cachedCategories = await pgStore.getData(PG_KEY_CATEGORIES) || DEFAULT_CATEGORIES;
+    if (!pgInventories) {
+      await pgStore.setData(PG_KEY_INVENTORIES, fileData.inventories || {});
+      console.log('📦 inventories migré vers PostgreSQL');
+    }
+    if (!pgTransactions) {
+      await pgStore.setData(PG_KEY_TRANSACTIONS, fileData.transactions || []);
+      console.log('📦 transactions migré vers PostgreSQL');
+    }
+    if (!pgCategories) {
+      await pgStore.setData(PG_KEY_CATEGORIES, fileData.categories || DEFAULT_CATEGORIES);
+      console.log('📦 categories migré vers PostgreSQL');
+    }
+
+    cachedItemTypes    = pgItemTypes    || fileData.itemTypes    || DEFAULT_ITEM_TYPES;
+    cachedInventories  = pgInventories  || fileData.inventories  || {};
+    cachedTransactions = pgTransactions || fileData.transactions || [];
+    cachedCategories   = pgCategories   || fileData.categories   || DEFAULT_CATEGORIES;
   } else {
     const fileData = loadFromFile();
-    cachedItemTypes = fileData.itemTypes || DEFAULT_ITEM_TYPES;
-    cachedInventories = fileData.inventories || {};
+    cachedItemTypes    = fileData.itemTypes    || DEFAULT_ITEM_TYPES;
+    cachedInventories  = fileData.inventories  || {};
     cachedTransactions = fileData.transactions || [];
-    cachedCategories = fileData.categories || DEFAULT_CATEGORIES;
+    cachedCategories   = fileData.categories   || DEFAULT_CATEGORIES;
   }
   console.log(`📦 Inventaire chargé: ${cachedItemTypes.length} types d'items, ${cachedCategories.length} catégories`);
 }
