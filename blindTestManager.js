@@ -141,22 +141,55 @@ async function connectToVoice(voiceChannel) {
   const SHARD_READY = 3; // WebSocketShardStatus.Ready dans @discordjs/ws
   const customAdapterCreator = (methods) => {
     client.voice.adapters.set(guild.id, methods);
+    console.log(`[BlindTest][Voice] Adapter enregistré pour guild ${guild.id}`);
     return {
       sendPayload: (data) => {
         const shard = guild.shard;
-        if (!shard || shard.status !== SHARD_READY) {
-          console.warn(`[BlindTest][Voice] sendPayload: shard status=${shard?.status} (attendu ${SHARD_READY}) → payload ignoré`);
+        console.log(`[BlindTest][Voice] sendPayload appelé — shard status=${shard?.status} (SHARD_READY=${SHARD_READY})`);
+        if (!shard) {
+          console.warn('[BlindTest][Voice] sendPayload: pas de shard → false');
           return false;
         }
-        shard.send(data);
-        return true;
+        if (shard.status !== SHARD_READY) {
+          // Tentative sans vérification de status — le shard existe mais peut avoir un status différent
+          console.warn(`[BlindTest][Voice] sendPayload: status inattendu ${shard.status}, tentative d'envoi quand même`);
+        }
+        try {
+          const result = shard.send(data);
+          console.log(`[BlindTest][Voice] shard.send appelé, résultat:`, typeof result === 'object' ? 'Promise' : result);
+          return true;
+        } catch (e) {
+          console.error('[BlindTest][Voice] shard.send erreur:', e.message);
+          return false;
+        }
       },
       destroy: () => {
+        console.log(`[BlindTest][Voice] Adapter détruit pour guild ${guild.id}`);
         client.voice.adapters.delete(guild.id);
       },
     };
   };
 
+  // Logs sur les packets voix bruts (avant joinVoiceChannel pour ne pas rater les events sync)
+  const rawVoiceListener = (packet) => {
+    if (packet.t === 'VOICE_STATE_UPDATE') {
+      console.log(`[BlindTest][Voice] RAW VOICE_STATE_UPDATE reçu — user_id=${packet.d?.user_id} session_id=${packet.d?.session_id} guild_id=${packet.d?.guild_id}`);
+    }
+    if (packet.t === 'VOICE_SERVER_UPDATE') {
+      console.log(`[BlindTest][Voice] RAW VOICE_SERVER_UPDATE reçu — guild_id=${packet.d?.guild_id} endpoint=${packet.d?.endpoint}`);
+    }
+  };
+  client.on('raw', rawVoiceListener);
+
+  // Log de chaque transition d'état — attaché AVANT joinVoiceChannel pour capter les transitions synchrones
+  const stateLog = [];
+  const onStateChange = (oldState, newState) => {
+    stateLog.push(newState.status);
+    console.log(`[BlindTest][Voice] ${oldState.status} → ${newState.status}`);
+  };
+
+  // Créer une connexion temporaire pour pré-attacher le listener
+  // (impossible sans joinVoiceChannel, on attache immédiatement après)
   const connection = joinVoiceChannel({
     channelId:      voiceChannel.id,
     guildId:        guild.id,
@@ -165,29 +198,29 @@ async function connectToVoice(voiceChannel) {
     selfMute:       false,
   });
 
-  // Log de chaque transition d'état pour diagnostic
-  const stateLog = [];
-  const onStateChange = (oldState, newState) => {
-    stateLog.push(newState.status);
-    console.log(`[BlindTest][Voice] ${oldState.status} → ${newState.status}`);
-  };
+  // Attacher immédiatement — les transitions synchrones du constructeur se produisent
+  // dans createVoiceConnection (après le retour de new VoiceConnection), donc on les capte
   connection.on('stateChange', onStateChange);
+  console.log(`[BlindTest][Voice] Connexion créée — état initial : ${connection.state.status}`);
 
   try {
     await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
   } catch (err) {
     connection.off('stateChange', onStateChange);
+    client.off('raw', rawVoiceListener);
     connection.destroy();
-    const lastState = stateLog[stateLog.length - 1] || 'initial';
-    console.error(`[BlindTest][Voice] Timeout — dernier état : ${lastState} — états traversés : ${stateLog.join(' → ') || 'aucun'}`);
+    const lastState = stateLog[stateLog.length - 1] || connection.state.status || 'initial';
+    console.error(`[BlindTest][Voice] Timeout — état final : ${connection.state.status} — transitions : ${stateLog.join(' → ') || 'aucune'}`);
     const hint =
-      lastState === 'signalling'   ? 'Aucune réponse de la gateway Discord. Vérifiez l\'intent GuildVoiceStates et les permissions du bot.' :
-      lastState === 'connecting'   ? 'Handshake UDP échoué. Le réseau du serveur bloque peut-être les ports UDP Discord (50000-65535).' :
+      lastState === 'signalling'   ? 'OP 4 envoyé mais pas de réponse Discord (VOICE_STATE_UPDATE/VOICE_SERVER_UPDATE manquants).' :
+      lastState === 'connecting'   ? 'Handshake UDP échoué — ports UDP Discord (50000-65535) peut-être bloqués sur Railway.' :
+      lastState === 'disconnected' ? 'Connexion refusée — shard non prêt ou permissions manquantes.' :
       'Connexion interrompue avant d\'être prête.';
     throw new Error(`Impossible de rejoindre le salon vocal (bloqué en : ${lastState}). ${hint}`);
   }
 
   connection.off('stateChange', onStateChange);
+  client.off('raw', rawVoiceListener);
 
   const player = createAudioPlayer({
     behaviors: { noSubscriber: NoSubscriberBehavior.Pause },
