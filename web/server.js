@@ -3037,6 +3037,7 @@ function createWebServer(discordClient) {
     const winners = await giveawayManager.drawWinners(id);
     const updated = giveawayManager.getGiveaway(id);
     try {
+      if (!client) throw new Error('Bot Discord non connecté (mode Dashboard uniquement) — tirage impossible depuis Replit');
       const channel = await client.channels.fetch(g.channelId);
 
       // Mettre à jour l'embed Discord (bouton désactivé, couleur grise)
@@ -3080,7 +3081,7 @@ function createWebServer(discordClient) {
         try {
           const { getSettings } = require('../settingsManager');
           const logChannelId = getSettings().guild?.inventoryLogChannelId;
-          if (logChannelId) {
+          if (logChannelId && client) {
             const logChannel = await client.channels.fetch(logChannelId);
             if (logChannel) {
               const { EmbedBuilder } = require('discord.js');
@@ -3104,6 +3105,7 @@ function createWebServer(discordClient) {
         // DM aux gagnants
         for (const uid of winners) {
           try {
+            if (!client) break;
             const user = await client.users.fetch(uid);
             await user.send(`🎉 Félicitations ! Tu as gagné le giveaway **${g.title}** sur Arki Family !\nTu remportes : **${prizeLabel}**\n✅ Ton gain a été crédité dans ton inventaire.`);
           } catch (e) {}

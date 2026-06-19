@@ -5783,4 +5783,28 @@ process.on('uncaughtException', (err) => {
   console.error('[Process] uncaughtException :', err.message);
 });
 
-client.login(token);
+if (process.env.DASHBOARD_ONLY === 'true') {
+  // ── Mode Dashboard uniquement ─────────────────────────────────────────────
+  // Le bot Discord tourne sur Railway — ici on démarre uniquement le serveur web
+  // pour éviter de déconnecter le bot production en utilisant le même token.
+  (async () => {
+    try {
+      pgStore.initPool();
+      if (pgStore.isPostgres()) await pgStore.initTables();
+      await initConfig();
+      await initSettings();
+      await initDinos();
+      await initShop();
+      await initInventory();
+      await initSpecialPacks();
+      await giveawayManager.initGiveaways();
+      createWebServer(null);
+      console.log('🌐 Dashboard disponible sur le port 5000');
+      console.log('⚠️  Mode Dashboard uniquement — bot Discord non connecté (Railway gère le bot)');
+    } catch (err) {
+      console.error('❌ Erreur démarrage Dashboard:', err.message);
+    }
+  })();
+} else {
+  client.login(token);
+}

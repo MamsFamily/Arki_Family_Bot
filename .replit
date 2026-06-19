@@ -37,6 +37,9 @@ waitForPort = 5000
 DASHBOARD_PASSWORD = "arki2024"
 DATABASE_PUBLIC_URL = "postgresql://postgres:cFYlRChDzHhHiGdDJmeFzeoFJVjKBRIq@yamabiko.proxy.rlwy.net:37290/railway"
 
+[userenv.development]
+DASHBOARD_ONLY = "true"
+
 [[ports]]
 localPort = 5000
 externalPort = 80
