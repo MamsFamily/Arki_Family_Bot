@@ -25,6 +25,14 @@ const {
   StreamType,
   NoSubscriberBehavior,
 } = require('@discordjs/voice');
+
+// Diagnostic au démarrage : vérifie la lib de chiffrement vocal
+(function checkVoiceCrypto() {
+  const candidates = ['sodium-native', 'libsodium-wrappers', 'tweetnacl'];
+  const found = candidates.find(lib => { try { require(lib); return true; } catch { return false; } });
+  if (found) console.log(`[BlindTest] ✅ Chiffrement vocal : ${found}`);
+  else console.warn('[BlindTest] ⚠️  Aucune lib de chiffrement vocal trouvée (sodium-native / libsodium-wrappers / tweetnacl) — la connexion vocale échouera.');
+})();
 const pgStore      = require('./pgStore');
 
 const library = require('./blindTestLibrary.json');
@@ -129,12 +137,29 @@ async function connectToVoice(voiceChannel) {
     selfMute:      false,
   });
 
+  // Log de chaque transition d'état pour diagnostic
+  const stateLog = [];
+  const onStateChange = (oldState, newState) => {
+    stateLog.push(newState.status);
+    console.log(`[BlindTest][Voice] ${oldState.status} → ${newState.status}`);
+  };
+  connection.on('stateChange', onStateChange);
+
   try {
-    await entersState(connection, VoiceConnectionStatus.Ready, 10_000);
+    await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
   } catch (err) {
+    connection.off('stateChange', onStateChange);
     connection.destroy();
-    throw new Error('Impossible de rejoindre le salon vocal (timeout).');
+    const lastState = stateLog[stateLog.length - 1] || 'initial';
+    console.error(`[BlindTest][Voice] Timeout — dernier état : ${lastState} — états traversés : ${stateLog.join(' → ') || 'aucun'}`);
+    const hint =
+      lastState === 'signalling'   ? 'Aucune réponse de la gateway Discord. Vérifiez l\'intent GuildVoiceStates et les permissions du bot.' :
+      lastState === 'connecting'   ? 'Handshake UDP échoué. Le réseau du serveur bloque peut-être les ports UDP Discord (50000-65535).' :
+      'Connexion interrompue avant d\'être prête.';
+    throw new Error(`Impossible de rejoindre le salon vocal (bloqué en : ${lastState}). ${hint}`);
   }
+
+  connection.off('stateChange', onStateChange);
 
   const player = createAudioPlayer({
     behaviors: { noSubscriber: NoSubscriberBehavior.Pause },
