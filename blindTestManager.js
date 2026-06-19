@@ -133,38 +133,73 @@ async function connectToVoice(voiceChannel) {
   const client = guild.client;
 
   // ── Correctif Discord.js 14.23+ / @discordjs/ws incompatibilité ────────────
-  // guild.voiceAdapterCreator utilise Status.Ready=0 (ancienne enum Discord.js)
-  // mais guild.shard.status vaut 3 (WebSocketShardStatus.Ready de @discordjs/ws).
-  // Résultat : sendPayload() retournait toujours false → OP 4 jamais envoyé →
-  // Discord ne répondait jamais → connexion bloquée en "signalling".
-  // Fix : adapter personnalisé qui vérifie shard.status === 3 (Ready réel).
-  const SHARD_READY = 3; // WebSocketShardStatus.Ready dans @discordjs/ws
+  // guild.voiceAdapterCreator : Status.Ready=0 ≠ guild.shard.status=3 (WebSocketShardStatus.Ready)
+  // → sendPayload() retournait false → OP 4 jamais envoyé.
+  // Fix : accès direct au WebSocket brut via guild.shard.manager._ws.shards.get(id).connection
+  // dont .send() est synchrone, garantissant la livraison immédiate à Discord.
+  let sendPayloadDiag = 'non appelé'; // diagnostic remonté dans le message Discord si timeout
   const customAdapterCreator = (methods) => {
     client.voice.adapters.set(guild.id, methods);
-    console.log(`[BlindTest][Voice] Adapter enregistré pour guild ${guild.id}`);
     return {
       sendPayload: (data) => {
-        const shard = guild.shard;
-        console.log(`[BlindTest][Voice] sendPayload appelé — shard status=${shard?.status} (SHARD_READY=${SHARD_READY})`);
-        if (!shard) {
-          console.warn('[BlindTest][Voice] sendPayload: pas de shard → false');
-          return false;
+        const djsShard   = guild.shard;                          // Discord.js WebSocketShard
+        const wsManager  = djsShard?.manager?._ws;               // @discordjs/ws WebSocketManager
+        const wsShard    = wsManager?.shards?.get?.(guild.shardId); // @discordjs/ws WebSocketShard
+        const rawWS      = wsShard?.connection;                  // WebSocket brut (ws package)
+        const wsState    = rawWS?.readyState;                    // 0=CONNECTING 1=OPEN 2=CLOSING 3=CLOSED
+
+        console.log(`[BlindTest][Voice] sendPayload — djsShard=${!!djsShard} wsManager=${!!wsManager} wsShard=${!!wsShard} rawWS=${!!rawWS} wsState=${wsState}`);
+
+        // Priorité 1 : WebSocket brut synchrone (chemin idéal)
+        if (rawWS && typeof rawWS.send === 'function' && wsState === 1 /* OPEN */) {
+          try {
+            rawWS.send(JSON.stringify(data));
+            sendPayloadDiag = `rawWS.send sync OK (wsState=OPEN)`;
+            console.log('[BlindTest][Voice] ' + sendPayloadDiag);
+            return true;
+          } catch (e) {
+            sendPayloadDiag = `rawWS.send erreur: ${e.message}`;
+            console.error('[BlindTest][Voice] ' + sendPayloadDiag);
+          }
+        } else if (rawWS) {
+          sendPayloadDiag = `rawWS trouvé mais wsState=${wsState} (pas OPEN)`;
+          console.warn('[BlindTest][Voice] ' + sendPayloadDiag);
         }
-        if (shard.status !== SHARD_READY) {
-          // Tentative sans vérification de status — le shard existe mais peut avoir un status différent
-          console.warn(`[BlindTest][Voice] sendPayload: status inattendu ${shard.status}, tentative d'envoi quand même`);
+
+        // Priorité 2 : wsShard.send() async (bypasse Discord.js WebSocketShard)
+        if (wsShard && typeof wsShard.send === 'function') {
+          try {
+            const p = wsShard.send(data);
+            if (p?.catch) p.catch(e => console.error('[BlindTest][Voice] wsShard.send REJETÉ:', e?.message));
+            sendPayloadDiag = `wsShard.send async (wsState=${wsState})`;
+            console.log('[BlindTest][Voice] ' + sendPayloadDiag);
+            return true;
+          } catch (e) {
+            sendPayloadDiag = `wsShard.send erreur: ${e.message}`;
+            console.error('[BlindTest][Voice] ' + sendPayloadDiag);
+          }
         }
-        try {
-          const result = shard.send(data);
-          console.log(`[BlindTest][Voice] shard.send appelé, résultat:`, typeof result === 'object' ? 'Promise' : result);
-          return true;
-        } catch (e) {
-          console.error('[BlindTest][Voice] shard.send erreur:', e.message);
-          return false;
+
+        // Priorité 3 : djsShard.send() (dernier recours)
+        if (djsShard) {
+          try {
+            const p = djsShard.send(data);
+            if (p?.catch) p.catch(e => console.error('[BlindTest][Voice] djsShard.send REJETÉ:', e?.message));
+            sendPayloadDiag = `djsShard.send async (status=${djsShard.status})`;
+            console.log('[BlindTest][Voice] ' + sendPayloadDiag);
+            return true;
+          } catch (e) {
+            sendPayloadDiag = `djsShard.send erreur: ${e.message}`;
+            console.error('[BlindTest][Voice] ' + sendPayloadDiag);
+            return false;
+          }
         }
+
+        sendPayloadDiag = 'ÉCHEC : aucun shard/WebSocket disponible';
+        console.error('[BlindTest][Voice] ' + sendPayloadDiag);
+        return false;
       },
       destroy: () => {
-        console.log(`[BlindTest][Voice] Adapter détruit pour guild ${guild.id}`);
         client.voice.adapters.delete(guild.id);
       },
     };
@@ -208,15 +243,15 @@ async function connectToVoice(voiceChannel) {
   } catch (err) {
     connection.off('stateChange', onStateChange);
     client.off('raw', rawVoiceListener);
-    connection.destroy();
     const lastState = stateLog[stateLog.length - 1] || connection.state.status || 'initial';
-    console.error(`[BlindTest][Voice] Timeout — état final : ${connection.state.status} — transitions : ${stateLog.join(' → ') || 'aucune'}`);
-    const hint =
-      lastState === 'signalling'   ? 'OP 4 envoyé mais pas de réponse Discord (VOICE_STATE_UPDATE/VOICE_SERVER_UPDATE manquants).' :
-      lastState === 'connecting'   ? 'Handshake UDP échoué — ports UDP Discord (50000-65535) peut-être bloqués sur Railway.' :
-      lastState === 'disconnected' ? 'Connexion refusée — shard non prêt ou permissions manquantes.' :
-      'Connexion interrompue avant d\'être prête.';
-    throw new Error(`Impossible de rejoindre le salon vocal (bloqué en : ${lastState}). ${hint}`);
+    console.error(`[BlindTest][Voice] Timeout — état final : ${connection.state.status} — transitions : ${stateLog.join(' → ') || 'aucune'} — sendPayload: ${sendPayloadDiag}`);
+    connection.destroy();
+    // Message lisible directement dans Discord (pas besoin des logs Railway)
+    throw new Error(
+      `Connexion vocale échouée (état: **${lastState}**)\n` +
+      `• sendPayload: \`${sendPayloadDiag}\`\n` +
+      `• transitions: \`${stateLog.join(' → ') || 'aucune'}\``
+    );
   }
 
   connection.off('stateChange', onStateChange);
