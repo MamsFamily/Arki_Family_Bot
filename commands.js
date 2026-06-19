@@ -483,6 +483,27 @@ const commands = [
     description: '🖥️ Publie le panneau de contrôle des maps ARK dans ce salon (Admin)',
     default_member_permissions: '8',
   },
+  {
+    name: 'blindtest',
+    description: '🎵 Jeu de Blind Test musical — devinez le titre et l\'artiste !',
+    options: [
+      {
+        type: 1, // SUB_COMMAND
+        name: 'start',
+        description: '🎶 Lance une nouvelle partie de Blind Test (15 manches)',
+      },
+      {
+        type: 1,
+        name: 'stop',
+        description: '⛔ Arrête la partie en cours (modérateurs uniquement)',
+      },
+      {
+        type: 1,
+        name: 'classement',
+        description: '🏆 Affiche le classement global de toutes les parties',
+      },
+    ],
+  },
 ];
 
 module.exports = commands;

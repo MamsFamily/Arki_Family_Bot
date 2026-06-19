@@ -46,6 +46,8 @@ const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArri
 const { registerCasinoHandlers } = require('./casino/casinoHandler');
 const boosterReproManager = require('./boosterReproManager');
 const { handleServerPanelCommand, handleServerPanelInteraction } = require('./serverPanelCommand');
+const { handleBlindTestCommand } = require('./blindTestCommand');
+const blindTestManager = require('./blindTestManager');
 const birthdayManager    = require('./birthdayManager');
 const infinityRoadManager = require('./infinityRoadManager');
 const adminQuizManager    = require('./adminQuizManager');
@@ -2297,6 +2299,21 @@ client.on('interactionCreate', async interaction => {
         if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
         else await interaction.reply(reply);
       } catch (e) {}
+    }
+    return;
+  }
+
+  // ── Blind Test ─────────────────────────────────────────────────────────────
+  if (commandName === 'blindtest') {
+    try {
+      await handleBlindTestCommand(interaction);
+    } catch (err) {
+      console.error('[BlindTest] Erreur commande:', err);
+      try {
+        const reply = { content: '❌ Erreur lors du lancement du Blind Test.', ephemeral: true };
+        if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
+        else await interaction.reply(reply);
+      } catch {}
     }
     return;
   }
@@ -4817,6 +4834,9 @@ client.on('messageCreate', async message => {
   }
 
   if (message.author.bot || !message.guild) return;
+
+  // ── Blind Test — collecte des réponses ──────────────────────────────────
+  try { blindTestManager.handleMessage(message); } catch {}
 
   // ── Route de l'Infini ───────────────────────────────────────────────────
   try {
