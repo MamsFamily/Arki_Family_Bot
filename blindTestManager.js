@@ -470,19 +470,23 @@ async function startGame(interaction) {
     return interaction.editReply({ content: `❌ ${err.message}` });
   }
 
-  const songs = shuffle(library.songs).slice(0, roundCount);
+  // Pool 3× plus grand pour avoir des remplaçants si preview indisponible
+  const poolSize = Math.min(library.songs.length, roundCount * 3);
+  const songs = shuffle(library.songs).slice(0, poolSize);
 
   const game = {
     guildId,
-    channelId:      interaction.channelId,
-    channel:        interaction.channel,
+    channelId:       interaction.channelId,
+    channel:         interaction.channel,
     songs,
-    currentRound:   0,
-    scores:         new Map(),
-    roundAnswers:   new Map(),
-    firstFullId:    null,
-    timer:          null,
-    isRunning:      true,
+    songIndex:       0,   // position dans le pool
+    targetRounds:    roundCount,  // manches à jouer
+    completedRounds: 0,           // manches réellement jouées (avec audio)
+    scores:          new Map(),
+    roundAnswers:    new Map(),
+    firstFullId:     null,
+    timer:           null,
+    isRunning:       true,
     voiceConnection,
     player,
     voiceChannelName: voiceChannel.name,
@@ -512,32 +516,49 @@ async function startGame(interaction) {
 }
 
 async function runRound(game) {
-  if (!game.isRunning || game.currentRound >= game.songs.length) {
+  if (!game.isRunning) return;
+
+  // Plus de manches complétées → fin de partie
+  if (game.completedRounds >= game.targetRounds) {
+    return endGame(game);
+  }
+
+  // Plus de chansons disponibles dans le pool → fin anticipée
+  if (game.songIndex >= game.songs.length) {
     return endGame(game);
   }
 
   const channel = game.channel;
-  const song    = game.songs[game.currentRound];
-  game.currentRound++;
-  game.roundAnswers = new Map();
-  game.firstFullId  = null;
-  game.acceptingAnswers = false;
+  const song    = game.songs[game.songIndex];
+  game.songIndex++;
 
   // ── Récupération de l'extrait Deezer ──────────────────────────────────────
   let previewUrl = null;
   try { previewUrl = await getDeezerPreview(song); } catch {}
 
+  // Si pas de preview → skip silencieux, on passe à la chanson suivante
+  if (!previewUrl) {
+    console.log(`[BlindTest] ⏭️  Skip "${song.title}" (pas de preview), index=${game.songIndex}`);
+    return runRound(game);
+  }
+
+  // ── Comptabilisation de la manche ─────────────────────────────────────────
+  game.completedRounds++;
+  game.roundAnswers = new Map();
+  game.firstFullId  = null;
+  game.acceptingAnswers = false;
+
   // ── Embed de la manche ────────────────────────────────────────────────────
   const roundEmbed = new EmbedBuilder()
     .setColor(0x9B59B6)
-    .setTitle(`🎵 Manche ${game.currentRound} / ${game.songs.length}`)
+    .setTitle(`🎵 Manche ${game.completedRounds} / ${game.targetRounds}`)
     .setDescription(
       `🎙️ Écoutez dans **${game.voiceChannelName}** !\n\n` +
       '**Quelle est cette chanson ?**\n\n' +
       `⏱️ Vous avez **${game.roundDuration / 1000} secondes** pour répondre.\n` +
       '-# Tapez le titre et/ou le nom de l\'artiste dans ce salon.'
     )
-    .setFooter({ text: `Question ${game.currentRound} sur ${game.songs.length}` });
+    .setFooter({ text: `Question ${game.completedRounds} sur ${game.targetRounds}` });
 
   await channel.send({ embeds: [roundEmbed] });
 
@@ -545,28 +566,16 @@ async function runRound(game) {
   game.acceptingAnswers = true;
   game.roundStartTime   = Date.now();
 
-  if (previewUrl && game.player && game.voiceConnection) {
-    // Lance l'audio ET le timer en parallèle
-    const audioPromise = playPreview(game.player, previewUrl, game.roundDuration);
+  const audioPromise = playPreview(game.player, previewUrl, game.roundDuration);
 
-    game.timer = setTimeout(async () => {
-      game.timer = null;
-      game.acceptingAnswers = false;
-      if (game.player) game.player.stop(true);
-      await revealRound(game, channel, song);
-    }, game.roundDuration);
+  game.timer = setTimeout(async () => {
+    game.timer = null;
+    game.acceptingAnswers = false;
+    if (game.player) game.player.stop(true);
+    await revealRound(game, channel, song);
+  }, game.roundDuration);
 
-    await audioPromise;
-  } else {
-    if (!previewUrl) {
-      await channel.send('⚠️ *Extrait audio indisponible pour ce titre — tentez votre chance !*');
-    }
-    game.timer = setTimeout(async () => {
-      game.timer = null;
-      game.acceptingAnswers = false;
-      await revealRound(game, channel, song);
-    }, game.roundDuration);
-  }
+  await audioPromise;
 }
 
 async function revealRound(game, channel, song) {
@@ -604,21 +613,21 @@ async function revealRound(game, channel, song) {
 
   const revealEmbed = new EmbedBuilder()
     .setColor(0x2ECC71)
-    .setTitle(`✅ Réponse — Manche ${game.currentRound}`)
+    .setTitle(`✅ Réponse — Manche ${game.completedRounds}`)
     .addFields(
       { name: '🎵 C\'était…', value: `**${song.title}** — *${song.artist}*`, inline: false },
       { name: '📊 Résultats de la manche', value: lines.join('\n') || '—', inline: false },
       { name: '🏅 Classement provisoire', value: scoreBoard || '—', inline: false },
     )
     .setFooter({
-      text: game.currentRound < game.songs.length
+      text: game.completedRounds < game.targetRounds
         ? `Prochaine manche dans ${game.pauseBetween / 1000}s…`
         : 'Fin de partie dans quelques secondes…',
     });
 
   await channel.send({ embeds: [revealEmbed] });
 
-  if (game.currentRound < game.songs.length) {
+  if (game.completedRounds < game.targetRounds) {
     game.timer = setTimeout(() => runRound(game), game.pauseBetween);
   } else {
     game.timer = setTimeout(() => endGame(game), game.pauseBetween);
@@ -666,7 +675,7 @@ function handleMessage(message) {
 
   const userId   = message.author.id;
   const username = message.member?.displayName || message.author.username;
-  const song     = game.songs[game.currentRound - 1];
+  const song     = game.songs[game.songIndex - 1];
   if (!song) return false;
 
   const prev = game.roundAnswers.get(userId) || { username, titleFound: false, artistFound: false };
