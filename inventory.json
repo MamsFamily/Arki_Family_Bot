@@ -99,11 +99,14 @@
     "538429268263436308": {
       "diamants": 130
     },
+    "1333554245663850589": {
+      "diamants": 90
+    },
     "1493414013546004621": {
       "diamants": 136
     },
-    "1333554245663850589": {
-      "diamants": 90
+    "1345735546630045697": {
+      "diamants": 121
     }
   },
   "transactions": [
@@ -139,13 +142,23 @@
     },
     {
       "id": "mqkn2rhysv3nvl",
+      "type": "add",
+      "reason": "Travail quotidien",
+      "adminId": "/travail",
       "playerId": "1333554245663850589",
-      "itemTypeId": "diamants",
       "quantity": 90,
+      "timestamp": "2026-06-19T08:00:34.486Z",
+      "itemTypeId": "diamants"
+    },
+    {
+      "id": "mqkn6wf27w7jvp",
+      "playerId": "1345735546630045697",
+      "itemTypeId": "diamants",
+      "quantity": 121,
       "adminId": "/travail",
       "reason": "Travail quotidien",
       "type": "add",
-      "timestamp": "2026-06-19T08:00:34.486Z"
+      "timestamp": "2026-06-19T08:03:47.486Z"
     }
   ],
   "categories": [
