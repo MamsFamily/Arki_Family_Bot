@@ -95,18 +95,31 @@
   "inventories": {
     "1493414013546004621": {
       "diamants": 136
+    },
+    "344912594089279508": {
+      "diamants": 130
     }
   },
   "transactions": [
     {
       "id": "mqi657le7osqmo",
+      "type": "add",
+      "reason": "Travail quotidien",
+      "adminId": "/travail",
       "playerId": "1493414013546004621",
-      "itemTypeId": "diamants",
       "quantity": 136,
+      "timestamp": "2026-06-17T14:31:02.834Z",
+      "itemTypeId": "diamants"
+    },
+    {
+      "id": "mqi67jq7xbd76l",
+      "playerId": "344912594089279508",
+      "itemTypeId": "diamants",
+      "quantity": 130,
       "adminId": "/travail",
       "reason": "Travail quotidien",
       "type": "add",
-      "timestamp": "2026-06-17T14:31:02.834Z"
+      "timestamp": "2026-06-17T14:32:51.871Z"
     }
   ],
   "categories": [
