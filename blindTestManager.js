@@ -260,7 +260,11 @@ async function startGame(interaction) {
   }
 
   // ── Vérification : l'utilisateur doit être dans un salon vocal ─────────────
-  const voiceChannel = interaction.member?.voice?.channel;
+  // Fetch du membre pour forcer le cache de l'état vocal (les interactions slash
+  // ne garantissent pas que voice.channel est peuplé sans fetch explicite)
+  let member = interaction.member;
+  try { member = await interaction.guild.members.fetch(interaction.user.id); } catch {}
+  const voiceChannel = member?.voice?.channel;
   if (!voiceChannel) {
     return interaction.reply({
       content: '🎙️ Tu dois être dans un **salon vocal** pour lancer le Blind Test !\nRejoins un salon vocal et relance la commande.',
