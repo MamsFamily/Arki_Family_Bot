@@ -129,12 +129,40 @@ async function getDeezerPreview(song) {
  * Connecte le bot au salon vocal et retourne { connection, player }.
  */
 async function connectToVoice(voiceChannel) {
+  const guild  = voiceChannel.guild;
+  const client = guild.client;
+
+  // ── Correctif Discord.js 14.23+ / @discordjs/ws incompatibilité ────────────
+  // guild.voiceAdapterCreator utilise Status.Ready=0 (ancienne enum Discord.js)
+  // mais guild.shard.status vaut 3 (WebSocketShardStatus.Ready de @discordjs/ws).
+  // Résultat : sendPayload() retournait toujours false → OP 4 jamais envoyé →
+  // Discord ne répondait jamais → connexion bloquée en "signalling".
+  // Fix : adapter personnalisé qui vérifie shard.status === 3 (Ready réel).
+  const SHARD_READY = 3; // WebSocketShardStatus.Ready dans @discordjs/ws
+  const customAdapterCreator = (methods) => {
+    client.voice.adapters.set(guild.id, methods);
+    return {
+      sendPayload: (data) => {
+        const shard = guild.shard;
+        if (!shard || shard.status !== SHARD_READY) {
+          console.warn(`[BlindTest][Voice] sendPayload: shard status=${shard?.status} (attendu ${SHARD_READY}) → payload ignoré`);
+          return false;
+        }
+        shard.send(data);
+        return true;
+      },
+      destroy: () => {
+        client.voice.adapters.delete(guild.id);
+      },
+    };
+  };
+
   const connection = joinVoiceChannel({
-    channelId:     voiceChannel.id,
-    guildId:       voiceChannel.guild.id,
-    adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-    selfDeaf:      false,
-    selfMute:      false,
+    channelId:      voiceChannel.id,
+    guildId:        guild.id,
+    adapterCreator: customAdapterCreator,
+    selfDeaf:       false,
+    selfMute:       false,
   });
 
   // Log de chaque transition d'état pour diagnostic

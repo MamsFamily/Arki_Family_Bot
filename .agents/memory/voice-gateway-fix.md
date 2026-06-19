@@ -1,32 +1,47 @@
 ---
-name: Voice gateway fix - Discord.js v14 signalling timeout
-description: Bug Discord.js v14 — connexion vocale bloquée en signalling à cause d'un check cache membre raté.
+name: Voice gateway fix - Discord.js 14.23+ / @discordjs/ws incompatibility
+description: Bug critique — connexion vocale toujours bloquée en signalling à cause d'un mismatch d'enum Status entre discord.js et @discordjs/ws.
 ---
 
-## Le problème
+## Le problème réel
 
-`@discordjs/voice` reste bloqué en `signalling` indéfiniment même avec `GuildVoiceStates` intent déclaré.
+`@discordjs/voice` reste bloqué en `signalling` : l'OP 4 VoiceStateUpdate n'est jamais envoyé à Discord.
 
-## Cause
+## Cause racine
 
-Dans `discord.js/src/client/actions/VoiceStateUpdate.js`, l'appel à `client.voice.onVoiceStateUpdate(data)` est conditionné par :
+Dans `discord.js/src/structures/Guild.js`, `voiceAdapterCreator.sendPayload` fait :
 ```js
-if (member?.user.id === client.user.id) {
-  client.voice.onVoiceStateUpdate(data);
-}
-```
-Si `member` n'est pas dans le cache au moment où le `VOICE_STATE_UPDATE` arrive, le payload n'est jamais transmis à `@discordjs/voice`.
-
-## Fix (dans index.js, après création du client)
-
-```js
-client.on('raw', (packet) => {
-  if (packet.t === 'VOICE_STATE_UPDATE' && packet.d?.user_id === client.user?.id) {
-    client.voice?.onVoiceStateUpdate?.(packet.d);
-  }
-});
+const Status = require('../util/Status');
+// Status.Ready = 0  ← ancienne valeur discord.js
+if (this.shard.status !== Status.Ready) return false;
 ```
 
-**Why:** Court-circuite la vérification cache membre et transmet directement le payload vocal au voice manager.
+Mais `guild.shard` est désormais un `@discordjs/ws` `WebSocketShard` dont les valeurs sont :
+- `WebSocketShardStatus.Idle = 0`
+- `WebSocketShardStatus.Ready = 3`  ← valeur réelle quand le shard est connecté
 
-**How to apply:** À ajouter une seule fois après `new Client(...)`, avant `client.once('clientReady', ...)`. Inoffensif si appelé deux fois (idempotent).
+Résultat : `shard.status (3) !== Status.Ready (0)` → toujours `false` → OP 4 jamais envoyé → Discord ne répond pas → `signalling` permanent.
+
+## Fix (dans blindTestManager.js, fonction connectToVoice)
+
+Fournir un `adapterCreator` personnalisé à `joinVoiceChannel` :
+
+```js
+const SHARD_READY = 3; // WebSocketShardStatus.Ready dans @discordjs/ws
+const customAdapterCreator = (methods) => {
+  client.voice.adapters.set(guild.id, methods);
+  return {
+    sendPayload: (data) => {
+      const shard = guild.shard;
+      if (!shard || shard.status !== SHARD_READY) return false;
+      shard.send(data);
+      return true;
+    },
+    destroy: () => client.voice.adapters.delete(guild.id),
+  };
+};
+```
+
+**Why:** Bug de compatibilité entre `discord.js 14.23+` et `@discordjs/ws 1.2+` — l'enum `Status` n'a pas été mis à jour pour correspondre aux nouvelles valeurs de `WebSocketShardStatus`.
+
+**How to apply:** Remplacer `adapterCreator: voiceChannel.guild.voiceAdapterCreator` par `adapterCreator: customAdapterCreator` dans tout appel `joinVoiceChannel`. Valable tant que ce bug n'est pas corrigé dans discord.js.
