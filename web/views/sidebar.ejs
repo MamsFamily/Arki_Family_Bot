@@ -96,7 +96,10 @@
       <span class="icon">🎂</span> Anniversaires
     </a>
 
+    <% } %>
+
     <div class="nav-section">Jeux</div>
+    <% if (role === 'admin') { %>
     <a href="/infinity-road" class="nav-link <%= path === '/infinity-road' ? 'active' : '' %>">
       <span class="icon">🛣️</span> Route de l'Infini
     </a>
