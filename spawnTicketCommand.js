@@ -43,6 +43,13 @@ async function initSpawnTickets(client) {
           await pgStore.deleteSpawnTicket(data.ticketId);
           continue;
         }
+        // Re-fetch le message de notification si les IDs sont stockés
+        if (data.notifMessageId && data.notifChannelId) {
+          try {
+            const notifCh = await client.channels.fetch(data.notifChannelId).catch(() => null);
+            if (notifCh) data.notifMessage = await notifCh.messages.fetch(data.notifMessageId).catch(() => null);
+          } catch {}
+        }
       }
       activeSpawnTickets.set(data.ticketId, data);
       loaded++;
@@ -410,7 +417,12 @@ async function handleModalSubmit(interaction) {
       const notifText = (settings.notifText || '🐣 Un nouveau joueur vient d\'ouvrir un ticket de spawn !').trim();
       notifCh.send({
         content: `${notifText}\n> 📬 **Ticket :** <#${ticketChannel.id}>`,
-      }).then(msg => { data.notifMessage = msg; }).catch((e) => {
+      }).then(msg => {
+        data.notifMessage   = msg;
+        data.notifMessageId = msg.id;
+        data.notifChannelId = msg.channelId;
+        pgStore.saveSpawnTicket(data).catch(() => {});
+      }).catch((e) => {
         console.error('[SpawnTicket] Erreur notification admin:', e.message);
       });
     } else {

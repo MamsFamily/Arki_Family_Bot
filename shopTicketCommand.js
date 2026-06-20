@@ -56,6 +56,16 @@ async function initShopOrders(client) {
           await pgStore.archiveShopOrder(data.orderId);
           continue;
         }
+        // Re-fetch le message de notification si les IDs sont stockés
+        if (data.notifMessageId && data.notifChannelId) {
+          try {
+            const notifCh = await client.channels.fetch(data.notifChannelId).catch(() => null);
+            if (notifCh) {
+              const msg = await notifCh.messages.fetch(data.notifMessageId).catch(() => null);
+              if (msg) shopNotifMessages.set(data.orderId, msg);
+            }
+          } catch {}
+        }
       }
       activeOrders.set(data.orderId, data);
       loaded++;
@@ -1932,6 +1942,9 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
             content: `🛍️ **Une nouvelle commande vient de POP !** → <#${ticketChannel.id}>`,
           });
           shopNotifMessages.set(orderId, notifMsg);
+          orderData.notifMessageId = notifMsg.id;
+          orderData.notifChannelId = notifMsg.channelId;
+          pgStore.saveShopOrder(orderData).catch(() => {});
         }
       } catch (e) {
         console.error('[ShopTicket] Erreur notification nouvelle commande:', e);

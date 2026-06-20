@@ -89,6 +89,9 @@ async function initTables() {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_shop_orders_channel ON shop_orders (channel_id)
     `);
+    // Migration : colonnes notif (ajout si absentes)
+    await pool.query(`ALTER TABLE spawn_tickets ADD COLUMN IF NOT EXISTS notif_message_id VARCHAR`);
+    await pool.query(`ALTER TABLE spawn_tickets ADD COLUMN IF NOT EXISTS notif_channel_id VARCHAR`);
     // Migration : colonnes closed_at + messages (ajout si absentes)
     await pool.query(`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS closed_at BIGINT`);
     await pool.query(`ALTER TABLE shop_orders ADD COLUMN IF NOT EXISTS messages JSONB`);
@@ -156,17 +159,20 @@ async function saveSpawnTicket(data) {
   try {
     await pool.query(`
       INSERT INTO spawn_tickets
-        (ticket_id, channel_id, user_id, username, discord_username, age, platform, gamertag, source, checks, status, created_at, checklist_message_id)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        (ticket_id, channel_id, user_id, username, discord_username, age, platform, gamertag, source, checks, status, created_at, checklist_message_id, notif_message_id, notif_channel_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
       ON CONFLICT (ticket_id) DO UPDATE SET
         channel_id = EXCLUDED.channel_id,
         checks = EXCLUDED.checks,
         status = EXCLUDED.status,
-        checklist_message_id = EXCLUDED.checklist_message_id
+        checklist_message_id = EXCLUDED.checklist_message_id,
+        notif_message_id = EXCLUDED.notif_message_id,
+        notif_channel_id = EXCLUDED.notif_channel_id
     `, [
       data.ticketId, data.channelId, data.userId, data.username, data.discordUsername,
       data.age, data.platform, data.gamertag, data.source || null,
       JSON.stringify(data.checks), data.status, data.createdAt, data.checklistMessageId || null,
+      data.notifMessageId || null, data.notifChannelId || null,
     ]);
   } catch (err) {
     console.error('❌ Erreur sauvegarde spawn ticket:', err.message);
@@ -191,6 +197,8 @@ async function loadAllOpenSpawnTickets() {
       status: row.status,
       createdAt: Number(row.created_at),
       checklistMessageId: row.checklist_message_id,
+      notifMessageId: row.notif_message_id || null,
+      notifChannelId: row.notif_channel_id || null,
     }));
   } catch (err) {
     console.error('❌ Erreur chargement spawn tickets:', err.message);

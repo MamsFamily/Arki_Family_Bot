@@ -60,6 +60,13 @@ async function initReclaimTickets(client) {
       if (client) {
         const ch = client.channels.cache.get(data.channelId);
         if (!ch) { await pgStore.archiveReclaimTicket(data.ticketId); continue; }
+        // Re-fetch le message de notification si les IDs sont stockés
+        if (data.notifMessageId && data.notifChannelId) {
+          try {
+            const notifCh = await client.channels.fetch(data.notifChannelId).catch(() => null);
+            if (notifCh) data.notifMessage = await notifCh.messages.fetch(data.notifMessageId).catch(() => null);
+          } catch {}
+        }
       }
       activeReclaimTickets.set(data.ticketId, data);
       loaded++;
@@ -248,7 +255,14 @@ async function handlePreTypeSelect(interaction) {
   const channel = await createReclaimChannel(guild, user, safeName, type, settings);
   const ticketData = await makeTicketData(channel.id, user, safeName, type);
   saveTicket(ticketData);
-  notifyStaff(guild, settings, user, channel).then(msg => { if (msg) ticketData.notifMessage = msg; });
+  notifyStaff(guild, settings, user, channel).then(msg => {
+    if (msg) {
+      ticketData.notifMessage   = msg;
+      ticketData.notifMessageId = msg.id;
+      ticketData.notifChannelId = msg.channelId;
+      pgStore.saveReclaimTicket(ticketData).catch(() => {});
+    }
+  });
 
   // Message de bienvenue
   const att = new AttachmentBuilder(RECLAIM_IMG, { name: 'reclamation.png' });
@@ -364,7 +378,14 @@ async function handleStructPreTypeModal(interaction) {
   ticketData.claimData.structNotes  = structNotes;
   ticketData.status = 'pending';
   saveTicket(ticketData);
-  notifyStaff(guild, settings, user, channel).then(msg => { if (msg) ticketData.notifMessage = msg; });
+  notifyStaff(guild, settings, user, channel).then(msg => {
+    if (msg) {
+      ticketData.notifMessage   = msg;
+      ticketData.notifMessageId = msg.id;
+      ticketData.notifChannelId = msg.channelId;
+      pgStore.saveReclaimTicket(ticketData).catch(() => {});
+    }
+  });
 
   // Bienvenue
   const att = new AttachmentBuilder(RECLAIM_IMG, { name: 'reclamation.png' });
