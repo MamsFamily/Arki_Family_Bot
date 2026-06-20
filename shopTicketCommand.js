@@ -41,6 +41,8 @@ const STAT_EMOJIS = { 'Vie': '❤️', 'Énergie': '⚡', 'Nourriture': '🍖', 
 const activeCarts = new Map();
 // Map orderId -> orderData (ticket créé, persisté en PostgreSQL)
 const activeOrders = new Map();
+// Map orderId -> message de notification (pour suppression automatique à la fermeture)
+const shopNotifMessages = new Map();
 
 // ── Init : recharger les orders ouverts depuis PostgreSQL au démarrage ────────
 async function initShopOrders(client) {
@@ -1926,9 +1928,10 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
       try {
         const notifChannel = await interaction.guild.channels.fetch(notifChannelId).catch(() => null);
         if (notifChannel) {
-          await notifChannel.send({
+          const notifMsg = await notifChannel.send({
             content: `🛍️ **Une nouvelle commande vient de POP !** → <#${ticketChannel.id}>`,
           });
+          shopNotifMessages.set(orderId, notifMsg);
         }
       } catch (e) {
         console.error('[ShopTicket] Erreur notification nouvelle commande:', e);
@@ -2695,6 +2698,12 @@ async function handleDeleteTicket(interaction) {
 
   setTimeout(async () => {
     try {
+      // Supprimer la notification dans le salon staff
+      const notifMsg = shopNotifMessages.get(orderId);
+      if (notifMsg) {
+        notifMsg.delete().catch(() => {});
+        shopNotifMessages.delete(orderId);
+      }
       await interaction.channel.delete(`Ticket supprimé par ${adminName}`);
     } catch (e) {
       console.error('[ShopTicket] Impossible de supprimer le salon ticket:', e.message);

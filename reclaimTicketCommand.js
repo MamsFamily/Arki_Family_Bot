@@ -248,7 +248,7 @@ async function handlePreTypeSelect(interaction) {
   const channel = await createReclaimChannel(guild, user, safeName, type, settings);
   const ticketData = await makeTicketData(channel.id, user, safeName, type);
   saveTicket(ticketData);
-  notifyStaff(guild, settings, user, channel);
+  notifyStaff(guild, settings, user, channel).then(msg => { if (msg) ticketData.notifMessage = msg; });
 
   // Message de bienvenue
   const att = new AttachmentBuilder(RECLAIM_IMG, { name: 'reclamation.png' });
@@ -300,10 +300,13 @@ function makeTicketData(channelId, user, safeName, type) {
   };
 }
 
-function notifyStaff(guild, settings, user, channel) {
-  if (!settings.notifChannelId) return;
+async function notifyStaff(guild, settings, user, channel) {
+  if (!settings.notifChannelId) return null;
   const ch = guild.channels.cache.get(settings.notifChannelId);
-  if (ch) ch.send(`📋 **Nouvelle réclamation** — <@${user.id}> (\`${user.username}\`) → <#${channel.id}>`).catch(() => {});
+  if (!ch) return null;
+  try {
+    return await ch.send(`📋 **Nouvelle réclamation** — <@${user.id}> (\`${user.username}\`) → <#${channel.id}>`);
+  } catch { return null; }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -361,7 +364,7 @@ async function handleStructPreTypeModal(interaction) {
   ticketData.claimData.structNotes  = structNotes;
   ticketData.status = 'pending';
   saveTicket(ticketData);
-  notifyStaff(guild, settings, user, channel);
+  notifyStaff(guild, settings, user, channel).then(msg => { if (msg) ticketData.notifMessage = msg; });
 
   // Bienvenue
   const att = new AttachmentBuilder(RECLAIM_IMG, { name: 'reclamation.png' });
@@ -2141,6 +2144,9 @@ async function handleDelete(interaction, ticketId) {
 
   setTimeout(async () => {
     try {
+      // Supprimer la notification dans le salon staff
+      const reclaimData = activeReclaimTickets.get(ticketId);
+      if (reclaimData?.notifMessage) reclaimData.notifMessage.delete().catch(() => {});
       await interaction.channel.delete(`Ticket supprimé par ${adminName}`);
       activeReclaimTickets.delete(ticketId);
       await pgStore.archiveReclaimTicket(ticketId);

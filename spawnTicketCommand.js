@@ -28,7 +28,7 @@ const { getSettings } = require('./settingsManager');
 const pgStore = require('./pgStore');
 
 // ── Stockage en mémoire (écriture immédiate + persistance PostgreSQL) ─────────
-const activeSpawnTickets = new Map(); // ticketId → data
+const activeSpawnTickets = new Map(); // ticketId → data  (data.notifMessage = msg notif si envoyé)
 
 // ── Initialisation au démarrage : chargement depuis PostgreSQL ────────────────
 async function initSpawnTickets(client) {
@@ -410,7 +410,7 @@ async function handleModalSubmit(interaction) {
       const notifText = (settings.notifText || '🐣 Un nouveau joueur vient d\'ouvrir un ticket de spawn !').trim();
       notifCh.send({
         content: `${notifText}\n> 📬 **Ticket :** <#${ticketChannel.id}>`,
-      }).catch((e) => {
+      }).then(msg => { data.notifMessage = msg; }).catch((e) => {
         console.error('[SpawnTicket] Erreur notification admin:', e.message);
       });
     } else {
@@ -836,6 +836,9 @@ async function handleDeleteTicket(interaction, ticketId) {
 
   setTimeout(async () => {
     try {
+      // Supprimer la notification dans le salon staff
+      const spawnData = activeSpawnTickets.get(ticketId);
+      if (spawnData?.notifMessage) spawnData.notifMessage.delete().catch(() => {});
       await interaction.channel.delete(`Ticket supprimé par ${adminName}`);
       activeSpawnTickets.delete(ticketId);
       await pgStore.deleteSpawnTicket(ticketId);
