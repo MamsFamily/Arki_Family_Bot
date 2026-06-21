@@ -1179,9 +1179,17 @@ async function sendRconToMany(serviceIds, command, directCfg = {}) {
       } catch (e) {
         const status = e.response?.status;
         const nitradoMsg = e.response?.data?.message || e.response?.data?.error || '';
-        const detail = nitradoMsg ? `[${status}] ${nitradoMsg}` : (e.message || 'Erreur inconnue');
-        console.error(`❌ RCON API Nitrado ${id} (${command}):`, detail);
-        results.push({ id, ok: false, error: detail });
+        const rawDetail = nitradoMsg ? `[${status}] ${nitradoMsg}` : (e.message || 'Erreur inconnue');
+        console.error(`❌ RCON API Nitrado ${id} (${command}):`, rawDetail);
+        let friendlyError;
+        if (status === 403) {
+          friendlyError = 'Permission refusée (403) — le token Nitrado n\'a pas la scope `gameserver_commands`.';
+        } else if (status === 500) {
+          friendlyError = 'RCON injoignable (500) — active « Enable RCON » dans Nitrado et vérifie `RCONEnabled=True` dans GameUserSettings.ini';
+        } else {
+          friendlyError = rawDetail;
+        }
+        results.push({ id, ok: false, error: friendlyError });
       }
     }
   }
