@@ -5326,7 +5326,7 @@ client.on('interactionCreate', async interaction => {
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand() || interaction.commandName !== 'amende') return;
   const amendeAllowed = getSettings().amende?.allowedRoleIds || [];
-  const hasRole = amendeAllowed.length > 0 && interaction.member?.roles?.cache?.some(r => amendeAllowed.includes(r.id));
+  const hasRole = amendeAllowed.length > 0 && amendeAllowed.some(roleId => interaction.member?.roles?.cache?.has(roleId));
   if (!interaction.memberPermissions?.has('Administrator') && !hasRole) {
     return interaction.reply({ content: '❌ Tu n\'as pas la permission d\'utiliser cette commande.', ephemeral: true });
   }
