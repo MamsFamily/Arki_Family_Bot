@@ -3967,6 +3967,72 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
+  // ── /inventaire-transferer ──────────────────────────────────────────────────
+  if (commandName === 'inventaire-transferer') {
+    if (!hasRoulettePermission(interaction.member)) {
+      return interaction.reply({ content: '❌ Seuls les administrateurs et les Modos peuvent effectuer des transferts.', ephemeral: true });
+    }
+
+    const sourceUser = interaction.options.getUser('source');
+    const destUser   = interaction.options.getUser('destination');
+    const reason     = interaction.options.getString('raison');
+
+    if (sourceUser.id === destUser.id) {
+      return interaction.reply({ content: '❌ La source et la destination ne peuvent pas être le même joueur.', ephemeral: true });
+    }
+
+    const sourceInv = getPlayerInventory(sourceUser.id);
+    const items     = Object.entries(sourceInv).filter(([, qty]) => qty > 0);
+
+    if (!items.length) {
+      return interaction.reply({ content: `❌ <@${sourceUser.id}> a l'inventaire vide — rien à transférer.`, ephemeral: true });
+    }
+
+    await interaction.deferReply();
+
+    const adminId    = interaction.user.id;
+    const adminName  = interaction.member?.displayName || interaction.user.username;
+    const transferReason = `Transfert → ${destUser.username} : ${reason}`;
+    const lines = [];
+
+    for (const [itemTypeId, qty] of items) {
+      await addToInventory(destUser.id, itemTypeId, qty, adminId, transferReason);
+      await removeFromInventory(sourceUser.id, itemTypeId, qty, adminId, transferReason);
+
+      const itemType = getItemTypeById(itemTypeId);
+      if (itemType) {
+        const isCustom = /^<a?:\w+:\d+>$/.test(itemType.emoji);
+        const label = isCustom ? itemType.name : `${itemType.emoji} ${itemType.name}`;
+        lines.push(`• **${label}** × ${qty}`);
+      } else {
+        lines.push(`• \`${itemTypeId}\` × ${qty}`);
+      }
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(0x7c5cfc)
+      .setTitle('📦 Transfert d\'inventaire')
+      .addFields(
+        { name: '📤 Source',      value: `<@${sourceUser.id}>`,  inline: true },
+        { name: '📥 Destination', value: `<@${destUser.id}>`,    inline: true },
+        { name: '🛡️ Admin',       value: adminName,              inline: true },
+        { name: '📋 Motif',       value: reason },
+        { name: `📦 Items transférés (${lines.length})`, value: lines.join('\n').slice(0, 1024) },
+      )
+      .setTimestamp();
+
+    await interaction.editReply({ embeds: [embed] });
+
+    try {
+      const logChannelId = getSettings().guild.inventoryLogChannelId;
+      if (logChannelId) {
+        const logChannel = await client.channels.fetch(logChannelId);
+        if (logChannel) await logChannel.send({ embeds: [embed] });
+      }
+    } catch {}
+    return;
+  }
+
   if (commandName === 'inventaire-admin') {
     if (!hasRoulettePermission(interaction.member)) {
       return interaction.reply({

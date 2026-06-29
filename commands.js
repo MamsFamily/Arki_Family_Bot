@@ -164,6 +164,15 @@ const commands = [
     ],
   },
   {
+    name: 'inventaire-transferer',
+    description: '🔒 Admin — Transfère l\'intégralité de l\'inventaire d\'un joueur vers un autre',
+    options: [
+      { name: 'source',      type: 6, description: 'Joueur dont on vide l\'inventaire', required: true },
+      { name: 'destination', type: 6, description: 'Joueur qui reçoit les items',       required: true },
+      { name: 'raison',      type: 3, description: 'Motif du transfert',                required: true },
+    ],
+  },
+  {
     name: 'ticket-shop',
     description: 'Ouvre un ticket shop interactif pour passer une commande (dinos, packs...)',
   },
