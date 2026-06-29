@@ -2706,10 +2706,13 @@ function createWebServer(discordClient) {
         }
       }
     } catch (e) {}
+    const settings = getSettings();
+    const amendeRoleIds = settings.amende?.allowedRoleIds || [];
     res.render('economy', {
       path: '/economy',
       roles,
       discordRoles,
+      amendeRoleIds,
       botUser: discordClient?.user || null,
       discordUser: req.session.discordUser || null,
       role: req.session.role || 'admin',
@@ -2729,6 +2732,27 @@ function createWebServer(discordClient) {
     const { roleId } = req.body;
     if (!roleId) return res.json({ error: 'roleId manquant' });
     await economyManager.deleteRoleIncome(roleId);
+    res.json({ ok: true });
+  });
+
+  app.post('/economy/amende-roles/add', requireAdmin, express.json(), async (req, res) => {
+    const { roleId } = req.body;
+    if (!roleId) return res.json({ error: 'roleId manquant' });
+    const settings = getSettings();
+    const list = settings.amende?.allowedRoleIds || [];
+    if (!list.includes(roleId)) {
+      list.push(roleId);
+      await updateSection('amende', { allowedRoleIds: list });
+    }
+    res.json({ ok: true });
+  });
+
+  app.post('/economy/amende-roles/remove', requireAdmin, express.json(), async (req, res) => {
+    const { roleId } = req.body;
+    if (!roleId) return res.json({ error: 'roleId manquant' });
+    const settings = getSettings();
+    const list = (settings.amende?.allowedRoleIds || []).filter(id => id !== roleId);
+    await updateSection('amende', { allowedRoleIds: list });
     res.json({ ok: true });
   });
 

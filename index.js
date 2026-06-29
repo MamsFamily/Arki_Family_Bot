@@ -5325,8 +5325,10 @@ client.on('interactionCreate', async interaction => {
 // ─── ÉCONOMIE : /amende ─────────────────────────────────────────────────────
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand() || interaction.commandName !== 'amende') return;
-  if (!interaction.memberPermissions?.has('Administrator')) {
-    return interaction.reply({ content: '❌ Réservé aux administrateurs.', ephemeral: true });
+  const amendeAllowed = getSettings().amende?.allowedRoleIds || [];
+  const hasRole = amendeAllowed.length > 0 && interaction.member?.roles?.cache?.some(r => amendeAllowed.includes(r.id));
+  if (!interaction.memberPermissions?.has('Administrator') && !hasRole) {
+    return interaction.reply({ content: '❌ Tu n\'as pas la permission d\'utiliser cette commande.', ephemeral: true });
   }
 
   const target  = interaction.options.getUser('joueur');

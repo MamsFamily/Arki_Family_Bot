@@ -173,10 +173,47 @@
                 <tr><td><code>/revenus</code></td><td>Revenu hebdomadaire selon les rôles (cooldown 7j)</td><td>Tous les membres</td></tr>
                 <tr><td><code>/envoyer</code></td><td>Transfert de diamants entre joueurs</td><td>Tous les membres</td></tr>
                 <tr><td><code>/compte</code></td><td>Affiche le solde de diamants et fraises</td><td>Tous les membres</td></tr>
-                <tr><td><code>/amende</code></td><td>Retrait de diamants avec rapport &amp; photo</td><td>Administrateurs</td></tr>
+                <tr><td><code>/amende</code></td><td>Retrait de diamants avec rapport &amp; photo</td><td>Administrateurs + rôles ci-dessous</td></tr>
                 <tr><td><code>/migrer-ub</code></td><td>Import UnbelievaBoat → Diamants (migration ponctuelle)</td><td>Administrateurs</td></tr>
               </tbody>
             </table>
+          </div>
+        </div>
+
+        <!-- Rôles autorisés /amende -->
+        <div class="card" style="margin-top:16px;">
+          <div class="card-header"><h2>🚨 Rôles autorisés — <code>/amende</code></h2></div>
+          <div class="card-body">
+            <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">
+              Ces rôles pourront utiliser <code>/amende</code> en plus des administrateurs.
+            </p>
+
+            <!-- Sélecteur d'ajout -->
+            <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;">
+              <select id="amende-role-select" class="form-control" style="max-width:280px;">
+                <option value="">— Choisir un rôle —</option>
+                <% discordRoles.forEach(r => { %>
+                  <option value="<%= r.id %>"><%= r.name %></option>
+                <% }); %>
+              </select>
+              <button class="btn btn-primary" onclick="addAmendeRole()">➕ Ajouter</button>
+            </div>
+
+            <!-- Liste des rôles actuels -->
+            <ul id="amende-roles-list" style="list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:8px;">
+              <% (amendeRoleIds || []).forEach(rId => {
+                const r = discordRoles.find(d => d.id === rId);
+                const rName = r ? r.name : rId;
+              %>
+                <li id="amende-item-<%= rId %>" style="display:flex;align-items:center;gap:6px;background:rgba(124,92,252,0.12);border:1px solid rgba(124,92,252,0.3);border-radius:20px;padding:4px 12px;">
+                  <span class="tag-role" style="background:none;border:none;padding:0;"><%= rName %></span>
+                  <button onclick="removeAmendeRole('<%= rId %>')" style="background:none;border:none;color:#f44336;cursor:pointer;font-size:14px;line-height:1;padding:0 2px;" title="Retirer">✕</button>
+                </li>
+              <% }); %>
+              <% if (!amendeRoleIds || !amendeRoleIds.length) { %>
+                <li id="amende-empty" style="color:var(--text-muted);font-size:13px;">Aucun rôle configuré — seuls les administrateurs peuvent utiliser /amende.</li>
+              <% } %>
+            </ul>
           </div>
         </div>
 
@@ -316,6 +353,59 @@
       }
       document.getElementById('rolesCount').textContent =
         tbody.querySelectorAll('tr:not(#emptyRow)').length;
+    }
+
+    async function addAmendeRole() {
+      const sel = document.getElementById('amende-role-select');
+      const roleId = sel.value;
+      if (!roleId) return alert('Sélectionne un rôle.');
+      const roleName = sel.options[sel.selectedIndex].text;
+
+      const res = await fetch('/economy/amende-roles/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roleId }),
+      });
+      const data = await res.json();
+      if (data.error) return alert('❌ ' + data.error);
+
+      // Retirer le message vide si présent
+      const empty = document.getElementById('amende-empty');
+      if (empty) empty.remove();
+
+      // Éviter les doublons dans l'UI
+      if (document.getElementById('amende-item-' + roleId)) return;
+
+      const list = document.getElementById('amende-roles-list');
+      const li = document.createElement('li');
+      li.id = 'amende-item-' + roleId;
+      li.style.cssText = 'display:flex;align-items:center;gap:6px;background:rgba(124,92,252,0.12);border:1px solid rgba(124,92,252,0.3);border-radius:20px;padding:4px 12px;';
+      li.innerHTML = `<span style="font-size:12px;font-weight:600;color:var(--accent-light);">${escapeHtml(roleName)}</span>
+        <button onclick="removeAmendeRole('${roleId}')" style="background:none;border:none;color:#f44336;cursor:pointer;font-size:14px;line-height:1;padding:0 2px;" title="Retirer">✕</button>`;
+      list.appendChild(li);
+      sel.value = '';
+    }
+
+    async function removeAmendeRole(roleId) {
+      const res = await fetch('/economy/amende-roles/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roleId }),
+      });
+      const data = await res.json();
+      if (data.error) return alert('❌ ' + data.error);
+
+      const item = document.getElementById('amende-item-' + roleId);
+      if (item) item.remove();
+
+      const list = document.getElementById('amende-roles-list');
+      if (!list.querySelector('li')) {
+        const li = document.createElement('li');
+        li.id = 'amende-empty';
+        li.style.cssText = 'color:var(--text-muted);font-size:13px;';
+        li.textContent = 'Aucun rôle configuré — seuls les administrateurs peuvent utiliser /amende.';
+        list.appendChild(li);
+      }
     }
   </script>
 </body>
