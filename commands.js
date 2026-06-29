@@ -299,7 +299,6 @@ const commands = [
   {
     name: 'amende',
     description: '🔒 Admin — Inflige une amende en diamants à un joueur',
-    default_member_permissions: '8',
     options: [
       { name: 'joueur', type: 6, description: 'Le joueur pénalisé', required: true },
       { name: 'montant', type: 4, description: 'Montant de l\'amende en diamants', required: true, min_value: 1 },
