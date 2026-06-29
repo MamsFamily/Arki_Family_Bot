@@ -146,7 +146,7 @@ const DEFAULTS = {
   nitradoFtp: {},
   // nitradoFtp est un objet keyed par serviceId : { [serviceId]: { host, port, user, password, secure } }
   amende: {
-    allowedRoleIds: [],
+    allowedRoleIds: ['1157044417526509578'],
   },
   serverPanel: {
     adminRoleIds: ['1157044417526509578'],  // rôle Admin Discord

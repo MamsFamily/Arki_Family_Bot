@@ -5325,13 +5325,15 @@ client.on('interactionCreate', async interaction => {
 // ─── ÉCONOMIE : /amende ─────────────────────────────────────────────────────
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand() || interaction.commandName !== 'amende') return;
-  const amendeAllowed = getSettings().amende?.allowedRoleIds || [];
+  const settings = getSettings();
+  const amendeAllowed = [
+    ...(settings.amende?.allowedRoleIds || []),
+    ...(settings.serverPanel?.adminRoleIds || []),
+  ];
   const memberRoleIds = [...(interaction.member?.roles?.cache?.keys() || [])];
-  const hasRole = amendeAllowed.length > 0 && amendeAllowed.some(roleId => memberRoleIds.includes(roleId));
-  const isAdmin = interaction.memberPermissions?.has('Administrator');
-  if (!isAdmin && !hasRole) {
-    const debugInfo = `\`\`\`\nRôles configurés : ${amendeAllowed.join(', ') || '(aucun)'}\nTes rôles         : ${memberRoleIds.join(', ') || '(aucun)'}\n\`\`\``;
-    return interaction.reply({ content: `❌ Permission refusée.\n${debugInfo}`, ephemeral: true });
+  const hasRole = amendeAllowed.some(roleId => memberRoleIds.includes(roleId));
+  if (!interaction.memberPermissions?.has('Administrator') && !hasRole) {
+    return interaction.reply({ content: '❌ Tu n\'as pas la permission d\'utiliser cette commande.', ephemeral: true });
   }
 
   const target  = interaction.options.getUser('joueur');
