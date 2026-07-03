@@ -728,8 +728,8 @@ client.once('clientReady', async () => {
 
 const reactionTracker = new Map();
 
-function getReactionKey(messageId, emojiKey) {
-  return `${messageId}:${emojiKey}`;
+function getReactionKey(messageId, emojiKey, userId) {
+  return `${messageId}:${emojiKey}:${userId}`;
 }
 
 function getEmojiKey(emoji) {
@@ -742,14 +742,25 @@ client.on('messageReactionRemove', async (reaction, user) => {
     if (reaction.partial) await reaction.fetch();
   } catch { return; }
 
-  const key = getReactionKey(reaction.message.id, getEmojiKey(reaction.emoji));
-  if (reaction.count === 0) {
-    reactionTracker.delete(key);
-  }
+  // Nettoie l'entrée de cet utilisateur dans le tracker
+  const key = getReactionKey(reaction.message.id, getEmojiKey(reaction.emoji), user.id);
+  reactionTracker.delete(key);
 
   // Quiz Admin
   await adminQuizManager.handleReactionRemove(reaction, user).catch(() => {});
 });
+
+// Normalise un nom d'emoji : gère les drapeaux (séquences Regional Indicator)
+function normalizeEmojiName(name) {
+  if (!name) return name;
+  // Convertit en tableau de codepoints pour comparer indépendamment de l'encodage
+  return [...name].map(c => c.codePointAt(0).toString(16).padStart(4, '0')).join('-');
+}
+
+const FLAG_MAP = {
+  [normalizeEmojiName('🇫🇷')]: 'fr',
+  [normalizeEmojiName('🇬🇧')]: 'en',
+};
 
 client.on('messageReactionAdd', async (reaction, user) => {
   if (user.bot) return;
@@ -760,7 +771,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
   } catch { return; }
 
   const emojiKey = getEmojiKey(reaction.emoji);
-  const trackerKey = getReactionKey(reaction.message.id, emojiKey);
+  const trackerKey = getReactionKey(reaction.message.id, emojiKey, user.id);
 
   if (reactionTracker.has(trackerKey)) return;
   reactionTracker.set(trackerKey, Date.now());
@@ -825,8 +836,7 @@ Reste concis. Ne mets pas de guillemets autour du texte. Ne dis pas quel personn
     return;
   }
 
-  const langMap = { '🇫🇷': 'fr', '🇬🇧': 'en' };
-  const lang = langMap[reaction.emoji.name];
+  const lang = FLAG_MAP[normalizeEmojiName(reaction.emoji.name)];
   if (!lang) return;
 
   try {
