@@ -27,6 +27,9 @@ const DEFAULT_ITEM_TYPES = [
   { id: 'equip_mythique', name: 'Pièce d\'équipement crafté mythique', emoji: '🎒', category: 'equipment', order: 11 },
   { id: 'arme_mythique', name: 'Arme crafté mythique', emoji: '🔫', category: 'equipment', order: 12 },
   { id: 'dino_dona', name: 'Dino Dona', emoji: '🦕', category: 'dino', order: 13 },
+  { id: 'boost-repro-6h',  name: 'Jeton Boost Repro 6h',  emoji: '🧬', category: 'consumable', order: 14 },
+  { id: 'boost-repro-12h', name: 'Jeton Boost Repro 12h', emoji: '🧬', category: 'consumable', order: 15 },
+  { id: 'boost-repro-24h', name: 'Jeton Boost Repro 24h', emoji: '🧬', category: 'consumable', order: 16 },
 ];
 
 const DEFAULT_CATEGORIES = [
@@ -106,6 +109,17 @@ async function initInventory() {
     cachedInventories  = pgInventories  || fileData.inventories  || {};
     cachedTransactions = pgTransactions || fileData.transactions || [];
     cachedCategories   = pgCategories   || fileData.categories   || DEFAULT_CATEGORIES;
+
+    // Injecter les items par défaut manquants sans écraser les existants
+    if (pgItemTypes) {
+      const existingIds = new Set(cachedItemTypes.map(t => t.id));
+      const missing = DEFAULT_ITEM_TYPES.filter(t => !existingIds.has(t.id));
+      if (missing.length > 0) {
+        cachedItemTypes = [...cachedItemTypes, ...missing];
+        await pgStore.setData(PG_KEY_ITEM_TYPES, cachedItemTypes);
+        console.log(`📦 ${missing.length} type(s) d'item ajouté(s) : ${missing.map(t => t.id).join(', ')}`);
+      }
+    }
   } else {
     const fileData = loadFromFile();
     cachedItemTypes    = fileData.itemTypes    || DEFAULT_ITEM_TYPES;
