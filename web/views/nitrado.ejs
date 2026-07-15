@@ -530,6 +530,16 @@
               <div class="cfg-preview" id="cfg-mature-preview">⏱️ Entre une valeur pour voir la durée calculée</div>
             </div>
 
+            <!-- Imprint par câlin -->
+            <div class="cfg-card">
+              <label>💗 Imprint par câlin<br><span style="font-weight:400;opacity:.7">BabyImprintAmountMultiplier</span></label>
+              <p class="cfg-note">% d'imprint gagné à chaque câlin. <strong>Plus élevé = plus de % par câlin.</strong> Vanilla = 1. Valeur 0.01 = très faible par câlin (fréquence compensée).</p>
+              <div class="cfg-row">
+                <input type="number" step="0.001" min="0.001" id="cfg-imprint-amount" placeholder="ex : 0.01">
+                <button class="cfg-apply" onclick="queueSetting('BabyImprintAmountMultiplier','cfg-imprint-amount')" title="Ajouter à la file">+</button>
+              </div>
+            </div>
+
             <!-- Nourriture bébé -->
             <div class="cfg-card">
               <label>🥗 Nourriture bébé<br><span style="font-weight:400;opacity:.7">BabyFoodConsumptionSpeedMultiplier</span></label>

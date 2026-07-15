@@ -122,6 +122,7 @@ const INI_KEY_MAP = {
   EggHatchSpeedMultiplier:                     { file: 'gameIni', section: '/Script/ShooterGame.ShooterGameMode' },
   BabyMatureSpeedMultiplier:                   { file: 'gameIni', section: '/Script/ShooterGame.ShooterGameMode' },
   BabyFoodConsumptionSpeedMultiplier:          { file: 'gameIni', section: '/Script/ShooterGame.ShooterGameMode' },
+  BabyImprintAmountMultiplier:                 { file: 'gameIni', section: '/Script/ShooterGame.ShooterGameMode' },
   BabyImprintingStatScaleMultiplier:           { file: 'gameIni', section: '/Script/ShooterGame.ShooterGameMode' },
   BabyCuddleIntervalMultiplier:                { file: 'gameIni', section: '/Script/ShooterGame.ShooterGameMode' },
   BabyCuddleGracePeriodMultiplier:             { file: 'gameIni', section: '/Script/ShooterGame.ShooterGameMode' },
