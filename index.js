@@ -5474,13 +5474,14 @@ client.on('interactionCreate', async interaction => {
   const reason  = interaction.options.getString('raison');
   const photo   = interaction.options.getAttachment('photo');
   const adminName = interaction.user.displayName || interaction.user.username;
+  const adminId   = interaction.user.id; // stocker l'ID Discord pour un affichage fiable
 
   const targetInv = getPlayerInventory(target.id);
   const currentDiamants = targetInv['diamants'] || 0;
   const actualAmount = Math.min(amount, currentDiamants);
 
   if (actualAmount > 0) {
-    await removeFromInventory(target.id, 'diamants', actualAmount, adminName, `Amende : ${reason}`);
+    await removeFromInventory(target.id, 'diamants', actualAmount, adminId, `Amende : ${reason}`);
   }
 
   const embed = new EmbedBuilder()

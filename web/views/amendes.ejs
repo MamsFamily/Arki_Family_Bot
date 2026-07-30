@@ -180,8 +180,11 @@
       }
     }
 
+    function getAdminDisplay(t) {
+      return t.adminName || (!/^\d{17,20}$/.test(t.adminId||'') ? t.adminId : null) || t.adminId || '—';
+    }
     function buildAdminFilter() {
-      const admins = [...new Set(allAmendes.map(t => t.adminId).filter(Boolean))].sort();
+      const admins = [...new Set(allAmendes.map(t => getAdminDisplay(t)).filter(Boolean))].sort();
       const sel = document.getElementById('filter-admin');
       admins.forEach(a => {
         const o = document.createElement('option');
@@ -218,12 +221,13 @@
         const dateStr = d.toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric'})
           + ' ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
         const player = t.playerName || t.playerId || '—';
+        const admin  = t.adminName || (!/^\d{17,20}$/.test(t.adminId||'') ? t.adminId : null) || t.adminId || '—';
         const motif = (t.reason || '').replace(/^Amende\s*:\s*/i, '');
         const amount = Math.abs(t.quantity || 0).toLocaleString('fr-FR');
         return `<tr>
           <td style="white-space:nowrap;color:var(--text-muted);font-size:12px;">${dateStr}</td>
           <td><span style="font-weight:600;">${escHtml(player)}</span></td>
-          <td><span class="badge-admin">${escHtml(t.adminId || '—')}</span></td>
+          <td><span class="badge-admin">${escHtml(admin)}</span></td>
           <td><span class="badge-amount">−${amount} 💎</span></td>
           <td><div class="tag-reason" title="${escHtml(motif)}">${escHtml(motif)}</div></td>
         </tr>`;
@@ -240,12 +244,12 @@
       const to     = document.getElementById('filter-to').value   ? new Date(document.getElementById('filter-to').value + 'T23:59:59') : null;
 
       const filtered = allAmendes.filter(t => {
-        if (admin && t.adminId !== admin) return false;
+        if (admin && getAdminDisplay(t) !== admin) return false;
         const ts = new Date(t.timestamp);
         if (from && ts < from) return false;
         if (to   && ts > to)   return false;
         if (search) {
-          const hay = [t.playerName, t.playerId, t.reason, t.adminId].join(' ').toLowerCase();
+          const hay = [t.playerName, t.playerId, t.reason, t.adminId, t.adminName].join(' ').toLowerCase();
           if (!hay.includes(search)) return false;
         }
         return true;
@@ -285,7 +289,7 @@
       filtered.forEach(t => {
         const d = new Date(t.timestamp).toLocaleString('fr-FR');
         const motif = (t.reason || '').replace(/^Amende\s*:\s*/i, '');
-        rows.push([d, t.playerName||'', t.playerId||'', t.adminId||'', Math.abs(t.quantity||0), motif]);
+        rows.push([d, t.playerName||'', t.playerId||'', getAdminDisplay(t), Math.abs(t.quantity||0), motif]);
       });
       const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
       const blob = new Blob(['\uFEFF' + csv], {type:'text/csv;charset=utf-8'});

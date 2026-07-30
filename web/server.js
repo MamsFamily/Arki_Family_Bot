@@ -2626,11 +2626,13 @@ function createWebServer(discordClient) {
         const guildId = settings.guild.guildId;
         const guild = guildId ? discordClient.guilds.cache.get(guildId) : discordClient.guilds.cache.first();
         if (guild) {
-          // Collecter les IDs uniques (seulement vrais IDs Discord : ~18 chiffres)
-          const uniqueIds = [...new Set(result.transactions.map(t => t.playerId))]
-            .filter(id => /^\d{17,20}$/.test(id));
-          if (uniqueIds.length > 0) {
-            const fetched = await guild.members.fetch({ user: uniqueIds }).catch(() => null);
+          // Collecter tous les IDs uniques à résoudre (joueurs + admins)
+          const isDiscordId = id => /^\d{17,20}$/.test(id);
+          const playerIds = [...new Set(result.transactions.map(t => t.playerId))].filter(isDiscordId);
+          const adminIds  = [...new Set(result.transactions.map(t => t.adminId))].filter(isDiscordId);
+          const allIds    = [...new Set([...playerIds, ...adminIds])];
+          if (allIds.length > 0) {
+            const fetched = await guild.members.fetch({ user: allIds }).catch(() => null);
             const nameMap = {};
             if (fetched) {
               fetched.forEach(m => {
@@ -2640,6 +2642,7 @@ function createWebServer(discordClient) {
             result.transactions = result.transactions.map(tx => ({
               ...tx,
               playerName: nameMap[tx.playerId] || null,
+              adminName:  isDiscordId(tx.adminId) ? (nameMap[tx.adminId] || tx.adminId) : null,
             }));
           }
         }
