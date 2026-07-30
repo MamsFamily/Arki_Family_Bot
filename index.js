@@ -5013,6 +5013,38 @@ client.on('messageDelete', async message => {
   }
 });
 
+// ── Route de l'Infini : rollback sur suppression en masse (ex: ban) ───────────
+client.on('messageDeleteBulk', async messages => {
+  try {
+    // messages est une Collection<Snowflake, Message|PartialMessage>
+    const channelId = messages.first()?.channelId;
+    if (!channelId) return;
+    for (const [msgId] of messages) {
+      const result = await infinityRoadManager.handleMessageDelete(msgId, channelId);
+      if (!result) continue;
+
+      const { rolledBack, previousCount, deletedBy } = result;
+      const channel = messages.first()?.channel || await client.channels.fetch(channelId).catch(() => null);
+      if (!channel) return;
+
+      const { EmbedBuilder } = require('discord.js');
+      const embed = new EmbedBuilder()
+        .setColor(0xe67e22)
+        .setDescription(
+          `⚠️ Un nombre validé (**${previousCount}** posté par **${deletedBy || '?'}**) a été supprimé en masse.\n` +
+          `Le compteur revient à **${rolledBack}**.\n` +
+          `➡️ Prochain attendu : **${rolledBack + 1}**`
+        )
+        .setFooter({ text: 'Suppression de message détectée (ban ou purge)' });
+
+      await channel.send({ embeds: [embed] }).catch(() => {});
+      break; // on a trouvé le message concerné, inutile de continuer
+    }
+  } catch (e) {
+    console.error('[InfinityRoad] Erreur messageDeleteBulk:', e.message);
+  }
+});
+
 // ─── CLASSEMENT XP : helper de page ──────────────────────────────────────────
 async function buildXpPage(sorted, page, callerId, guild) {
   const totalPages = Math.ceil(sorted.length / PAGE_SIZE);

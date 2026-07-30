@@ -304,6 +304,16 @@ async function handleMessage(message) {
 
   // ── Vérification nombre attendu ───────────────────────────────────────────
   if (num !== expected) {
+    // Log diagnostic : si le joueur a posté num = current (décalé d'un), c'est
+    // probablement un message invisible qui a avancé le compteur avant lui.
+    if (num === current) {
+      console.warn(
+        `[Route Infini] ⚠️ DIAGNOSTIC — ${username} (${userId}) a posté ${num} ` +
+        `mais le compteur était déjà à ${current} (expected=${expected}). ` +
+        `Dernier auteur connu : ${state.last_user_name} (${state.last_user_id}), ` +
+        `last_message_id=${state.last_message_id}`
+      );
+    }
     // Mauvais nombre → reset
     cancelCountdown(message.channelId);
 
