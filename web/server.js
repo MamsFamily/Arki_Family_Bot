@@ -2690,6 +2690,15 @@ function createWebServer(discordClient) {
   });
 
   // ── Revenus de rôles ───────────────────────────────────────────────────────
+  app.get('/economy/amendes', requireAdmin, (req, res) => {
+    res.render('amendes', {
+      path: '/economy/amendes',
+      role: req.session.role,
+      botUser: req.session.botUser || null,
+      discordUser: req.session.discordUser || null,
+    });
+  });
+
   app.get('/economy', requireAdmin, async (req, res) => {
     const roles = await economyManager.getRoleIncomes();
     const discordRoles = [];
