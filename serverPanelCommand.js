@@ -40,6 +40,7 @@ const {
   restartAll,
   sendRconToMany,
 } = require('./web/nitradoManager');
+const { logRestart } = require('./restartLogger');
 
 const PREFIX = 'srvp';
 
@@ -368,6 +369,17 @@ async function handleServerPanelInteraction(interaction) {
     const serviceIds = maps.map(m => m.serviceId);
     const results    = await restartAll(serviceIds, 'Redémarrage global depuis le panneau Discord');
 
+    const allOk = results.every(r => r.ok);
+    logRestart({
+      source:     'discord_panel',
+      adminId:    interaction.user.id,
+      adminName:  interaction.member?.displayName || interaction.user.username,
+      serviceIds,
+      mapNames:   maps.map(m => m.displayName),
+      ok:         allOk,
+      error:      allOk ? null : results.filter(r => !r.ok).map(r => r.error).join(', '),
+    }).catch(() => {});
+
     const lines = maps.map(map => {
       const r = results.find(r => r.id === map.serviceId);
       return r?.ok
@@ -450,9 +462,26 @@ async function handleServerPanelInteraction(interaction) {
     await interaction.deferReply({ ephemeral: true });
     try {
       await restartServer(serviceId, 'Redémarrage depuis le panneau Discord');
+      logRestart({
+        source:    'discord_panel',
+        adminId:   interaction.user.id,
+        adminName: interaction.member?.displayName || interaction.user.username,
+        serviceIds: [serviceId],
+        mapNames:  [map.displayName],
+        ok:        true,
+      }).catch(() => {});
       await interaction.editReply(`✅ **${map.displayName}** — redémarrage lancé.`);
       await refreshEmbed();
     } catch (e) {
+      logRestart({
+        source:    'discord_panel',
+        adminId:   interaction.user.id,
+        adminName: interaction.member?.displayName || interaction.user.username,
+        serviceIds: [serviceId],
+        mapNames:  [map.displayName],
+        ok:        false,
+        error:     e.message,
+      }).catch(() => {});
       await interaction.editReply(`❌ Erreur : ${e.message}`);
     }
     return;

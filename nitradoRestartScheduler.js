@@ -1,6 +1,7 @@
 const cron       = require('node-cron');
 const pgStore    = require('./pgStore');
 const nitrado    = require('./web/nitradoManager');
+const { logRestart } = require('./restartLogger');
 
 const STORE_KEY  = 'nitrado_restart_schedules';
 const jobs       = new Map(); // id → [cron.Task, ...]
@@ -77,7 +78,23 @@ function scheduleOne(sched) {
         const ids = await resolveIds(sched.serverIds);
         await nitrado.sendRconToMany(ids, 'SaveWorld');
         await new Promise(r => setTimeout(r, 5000));
-        await nitrado.restartAll(ids, 'Redémarrage automatique programmé');
+        let restartOk = true, restartErr = null;
+        try {
+          await nitrado.restartAll(ids, 'Redémarrage automatique programmé');
+        } catch (e) {
+          restartOk = false; restartErr = e.message;
+          throw e;
+        } finally {
+          logRestart({
+            source:    'scheduler',
+            adminId:   'scheduler',
+            adminName: `⏰ Planning : ${sched.nom}`,
+            serviceIds: ids,
+            mapNames:  [],
+            ok:        restartOk,
+            error:     restartErr,
+          }).catch(() => {});
+        }
 
         // Enregistrer la date du dernier redémarrage
         const list = await getAll();

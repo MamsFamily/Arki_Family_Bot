@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Historique Redémarrages — Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .rt-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .rt-table th {
+      padding: 10px 14px; text-align: left;
+      color: var(--text-muted); font-weight: 700; font-size: 11px;
+      text-transform: uppercase; letter-spacing: .05em;
+      border-bottom: 2px solid var(--border);
+    }
+    .rt-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .rt-table tr:last-child td { border-bottom: none; }
+    .rt-table tr:hover td { background: rgba(124,92,252,0.04); }
+    .badge-source {
+      display: inline-block; border-radius: 20px; padding: 2px 10px;
+      font-size: 11px; font-weight: 700; white-space: nowrap;
+    }
+    .src-discord_panel   { background: rgba(88,101,242,0.18); color: #8b9bff; border: 1px solid rgba(88,101,242,0.3); }
+    .src-discord_command { background: rgba(124,92,252,0.18); color: var(--accent-light); border: 1px solid rgba(124,92,252,0.3); }
+    .src-dashboard       { background: rgba(76,175,80,0.15);  color: #66bb6a;  border: 1px solid rgba(76,175,80,0.3); }
+    .src-scheduler       { background: rgba(255,152,0,0.15);  color: #ffa726;  border: 1px solid rgba(255,152,0,0.3); }
+    .badge-ok  { display:inline-block;width:8px;height:8px;border-radius:50%;background:#4caf50;margin-right:5px; }
+    .badge-err { display:inline-block;width:8px;height:8px;border-radius:50%;background:#f44336;margin-right:5px; }
+    .badge-admin {
+      display: inline-block; background: rgba(124,92,252,0.12);
+      border: 1px solid rgba(124,92,252,0.25); color: var(--accent-light);
+      border-radius: 20px; padding: 2px 10px; font-size: 12px; font-weight: 600;
+    }
+    .maps-list { display: flex; flex-wrap: wrap; gap: 4px; }
+    .maps-list span {
+      background: var(--bg-input); border: 1px solid var(--border);
+      border-radius: 6px; padding: 1px 8px; font-size: 11px; color: var(--text-muted);
+    }
+    .stat-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(155px,1fr)); gap: 12px; margin-bottom: 24px; }
+    .stat-card  { background: var(--bg-input); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; }
+    .stat-card .sc-label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
+    .stat-card .sc-val   { font-size: 22px; font-weight: 800; color: #fff; }
+    .filters-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 18px; }
+    .filters-bar .field { display: flex; flex-direction: column; gap: 4px; }
+    .filters-bar label  { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+    .filters-bar input, .filters-bar select {
+      padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--bg-input); color: var(--text-primary); font-size: 13px; min-width: 140px;
+    }
+    .empty-state { text-align: center; padding: 48px 0; color: var(--text-muted); }
+    @media (max-width:700px) {
+      .rt-table td:nth-child(5), .rt-table th:nth-child(5) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar', { path: '/nitrado/restart-history', role, botUser, discordUser }) %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>🔄 Historique des redémarrages</h1>
+        <p>Tous les redémarrages de maps — dashboard, Discord, plannings automatiques</p>
+      </div>
+
+      <!-- Stats -->
+      <div class="stat-cards">
+        <div class="stat-card">
+          <div class="sc-label">Total redémarrages</div>
+          <div class="sc-val" id="stat-total"><%- logs.length %></div>
+        </div>
+        <div class="stat-card">
+          <div class="sc-label">Via Discord</div>
+          <div class="sc-val" id="stat-discord">
+            <%- logs.filter(l => l.source === 'discord_panel' || l.source === 'discord_command').length %>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="sc-label">Via Dashboard</div>
+          <div class="sc-val" id="stat-dashboard"><%- logs.filter(l => l.source === 'dashboard').length %></div>
+        </div>
+        <div class="stat-card">
+          <div class="sc-label">⏰ Automatiques</div>
+          <div class="sc-val" id="stat-sched"><%- logs.filter(l => l.source === 'scheduler').length %></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+          <h2>📋 Liste des redémarrages</h2>
+          <button class="btn btn-secondary" onclick="exportCSV()" style="font-size:12px;padding:6px 14px;">⬇️ Exporter CSV</button>
+        </div>
+        <div class="card-body">
+
+          <div class="filters-bar">
+            <div class="field">
+              <label>Recherche admin / map</label>
+              <input type="text" id="filter-search" placeholder="Nom, map…" oninput="applyFilters()">
+            </div>
+            <div class="field">
+              <label>Source</label>
+              <select id="filter-source" onchange="applyFilters()">
+                <option value="">— Toutes —</option>
+                <option value="discord_panel">🎮 Panneau Discord</option>
+                <option value="discord_command">💬 Commande Discord</option>
+                <option value="dashboard">🖥️ Dashboard</option>
+                <option value="scheduler">⏰ Planning auto</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Admin</label>
+              <select id="filter-admin" onchange="applyFilters()">
+                <option value="">— Tous —</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Date début</label>
+              <input type="date" id="filter-from" onchange="applyFilters()">
+            </div>
+            <div class="field">
+              <label>Date fin</label>
+              <input type="date" id="filter-to" onchange="applyFilters()">
+            </div>
+            <div class="field">
+              <label>&nbsp;</label>
+              <button class="btn btn-secondary" onclick="resetFilters()" style="font-size:12px;padding:7px 14px;">✕ Réinitialiser</button>
+            </div>
+          </div>
+
+          <table class="rt-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>🛡️ Admin</th>
+                <th>Source</th>
+                <th>Maps</th>
+                <th>Statut</th>
+              </tr>
+            </thead>
+            <tbody id="rt-tbody"></tbody>
+          </table>
+          <div style="margin-top:12px;font-size:12px;color:var(--text-muted);" id="result-count"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const SOURCE_LABELS = {
+      discord_panel:   '🎮 Panneau Discord',
+      discord_command: '💬 Commande Discord',
+      dashboard:       '🖥️ Dashboard',
+      scheduler:       '⏰ Planning auto',
+    };
+    const SOURCE_CSS = {
+      discord_panel:   'src-discord_panel',
+      discord_command: 'src-discord_command',
+      dashboard:       'src-dashboard',
+      scheduler:       'src-scheduler',
+    };
+
+    const allLogs = <%- JSON.stringify(logs) %>;
+    let filtered = [...allLogs];
+
+    function buildAdminFilter() {
+      const admins = [...new Set(allLogs.map(l => l.adminName).filter(Boolean))].sort();
+      const sel = document.getElementById('filter-admin');
+      admins.forEach(a => {
+        const o = document.createElement('option');
+        o.value = a; o.textContent = a;
+        sel.appendChild(o);
+      });
+    }
+
+    function renderTable(list) {
+      const tbody = document.getElementById('rt-tbody');
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state">Aucun résultat</div></td></tr>';
+        document.getElementById('result-count').textContent = '';
+        return;
+      }
+      tbody.innerHTML = list.map(l => {
+        const d = new Date(l.timestamp);
+        const dateStr = d.toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric'})
+          + ' ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
+        const src = SOURCE_LABELS[l.source] || l.source;
+        const srcCss = SOURCE_CSS[l.source] || '';
+        const maps = (l.mapNames||[]).length
+          ? `<div class="maps-list">${l.mapNames.map(m => `<span>${esc(m)}</span>`).join('')}</div>`
+          : `<span style="color:var(--text-muted);font-size:12px;">${(l.serviceIds||[]).join(', ') || '—'}</span>`;
+        const status = l.ok
+          ? `<span class="badge-ok"></span><span style="color:#4caf50;font-size:12px;font-weight:600;">OK</span>`
+          : `<span class="badge-err"></span><span style="color:#f44336;font-size:12px;font-weight:600;" title="${esc(l.error||'')}">Erreur</span>`;
+        return `<tr>
+          <td style="white-space:nowrap;color:var(--text-muted);font-size:12px;">${dateStr}</td>
+          <td><span class="badge-admin">${esc(l.adminName||'—')}</span></td>
+          <td><span class="badge-source ${srcCss}">${src}</span></td>
+          <td>${maps}</td>
+          <td>${status}</td>
+        </tr>`;
+      }).join('');
+      document.getElementById('result-count').textContent =
+        `${list.length} entrée${list.length > 1 ? 's' : ''} affichée${list.length > 1 ? 's' : ''}`;
+    }
+
+    function applyFilters() {
+      const search = document.getElementById('filter-search').value.toLowerCase();
+      const source = document.getElementById('filter-source').value;
+      const admin  = document.getElementById('filter-admin').value;
+      const from   = document.getElementById('filter-from').value ? new Date(document.getElementById('filter-from').value) : null;
+      const to     = document.getElementById('filter-to').value   ? new Date(document.getElementById('filter-to').value + 'T23:59:59') : null;
+
+      filtered = allLogs.filter(l => {
+        if (source && l.source !== source) return false;
+        if (admin  && l.adminName !== admin) return false;
+        const ts = new Date(l.timestamp);
+        if (from && ts < from) return false;
+        if (to   && ts > to)   return false;
+        if (search) {
+          const hay = [l.adminName, l.adminId, ...(l.mapNames||[]), ...(l.serviceIds||[])].join(' ').toLowerCase();
+          if (!hay.includes(search)) return false;
+        }
+        return true;
+      });
+      renderTable(filtered);
+    }
+
+    function resetFilters() {
+      ['filter-search','filter-source','filter-admin','filter-from','filter-to']
+        .forEach(id => document.getElementById(id).value = '');
+      filtered = [...allLogs];
+      renderTable(filtered);
+    }
+
+    function exportCSV() {
+      const rows = [['Date','Admin','Source','Maps','Statut','Erreur']];
+      filtered.forEach(l => {
+        const d = new Date(l.timestamp).toLocaleString('fr-FR');
+        rows.push([d, l.adminName||'', SOURCE_LABELS[l.source]||l.source,
+          (l.mapNames||[]).join(' | '), l.ok ? 'OK' : 'Erreur', l.error||'']);
+      });
+      const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob(['\uFEFF' + csv], {type:'text/csv;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `redemarrages_${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+    }
+
+    function esc(s) {
+      return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    buildAdminFilter();
+    renderTable(allLogs);
+  </script>
+</body>
+</html>

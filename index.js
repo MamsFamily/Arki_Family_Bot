@@ -42,6 +42,7 @@ const { handleSpawnTicketCommand, handleSpawnTicketInteraction, initSpawnTickets
 const { publishEventPanel, handleEventTicketInteraction } = require('./eventTicketCommand');
 const { handleReclaimCommand, handleReclaimTicketInteraction, initReclaimTickets, handleReclaimRecapCommand } = require('./reclaimTicketCommand');
 const restartScheduler = require('./nitradoRestartScheduler');
+const { logRestart }   = require('./restartLogger');
 const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
 const { registerCasinoHandlers } = require('./casino/casinoHandler');
 const boosterReproManager = require('./boosterReproManager');
@@ -3824,8 +3825,26 @@ client.on('interactionCreate', async interaction => {
         const results = await restartScheduler.runNow(id);
         const ok    = results.filter(r => r.ok).length;
         const total = results.length;
+        logRestart({
+          source:    'discord_command',
+          adminId:   interaction.user.id,
+          adminName: interaction.member?.displayName || interaction.user.username,
+          serviceIds: sched.serverIds || [],
+          mapNames:  [sched.nom],
+          ok:        ok === total,
+          error:     ok < total ? `${total - ok} serveur(s) en échec` : null,
+        }).catch(() => {});
         return interaction.followUp({ content: `✅ Redémarrage lancé sur **${ok}/${total}** serveur(s).`, ephemeral: true });
       } catch (e) {
+        logRestart({
+          source:    'discord_command',
+          adminId:   interaction.user.id,
+          adminName: interaction.member?.displayName || interaction.user.username,
+          serviceIds: sched.serverIds || [],
+          mapNames:  [sched.nom],
+          ok:        false,
+          error:     e.message,
+        }).catch(() => {});
         return interaction.followUp({ content: `❌ Erreur lors du redémarrage : ${e.message}`, ephemeral: true });
       }
     }

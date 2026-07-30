@@ -2693,6 +2693,18 @@ function createWebServer(discordClient) {
   });
 
   // ── Revenus de rôles ───────────────────────────────────────────────────────
+  // ── Historique des redémarrages ───────────────────────────────────────────
+  app.get('/nitrado/restart-history', requireAdmin, async (req, res) => {
+    const logs = await getRestartLogs(300);
+    res.render('restart-history', {
+      logs,
+      path: '/nitrado/restart-history',
+      role: req.session.role,
+      botUser: req.session.botUser || null,
+      discordUser: req.session.discordUser || null,
+    });
+  });
+
   app.get('/economy/amendes', requireAdmin, (req, res) => {
     res.render('amendes', {
       path: '/economy/amendes',
@@ -3187,6 +3199,7 @@ function createWebServer(discordClient) {
 
   // ─── NITRADO ──────────────────────────────────────────────────────────────────
   const nitrado = require('./nitradoManager');
+  const { logRestart, getLogs: getRestartLogs } = require('../restartLogger');
 
   // Page principale
   app.get('/nitrado', requireAdmin, async (req, res) => {
@@ -3255,16 +3268,30 @@ function createWebServer(discordClient) {
 
   // API : redémarrer un serveur
   app.post('/nitrado/api/restart/:id', requireAdmin, async (req, res) => {
+    const adminName = req.session.discordUser?.displayName || (req.session.role === 'admin' ? 'Admin Dashboard' : 'Staff');
+    const adminId   = req.session.discordUser?.id || 'dashboard';
     try {
       await nitrado.restartServer(req.params.id, req.body.message || '');
+      logRestart({
+        source: 'dashboard', adminId, adminName,
+        serviceIds: [req.params.id], mapNames: [req.body.mapName || req.params.id],
+        ok: true,
+      }).catch(() => {});
       res.json({ ok: true });
     } catch (e) {
+      logRestart({
+        source: 'dashboard', adminId, adminName,
+        serviceIds: [req.params.id], mapNames: [req.body.mapName || req.params.id],
+        ok: false, error: e.message,
+      }).catch(() => {});
       res.json({ ok: false, error: e.message });
     }
   });
 
   // API : redémarrer des serveurs (tous ou sélection)
   app.post('/nitrado/api/restart-all', requireAdmin, async (req, res) => {
+    const adminName = req.session.discordUser?.displayName || (req.session.role === 'admin' ? 'Admin Dashboard' : 'Staff');
+    const adminId   = req.session.discordUser?.id || 'dashboard';
     try {
       let ids = req.body.serviceIds;
       if (!ids || !ids.length) {
@@ -3272,8 +3299,19 @@ function createWebServer(discordClient) {
         ids = services.map(s => s.id);
       }
       const results = await nitrado.restartAll(ids, req.body.message || '');
+      const allOk = results.every(r => r.ok);
+      logRestart({
+        source: 'dashboard', adminId, adminName,
+        serviceIds: ids, mapNames: req.body.mapNames || [],
+        ok: allOk, error: allOk ? null : results.filter(r => !r.ok).map(r => r.error).join(', '),
+      }).catch(() => {});
       res.json({ ok: true, results });
     } catch (e) {
+      logRestart({
+        source: 'dashboard', adminId, adminName,
+        serviceIds: req.body.serviceIds || [], mapNames: [],
+        ok: false, error: e.message,
+      }).catch(() => {});
       res.json({ ok: false, error: e.message });
     }
   });
@@ -4505,6 +4543,8 @@ function createWebServer(discordClient) {
   });
 
   app.post('/nitrado/api/restart-schedules/:id/run-now', requireAdmin, async (req, res) => {
+    const adminName = req.session.discordUser?.displayName || (req.session.role === 'admin' ? 'Admin Dashboard' : 'Staff');
+    const adminId   = req.session.discordUser?.id || 'dashboard';
     try {
       const list = await getRestartSchedules();
       const s = list.find(x => x.id === req.params.id);
@@ -4514,6 +4554,12 @@ function createWebServer(discordClient) {
       await nitrado.sendRconToMany(ids, 'SaveWorld');
       await new Promise(r => setTimeout(r, 4000));
       const results = await nitrado.restartAll(ids, 'Redémarrage manuel depuis le dashboard');
+      const allOk = results.every(r => r.ok);
+      logRestart({
+        source: 'dashboard', adminId, adminName,
+        serviceIds: ids, mapNames: [s.nom],
+        ok: allOk, error: allOk ? null : results.filter(r => !r.ok).map(r => r.error).join(', '),
+      }).catch(() => {});
       s.dernierRedemarrage = new Date().toISOString();
       await saveRestartSchedules(list);
       res.json({ ok: true, results });
