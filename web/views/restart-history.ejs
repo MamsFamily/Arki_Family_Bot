@@ -190,9 +190,14 @@
         const status = l.ok
           ? `<span class="badge-ok"></span><span style="color:#4caf50;font-size:12px;font-weight:600;">OK</span>`
           : `<span class="badge-err"></span><span style="color:#f44336;font-size:12px;font-weight:600;" title="${esc(l.error||'')}">Erreur</span>`;
+        const isDiscordId = l.adminId && l.adminId !== 'scheduler' && l.adminId !== 'dashboard' && /^\d+$/.test(l.adminId);
+        const adminCell = isDiscordId
+          ? `<span class="badge-admin" title="ID Discord : ${esc(l.adminId)}">${esc(l.adminName||'—')}</span>
+             <br><span style="font-size:10px;color:var(--text-muted);font-family:monospace;user-select:all;">${esc(l.adminId)}</span>`
+          : `<span class="badge-admin">${esc(l.adminName||'—')}</span>`;
         return `<tr>
           <td style="white-space:nowrap;color:var(--text-muted);font-size:12px;">${dateStr}</td>
-          <td><span class="badge-admin">${esc(l.adminName||'—')}</span></td>
+          <td>${adminCell}</td>
           <td><span class="badge-source ${srcCss}">${src}</span></td>
           <td>${maps}</td>
           <td>${status}</td>
