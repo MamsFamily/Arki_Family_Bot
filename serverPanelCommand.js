@@ -148,12 +148,6 @@ function buildMapButtons(serviceId, status) {
   const isRestarting = status === 'restarting';
 
   const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`${PREFIX}_restart::${serviceId}`)
-      .setLabel('🔄 Redémarrer')
-      .setStyle(ButtonStyle.Primary)
-      .setDisabled(isRestarting),
-
     isOnline
       ? new ButtonBuilder()
           .setCustomId(`${PREFIX}_stop::${serviceId}`)
@@ -200,11 +194,6 @@ function buildGlobalEmbed(maps) {
 function buildGlobalButtons() {
   return [
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`${PREFIX}_restart_all`)
-        .setLabel('🔄 Redémarrer toutes les maps')
-        .setStyle(ButtonStyle.Primary),
-
       new ButtonBuilder()
         .setCustomId(`${PREFIX}_destroy_all`)
         .setLabel('☠️ Destroy Dinos (toutes maps)')
@@ -360,33 +349,9 @@ async function handleServerPanelInteraction(interaction) {
 
   const id = interaction.customId;
 
-  // ── Restart All ──────────────────────────────────────────────────────────
+  // ── Restart All — désactivé temporairement ───────────────────────────────
   if (id === `${PREFIX}_restart_all`) {
-    await interaction.deferReply({ ephemeral: true });
-    const maps = await getMaps();
-    if (!maps.length) return interaction.editReply('❌ Aucun serveur Nitrado trouvé.');
-
-    const serviceIds = maps.map(m => m.serviceId);
-    const results    = await restartAll(serviceIds, 'Redémarrage global depuis le panneau Discord');
-
-    const allOk = results.every(r => r.ok);
-    logRestart({
-      source:     'discord_panel',
-      adminId:    interaction.user.id,
-      adminName:  interaction.member?.displayName || interaction.user.username,
-      serviceIds,
-      mapNames:   maps.map(m => m.displayName),
-      ok:         allOk,
-      error:      allOk ? null : results.filter(r => !r.ok).map(r => r.error).join(', '),
-    }).catch(() => {});
-
-    const lines = maps.map(map => {
-      const r = results.find(r => r.id === map.serviceId);
-      return r?.ok
-        ? `✅ **${map.displayName}** — redémarrage lancé`
-        : `❌ **${map.displayName}** — ${r?.error || 'Erreur inconnue'}`;
-    });
-    return interaction.editReply(`🔄 **Redémarrage global lancé**\n\n${lines.join('\n')}`);
+    return interaction.reply({ content: '🔒 Les redémarrages via Discord sont temporairement désactivés. Utilise le dashboard.', ephemeral: true });
   }
 
   // ── Destroy All ──────────────────────────────────────────────────────────
@@ -457,34 +422,9 @@ async function handleServerPanelInteraction(interaction) {
     }
   };
 
-  // ── Restart ──────────────────────────────────────────────────────────────
+  // ── Restart — désactivé temporairement ──────────────────────────────────
   if (action === 'restart') {
-    await interaction.deferReply({ ephemeral: true });
-    try {
-      await restartServer(serviceId, 'Redémarrage depuis le panneau Discord');
-      logRestart({
-        source:    'discord_panel',
-        adminId:   interaction.user.id,
-        adminName: interaction.member?.displayName || interaction.user.username,
-        serviceIds: [serviceId],
-        mapNames:  [map.displayName],
-        ok:        true,
-      }).catch(() => {});
-      await interaction.editReply(`✅ **${map.displayName}** — redémarrage lancé.`);
-      await refreshEmbed();
-    } catch (e) {
-      logRestart({
-        source:    'discord_panel',
-        adminId:   interaction.user.id,
-        adminName: interaction.member?.displayName || interaction.user.username,
-        serviceIds: [serviceId],
-        mapNames:  [map.displayName],
-        ok:        false,
-        error:     e.message,
-      }).catch(() => {});
-      await interaction.editReply(`❌ Erreur : ${e.message}`);
-    }
-    return;
+    return interaction.reply({ content: '🔒 Les redémarrages via Discord sont temporairement désactivés. Utilise le dashboard.', ephemeral: true });
   }
 
   // ── Stop ─────────────────────────────────────────────────────────────────

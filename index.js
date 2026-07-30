@@ -3812,8 +3812,11 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // ── lancer ───────────────────────────────────────────────────────────────
+    // ── lancer — désactivé temporairement ────────────────────────────────────
     if (sub === 'lancer') {
+      return interaction.editReply({ content: '🔒 Les redémarrages via Discord sont temporairement désactivés. Utilise le dashboard Nitrado.' });
+
+      /* eslint-disable no-unreachable */
       const id = interaction.options.getString('id');
       const list = await restartScheduler.getAll();
       const sched = list.find(s => s.id === id);
