@@ -58,8 +58,8 @@ const DEFAULTS = {
     pack3Text: 'Pack vote 3ème place',
   },
   auth: {
-    adminPassword: envOr('DASHBOARD_PASSWORD', 'joshua2019'),
-    staffPassword: 'arkistaff',
+    adminPassword: '',
+    staffPassword: '',
   },
   giveaway: {
     defaultImageUrl: '',

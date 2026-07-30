@@ -63,8 +63,8 @@
     "pack3Text": "Pack vote 3ème place"
   },
   "auth": {
-    "adminPassword": "joshua2019",
-    "staffPassword": "arkistaff"
+    "adminPassword": "",
+    "staffPassword": ""
   },
   "giveaway": {
     "defaultImageUrl": ""
