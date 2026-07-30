@@ -4987,6 +4987,32 @@ client.on('messageCreate', async message => {
   }
 });
 
+// ── Route de l'Infini : rollback si le dernier message accepté est supprimé ───
+client.on('messageDelete', async message => {
+  try {
+    const result = await infinityRoadManager.handleMessageDelete(message.id, message.channelId);
+    if (!result) return;
+
+    const { rolledBack, previousCount, deletedBy } = result;
+    const channel = message.channel || await client.channels.fetch(message.channelId).catch(() => null);
+    if (!channel) return;
+
+    const { EmbedBuilder } = require('discord.js');
+    const embed = new EmbedBuilder()
+      .setColor(0xe67e22)
+      .setDescription(
+        `⚠️ **${deletedBy || 'Quelqu\'un'}** a supprimé le nombre **${previousCount}** après l'avoir posté.\n` +
+        `Le compteur a été annulé et repasse à **${rolledBack}**.\n` +
+        `➡️ Prochain attendu : **${rolledBack + 1}**`
+      )
+      .setFooter({ text: 'Supprimer un nombre validé, c\'est mal ! 😤' });
+
+    await channel.send({ embeds: [embed] }).catch(() => {});
+  } catch (e) {
+    console.error('[InfinityRoad] Erreur messageDelete:', e.message);
+  }
+});
+
 // ─── CLASSEMENT XP : helper de page ──────────────────────────────────────────
 async function buildXpPage(sorted, page, callerId, guild) {
   const totalPages = Math.ceil(sorted.length / PAGE_SIZE);

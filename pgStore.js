@@ -138,6 +138,8 @@ async function initTables() {
     await pool.query(`ALTER TABLE infinity_road ADD COLUMN IF NOT EXISTS malus_user_id VARCHAR DEFAULT NULL`);
     await pool.query(`ALTER TABLE infinity_road ADD COLUMN IF NOT EXISTS malus_user_name VARCHAR DEFAULT NULL`);
     await pool.query(`ALTER TABLE infinity_road ADD COLUMN IF NOT EXISTS malus_expires_at BIGINT DEFAULT NULL`);
+    // Migration : ID du dernier message accepté (pour rollback si supprimé)
+    await pool.query(`ALTER TABLE infinity_road ADD COLUMN IF NOT EXISTS last_message_id VARCHAR DEFAULT NULL`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS infinity_road_stats (
         user_id VARCHAR PRIMARY KEY,
@@ -574,14 +576,14 @@ async function getInfinityRoadState() {
   } catch (err) { console.error('❌ getInfinityRoadState:', err.message); return { current_count: 0, record: 0, last_user_id: null, last_user_name: null }; }
 }
 
-async function saveInfinityRoadState({ current_count, record, last_user_id, last_user_name }) {
+async function saveInfinityRoadState({ current_count, record, last_user_id, last_user_name, last_message_id }) {
   if (!usePostgres) return;
   try {
     await pool.query(`
       UPDATE infinity_road SET
-        current_count = $1, record = $2, last_user_id = $3, last_user_name = $4
+        current_count = $1, record = $2, last_user_id = $3, last_user_name = $4, last_message_id = $5
       WHERE id = 1
-    `, [current_count, record, last_user_id || null, last_user_name || null]);
+    `, [current_count, record, last_user_id || null, last_user_name || null, last_message_id || null]);
   } catch (err) { console.error('❌ saveInfinityRoadState:', err.message); }
 }
 

@@ -342,6 +342,7 @@ async function handleMessage(message) {
     record: newRecord,
     last_user_id: userId,
     last_user_name: username,
+    last_message_id: message.id,
   });
 
   await pgStore.upsertInfinityRoadStat(userId, username, 'contribution');
@@ -485,6 +486,36 @@ async function initMalusOnStartup(guild) {
   }
 }
 
+// ── Gestion de la suppression de message ──────────────────────────────────────
+
+/**
+ * Appelé quand un message est supprimé dans n'importe quel salon.
+ * Si c'est le dernier message accepté dans la route, on rollback le compteur.
+ */
+async function handleMessageDelete(messageId, channelId) {
+  const settings = getIRSettings();
+  if (!settings.enabled || !settings.channelId) return;
+  if (channelId !== settings.channelId) return;
+
+  const state = await pgStore.getInfinityRoadState();
+  if (!state.last_message_id || state.last_message_id !== messageId) return;
+
+  // Le dernier nombre accepté a été supprimé → rollback
+  const rolledBack = Math.max(0, Number(state.current_count) - 1);
+  await pgStore.saveInfinityRoadState({
+    current_count: rolledBack,
+    record: state.record,
+    last_user_id: null,      // on ne sait plus qui était l'avant-dernier
+    last_user_name: null,
+    last_message_id: null,
+  });
+
+  console.log(`[Route Infini] ⚠️ Message supprimé par ${state.last_user_name} — compteur reculé de ${state.current_count} à ${rolledBack}.`);
+
+  // Retourner les infos pour que index.js puisse notifier le salon
+  return { rolledBack, previousCount: Number(state.current_count), deletedBy: state.last_user_name };
+}
+
 // ── Réinitialiser la partie ───────────────────────────────────────────────────
 
 async function resetGame(resetStats = false) {
@@ -501,6 +532,7 @@ module.exports = {
   getIRSettings,
   saveIRSettings,
   handleMessage,
+  handleMessageDelete,
   resetGame,
   getDefaultSettings,
   initMalusOnStartup,
