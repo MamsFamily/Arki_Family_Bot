@@ -170,12 +170,17 @@
         const dateStr = d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})
           + ' ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
         let statusBadge;
-        if (l.kicked) {
+        if (l.banned) {
+          statusBadge = '<span class="badge-kicked">🔨 BANNI</span>';
+        } else if (l.kicked) {
           statusBadge = '<span class="badge-kicked">🚫 Exclu</span>';
-        } else if (l.kickError) {
-          statusBadge = `<span class="badge-nokick" title="${esc(l.kickError)}">⚠️ Kick impossible — ${esc(l.kickError.slice(0,60))}</span>`;
+        } else if (l.actionApplied) {
+          const icons = { TIMEOUT_28J: '🔇', RETRAIT_RÔLES: '🗑️' };
+          const icon = Object.keys(icons).find(k => l.actionApplied.startsWith(k));
+          statusBadge = `<span class="badge-nokick">${icons[icon] || '⚠️'} ${esc(l.actionApplied)}</span>`;
         } else {
-          statusBadge = '<span class="badge-nokick">⚠️ Non exclu</span>';
+          const detail = l.steps ? l.steps.map(s => `${s.action}: ${s.success?'✅':'❌ '+s.error}`).join(' | ') : '';
+          statusBadge = `<span class="badge-nokick" title="${esc(detail)}">⚠️ Aucune action possible</span>`;
         }
         return `<tr>
           <td style="white-space:nowrap;color:var(--text-muted);font-size:12px;">${dateStr}</td>
