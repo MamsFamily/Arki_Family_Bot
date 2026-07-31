@@ -82,7 +82,12 @@
       <div class="card">
         <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
           <h2>📋 Tentatives de connexion</h2>
-          <button class="btn btn-secondary" onclick="exportCSV()" style="font-size:12px;padding:6px 14px;">⬇️ Exporter CSV</button>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-secondary" onclick="exportCSV()" style="font-size:12px;padding:6px 14px;">⬇️ Exporter CSV</button>
+            <button class="btn" onclick="revokeAll()" style="font-size:12px;padding:6px 14px;background:#c62828;color:#fff;border:none;border-radius:8px;cursor:pointer;">
+              🔒 Déconnecter tout le monde
+            </button>
+          </div>
         </div>
         <div class="card-body">
           <div class="filters-bar">
@@ -187,6 +192,23 @@
 
     function esc(s) {
       return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    async function revokeAll() {
+      if (!confirm('⚠️ Cela va déconnecter TOUS les utilisateurs connectés (sauf toi). Confirmer ?')) return;
+      const btn = document.querySelector('button[onclick="revokeAll()"]');
+      btn.textContent = '⏳ En cours…'; btn.disabled = true;
+      try {
+        const r = await fetch('/admin/revoke-all-sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+        const data = await r.json();
+        if (data.ok) {
+          btn.textContent = '✅ Fait !';
+          btn.style.background = '#2e7d32';
+          setTimeout(() => location.reload(), 1500);
+        } else {
+          btn.textContent = '❌ Erreur'; btn.disabled = false;
+        }
+      } catch { btn.textContent = '❌ Erreur'; btn.disabled = false; }
     }
 
     renderTable(allLogs);

@@ -92,6 +92,29 @@ function createWebServer(discordClient) {
     return req.path.startsWith('/api/') || req.path.startsWith('/nitrado/api/') || req.headers['content-type'] === 'application/json' || req.xhr;
   }
 
+  // ── Génération de session (déconnexion forcée globale) ────────────────────
+  async function getCurrentSessionGen() {
+    try {
+      const val = await pgStore.getData('session_generation', null);
+      return typeof val === 'number' ? val : 1;
+    } catch { return 1; }
+  }
+
+  async function checkSessionGen(req, res, next) {
+    if (!req.session?.authenticated) return next();
+    try {
+      const currentGen = await getCurrentSessionGen();
+      if ((req.session.sessionGen || 0) < currentGen) {
+        req.session.destroy(() => {});
+        if (isApiRequest(req)) return res.status(401).json({ ok: false, error: 'Session révoquée — reconnecte-toi.' });
+        return res.redirect('/login?error=' + encodeURIComponent('Ta session a été révoquée. Reconnecte-toi.'));
+      }
+    } catch {}
+    next();
+  }
+
+  app.use(checkSessionGen);
+
   function requireAuth(req, res, next) {
     if (req.session && req.session.authenticated && req.session.discordUser) {
       return next();
@@ -345,6 +368,9 @@ function createWebServer(discordClient) {
           ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=64`
           : `https://cdn.discordapp.com/embed/avatars/${(BigInt(discordUser.id) >> 22n) % 6n}.png`,
       };
+
+      // Génération de session (pour révocation globale)
+      req.session.sessionGen = await getCurrentSessionGen();
 
       // Journal de connexion avec compte Discord identifié
       const accountLabel = isLola
@@ -2726,6 +2752,19 @@ function createWebServer(discordClient) {
   });
 
   // ── Revenus de rôles ───────────────────────────────────────────────────────
+  // ── Révocation forcée de toutes les sessions ──────────────────────────────
+  app.post('/admin/revoke-all-sessions', requireAdmin, async (req, res) => {
+    const current = await getCurrentSessionGen();
+    const next = current + 1;
+    await pgStore.setData('session_generation', next);
+    // Re-signer la propre session de l'admin avec la nouvelle génération
+    req.session.sessionGen = next;
+    req.session.save(() => {});
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || 'inconnue';
+    await logAccess({ ip, success: true, account: req.session.discordUser?.displayName || 'Admin', reason: `🔒 Révocation globale de toutes les sessions (génération → ${next})` });
+    res.json({ ok: true, generation: next });
+  });
+
   // ── Journal de connexions dashboard ──────────────────────────────────────
   app.get('/admin/access-log', requireAdmin, async (req, res) => {
     const raw = await pgStore.getData('dashboard_access_log', null);
