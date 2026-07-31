@@ -57,9 +57,14 @@
   <div class="layout">
     <%- include('sidebar', { path: '/nitrado/restart-history', role, botUser, discordUser }) %>
     <main class="main-content">
-      <div class="page-header">
-        <h1>🔄 Historique des redémarrages</h1>
-        <p>Tous les redémarrages de maps — dashboard, Discord, plannings automatiques</p>
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+        <div>
+          <h1>🔄 Historique des redémarrages</h1>
+          <p>Tous les redémarrages de maps — dashboard, Discord, plannings automatiques</p>
+        </div>
+        <button onclick="clearAllSchedules()" style="background:#c62828;color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;">
+          🗑️ Supprimer TOUS les plannings auto
+        </button>
       </div>
 
       <!-- Stats -->
@@ -257,6 +262,21 @@
 
     buildAdminFilter();
     renderTable(allLogs);
+    async function clearAllSchedules() {
+      if (!confirm('⚠️ Supprimer ABSOLUMENT TOUS les plannings de redémarrage automatique ?\n\nCette action est irréversible.')) return;
+      try {
+        const r = await fetch('/nitrado/api/restart-schedules', { method: 'DELETE' });
+        const data = await r.json();
+        if (data.ok) {
+          alert(`✅ ${data.deleted} planning(s) supprimé(s) avec succès.`);
+          location.reload();
+        } else {
+          alert('❌ Erreur : ' + (data.error || 'inconnue'));
+        }
+      } catch (e) {
+        alert('❌ Erreur réseau : ' + e.message);
+      }
+    }
   </script>
 </body>
 </html>

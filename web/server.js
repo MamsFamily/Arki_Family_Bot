@@ -4727,6 +4727,17 @@ function createWebServer(discordClient) {
     } catch (e) { res.json({ ok: false, error: e.message }); }
   });
 
+  // ── Suppression totale d'urgence ─────────────────────────────────────────
+  app.delete('/nitrado/api/restart-schedules', requireAdmin, async (req, res) => {
+    try {
+      const list = await getRestartSchedules();
+      const count = list.length;
+      await saveRestartSchedules([]);
+      console.log(`[URGENCE] Tous les plannings de redémarrage supprimés (${count}) par ${req.session.discordUser?.displayName || 'admin'}`);
+      res.json({ ok: true, deleted: count });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
   app.post('/nitrado/api/restart-schedules/:id/run-now', requireAdmin, async (req, res) => {
     const adminName = req.session.discordUser?.displayName || (req.session.role === 'admin' ? 'Admin Dashboard' : 'Staff');
     const adminId   = req.session.discordUser?.id || 'dashboard';
