@@ -2752,6 +2752,33 @@ function createWebServer(discordClient) {
   });
 
   // ── Revenus de rôles ───────────────────────────────────────────────────────
+  // ── Lockdown Discord ─────────────────────────────────────────────────────
+  const lockdown = require('../lockdownManager');
+  lockdown.loadState().catch(() => {});
+
+  app.get('/admin/lockdown', requireAdmin, async (req, res) => {
+    const logs  = await lockdown.getLogs();
+    const state = lockdown.getState();
+    res.render('lockdown-log', {
+      logs, state,
+      path: '/admin/lockdown',
+      role: req.session.role,
+      botUser: req.session.botUser || null,
+      discordUser: req.session.discordUser || null,
+    });
+  });
+
+  app.post('/admin/lockdown/toggle', requireAdmin, async (req, res) => {
+    try {
+      const current = lockdown.getState();
+      const adminName = req.session.discordUser?.displayName || 'Admin';
+      const newState  = await lockdown.setLockdown(!current.enabled, adminName);
+      res.json({ ok: true, ...newState });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
   // ── Logs commandes Discord ────────────────────────────────────────────────
   app.get('/admin/command-logs', requireAdmin, async (req, res) => {
     const { getLogs } = require('../commandLogger');

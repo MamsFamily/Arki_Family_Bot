@@ -44,6 +44,7 @@ const { handleReclaimCommand, handleReclaimTicketInteraction, initReclaimTickets
 const restartScheduler = require('./nitradoRestartScheduler');
 const { logRestart }   = require('./restartLogger');
 const { logCommand }   = require('./commandLogger');
+const lockdown         = require('./lockdownManager');
 const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
 const { registerCasinoHandlers } = require('./casino/casinoHandler');
 const boosterReproManager = require('./boosterReproManager');
@@ -633,6 +634,7 @@ client.once('clientReady', async () => {
 
   // Initialiser les plannings de redémarrage ARK SA + polling 60s
   await restartScheduler.init().catch(e => console.error('[RestartSched] init error:', e.message));
+  await lockdown.loadState().catch(e => console.error('[Lockdown] loadState error:', e.message));
   restartScheduler.startPolling(60000);
 
   // Rattraper les giveaways expirés pendant l'absence du bot
@@ -1115,6 +1117,12 @@ client.on('interactionCreate', async interaction => {
   // ── Log de toute commande slash ───────────────────────────────────────────
   if (interaction.isChatInputCommand()) {
     logCommand(interaction).catch(() => {});
+  }
+
+  // ── Lockdown : bloquer + exclure si verrouillage actif ───────────────────
+  if (interaction.isChatInputCommand()) {
+    const blocked = await lockdown.intercept(interaction);
+    if (blocked) return;
   }
 
   // ── Fils poker : bloquer les commandes slash (laisser passer les boutons/modaux) ──

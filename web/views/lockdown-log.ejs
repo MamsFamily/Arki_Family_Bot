@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verrouillage Discord — Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .lk-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .lk-table th {
+      padding: 10px 14px; text-align: left;
+      color: var(--text-muted); font-weight: 700; font-size: 11px;
+      text-transform: uppercase; letter-spacing: .05em;
+      border-bottom: 2px solid var(--border);
+    }
+    .lk-table td { padding: 9px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .lk-table tr:last-child td { border-bottom: none; }
+    .lk-table tr:hover td { background: rgba(244,67,54,0.03); }
+    .badge-kicked   { background:rgba(244,67,54,0.15);  color:#ef5350; border:1px solid rgba(244,67,54,0.35);  border-radius:20px; padding:2px 10px; font-size:11px; font-weight:700; }
+    .badge-nokick   { background:rgba(255,152,0,0.15);  color:#ffa726; border:1px solid rgba(255,152,0,0.35);  border-radius:20px; padding:2px 10px; font-size:11px; font-weight:700; }
+    .badge-owner    { background:rgba(76,175,80,0.15);  color:#66bb6a; border:1px solid rgba(76,175,80,0.35);  border-radius:20px; padding:2px 10px; font-size:11px; font-weight:700; }
+    .cmd-badge { display:inline-block; background:rgba(124,92,252,0.15); border:1px solid rgba(124,92,252,0.3); color:var(--accent-light); border-radius:6px; padding:2px 9px; font-size:12px; font-family:monospace; font-weight:600; }
+    .user-badge { display:inline-flex; align-items:center; gap:6px; background:rgba(88,101,242,0.12); border:1px solid rgba(88,101,242,0.25); color:#8b9bff; border-radius:20px; padding:2px 10px; font-size:12px; font-weight:600; }
+    .user-id { font-family:monospace; font-size:10px; color:var(--text-muted); user-select:all; display:block; }
+    .stat-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(155px,1fr)); gap:12px; margin-bottom:24px; }
+    .stat-card { background:var(--bg-input); border:1px solid var(--border); border-radius:12px; padding:14px 18px; }
+    .stat-card .sc-label { font-size:11px; color:var(--text-muted); font-weight:600; text-transform:uppercase; margin-bottom:4px; }
+    .stat-card .sc-val { font-size:22px; font-weight:800; color:#fff; }
+    .stat-card.danger .sc-val { color:#ef5350; }
+
+    /* Toggle switch lockdown */
+    .lockdown-banner {
+      border-radius:14px; padding:20px 24px; margin-bottom:24px;
+      display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px;
+      border:2px solid;
+    }
+    .lockdown-banner.active   { background:rgba(244,67,54,0.1); border-color:rgba(244,67,54,0.4); }
+    .lockdown-banner.inactive { background:rgba(76,175,80,0.08); border-color:rgba(76,175,80,0.3); }
+    .lockdown-banner .title { font-size:18px; font-weight:800; }
+    .lockdown-banner.active   .title { color:#ef5350; }
+    .lockdown-banner.inactive .title { color:#66bb6a; }
+    .lockdown-banner .sub { font-size:12px; color:var(--text-muted); margin-top:3px; }
+    .toggle-btn {
+      padding:10px 24px; border-radius:10px; font-size:14px; font-weight:700;
+      border:none; cursor:pointer; transition:all .15s;
+    }
+    .toggle-btn.enable  { background:#c62828; color:#fff; }
+    .toggle-btn.disable { background:#2e7d32; color:#fff; }
+    .toggle-btn:disabled { opacity:.6; cursor:not-allowed; }
+    .empty-state { text-align:center; padding:48px 0; color:var(--text-muted); }
+    .filters-bar { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:18px; }
+    .filters-bar .field { display:flex; flex-direction:column; gap:4px; }
+    .filters-bar label { font-size:11px; color:var(--text-muted); font-weight:600; text-transform:uppercase; }
+    .filters-bar select, .filters-bar input { padding:7px 12px; border-radius:8px; border:1px solid var(--border); background:var(--bg-input); color:var(--text-primary); font-size:13px; min-width:140px; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar', { path: '/admin/lockdown', role, botUser, discordUser }) %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>🔒 Verrouillage Discord</h1>
+        <p>Bloque toutes les commandes staff/admin/modo et exclut automatiquement les contrevenants</p>
+      </div>
+
+      <!-- Bannière d'état + toggle -->
+      <div class="lockdown-banner <%= state.enabled ? 'active' : 'inactive' %>" id="lockdown-banner">
+        <div>
+          <div class="title" id="lk-title">
+            <% if (state.enabled) { %>🔒 VERROUILLAGE ACTIF<% } else { %>🔓 Verrouillage inactif<% } %>
+          </div>
+          <div class="sub" id="lk-sub">
+            <% if (state.enabled) { %>
+              Activé par <strong><%- state.enabledBy %></strong> le <%= new Date(state.enabledAt).toLocaleString('fr-FR') %>
+            <% } else { %>
+              Toutes les commandes staff/admin/modo fonctionnent normalement
+            <% } %>
+          </div>
+        </div>
+        <button class="toggle-btn <%= state.enabled ? 'disable' : 'enable' %>" id="toggle-btn" onclick="toggleLockdown()">
+          <% if (state.enabled) { %>✅ Désactiver le verrouillage<% } else { %>🔒 Activer le verrouillage<% } %>
+        </button>
+      </div>
+
+      <!-- Stats -->
+      <div class="stat-cards">
+        <div class="stat-card danger">
+          <div class="sc-label">Tentatives totales</div>
+          <div class="sc-val"><%- logs.length %></div>
+        </div>
+        <div class="stat-card danger">
+          <div class="sc-label">Exclusions réussies</div>
+          <div class="sc-val"><%- logs.filter(l => l.kicked).length %></div>
+        </div>
+        <div class="stat-card">
+          <div class="sc-label">Utilisateurs uniques</div>
+          <div class="sc-val"><%- new Set(logs.map(l => l.userId)).size %></div>
+        </div>
+        <div class="stat-card">
+          <div class="sc-label">Commandes tentées</div>
+          <div class="sc-val"><%- new Set(logs.map(l => l.command)).size %></div>
+        </div>
+      </div>
+
+      <!-- Tableau -->
+      <div class="card">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+          <h2>📋 Tentatives bloquées</h2>
+          <button class="btn btn-secondary" onclick="exportCSV()" style="font-size:12px;padding:6px 14px;">⬇️ Exporter CSV</button>
+        </div>
+        <div class="card-body">
+          <div class="filters-bar">
+            <div class="field">
+              <label>Statut</label>
+              <select id="filter-status" onchange="applyFilters()">
+                <option value="">— Tous —</option>
+                <option value="kicked">Exclu</option>
+                <option value="nokick">Non exclu</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Recherche</label>
+              <input type="text" id="filter-search" placeholder="Pseudo, /commande…" oninput="applyFilters()">
+            </div>
+            <div class="field">
+              <label>&nbsp;</label>
+              <button class="btn btn-secondary" onclick="resetFilters()" style="font-size:12px;padding:7px 14px;">✕ Réinitialiser</button>
+            </div>
+          </div>
+
+          <% if (!logs.length) { %>
+            <div class="empty-state">
+              <div style="font-size:40px;margin-bottom:12px;">✅</div>
+              <div>Aucune tentative enregistrée</div>
+            </div>
+          <% } else { %>
+          <table class="lk-table">
+            <thead>
+              <tr>
+                <th>Heure</th>
+                <th>Utilisateur Discord</th>
+                <th>Commande</th>
+                <th>Salon</th>
+                <th>Statut</th>
+              </tr>
+            </thead>
+            <tbody id="lk-tbody"></tbody>
+          </table>
+          <div style="margin-top:12px;font-size:12px;color:var(--text-muted);" id="result-count"></div>
+          <% } %>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const allLogs = <%- JSON.stringify(logs) %>;
+    let filtered  = [...allLogs];
+
+    function renderTable(list) {
+      const tbody = document.getElementById('lk-tbody');
+      if (!tbody) return;
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state">Aucun résultat</div></td></tr>';
+        document.getElementById('result-count').textContent = '';
+        return;
+      }
+      tbody.innerHTML = list.map(l => {
+        const d = new Date(l.timestamp);
+        const dateStr = d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})
+          + ' ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+        let statusBadge;
+        if (l.kicked) {
+          statusBadge = '<span class="badge-kicked">🚫 Exclu</span>';
+        } else if (l.kickError) {
+          statusBadge = `<span class="badge-nokick" title="${esc(l.kickError)}">⚠️ Kick échoué</span>`;
+        } else {
+          statusBadge = '<span class="badge-owner">👑 Propriétaire</span>';
+        }
+        return `<tr>
+          <td style="white-space:nowrap;color:var(--text-muted);font-size:12px;">${dateStr}</td>
+          <td>
+            <span class="user-badge">${esc(l.displayName||l.username)}</span>
+            <span class="user-id">@${esc(l.username)} · ${esc(l.userId)}</span>
+          </td>
+          <td><span class="cmd-badge">/${esc(l.command)}</span></td>
+          <td style="font-size:12px;color:var(--text-muted);">${l.channelName ? '#'+esc(l.channelName) : '—'}</td>
+          <td>${statusBadge}</td>
+        </tr>`;
+      }).join('');
+      document.getElementById('result-count').textContent =
+        `${list.length} entrée${list.length>1?'s':''} affichée${list.length>1?'s':''}`;
+    }
+
+    function applyFilters() {
+      const status = document.getElementById('filter-status').value;
+      const search = document.getElementById('filter-search').value.toLowerCase();
+      filtered = allLogs.filter(l => {
+        if (status === 'kicked' && !l.kicked) return false;
+        if (status === 'nokick' && l.kicked) return false;
+        if (search) {
+          const hay = [l.displayName, l.username, l.userId, l.command, l.channelName].join(' ').toLowerCase();
+          if (!hay.includes(search)) return false;
+        }
+        return true;
+      });
+      renderTable(filtered);
+    }
+
+    function resetFilters() {
+      document.getElementById('filter-status').value = '';
+      document.getElementById('filter-search').value = '';
+      filtered = [...allLogs];
+      renderTable(filtered);
+    }
+
+    async function toggleLockdown() {
+      const btn = document.getElementById('toggle-btn');
+      const isActive = btn.classList.contains('disable');
+      const action = isActive ? 'désactiver' : 'activer';
+      if (!confirm(`Confirmer : ${action} le verrouillage Discord ?`)) return;
+      btn.disabled = true; btn.textContent = '⏳ En cours…';
+      try {
+        const r = await fetch('/admin/lockdown/toggle', { method:'POST', headers:{'Content-Type':'application/json'} });
+        const data = await r.json();
+        if (data.ok) location.reload();
+        else { alert('Erreur : ' + (data.error||'inconnue')); btn.disabled = false; }
+      } catch { alert('Erreur réseau'); btn.disabled = false; }
+    }
+
+    function exportCSV() {
+      const rows = [['Date','Pseudo','@Username','ID Discord','Commande','Salon','Statut','Erreur kick']];
+      filtered.forEach(l => {
+        const d = new Date(l.timestamp).toLocaleString('fr-FR');
+        const status = l.kicked ? 'Exclu' : l.kickError ? 'Kick échoué' : 'Propriétaire/exempt';
+        rows.push([d, l.displayName||l.username, '@'+l.username, l.userId, '/'+l.command, l.channelName||'', status, l.kickError||'']);
+      });
+      const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = `lockdown_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+    }
+
+    function esc(s) {
+      return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    renderTable(allLogs);
+    // Auto-refresh 15s
+    setInterval(() => location.reload(), 15_000);
+  </script>
+</body>
+</html>
