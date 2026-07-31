@@ -250,20 +250,32 @@ function createWebServer(discordClient) {
     res.render('login', { error: req.query.error || null });
   });
 
-  app.post('/login', (req, res) => {
+  // ── Journal de connexions ─────────────────────────────────────────────────
+  async function logAccess({ ip, success, account, reason }) {
+    try {
+      const raw = await pgStore.getData('dashboard_access_log', null);
+      const logs = Array.isArray(raw) ? raw : (raw ? JSON.parse(raw) : []);
+      logs.push({ timestamp: new Date().toISOString(), ip, success, account, reason });
+      // garder les 500 derniers
+      if (logs.length > 500) logs.splice(0, logs.length - 500);
+      await pgStore.setData('dashboard_access_log', logs);
+    } catch (e) { console.error('[AccessLog]', e.message); }
+  }
+
+  app.post('/login', async (req, res) => {
     const { password } = req.body;
     const passwords = getPasswords();
     const directPassword = 'Lola6';
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || 'inconnue';
+
     if (password === directPassword) {
-      req.session.authenticated = true;
-      req.session.role = 'admin';
-      req.session.discordUser = {
-        id: '0',
-        username: 'Admin',
-        displayName: 'Admin',
-        avatar: 'https://cdn.discordapp.com/embed/avatars/0.png',
-      };
-      return res.redirect('/');
+      // Redirige vers Discord OAuth pour identifier le compte
+      await logAccess({ ip, success: true, account: 'Lola6 → OAuth Discord', reason: 'Redirection OAuth pour identification' });
+      req.session.pendingRole = 'admin';
+      req.session.pendingLola = true;
+      const state = require('crypto').randomBytes(16).toString('hex');
+      req.session.oauthState = state;
+      return res.redirect(getDiscordOAuthUrl(req, state));
     }
     let role = null;
     if (password === passwords.admin) {
@@ -272,8 +284,12 @@ function createWebServer(discordClient) {
       role = 'staff';
     }
     if (!role) {
+      // Mot de passe incorrect — on masque les 3 derniers chars pour le log
+      const masked = password ? password.slice(0, Math.max(0, password.length - 3)).padEnd(password.length, '*') : '(vide)';
+      await logAccess({ ip, success: false, account: 'inconnu', reason: `Mauvais mot de passe : "${masked}"` });
       return res.render('login', { error: 'Mot de passe incorrect' });
     }
+    await logAccess({ ip, success: true, account: role === 'admin' ? 'admin (Discord OAuth)' : 'staff (Discord OAuth)', reason: 'Redirection OAuth Discord' });
     req.session.pendingRole = role;
     const state = require('crypto').randomBytes(16).toString('hex');
     req.session.oauthState = state;
@@ -315,8 +331,12 @@ function createWebServer(discordClient) {
         } catch (e) {}
       }
 
+      const role = req.session.pendingRole || 'staff';
+      const isLola = req.session.pendingLola === true;
+      const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || 'inconnue';
+
       req.session.authenticated = true;
-      req.session.role = req.session.pendingRole || 'staff';
+      req.session.role = role;
       req.session.discordUser = {
         id: discordUser.id,
         username: discordUser.username,
@@ -325,7 +345,20 @@ function createWebServer(discordClient) {
           ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=64`
           : `https://cdn.discordapp.com/embed/avatars/${(BigInt(discordUser.id) >> 22n) % 6n}.png`,
       };
+
+      // Journal de connexion avec compte Discord identifié
+      const accountLabel = isLola
+        ? `Lola6 → @${discordUser.username} (${discordUser.id})`
+        : `${role} → @${discordUser.username} (${discordUser.id})`;
+      await logAccess({
+        ip,
+        success: true,
+        account: accountLabel,
+        reason: `Connecté en tant que "${displayName}" — ID Discord : ${discordUser.id}`,
+      });
+
       delete req.session.pendingRole;
+      delete req.session.pendingLola;
       delete req.session.oauthState;
 
       res.redirect('/');
@@ -2693,6 +2726,19 @@ function createWebServer(discordClient) {
   });
 
   // ── Revenus de rôles ───────────────────────────────────────────────────────
+  // ── Journal de connexions dashboard ──────────────────────────────────────
+  app.get('/admin/access-log', requireAdmin, async (req, res) => {
+    const raw = await pgStore.getData('dashboard_access_log', null);
+    const logs = Array.isArray(raw) ? raw : (raw ? JSON.parse(raw) : []);
+    res.render('access-log', {
+      logs: logs.slice().reverse(), // plus récent en premier
+      path: '/admin/access-log',
+      role: req.session.role,
+      botUser: req.session.botUser || null,
+      discordUser: req.session.discordUser || null,
+    });
+  });
+
   // ── Historique des redémarrages ───────────────────────────────────────────
   app.get('/nitrado/restart-history', requireAdmin, async (req, res) => {
     const logs = await getRestartLogs(300);

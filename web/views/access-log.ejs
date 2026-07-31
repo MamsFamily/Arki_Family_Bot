@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Journal des connexions — Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .al-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .al-table th {
+      padding: 10px 14px; text-align: left;
+      color: var(--text-muted); font-weight: 700; font-size: 11px;
+      text-transform: uppercase; letter-spacing: .05em;
+      border-bottom: 2px solid var(--border);
+    }
+    .al-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .al-table tr:last-child td { border-bottom: none; }
+    .al-table tr:hover td { background: rgba(124,92,252,0.04); }
+    .badge-ok  { background: rgba(76,175,80,0.15);  color: #66bb6a; border: 1px solid rgba(76,175,80,0.3);  border-radius: 20px; padding: 2px 10px; font-size: 11px; font-weight: 700; }
+    .badge-err { background: rgba(244,67,54,0.15);  color: #ef5350; border: 1px solid rgba(244,67,54,0.3);  border-radius: 20px; padding: 2px 10px; font-size: 11px; font-weight: 700; }
+    .ip-cell { font-family: monospace; font-size: 12px; color: var(--text-muted); user-select: all; }
+    .stat-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(155px,1fr)); gap: 12px; margin-bottom: 24px; }
+    .stat-card  { background: var(--bg-input); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; }
+    .stat-card .sc-label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
+    .stat-card .sc-val   { font-size: 22px; font-weight: 800; color: #fff; }
+    .stat-card.danger .sc-val { color: #ef5350; }
+    .filters-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 18px; }
+    .filters-bar .field { display: flex; flex-direction: column; gap: 4px; }
+    .filters-bar label  { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+    .filters-bar input, .filters-bar select {
+      padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--bg-input); color: var(--text-primary); font-size: 13px; min-width: 140px;
+    }
+    .empty-state { text-align: center; padding: 48px 0; color: var(--text-muted); }
+    .alert-banner {
+      background: rgba(244,67,54,0.12); border: 1px solid rgba(244,67,54,0.35);
+      border-radius: 12px; padding: 14px 18px; margin-bottom: 20px;
+      color: #ef5350; font-weight: 600; display: flex; align-items: center; gap: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar', { path: '/admin/access-log', role, botUser, discordUser }) %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>🛡️ Journal des connexions</h1>
+        <p>Toutes les tentatives de connexion au dashboard — réussies et échouées</p>
+      </div>
+
+      <%
+        const failures = logs.filter(l => !l.success);
+        const recent24h = logs.filter(l => Date.now() - new Date(l.timestamp) < 86400000);
+        const recentFails = failures.filter(l => Date.now() - new Date(l.timestamp) < 86400000);
+      %>
+
+      <% if (recentFails.length >= 3) { %>
+      <div class="alert-banner">
+        🚨 <span><%= recentFails.length %> tentative(s) échouée(s) dans les dernières 24h — IP suspectes ci-dessous</span>
+      </div>
+      <% } %>
+
+      <div class="stat-cards">
+        <div class="stat-card">
+          <div class="sc-label">Total entrées</div>
+          <div class="sc-val"><%- logs.length %></div>
+        </div>
+        <div class="stat-card">
+          <div class="sc-label">✅ Réussies</div>
+          <div class="sc-val"><%- logs.filter(l => l.success).length %></div>
+        </div>
+        <div class="stat-card danger">
+          <div class="sc-label">❌ Échouées</div>
+          <div class="sc-val"><%- failures.length %></div>
+        </div>
+        <div class="stat-card danger">
+          <div class="sc-label">Échouées 24h</div>
+          <div class="sc-val"><%- recentFails.length %></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+          <h2>📋 Tentatives de connexion</h2>
+          <button class="btn btn-secondary" onclick="exportCSV()" style="font-size:12px;padding:6px 14px;">⬇️ Exporter CSV</button>
+        </div>
+        <div class="card-body">
+          <div class="filters-bar">
+            <div class="field">
+              <label>Filtrer</label>
+              <select id="filter-status" onchange="applyFilters()">
+                <option value="">— Toutes —</option>
+                <option value="ok">✅ Réussies</option>
+                <option value="fail">❌ Échouées</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>IP</label>
+              <input type="text" id="filter-ip" placeholder="Adresse IP…" oninput="applyFilters()">
+            </div>
+            <div class="field">
+              <label>&nbsp;</label>
+              <button class="btn btn-secondary" onclick="resetFilters()" style="font-size:12px;padding:7px 14px;">✕ Réinitialiser</button>
+            </div>
+          </div>
+
+          <table class="al-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Statut</th>
+                <th>Compte</th>
+                <th>IP</th>
+                <th>Détail</th>
+              </tr>
+            </thead>
+            <tbody id="al-tbody"></tbody>
+          </table>
+          <div style="margin-top:12px;font-size:12px;color:var(--text-muted);" id="result-count"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const allLogs = <%- JSON.stringify(logs) %>;
+    let filtered = [...allLogs];
+
+    function renderTable(list) {
+      const tbody = document.getElementById('al-tbody');
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state">Aucun résultat</div></td></tr>';
+        document.getElementById('result-count').textContent = '';
+        return;
+      }
+      tbody.innerHTML = list.map(l => {
+        const d = new Date(l.timestamp);
+        const dateStr = d.toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric'})
+          + ' ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+        const badge = l.success
+          ? `<span class="badge-ok">✅ Réussie</span>`
+          : `<span class="badge-err">❌ Échouée</span>`;
+        return `<tr style="${!l.success ? 'background:rgba(244,67,54,0.04)' : ''}">
+          <td style="white-space:nowrap;color:var(--text-muted);font-size:12px;">${dateStr}</td>
+          <td>${badge}</td>
+          <td style="font-weight:600;">${esc(l.account||'—')}</td>
+          <td class="ip-cell">${esc(l.ip||'—')}</td>
+          <td style="font-size:12px;color:var(--text-muted);">${esc(l.reason||'')}</td>
+        </tr>`;
+      }).join('');
+      document.getElementById('result-count').textContent =
+        `${list.length} entrée${list.length > 1 ? 's' : ''} affichée${list.length > 1 ? 's' : ''}`;
+    }
+
+    function applyFilters() {
+      const status = document.getElementById('filter-status').value;
+      const ip     = document.getElementById('filter-ip').value.toLowerCase();
+      filtered = allLogs.filter(l => {
+        if (status === 'ok'   && !l.success) return false;
+        if (status === 'fail' &&  l.success) return false;
+        if (ip && !(l.ip||'').toLowerCase().includes(ip)) return false;
+        return true;
+      });
+      renderTable(filtered);
+    }
+
+    function resetFilters() {
+      document.getElementById('filter-status').value = '';
+      document.getElementById('filter-ip').value = '';
+      filtered = [...allLogs];
+      renderTable(filtered);
+    }
+
+    function exportCSV() {
+      const rows = [['Date','Statut','Compte','IP','Détail']];
+      filtered.forEach(l => {
+        const d = new Date(l.timestamp).toLocaleString('fr-FR');
+        rows.push([d, l.success ? 'Réussie' : 'Échouée', l.account||'', l.ip||'', l.reason||'']);
+      });
+      const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob(['\uFEFF' + csv], {type:'text/csv;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `connexions_${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+    }
+
+    function esc(s) {
+      return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    renderTable(allLogs);
+  </script>
+</body>
+</html>
