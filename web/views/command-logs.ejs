@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Logs Commandes Discord — Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .cl-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .cl-table th {
+      padding: 10px 14px; text-align: left;
+      color: var(--text-muted); font-weight: 700; font-size: 11px;
+      text-transform: uppercase; letter-spacing: .05em;
+      border-bottom: 2px solid var(--border);
+    }
+    .cl-table td { padding: 9px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .cl-table tr:last-child td { border-bottom: none; }
+    .cl-table tr:hover td { background: rgba(124,92,252,0.04); }
+    .cmd-badge {
+      display: inline-block; background: rgba(124,92,252,0.15);
+      border: 1px solid rgba(124,92,252,0.3); color: var(--accent-light);
+      border-radius: 6px; padding: 2px 9px; font-size: 12px;
+      font-family: monospace; font-weight: 600; white-space: nowrap;
+    }
+    .user-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(88,101,242,0.12); border: 1px solid rgba(88,101,242,0.25);
+      color: #8b9bff; border-radius: 20px; padding: 2px 10px;
+      font-size: 12px; font-weight: 600;
+    }
+    .user-id { font-family: monospace; font-size: 10px; color: var(--text-muted); user-select: all; display: block; }
+    .stat-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(155px,1fr)); gap: 12px; margin-bottom: 24px; }
+    .stat-card  { background: var(--bg-input); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; }
+    .stat-card .sc-label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
+    .stat-card .sc-val   { font-size: 22px; font-weight: 800; color: #fff; }
+    .filters-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 18px; }
+    .filters-bar .field { display: flex; flex-direction: column; gap: 4px; }
+    .filters-bar label  { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+    .filters-bar input, .filters-bar select {
+      padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--bg-input); color: var(--text-primary); font-size: 13px; min-width: 140px;
+    }
+    .hours-tabs { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
+    .hours-tab {
+      padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer;
+      border: 1px solid var(--border); background: var(--bg-input); color: var(--text-muted);
+      transition: all .15s;
+    }
+    .hours-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .empty-state { text-align: center; padding: 48px 0; color: var(--text-muted); }
+    .top-users { display: flex; flex-direction: column; gap: 6px; }
+    .top-user-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px;
+      background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; }
+    .top-user-name { font-weight: 600; font-size: 13px; }
+    .top-user-count { font-size: 20px; font-weight: 800; color: var(--accent-light); }
+    .top-cmds { display: flex; flex-direction: column; gap: 6px; }
+    .top-cmd-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px;
+      background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar', { path: '/admin/command-logs', role, botUser, discordUser }) %>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>📜 Logs des commandes Discord</h1>
+        <p>Qui utilise quelles commandes — historique en temps réel</p>
+      </div>
+
+      <!-- Filtre par période -->
+      <div class="hours-tabs" id="hours-tabs">
+        <button class="hours-tab active" data-hours="2">2 dernières heures</button>
+        <button class="hours-tab" data-hours="6">6h</button>
+        <button class="hours-tab" data-hours="12">12h</button>
+        <button class="hours-tab" data-hours="24">24h</button>
+        <button class="hours-tab" data-hours="0">Tout</button>
+      </div>
+
+      <!-- Stats -->
+      <div class="stat-cards" id="stat-cards">
+        <div class="stat-card">
+          <div class="sc-label">Commandes</div>
+          <div class="sc-val" id="stat-total">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="sc-label">Joueurs uniques</div>
+          <div class="sc-val" id="stat-users">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="sc-label">Commandes uniques</div>
+          <div class="sc-val" id="stat-cmds">—</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+        <!-- Top utilisateurs -->
+        <div class="card">
+          <div class="card-header"><h2>🏆 Top utilisateurs</h2></div>
+          <div class="card-body">
+            <div class="top-users" id="top-users"><div class="empty-state" style="padding:16px 0;">Aucune donnée</div></div>
+          </div>
+        </div>
+        <!-- Top commandes -->
+        <div class="card">
+          <div class="card-header"><h2>🔧 Commandes les + utilisées</h2></div>
+          <div class="card-body">
+            <div class="top-cmds" id="top-cmds"><div class="empty-state" style="padding:16px 0;">Aucune donnée</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tableau détaillé -->
+      <div class="card">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+          <h2>📋 Détail des commandes</h2>
+          <button class="btn btn-secondary" onclick="exportCSV()" style="font-size:12px;padding:6px 14px;">⬇️ Exporter CSV</button>
+        </div>
+        <div class="card-body">
+          <div class="filters-bar">
+            <div class="field">
+              <label>Recherche joueur / commande</label>
+              <input type="text" id="filter-search" placeholder="Pseudo, /commande…" oninput="applyFilters()">
+            </div>
+            <div class="field">
+              <label>Joueur</label>
+              <select id="filter-user" onchange="applyFilters()">
+                <option value="">— Tous —</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Commande</label>
+              <select id="filter-cmd" onchange="applyFilters()">
+                <option value="">— Toutes —</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>&nbsp;</label>
+              <button class="btn btn-secondary" onclick="resetFilters()" style="font-size:12px;padding:7px 14px;">✕ Réinitialiser</button>
+            </div>
+          </div>
+
+          <table class="cl-table">
+            <thead>
+              <tr>
+                <th>Heure</th>
+                <th>Joueur Discord</th>
+                <th>Commande</th>
+                <th>Salon</th>
+              </tr>
+            </thead>
+            <tbody id="cl-tbody"></tbody>
+          </table>
+          <div style="margin-top:12px;font-size:12px;color:var(--text-muted);" id="result-count"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const allLogs = <%- JSON.stringify(logs) %>;
+    let currentHours = 2;
+    let periodLogs = [];
+    let filtered = [];
+
+    function getLogsForPeriod(hours) {
+      if (!hours) return [...allLogs];
+      const since = Date.now() - hours * 3_600_000;
+      return allLogs.filter(l => new Date(l.timestamp).getTime() >= since);
+    }
+
+    function buildSelects(logs) {
+      const users = [...new Map(logs.map(l => [l.userId, l.displayName || l.username])).entries()]
+        .sort((a,b) => a[1].localeCompare(b[1]));
+      const cmds  = [...new Set(logs.map(l => l.fullCmd))].sort();
+
+      const uSel = document.getElementById('filter-user');
+      const cSel = document.getElementById('filter-cmd');
+      const uVal = uSel.value, cVal = cSel.value;
+
+      uSel.innerHTML = '<option value="">— Tous —</option>';
+      users.forEach(([id, name]) => {
+        const o = document.createElement('option');
+        o.value = id; o.textContent = name;
+        uSel.appendChild(o);
+      });
+      cSel.innerHTML = '<option value="">— Toutes —</option>';
+      cmds.forEach(c => {
+        const o = document.createElement('option');
+        o.value = c; o.textContent = c;
+        cSel.appendChild(o);
+      });
+      uSel.value = uVal; cSel.value = cVal;
+    }
+
+    function updateStats(logs) {
+      document.getElementById('stat-total').textContent = logs.length;
+      document.getElementById('stat-users').textContent = new Set(logs.map(l => l.userId)).size;
+      document.getElementById('stat-cmds').textContent  = new Set(logs.map(l => l.fullCmd)).size;
+
+      // Top users
+      const userCount = {};
+      logs.forEach(l => { userCount[l.userId] = (userCount[l.userId] || { name: l.displayName||l.username, count: 0 }); userCount[l.userId].count++; });
+      const topUsers = Object.entries(userCount).sort((a,b) => b[1].count - a[1].count).slice(0, 8);
+      const tuEl = document.getElementById('top-users');
+      tuEl.innerHTML = topUsers.length ? topUsers.map(([id, d]) =>
+        `<div class="top-user-row">
+          <div><span class="top-user-name">${esc(d.name)}</span><span class="user-id">${esc(id)}</span></div>
+          <span class="top-user-count">${d.count}</span>
+        </div>`).join('') : '<div class="empty-state" style="padding:16px 0;">Aucune donnée</div>';
+
+      // Top cmds
+      const cmdCount = {};
+      logs.forEach(l => { cmdCount[l.fullCmd] = (cmdCount[l.fullCmd] || 0) + 1; });
+      const topCmds = Object.entries(cmdCount).sort((a,b) => b[1] - a[1]).slice(0, 8);
+      const tcEl = document.getElementById('top-cmds');
+      tcEl.innerHTML = topCmds.length ? topCmds.map(([cmd, count]) =>
+        `<div class="top-cmd-row">
+          <span class="cmd-badge">${esc(cmd)}</span>
+          <span class="top-user-count">${count}</span>
+        </div>`).join('') : '<div class="empty-state" style="padding:16px 0;">Aucune donnée</div>';
+    }
+
+    function renderTable(logs) {
+      const tbody = document.getElementById('cl-tbody');
+      if (!logs.length) {
+        tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state">Aucune commande sur cette période</div></td></tr>';
+        document.getElementById('result-count').textContent = '';
+        return;
+      }
+      tbody.innerHTML = logs.map(l => {
+        const d = new Date(l.timestamp);
+        const dateStr = d.toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit'})
+          + ' ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+        return `<tr>
+          <td style="white-space:nowrap;color:var(--text-muted);font-size:12px;">${dateStr}</td>
+          <td>
+            <span class="user-badge">${esc(l.displayName||l.username)}</span>
+            <span class="user-id">@${esc(l.username)} · ${esc(l.userId)}</span>
+          </td>
+          <td><span class="cmd-badge">${esc(l.fullCmd)}</span></td>
+          <td style="font-size:12px;color:var(--text-muted);">${l.channelName ? '#'+esc(l.channelName) : '—'}</td>
+        </tr>`;
+      }).join('');
+      document.getElementById('result-count').textContent =
+        `${logs.length} commande${logs.length > 1 ? 's' : ''} affichée${logs.length > 1 ? 's' : ''}`;
+    }
+
+    function applyFilters() {
+      const search = document.getElementById('filter-search').value.toLowerCase();
+      const user   = document.getElementById('filter-user').value;
+      const cmd    = document.getElementById('filter-cmd').value;
+      filtered = periodLogs.filter(l => {
+        if (user && l.userId !== user) return false;
+        if (cmd  && l.fullCmd !== cmd) return false;
+        if (search) {
+          const hay = [l.displayName, l.username, l.userId, l.fullCmd, l.channelName].join(' ').toLowerCase();
+          if (!hay.includes(search)) return false;
+        }
+        return true;
+      });
+      renderTable(filtered);
+    }
+
+    function resetFilters() {
+      ['filter-search','filter-user','filter-cmd'].forEach(id => document.getElementById(id).value = '');
+      filtered = [...periodLogs];
+      renderTable(filtered);
+    }
+
+    function switchPeriod(hours) {
+      currentHours = hours;
+      document.querySelectorAll('.hours-tab').forEach(t => t.classList.toggle('active', Number(t.dataset.hours) === hours));
+      periodLogs = getLogsForPeriod(hours);
+      filtered   = [...periodLogs];
+      buildSelects(periodLogs);
+      updateStats(periodLogs);
+      renderTable(filtered);
+      resetFilters();
+    }
+
+    function exportCSV() {
+      const rows = [['Date','Joueur','@Username','ID Discord','Commande','Salon']];
+      filtered.forEach(l => {
+        const d = new Date(l.timestamp).toLocaleString('fr-FR');
+        rows.push([d, l.displayName||l.username, '@'+l.username, l.userId, l.fullCmd, l.channelName||'']);
+      });
+      const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob(['\uFEFF' + csv], {type:'text/csv;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `commandes_discord_${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+    }
+
+    function esc(s) {
+      return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // Onglets période
+    document.querySelectorAll('.hours-tab').forEach(btn => {
+      btn.addEventListener('click', () => switchPeriod(Number(btn.dataset.hours)));
+    });
+
+    // Auto-refresh toutes les 30s
+    setInterval(() => location.reload(), 30_000);
+
+    switchPeriod(2);
+  </script>
+</body>
+</html>

@@ -43,6 +43,7 @@ const { publishEventPanel, handleEventTicketInteraction } = require('./eventTick
 const { handleReclaimCommand, handleReclaimTicketInteraction, initReclaimTickets, handleReclaimRecapCommand } = require('./reclaimTicketCommand');
 const restartScheduler = require('./nitradoRestartScheduler');
 const { logRestart }   = require('./restartLogger');
+const { logCommand }   = require('./commandLogger');
 const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
 const { registerCasinoHandlers } = require('./casino/casinoHandler');
 const boosterReproManager = require('./boosterReproManager');
@@ -1111,6 +1112,11 @@ function buildGiveawayEmbed(g) {
 }
 
 client.on('interactionCreate', async interaction => {
+  // ── Log de toute commande slash ───────────────────────────────────────────
+  if (interaction.isChatInputCommand()) {
+    logCommand(interaction).catch(() => {});
+  }
+
   // ── Fils poker : bloquer les commandes slash (laisser passer les boutons/modaux) ──
   if (
     interaction.isChatInputCommand() &&

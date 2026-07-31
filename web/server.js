@@ -2752,6 +2752,19 @@ function createWebServer(discordClient) {
   });
 
   // ── Revenus de rôles ───────────────────────────────────────────────────────
+  // ── Logs commandes Discord ────────────────────────────────────────────────
+  app.get('/admin/command-logs', requireAdmin, async (req, res) => {
+    const { getLogs } = require('../commandLogger');
+    const logs = await getLogs(0); // tous les logs, le tri par période se fait côté client
+    res.render('command-logs', {
+      logs,
+      path: '/admin/command-logs',
+      role: req.session.role,
+      botUser: req.session.botUser || null,
+      discordUser: req.session.discordUser || null,
+    });
+  });
+
   // ── Révocation forcée de toutes les sessions ──────────────────────────────
   app.post('/admin/revoke-all-sessions', requireAdmin, async (req, res) => {
     const current = await getCurrentSessionGen();
