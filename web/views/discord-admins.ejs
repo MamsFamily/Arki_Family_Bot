@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Membres Admin/Modo — Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .member-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+    .member-card {
+      background: var(--bg-input); border: 1px solid var(--border);
+      border-radius: 14px; padding: 16px 18px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .member-card.is-owner  { border-color: rgba(255,193,7,0.5);  background: rgba(255,193,7,0.05); }
+    .member-card.is-admin  { border-color: rgba(244,67,54,0.4);  background: rgba(244,67,54,0.04); }
+    .member-card.is-modo   { border-color: rgba(88,101,242,0.4); background: rgba(88,101,242,0.04); }
+    .member-top { display: flex; align-items: center; gap: 12px; }
+    .member-avatar {
+      width: 48px; height: 48px; border-radius: 50%; object-fit: cover;
+      border: 2px solid var(--border); flex-shrink: 0;
+    }
+    .member-avatar-placeholder {
+      width: 48px; height: 48px; border-radius: 50%;
+      background: var(--bg-card); border: 2px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; flex-shrink: 0;
+    }
+    .member-name { font-weight: 800; font-size: 15px; color: #fff; }
+    .member-username { font-size: 12px; color: var(--text-muted); }
+    .member-id { font-family: monospace; font-size: 11px; color: var(--text-muted); user-select: all; margin-top: 2px; }
+    .role-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+    .rb {
+      border-radius: 20px; padding: 3px 11px; font-size: 11px; font-weight: 700;
+      border: 1px solid;
+    }
+    .rb-owner { background: rgba(255,193,7,0.15); color: #ffd54f; border-color: rgba(255,193,7,0.4); }
+    .rb-admin { background: rgba(244,67,54,0.15); color: #ef5350; border-color: rgba(244,67,54,0.4); }
+    .rb-modo  { background: rgba(88,101,242,0.15); color: #8b9bff; border-color: rgba(88,101,242,0.4); }
+    .member-meta { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 8px; }
+    .meta-row { display: flex; gap: 6px; }
+    .meta-label { color: var(--text-muted); }
+    .meta-val { color: var(--text-secondary); font-weight: 600; }
+    .action-link {
+      display: inline-block; margin-top: 4px; font-size: 11px;
+      color: var(--accent-light); text-decoration: none;
+      border: 1px solid rgba(124,92,252,0.3); border-radius: 8px;
+      padding: 3px 10px; background: rgba(124,92,252,0.08);
+    }
+    .action-link:hover { background: rgba(124,92,252,0.18); }
+    .stat-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap: 12px; margin-bottom: 24px; }
+    .stat-card { background: var(--bg-input); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; }
+    .stat-card .sc-label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
+    .stat-card .sc-val { font-size: 22px; font-weight: 800; color: #fff; }
+    .error-box { background: rgba(244,67,54,0.1); border: 1px solid rgba(244,67,54,0.35); border-radius: 12px; padding: 20px 24px; color: #ef5350; }
+    .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+    .filter-bar select, .filter-bar input {
+      padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--bg-input); color: var(--text-primary); font-size: 13px;
+    }
+    .no-results { text-align: center; padding: 40px; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar', { path: '/admin/discord-admins', role, botUser, discordUser }) %>
+    <main class="main-content">
+      <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+        <div>
+          <h1>👑 Membres Admin / Modo</h1>
+          <p>Membres Discord ayant des permissions élevées sur le serveur</p>
+        </div>
+        <button class="btn btn-secondary" onclick="location.reload()" style="font-size:13px;padding:8px 16px;">🔄 Actualiser</button>
+      </div>
+
+      <% if (error) { %>
+        <div class="error-box">
+          <strong>⚠️ Impossible de récupérer les membres Discord</strong><br>
+          <span style="font-size:13px;"><%= error %></span><br>
+          <span style="font-size:12px;color:var(--text-muted);margin-top:6px;display:block;">Le bot Discord doit être connecté (Railway) pour afficher cette page.</span>
+        </div>
+      <% } else { %>
+
+      <!-- Stats -->
+      <div class="stat-cards">
+        <div class="stat-card">
+          <div class="sc-label">Total</div>
+          <div class="sc-val"><%- members.length %></div>
+        </div>
+        <div class="stat-card">
+          <div class="sc-label">👑 Propriétaire</div>
+          <div class="sc-val"><%- members.filter(m=>m.isOwner).length %></div>
+        </div>
+        <div class="stat-card">
+          <div class="sc-label">🔴 Admins</div>
+          <div class="sc-val"><%- members.filter(m=>m.isAdmin && !m.isOwner).length %></div>
+        </div>
+        <div class="stat-card">
+          <div class="sc-label">🔵 Modos</div>
+          <div class="sc-val"><%- members.filter(m=>m.isModo && !m.isAdmin && !m.isOwner).length %></div>
+        </div>
+      </div>
+
+      <!-- Filtres -->
+      <div class="filter-bar">
+        <select id="filter-role" onchange="applyFilter()">
+          <option value="">— Tous les rôles —</option>
+          <option value="owner">👑 Propriétaire</option>
+          <option value="admin">🔴 Administrateur</option>
+          <option value="modo">🔵 Modo uniquement</option>
+        </select>
+        <input type="text" id="filter-search" placeholder="Rechercher un pseudo…" oninput="applyFilter()">
+      </div>
+
+      <!-- Grille membres -->
+      <div class="member-grid" id="member-grid">
+        <% members.forEach(function(m) { %>
+        <div class="member-card <%= m.isOwner ? 'is-owner' : m.isAdmin ? 'is-admin' : 'is-modo' %>"
+             data-owner="<%= m.isOwner %>" data-admin="<%= m.isAdmin %>" data-modo="<%= m.isModo %>"
+             data-name="<%= (m.displayName+' '+m.username).toLowerCase() %>">
+          <div class="member-top">
+            <% if (m.avatarUrl) { %>
+              <img class="member-avatar" src="<%= m.avatarUrl %>" alt="" onerror="this.style.display='none'">
+            <% } else { %>
+              <div class="member-avatar-placeholder">👤</div>
+            <% } %>
+            <div>
+              <div class="member-name"><%- m.displayName %></div>
+              <div class="member-username">@<%- m.username %></div>
+              <div class="member-id">ID : <%- m.id %></div>
+            </div>
+          </div>
+
+          <div class="role-badges">
+            <% if (m.isOwner) { %><span class="rb rb-owner">👑 Propriétaire</span><% } %>
+            <% if (m.isAdmin && !m.isOwner) { %><span class="rb rb-admin">🔴 Administrateur</span><% } %>
+            <% if (m.isModo) { %><span class="rb rb-modo">🔵 Modo</span><% } %>
+          </div>
+
+          <div class="member-meta">
+            <% if (m.joinedAt) { %>
+            <div class="meta-row">
+              <span class="meta-label">Rejoint le</span>
+              <span class="meta-val"><%- m.joinedAt %></span>
+            </div>
+            <% } %>
+            <% if (m.roles && m.roles.length) { %>
+            <div class="meta-row" style="flex-wrap:wrap;gap:4px;">
+              <span class="meta-label">Rôles :</span>
+              <span class="meta-val" style="font-weight:400;"><%- m.roles.join(', ') %></span>
+            </div>
+            <% } %>
+            <div style="margin-top:4px;display:flex;gap:8px;flex-wrap:wrap;">
+              <a class="action-link" href="/admin/command-logs?search=<%- encodeURIComponent(m.username) %>">
+                📜 Voir ses commandes
+              </a>
+            </div>
+          </div>
+        </div>
+        <% }); %>
+      </div>
+
+      <div class="no-results" id="no-results" style="display:none;">Aucun membre trouvé</div>
+      <% } %>
+    </main>
+  </div>
+
+  <script>
+    function applyFilter() {
+      const role   = document.getElementById('filter-role').value;
+      const search = document.getElementById('filter-search').value.toLowerCase();
+      let visible  = 0;
+      document.querySelectorAll('.member-card').forEach(card => {
+        const isOwner = card.dataset.owner === 'true';
+        const isAdmin = card.dataset.admin === 'true';
+        const isModo  = card.dataset.modo  === 'true';
+        const name    = card.dataset.name  || '';
+        let show = true;
+        if (role === 'owner' && !isOwner) show = false;
+        if (role === 'admin' && !(isAdmin && !isOwner)) show = false;
+        if (role === 'modo'  && !(isModo  && !isAdmin && !isOwner)) show = false;
+        if (search && !name.includes(search)) show = false;
+        card.style.display = show ? '' : 'none';
+        if (show) visible++;
+      });
+      const nr = document.getElementById('no-results');
+      if (nr) nr.style.display = visible ? 'none' : 'block';
+    }
+  </script>
+</body>
+</html>

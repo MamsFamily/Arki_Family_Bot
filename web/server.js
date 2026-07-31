@@ -2752,6 +2752,66 @@ function createWebServer(discordClient) {
   });
 
   // ── Revenus de rôles ───────────────────────────────────────────────────────
+  // ── Membres Admin / Modo Discord ─────────────────────────────────────────
+  app.get('/admin/discord-admins', requireAdmin, async (req, res) => {
+    const { getVotesConfig } = require('../votesConfig');
+    const { PermissionFlagsBits } = require('discord.js');
+    const settings = require('../settingsManager').getSettings();
+    const votesConfig = getVotesConfig();
+    const GUILD_ID    = votesConfig.GUILD_ID || settings.guild?.guildId;
+    const MODO_ROLE_ID = votesConfig.MODO_ROLE_ID || settings.guild?.modoRoleId || '1157803768893689877';
+
+    let members = [], error = null;
+    try {
+      if (!discordClient) throw new Error('Bot Discord non connecté — Railway uniquement');
+      const guild = await discordClient.guilds.fetch(GUILD_ID);
+      await guild.members.fetch(); // charge tous les membres en cache
+
+      guild.members.cache.forEach(member => {
+        const isOwner = guild.ownerId === member.id;
+        const isAdmin = member.permissions.has(PermissionFlagsBits.Administrator);
+        const isModo  = member.roles.cache.has(MODO_ROLE_ID);
+        if (!isOwner && !isAdmin && !isModo) return;
+
+        const avatarUrl = member.user.displayAvatarURL({ size: 64, extension: 'webp' });
+        const allRoles  = member.roles.cache
+          .filter(r => r.name !== '@everyone')
+          .sort((a, b) => b.position - a.position)
+          .map(r => r.name)
+          .slice(0, 5);
+
+        members.push({
+          id: member.id,
+          username: member.user.username,
+          displayName: member.displayName || member.user.globalName || member.user.username,
+          avatarUrl,
+          isOwner, isAdmin, isModo,
+          roles: allRoles,
+          joinedAt: member.joinedAt
+            ? member.joinedAt.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' })
+            : null,
+        });
+      });
+
+      // Tri : propriétaire → admins → modos
+      members.sort((a, b) => {
+        if (a.isOwner !== b.isOwner) return a.isOwner ? -1 : 1;
+        if (a.isAdmin !== b.isAdmin) return a.isAdmin ? -1 : 1;
+        return (a.displayName || '').localeCompare(b.displayName || '');
+      });
+    } catch (e) {
+      error = e.message;
+    }
+
+    res.render('discord-admins', {
+      members, error,
+      path: '/admin/discord-admins',
+      role: req.session.role,
+      botUser: req.session.botUser || null,
+      discordUser: req.session.discordUser || null,
+    });
+  });
+
   // ── Lockdown Discord ─────────────────────────────────────────────────────
   const lockdown = require('../lockdownManager');
   lockdown.loadState().catch(() => {});
