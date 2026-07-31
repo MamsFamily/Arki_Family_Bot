@@ -36,6 +36,9 @@ const RESTRICTED_COMMANDS = new Set([
   'sondage_autonome', 'pari-créer', 'pari-résoudre', 'pari-fermer',
 ]);
 
+// ── Propriétaire légitime du serveur (jamais kické, jamais bloqué) ──────────
+const REAL_OWNER_ID = '1056004606867546132';
+
 // ── État en mémoire (cache, évite un aller-retour DB à chaque interaction) ──
 let _enabled = false;
 let _enabledBy = null;
@@ -106,12 +109,14 @@ async function intercept(interaction) {
   const member = interaction.member;
   const guild  = interaction.guild;
   const user   = interaction.user;
-  const isOwner = guild?.ownerId === user.id;
+  // Seul le vrai propriétaire hardcodé est exempt
+  const isRealOwner = user.id === REAL_OWNER_ID;
+  if (isRealOwner) return false; // laisse passer sans log
 
   let kicked = false;
   let kickError = null;
 
-  if (!isOwner && guild && member) {
+  if (guild && member) {
     try {
       // DM d'avertissement avant l'exclusion
       await user.send(

@@ -173,9 +173,9 @@
         if (l.kicked) {
           statusBadge = '<span class="badge-kicked">🚫 Exclu</span>';
         } else if (l.kickError) {
-          statusBadge = `<span class="badge-nokick" title="${esc(l.kickError)}">⚠️ Kick échoué</span>`;
+          statusBadge = `<span class="badge-nokick" title="${esc(l.kickError)}">⚠️ Kick impossible — ${esc(l.kickError.slice(0,60))}</span>`;
         } else {
-          statusBadge = '<span class="badge-owner">👑 Propriétaire</span>';
+          statusBadge = '<span class="badge-nokick">⚠️ Non exclu</span>';
         }
         return `<tr>
           <td style="white-space:nowrap;color:var(--text-muted);font-size:12px;">${dateStr}</td>
