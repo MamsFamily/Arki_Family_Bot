@@ -58,8 +58,8 @@ const DEFAULTS = {
     pack3Text: 'Pack vote 3ème place',
   },
   auth: {
-    adminPassword: '',
-    staffPassword: '',
+    adminPassword: 'Eden6',
+    staffPassword: 'Arkistaff',
   },
   giveaway: {
     defaultImageUrl: '',

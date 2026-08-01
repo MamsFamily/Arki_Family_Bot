@@ -3734,10 +3734,6 @@ client.on('interactionCreate', async interaction => {
 
   // ── /restart-programmer ───────────────────────────────────────────────────
   if (commandName === 'restart-programmer') {
-    // 🔒 Commande entièrement désactivée — sécurité
-    return interaction.reply({ content: '🔒 Cette commande est temporairement désactivée.', ephemeral: true });
-
-    /* eslint-disable no-unreachable */
     if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
       return interaction.reply({ content: '❌ Commande réservée aux administrateurs.', ephemeral: true });
     }

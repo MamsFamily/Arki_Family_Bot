@@ -349,9 +349,22 @@ async function handleServerPanelInteraction(interaction) {
 
   const id = interaction.customId;
 
-  // ── Restart All — désactivé temporairement ───────────────────────────────
   if (id === `${PREFIX}_restart_all`) {
-    return interaction.reply({ content: '🔒 Les redémarrages via Discord sont temporairement désactivés. Utilise le dashboard.', ephemeral: true });
+    await interaction.deferReply({ ephemeral: true });
+    const maps = await getMaps();
+    if (!maps.length) return interaction.editReply('❌ Aucun serveur Nitrado trouvé.');
+    const adminName = interaction.member?.displayName || interaction.user.username;
+    const adminId   = interaction.user.id;
+    const serviceIds = maps.map(m => m.serviceId);
+    const results = await restartAll(serviceIds, 'Redémarrage global via Discord');
+    logRestart({ source: 'discord_panel', adminName, adminId, maps: maps.map(m => m.displayName), results }).catch(() => {});
+    const lines = maps.map(map => {
+      const r = results.find(r => r.id === map.serviceId);
+      return r?.ok
+        ? `✅ **${map.displayName}** — redémarrage lancé`
+        : `❌ **${map.displayName}** — ${r?.error || 'Erreur'}`;
+    });
+    return interaction.editReply(`🔄 **Redémarrage global**\n\n${lines.join('\n')}`);
   }
 
   // ── Destroy All ──────────────────────────────────────────────────────────
@@ -422,9 +435,19 @@ async function handleServerPanelInteraction(interaction) {
     }
   };
 
-  // ── Restart — désactivé temporairement ──────────────────────────────────
   if (action === 'restart') {
-    return interaction.reply({ content: '🔒 Les redémarrages via Discord sont temporairement désactivés. Utilise le dashboard.', ephemeral: true });
+    await interaction.deferReply({ ephemeral: true });
+    const adminName = interaction.member?.displayName || interaction.user.username;
+    const adminId   = interaction.user.id;
+    try {
+      await restartServer(serviceId);
+      logRestart({ source: 'discord_panel', adminName, adminId, maps: [map.displayName], results: [{ id: serviceId, ok: true }] }).catch(() => {});
+      await interaction.editReply(`✅ **${map.displayName}** — redémarrage lancé.`);
+      await refreshEmbed();
+    } catch (e) {
+      await interaction.editReply(`❌ Erreur : ${e.message}`);
+    }
+    return;
   }
 
   // ── Stop ─────────────────────────────────────────────────────────────────
