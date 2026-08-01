@@ -1218,6 +1218,65 @@ function createWebServer(discordClient) {
   });
 
   // ── Ajout manuel d'un anniversaire depuis le dashboard ───────────────────
+  // ── Recherche membre Discord (pour récupérer l'ID) ───────────────────────
+  app.get('/birthdays/search-member', requireAdmin, async (req, res) => {
+    const q = (req.query.q || '').toLowerCase().trim();
+    if (!q || q.length < 2) return res.json({ ok: false, results: [] });
+    if (!discordClient) return res.json({ ok: false, error: 'Bot non connecté (Railway uniquement)', results: [] });
+    try {
+      const settings = require('../settingsManager').getSettings();
+      const guildId  = settings.guild?.guildId;
+      const guild    = guildId ? discordClient.guilds.cache.get(guildId) : discordClient.guilds.cache.first();
+      if (!guild) return res.json({ ok: false, error: 'Serveur introuvable', results: [] });
+      await guild.members.fetch().catch(() => {});
+      const results = [];
+      guild.members.cache.forEach(m => {
+        const name    = (m.displayName || '').toLowerCase();
+        const uname   = (m.user.username || '').toLowerCase();
+        const display = m.displayName || m.user.globalName || m.user.username;
+        if (name.includes(q) || uname.includes(q)) {
+          results.push({
+            id: m.id,
+            username: m.user.username,
+            displayName: display,
+            avatar: m.user.displayAvatarURL({ size: 32, extension: 'webp' }),
+          });
+        }
+      });
+      results.sort((a, b) => a.displayName.localeCompare(b.displayName));
+      res.json({ ok: true, results: results.slice(0, 15) });
+    } catch (e) { res.json({ ok: false, error: e.message, results: [] }); }
+  });
+
+  // ── Import en masse d'anniversaires ──────────────────────────────────────
+  app.post('/birthdays/import', requireAdmin, async (req, res) => {
+    const { lines } = req.body;
+    if (!lines?.trim()) return res.redirect('/birthdays?error=Aucune+donnée');
+    const results = { ok: 0, errors: [] };
+    for (const raw of lines.split('\n')) {
+      const line = raw.trim();
+      if (!line || line.startsWith('#')) continue;
+      // Format accepté : pseudo, userId, jour, mois[, année]
+      // Séparateurs : virgule, point-virgule, tabulation
+      const parts = line.split(/[,;\t]/).map(p => p.trim()).filter(Boolean);
+      if (parts.length < 4) { results.errors.push(`Ignoré (format): ${line}`); continue; }
+      const [username, userId, dayStr, monthStr, yearStr] = parts;
+      const day   = parseInt(dayStr, 10);
+      const month = parseInt(monthStr, 10);
+      const year  = yearStr ? parseInt(yearStr, 10) : null;
+      if (!username || !userId || !userId.match(/^\d+$/) || !day || !month || day < 1 || day > 31 || month < 1 || month > 12) {
+        results.errors.push(`Ignoré (données invalides): ${line}`);
+        continue;
+      }
+      try {
+        await pgStore.saveBirthday({ userId, username, day, month, year: year || null });
+        results.ok++;
+      } catch (e) { results.errors.push(`Erreur pour ${username}: ${e.message}`); }
+    }
+    const msg = `${results.ok} anniversaire(s) importé(s)` + (results.errors.length ? ` — ${results.errors.length} erreur(s)` : '');
+    res.redirect('/birthdays?success=' + encodeURIComponent(msg));
+  });
+
   app.post('/birthdays/add', requireAdmin, async (req, res) => {
     try {
       const { userId, username, day, month, year } = req.body;
