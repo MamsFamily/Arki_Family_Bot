@@ -116,7 +116,7 @@
     %>
     <div class="bd-recap-card">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
-        <h2 style="margin:0;">📅 Anniversaires de <%= nextMonthName %> (<%= nextMonthBirthdays.length %>)</h2>
+        <h2 style="margin:0;">📅 Mois prochain — <%= nextMonthName %> (<%= nextMonthBirthdays.length %>)</h2>
         <button class="bd-test-btn" id="btnTestRecap" onclick="testRecap()">📢 Publier le récap maintenant</button>
       </div>
       <% if (nextMonthBirthdays.length === 0) { %>

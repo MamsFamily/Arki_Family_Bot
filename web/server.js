@@ -292,13 +292,12 @@ function createWebServer(discordClient) {
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || 'inconnue';
 
     if (password === directPassword) {
-      // Redirige vers Discord OAuth pour identifier le compte
-      await logAccess({ ip, success: true, account: 'Lola6 → OAuth Discord', reason: 'Redirection OAuth pour identification' });
-      req.session.pendingRole = 'admin';
-      req.session.pendingLola = true;
-      const state = require('crypto').randomBytes(16).toString('hex');
-      req.session.oauthState = state;
-      return res.redirect(getDiscordOAuthUrl(req, state));
+      // Connexion directe sans OAuth Discord
+      req.session.authenticated = true;
+      req.session.role = 'admin';
+      req.session.sessionGen = await getCurrentSessionGen();
+      await logAccess({ ip, success: true, account: 'Lola6', reason: 'Connexion directe admin' });
+      return res.redirect('/');
     }
     let role = null;
     if (password === passwords.admin) {
