@@ -1217,6 +1217,20 @@ function createWebServer(discordClient) {
     res.redirect('/birthdays?success=Anniversaire+supprimé');
   });
 
+  // ── Ajout manuel d'un anniversaire depuis le dashboard ───────────────────
+  app.post('/birthdays/add', requireAdmin, async (req, res) => {
+    try {
+      const { userId, username, day, month, year } = req.body;
+      if (!userId?.trim() || !username?.trim()) return res.redirect('/birthdays?error=ID+et+pseudo+requis');
+      const d = parseInt(day, 10), m = parseInt(month, 10), y = year ? parseInt(year, 10) : null;
+      if (!d || d < 1 || d > 31) return res.redirect('/birthdays?error=Jour+invalide+(1-31)');
+      if (!m || m < 1 || m > 12) return res.redirect('/birthdays?error=Mois+invalide+(1-12)');
+      if (y && (y < 1900 || y > new Date().getFullYear())) return res.redirect('/birthdays?error=Année+invalide');
+      await pgStore.saveBirthday({ userId: userId.trim(), username: username.trim(), day: d, month: m, year: y });
+      res.redirect('/birthdays?success=' + encodeURIComponent(`Anniversaire de ${username.trim()} enregistré !`));
+    } catch (err) { res.redirect('/birthdays?error=' + encodeURIComponent(err.message)); }
+  });
+
   app.post('/birthdays/test-celebrate', requireAdmin, async (req, res) => {
     try {
       if (!discordClient) return res.json({ ok: false, error: 'Bot Discord non connecté.' });

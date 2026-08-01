@@ -291,8 +291,47 @@
       <div id="testResult" style="margin-top:12px;display:none;"></div>
     </div>
 
+    <!-- ── Ajout manuel ── -->
+    <div class="card" style="margin-top:24px;">
+      <div class="card-header">
+        <h2>➕ Ajouter un anniversaire manuellement</h2>
+      </div>
+      <div class="card-body">
+        <form method="POST" action="/birthdays/add" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div>
+            <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">Pseudo Discord <span style="color:#ef5350;">*</span></label>
+            <input type="text" name="username" required placeholder="ex: TheBigLebowski" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-input,rgba(255,255,255,.05));color:var(--text-primary);font-size:14px;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">ID Discord <span style="color:#ef5350;">*</span></label>
+            <input type="text" name="userId" required placeholder="ex: 123456789012345678" pattern="\d+" title="Uniquement des chiffres" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-input,rgba(255,255,255,.05));color:var(--text-primary);font-size:14px;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">Jour <span style="color:#ef5350;">*</span></label>
+            <input type="number" name="day" required min="1" max="31" placeholder="1–31" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-input,rgba(255,255,255,.05));color:var(--text-primary);font-size:14px;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">Mois <span style="color:#ef5350;">*</span></label>
+            <select name="month" required style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-input,rgba(255,255,255,.05));color:var(--text-primary);font-size:14px;box-sizing:border-box;">
+              <option value="">— Choisir —</option>
+              <% monthNames.forEach((mn, i) => { %><option value="<%= i+1 %>"><%= mn %></option><% }); %>
+            </select>
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">Année de naissance <span style="color:var(--text-muted);">(optionnel)</span></label>
+            <input type="number" name="year" min="1900" max="<%= currentYear %>" placeholder="ex: 1982" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-input,rgba(255,255,255,.05));color:var(--text-primary);font-size:14px;box-sizing:border-box;">
+          </div>
+          <div style="display:flex;align-items:flex-end;">
+            <button type="submit" style="width:100%;background:var(--accent,#7c5cfc);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:700;cursor:pointer;">
+              💾 Enregistrer l'anniversaire
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- ── Liste des anniversaires enregistrés ── -->
-    <div class="card" style="margin-top:28px;">
+    <div class="card" style="margin-top:24px;">
       <div class="card-header">
         <h2>👥 Anniversaires enregistrés (<%= allBirthdays.length %>)</h2>
       </div>
