@@ -1235,6 +1235,15 @@ function createWebServer(discordClient) {
     } catch (err) { res.json({ ok: false, error: err.message }); }
   });
 
+  // ── Forcer les souhaits d'anniversaire du jour (rattrapage) ───────────────
+  app.post('/birthdays/force-today', requireAdmin, async (req, res) => {
+    try {
+      if (!discordClient) return res.json({ ok: false, error: 'Bot Discord non connecté.' });
+      await birthdayManager.celebrateBirthdays(discordClient);
+      res.json({ ok: true });
+    } catch (err) { res.json({ ok: false, error: err.message }); }
+  });
+
   // ── Route de l'Infini ─────────────────────────────────────────────────────
   app.get('/infinity-road', requireAdmin, async (req, res) => {
     const settings  = infinityRoadManager.getIRSettings();

@@ -92,6 +92,24 @@
       <div class="toast-err" style="display:block;">❌ <%= query.error %></div>
     <% } %>
 
+    <!-- ── Rattrapage d'urgence ── -->
+    <div style="background:rgba(255,107,157,0.08);border:2px solid rgba(255,107,157,0.35);border-radius:14px;padding:18px 22px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+      <div>
+        <div style="font-weight:800;font-size:15px;color:#ff6b9d;">⚡ Déclenchement manuel</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">Si les crons ont raté (redémarrage Railway), déclenche-les ici manuellement.</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button id="btnForceToday" onclick="forceToday()"
+          style="background:#ff6b9d;color:#fff;border:none;border-radius:10px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;">
+          🎂 Souhaiter les anniversaires du jour
+        </button>
+        <button id="btnForceRecap" onclick="forceRecap()"
+          style="background:#7c5cfc;color:#fff;border:none;border-radius:10px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;">
+          📅 Publier le récap du mois
+        </button>
+      </div>
+    </div>
+
     <!-- ── Widget prochains anniversaires ── -->
     <%
       const nextMonthName = monthNames[upcomingMonth - 1];
@@ -371,6 +389,30 @@
         alert(d.ok ? '✅ Récap publié !' : '❌ Erreur : ' + d.error);
       } catch (e) { alert('❌ Erreur réseau'); }
       if (btn) btn.disabled = false;
+    }
+
+    async function forceToday() {
+      if (!confirm('Déclencher maintenant les souhaits d\'anniversaire du jour ?\n(rôle, cadeau, message Discord)')) return;
+      const btn = document.getElementById('btnForceToday');
+      btn.disabled = true; btn.textContent = '⏳ En cours…';
+      try {
+        const r = await fetch('/birthdays/force-today', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+        const d = await r.json();
+        alert(d.ok ? '✅ Souhaits du jour déclenchés ! Vérifie le salon anniversaire.' : '❌ Erreur : ' + d.error);
+      } catch (e) { alert('❌ Erreur réseau : ' + e.message); }
+      btn.disabled = false; btn.textContent = '🎂 Souhaiter les anniversaires du jour';
+    }
+
+    async function forceRecap() {
+      if (!confirm('Publier maintenant le récap des anniversaires du mois ?')) return;
+      const btn = document.getElementById('btnForceRecap');
+      btn.disabled = true; btn.textContent = '⏳ En cours…';
+      try {
+        const r = await fetch('/birthdays/test-recap', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+        const d = await r.json();
+        alert(d.ok ? '✅ Récap du mois publié dans le salon !' : '❌ Erreur : ' + d.error);
+      } catch (e) { alert('❌ Erreur réseau : ' + e.message); }
+      btn.disabled = false; btn.textContent = '📅 Publier le récap du mois';
     }
   </script>
 </body>
