@@ -5804,15 +5804,63 @@ function createWebServer(discordClient) {
   // ── Paramètres RCON Map Event ──────────────────────────────────────────────
   app.post('/werewolf/settings', requireAdmin, async (req, res) => {
     try {
-      const { rconIp, rconPort, rconPassword, channelId } = req.body;
+      const { rconIp, rconPort, rconPassword, channelId, eventRoleId, registrationChannelId } = req.body;
       await saveWWSettings({
-        rconIp:       (rconIp || '').trim(),
-        rconPort:     parseInt(rconPort) || 11190,
-        rconPassword: rconPassword || '',
-        channelId:    (channelId || '').trim(),
+        rconIp:                  (rconIp || '').trim(),
+        rconPort:                parseInt(rconPort) || 11190,
+        rconPassword:            rconPassword || '',
+        channelId:               (channelId || '').trim(),
+        eventRoleId:             (eventRoleId || '').trim(),
+        registrationChannelId:   (registrationChannelId || '').trim(),
       });
       res.redirect('/werewolf?success=' + encodeURIComponent('Paramètres sauvegardés'));
     } catch (e) { res.redirect('/werewolf?error=' + encodeURIComponent(e.message)); }
+  });
+
+  // ── Publier le message d'inscription event ─────────────────────────────────
+  app.post('/werewolf/settings/post-registration', requireAdmin, async (req, res) => {
+    try {
+      if (!discordClient) return res.json({ ok: false, error: 'Bot Discord non connecté (Railway)' });
+      const settings = await getWWSettings();
+      if (!settings.eventRoleId) return res.json({ ok: false, error: 'ID du rôle event non configuré' });
+      if (!settings.registrationChannelId) return res.json({ ok: false, error: 'ID du salon d\'inscription non configuré' });
+
+      const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+      const { customTitle, customDesc } = req.body;
+
+      const embed = new EmbedBuilder()
+        .setColor(0x7c5cfc)
+        .setTitle(customTitle?.trim() || '🐺 Inscription — Event Loup-Garou')
+        .setDescription(
+          (customDesc?.trim() || 'Un event Loup-Garou est organisé sur le serveur ! Clique sur le bouton ci-dessous pour t\'inscrire et rejoindre le salon dédié aux joueurs.') +
+          '\n\n> Clique une deuxième fois sur le bouton pour **te désinscrire**.'
+        )
+        .addFields({
+          name: '📋 Comment ça marche ?',
+          value:
+            '**1.** Clique sur ✅ Je participe\n' +
+            '**2.** Tu reçois le rôle joueur et l\'accès au salon event\n' +
+            '**3.** L\'admin te contactera avec les instructions avant la partie',
+        })
+        .setFooter({ text: 'Arki Family — Event Loup-Garou' })
+        .setTimestamp();
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('ww_register_event')
+          .setLabel('✅ Je participe !')
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId('ww_unregister_event')
+          .setLabel('❌ Me désinscrire')
+          .setStyle(ButtonStyle.Secondary),
+      );
+
+      const channel = await discordClient.channels.fetch(settings.registrationChannelId);
+      const msg = await channel.send({ embeds: [embed], components: [row] });
+
+      res.json({ ok: true, messageId: msg.id, channelId: msg.channelId });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
   });
 
   // ── Test RCON Map Event ────────────────────────────────────────────────────

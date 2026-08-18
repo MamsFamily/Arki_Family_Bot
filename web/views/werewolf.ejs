@@ -426,19 +426,39 @@
     <!-- ══ TAB : PARAMÈTRES ═══════════════════════════════════════════════════ -->
     <div class="ww-panel" id="panel-settings">
       <div class="card">
-        <div class="card-header"><h2>⚙️ Paramètres — RCON Map Event</h2></div>
+        <div class="card-header"><h2>⚙️ Paramètres</h2></div>
         <div class="card-body">
-          <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
-            Configure la connexion RCON directe vers la <strong>Map Event</strong>. Utilisé pour forcer la nuit / le jour in-game quand tu changes de phase.
+
+          <!-- ── Inscription event ───────────────────────────────────────── -->
+          <div class="section-title">🎟️ Inscription à l'event via Discord</div>
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">
+            Configure le système d'inscription automatique. Quand un joueur clique le bouton dans le salon Discord, il reçoit le rôle et accède au salon privé de l'event.
           </p>
-          <form method="POST" action="/werewolf/settings" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:600px;">
-            <div style="grid-column:1/-1;">
-              <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Salon Discord par défaut (ID)</label>
-              <input type="text" name="channelId" value="<%= settings?.channelId || '' %>" placeholder="ID du salon pour les votes et threads"
+          <form method="POST" action="/werewolf/settings" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:640px;margin-bottom:20px;">
+            <div>
+              <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">ID du rôle "Joueur Event" <span style="color:#ef5350;">*</span></label>
+              <input type="text" name="eventRoleId" value="<%= settings?.eventRoleId || '' %>" placeholder="ex: 1157044417526509578"
                 style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;box-sizing:border-box;">
+              <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Rôle donné/retiré au clic du bouton</div>
             </div>
             <div>
-              <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">IP du serveur ARK (Map Event)</label>
+              <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">ID du salon d'inscription <span style="color:#ef5350;">*</span></label>
+              <input type="text" name="registrationChannelId" value="<%= settings?.registrationChannelId || '' %>" placeholder="Salon visible de tous"
+                style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;box-sizing:border-box;">
+              <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Où le message d'inscription sera posté</div>
+            </div>
+            <div style="grid-column:1/-1;">
+              <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Salon Discord jeu (votes, threads) — ID</label>
+              <input type="text" name="channelId" value="<%= settings?.channelId || '' %>" placeholder="ID du salon dédié aux joueurs inscrits"
+                style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;box-sizing:border-box;">
+            </div>
+
+            <!-- RCON -->
+            <div style="grid-column:1/-1;margin-top:8px;">
+              <div class="section-title" style="margin-top:0;">🎮 RCON — Map Event ARK</div>
+            </div>
+            <div>
+              <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">IP du serveur ARK</label>
               <input type="text" name="rconIp" value="<%= settings?.rconIp || '' %>" placeholder="ex: 85.190.xxx.xxx"
                 style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;box-sizing:border-box;">
             </div>
@@ -449,25 +469,43 @@
             </div>
             <div style="grid-column:1/-1;">
               <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Mot de passe RCON</label>
-              <input type="password" name="rconPassword" value="<%= settings?.rconPassword || '' %>" placeholder="Mot de passe RCON ARK"
+              <input type="password" name="rconPassword" value="<%= settings?.rconPassword || '' %>" placeholder="ServerAdminPassword"
                 style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;box-sizing:border-box;">
             </div>
             <div style="grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
               <button type="submit" class="ctrl-btn btn-purple">💾 Sauvegarder</button>
-              <button type="button" class="ctrl-btn btn-gray" onclick="testRcon()">🔌 Tester la connexion RCON</button>
+              <button type="button" class="ctrl-btn btn-gray" onclick="testRcon()">🔌 Tester RCON</button>
               <span id="rcon-test-result" style="font-size:13px;"></span>
             </div>
           </form>
 
-          <div style="margin-top:24px;background:rgba(255,193,7,.08);border:1px solid rgba(255,193,7,.25);border-radius:10px;padding:14px 16px;">
-            <div style="font-size:12px;color:#ffd54f;font-weight:700;margin-bottom:8px;">ℹ️ Comment trouver l'IP et le port RCON</div>
-            <ol style="font-size:12px;color:var(--text-muted);margin:0;padding-left:18px;line-height:1.8;">
-              <li>Dans Nitrado : Serveurs → <strong>Map Event</strong> → Paramètres → Général</li>
-              <li>Note l'<strong>adresse IP</strong> du serveur</li>
-              <li>Dans <code>GameUserSettings.ini</code> : vérifie <code>RCONPort</code> (souvent 11190) et <code>RCONEnabled=True</code></li>
-              <li>Le mot de passe RCON est dans <code>ServerAdminPassword</code></li>
-            </ol>
+          <!-- ── Publication du message d'inscription ────────────────────── -->
+          <div style="background:rgba(124,92,252,.08);border:1px solid rgba(124,92,252,.25);border-radius:12px;padding:16px 18px;max-width:640px;">
+            <div style="font-size:13px;font-weight:700;color:#c5b5ff;margin-bottom:12px;">📢 Publier le message d'inscription</div>
+            <div style="display:grid;gap:10px;margin-bottom:12px;">
+              <div>
+                <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Titre du message (optionnel)</label>
+                <input type="text" id="reg-title" placeholder="🐺 Inscription — Event Loup-Garou"
+                  style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;box-sizing:border-box;">
+              </div>
+              <div>
+                <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Description (optionnel)</label>
+                <textarea id="reg-desc" rows="3" placeholder="Un event Loup-Garou est organisé ! Clique pour t'inscrire…"
+                  style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;box-sizing:border-box;resize:vertical;"></textarea>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+              <button class="ctrl-btn btn-purple" onclick="postRegistration()">
+                📨 Publier dans le salon d'inscription
+              </button>
+              <span id="reg-post-result" style="font-size:13px;"></span>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:10px;">
+              ⚠️ Le rôle event et le salon d'inscription doivent être configurés et sauvegardés avant de publier.<br>
+              Le salon event doit être réglé dans Discord pour n'être visible qu'aux membres ayant le rôle.
+            </div>
           </div>
+
         </div>
       </div>
     </div>
@@ -675,6 +713,24 @@
       // Pas de reload complet, juste mise à jour du badge de phase
       setTimeout(() => location.reload(), 1200);
     } catch (e) { alert('❌ Erreur réseau : ' + e.message); if (el) el.innerHTML = ''; }
+  }
+
+  // ── Publier le message d'inscription event ────────────────────────────────
+  async function postRegistration() {
+    const el = document.getElementById('reg-post-result');
+    el.innerHTML = '<span style="color:var(--text-muted);">⏳ Publication en cours…</span>';
+    try {
+      const r = await fetch('/werewolf/settings/post-registration', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customTitle: document.getElementById('reg-title').value.trim(),
+          customDesc:  document.getElementById('reg-desc').value.trim(),
+        }),
+      });
+      const d = await r.json();
+      if (d.ok) el.innerHTML = `<span style="color:#66bb6a;">✅ Message publié ! (ID : ${d.messageId})</span>`;
+      else      el.innerHTML = `<span style="color:#ef5350;">❌ ${d.error}</span>`;
+    } catch (e) { el.innerHTML = `<span style="color:#ef5350;">❌ Réseau : ${e.message}</span>`; }
   }
 
   // ── Test connexion RCON ───────────────────────────────────────────────────

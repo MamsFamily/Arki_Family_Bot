@@ -5976,6 +5976,45 @@ client.on('interactionCreate', async interaction => {
   if (!interaction.isButton()) return;
   const id = interaction.customId;
 
+  // ── Inscription event (bouton public) ───────────────────────────────────
+  if (id === 'ww_register_event' || id === 'ww_unregister_event') {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const { getData } = require('./pgStore');
+      const settingsRaw = await getData('werewolf_settings', null);
+      const settings = settingsRaw && typeof settingsRaw === 'object' ? settingsRaw : (settingsRaw ? JSON.parse(settingsRaw) : {});
+      if (!settings.eventRoleId) {
+        return interaction.editReply('❌ Rôle event non configuré. Contacte un administrateur.');
+      }
+      const guild  = interaction.guild || await client.guilds.fetch(interaction.guildId);
+      const member = interaction.member || await guild.members.fetch(interaction.user.id);
+      const hasRole = member.roles.cache.has(settings.eventRoleId);
+
+      if (id === 'ww_register_event') {
+        if (hasRole) {
+          return interaction.editReply('✅ Tu es déjà inscrit(e) à l\'event ! Retrouve le salon dédié aux joueurs.');
+        }
+        await member.roles.add(settings.eventRoleId, 'Inscription event Loup-Garou');
+        return interaction.editReply(
+          '🐺 **Tu es inscrit(e) à l\'event Loup-Garou !**\n\n' +
+          'Tu as maintenant accès au salon dédié aux joueurs. À très bientôt pour la partie !'
+        );
+      }
+
+      if (id === 'ww_unregister_event') {
+        if (!hasRole) {
+          return interaction.editReply('Tu n\'es pas inscrit(e) à l\'event.');
+        }
+        await member.roles.remove(settings.eventRoleId, 'Désinscription event Loup-Garou');
+        return interaction.editReply('❌ Tu as été désinscrit(e) de l\'event Loup-Garou.');
+      }
+    } catch (e) {
+      console.error('[Werewolf] register/unregister error:', e.message);
+      return interaction.editReply('❌ Erreur : ' + e.message);
+    }
+    return;
+  }
+
   // ── Accusé de réception du rôle ─────────────────────────────────────────
   if (id.startsWith('ww_ack_')) {
     const userId = id.replace('ww_ack_', '');
