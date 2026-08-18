@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🐺 Loup-Garou — Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    /* ── Tabs ── */
+    .ww-tabs { display:flex; gap:4px; margin-bottom:20px; flex-wrap:wrap; }
+    .ww-tab  { padding:8px 18px; border-radius:10px; border:1px solid var(--border); background:var(--bg-input); color:var(--text-muted); cursor:pointer; font-size:13px; font-weight:600; transition:all .15s; }
+    .ww-tab.active, .ww-tab:hover { background:rgba(124,92,252,.2); border-color:rgba(124,92,252,.5); color:#fff; }
+    .ww-panel { display:none; } .ww-panel.active { display:block; }
+
+    /* ── Players ── */
+    .player-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; }
+    .player-card { background:var(--bg-input); border:1px solid var(--border); border-radius:12px; padding:12px 14px; display:flex; align-items:center; gap:10px; }
+    .player-card .name { font-weight:700; font-size:14px; }
+    .player-card .uid  { font-size:11px; color:var(--text-muted); font-family:monospace; }
+    .player-card .remove-btn { margin-left:auto; background:rgba(239,83,80,.15); border:1px solid rgba(239,83,80,.3); color:#ef5350; border-radius:8px; padding:4px 10px; font-size:12px; cursor:pointer; white-space:nowrap; }
+
+    /* ── Roles ── */
+    .role-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:12px; }
+    .role-card { background:var(--bg-input); border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
+    .role-card.team-village { border-color:rgba(76,175,80,.3); }
+    .role-card.team-wolves  { border-color:rgba(244,67,54,.3); }
+    .role-card.team-solo    { border-color:rgba(156,39,176,.3); }
+    .role-name { font-weight:800; font-size:14px; display:flex; align-items:center; gap:6px; }
+    .role-team { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; padding:2px 8px; border-radius:20px; }
+    .team-village .role-team { background:rgba(76,175,80,.2); color:#66bb6a; }
+    .team-wolves  .role-team { background:rgba(244,67,54,.2); color:#ef5350; }
+    .team-solo    .role-team { background:rgba(156,39,176,.2); color:#ba68c8; }
+    .role-desc { font-size:12px; color:var(--text-muted); margin:8px 0; line-height:1.5; }
+    .role-qty  { display:flex; align-items:center; gap:8px; margin-top:8px; }
+    .role-qty label { font-size:12px; color:var(--text-muted); }
+    .role-qty input { width:60px; padding:5px 8px; border-radius:6px; border:1px solid var(--border); background:var(--bg-card); color:#fff; font-size:13px; text-align:center; }
+
+    /* ── Game control ── */
+    .phase-badge { display:inline-flex; align-items:center; gap:6px; padding:4px 14px; border-radius:20px; font-size:13px; font-weight:700; }
+    .phase-LOBBY  { background:rgba(158,158,158,.2); color:#bbb; border:1px solid rgba(158,158,158,.3); }
+    .phase-NIGHT  { background:rgba(63,81,181,.2);   color:#7986cb; border:1px solid rgba(63,81,181,.3); }
+    .phase-DAY    { background:rgba(255,193,7,.2);    color:#ffd54f; border:1px solid rgba(255,193,7,.3); }
+    .phase-VOTE   { background:rgba(244,67,54,.2);    color:#ef5350; border:1px solid rgba(244,67,54,.3); }
+    .phase-ENDED  { background:rgba(76,175,80,.2);    color:#66bb6a; border:1px solid rgba(76,175,80,.3); }
+    .ctrl-btn { padding:10px 20px; border-radius:10px; font-size:13px; font-weight:700; border:none; cursor:pointer; transition:all .15s; }
+    .ctrl-btn:disabled { opacity:.5; cursor:not-allowed; }
+    .btn-purple { background:#7c5cfc; color:#fff; }
+    .btn-green  { background:#2e7d32; color:#fff; }
+    .btn-red    { background:#c62828; color:#fff; }
+    .btn-orange { background:#e65100; color:#fff; }
+    .btn-blue   { background:#1565c0; color:#fff; }
+    .btn-gray   { background:var(--bg-input); color:var(--text-secondary); border:1px solid var(--border); }
+
+    /* ── Notif tracker ── */
+    .notif-table { width:100%; border-collapse:collapse; font-size:13px; }
+    .notif-table th { padding:8px 12px; text-align:left; color:var(--text-muted); font-size:11px; text-transform:uppercase; border-bottom:1px solid var(--border); }
+    .notif-table td { padding:9px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
+    .notif-table tr:last-child td { border-bottom:none; }
+    .pill { display:inline-block; border-radius:20px; padding:2px 10px; font-size:11px; font-weight:700; border:1px solid; }
+    .pill-ok   { background:rgba(76,175,80,.15);  color:#66bb6a; border-color:rgba(76,175,80,.4); }
+    .pill-warn { background:rgba(255,152,0,.15);  color:#ffa726; border-color:rgba(255,152,0,.4); }
+    .pill-err  { background:rgba(244,67,54,.15);  color:#ef5350; border-color:rgba(244,67,54,.4); }
+    .pill-pend { background:rgba(158,158,158,.15);color:#bbb;    border-color:rgba(158,158,158,.4); }
+
+    /* ── Éliminations ── */
+    .elim-list { display:flex; flex-direction:column; gap:8px; }
+    .elim-row  { display:flex; align-items:center; gap:10px; background:rgba(244,67,54,.06); border:1px solid rgba(244,67,54,.2); border-radius:10px; padding:10px 14px; }
+    .elim-round{ font-size:11px; color:var(--text-muted); min-width:60px; }
+
+    /* ── Search member ── */
+    .member-suggestion { display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:8px; cursor:pointer; background:rgba(255,255,255,.04); border:1px solid var(--border); margin-top:4px; }
+    .member-suggestion:hover { background:rgba(124,92,252,.12); }
+
+    /* ── Separators ── */
+    .section-title { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); margin:20px 0 10px; }
+    .counter-box { background:var(--bg-input); border:1px solid var(--border); border-radius:10px; padding:10px 16px; display:inline-flex; flex-direction:column; align-items:center; min-width:80px; }
+    .counter-box .cv { font-size:24px; font-weight:800; color:#fff; }
+    .counter-box .cl { font-size:11px; color:var(--text-muted); text-transform:uppercase; }
+    .counters-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+
+    input[type=number]::-webkit-inner-spin-button { opacity:1; }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <%- include('sidebar', { path: '/werewolf', role, botUser, discordUser }) %>
+  <main class="main-content">
+    <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+      <div>
+        <h1>🐺 Loup-Garou</h1>
+        <p>Gestion de la partie Loup-Garou — votes Discord, rôles secrets, thread des loups</p>
+      </div>
+      <% if (game) { %>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span class="phase-badge phase-<%= game.phase %>">
+          <% const phaseLabels = {LOBBY:'🏠 Lobby',NIGHT:'🌙 Nuit',DAY:'☀️ Jour',VOTE:'🗳️ Vote',RESULT:'📊 Résultat',ENDED:'🏆 Terminé'}; %>
+          <%= phaseLabels[game.phase] || game.phase %> — Manche <%= game.round %>
+        </span>
+        <button class="ctrl-btn btn-gray" onclick="if(confirm('Réinitialiser la partie ?')) postAction('/werewolf/game/reset')">🔄 Reset</button>
+      </div>
+      <% } %>
+    </div>
+
+    <% if (success) { %><div class="toast-ok" style="display:block;margin-bottom:16px;">✅ <%= success %></div><% } %>
+    <% if (error)   { %><div class="toast-err" style="display:block;margin-bottom:16px;">❌ <%= error   %></div><% } %>
+
+    <!-- TABS -->
+    <div class="ww-tabs">
+      <div class="ww-tab active" onclick="showTab('players')">👥 Joueurs (<%= players.length %>)</div>
+      <div class="ww-tab" onclick="showTab('roles')">🎭 Rôles</div>
+      <div class="ww-tab" onclick="showTab('control')">🎮 Contrôle</div>
+      <div class="ww-tab" onclick="showTab('notifs')" id="tab-notifs">
+        📨 Notifications
+        <% if (game) {
+          const pending = game.assignments.filter(a => !a.ackReceived).length;
+          if (pending > 0) { %><span style="background:#ef5350;color:#fff;border-radius:20px;padding:1px 7px;font-size:11px;margin-left:4px;"><%= pending %></span><% }
+        } %>
+      </div>
+    </div>
+
+    <!-- ══ TAB : JOUEURS ══════════════════════════════════════════════════ -->
+    <div class="ww-panel active" id="panel-players">
+      <div class="card">
+        <div class="card-header"><h2>➕ Ajouter un joueur</h2></div>
+        <div class="card-body">
+          <!-- Recherche Discord -->
+          <div style="background:rgba(88,101,242,.08);border:1px solid rgba(88,101,242,.25);border-radius:10px;padding:14px 16px;margin-bottom:14px;">
+            <div style="font-size:12px;color:var(--text-muted);font-weight:600;text-transform:uppercase;margin-bottom:8px;">🔍 Chercher un membre Discord</div>
+            <input type="text" id="ww-search" placeholder="Tape un pseudo…" oninput="searchWWMember(this.value)"
+              style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;box-sizing:border-box;">
+            <div id="ww-search-results" style="margin-top:6px;"></div>
+          </div>
+          <form method="POST" action="/werewolf/players/add" style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:flex-end;">
+            <div>
+              <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Pseudo</label>
+              <input type="text" name="displayName" id="ww-add-name" required placeholder="Pseudo affiché" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">ID Discord</label>
+              <input type="text" name="userId" id="ww-add-id" required placeholder="123456789…" pattern="\d+" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;box-sizing:border-box;">
+            </div>
+            <button type="submit" class="ctrl-btn btn-purple">➕ Ajouter</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <div class="card-header"><h2>👥 Liste des joueurs (<%= players.length %>)</h2></div>
+        <div class="card-body">
+          <% if (!players.length) { %>
+            <div style="text-align:center;padding:32px;color:var(--text-muted);">Aucun joueur ajouté. Ajoute des membres ci-dessus.</div>
+          <% } else { %>
+          <div class="player-grid">
+            <% players.forEach((p, i) => { %>
+            <div class="player-card">
+              <div style="width:32px;height:32px;border-radius:50%;background:rgba(124,92,252,.3);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0;"><%= (i+1) %></div>
+              <div>
+                <div class="name"><%- p.displayName || p.username %></div>
+                <div class="uid"><%= p.userId %></div>
+              </div>
+              <form method="POST" action="/werewolf/players/remove" style="margin-left:auto;">
+                <input type="hidden" name="userId" value="<%= p.userId %>">
+                <button type="submit" class="remove-btn" onclick="return confirm('Retirer ce joueur ?')">✕</button>
+              </form>
+            </div>
+            <% }); %>
+          </div>
+          <% } %>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ TAB : RÔLES ══════════════════════════════════════════════════════ -->
+    <div class="ww-panel" id="panel-roles">
+      <div class="card">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+          <h2>🎭 Configuration des rôles</h2>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span id="role-total-badge" style="font-size:13px;color:var(--text-muted);">Total : <strong id="role-total">0</strong> / <strong><%= players.length %></strong> joueurs</span>
+            <button class="ctrl-btn btn-gray" onclick="resetRoles()" style="font-size:12px;padding:6px 14px;">✕ Réinitialiser</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+            Configure le nombre de chaque rôle. Le total doit être égal au nombre de joueurs (<strong><%= players.length %></strong>).
+          </p>
+
+          <% const teamOrder = ['village','wolves','solo'];
+             const teamTitles = { village:'🟢 Camp Village', wolves:'🔴 Camp Loups-Garous', solo:'🟣 Camp Solitaire' };
+             teamOrder.forEach(team => {
+               const teamRoles = Object.entries(ROLES).filter(([,r]) => r.team === team);
+          %>
+          <div class="section-title"><%= teamTitles[team] %></div>
+          <div class="role-grid" style="margin-bottom:20px;">
+            <% teamRoles.forEach(([roleId, role]) => { %>
+            <div class="role-card team-<%= role.team %>">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+                <div class="role-name"><%= role.emoji %> <%= role.name %></div>
+                <span class="role-team"><%= role.team === 'village' ? 'Village' : role.team === 'wolves' ? 'Loup' : 'Solo' %></span>
+              </div>
+              <div class="role-desc"><%= role.description %></div>
+              <div class="role-qty">
+                <label>Nombre :</label>
+                <input type="number" class="role-count" data-role="<%= roleId %>" min="0" max="<%= role.maxCount %>"
+                  value="<%= savedRoleConfig[roleId] || 0 %>" oninput="updateRoleTotal()">
+              </div>
+            </div>
+            <% }); });%>
+          </div>
+
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;">
+            <button class="ctrl-btn btn-purple" onclick="saveRoleConfig()">💾 Sauvegarder la configuration</button>
+            <span id="save-role-msg" style="font-size:13px;color:var(--text-muted);"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ TAB : CONTRÔLE ═══════════════════════════════════════════════════ -->
+    <div class="ww-panel" id="panel-control">
+      <% if (!game || game.phase === 'LOBBY' || game.phase === 'ENDED') { %>
+      <!-- Pas de partie en cours -->
+      <div class="card">
+        <div class="card-header"><h2>🚀 Lancer une nouvelle partie</h2></div>
+        <div class="card-body">
+          <div class="counters-row">
+            <div class="counter-box"><div class="cv"><%= players.length %></div><div class="cl">Joueurs</div></div>
+            <div class="counter-box"><div class="cv" id="ctrl-role-count">0</div><div class="cl">Rôles config.</div></div>
+          </div>
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+            Configure les rôles dans l'onglet "Rôles" puis lance la partie. Le tirage au sort s'effectue automatiquement et les rôles sont envoyés par DM à chaque joueur.
+          </p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="ctrl-btn btn-green" onclick="startGame()" <%= players.length < 4 ? 'disabled title="Minimum 4 joueurs"' : '' %>>
+              🎲 Lancer le tirage au sort
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <% } else { %>
+      <!-- Partie en cours -->
+      <div class="card">
+        <div class="card-header">
+          <h2>🎮 Contrôle de la partie — Manche <%= game.round %></h2>
+        </div>
+        <div class="card-body">
+
+          <!-- Stats rapides -->
+          <div class="counters-row">
+            <div class="counter-box"><div class="cv"><%= game.assignments.filter(a=>a.alive).length %></div><div class="cl">Survivants</div></div>
+            <div class="counter-box" style="border-color:rgba(244,67,54,.4);">
+              <div class="cv" style="color:#ef5350;"><%= game.assignments.filter(a=>a.alive && ROLES[a.roleId]?.team==='wolves').length %></div>
+              <div class="cl">Loups vivants</div>
+            </div>
+            <div class="counter-box" style="border-color:rgba(76,175,80,.4);">
+              <div class="cv" style="color:#66bb6a;"><%= game.assignments.filter(a=>a.alive && ROLES[a.roleId]?.team==='village').length %></div>
+              <div class="cl">Villageois vivants</div>
+            </div>
+            <div class="counter-box">
+              <div class="cv"><%= game.assignments.filter(a=>a.ackReceived).length %>/<%= game.assignments.length %></div>
+              <div class="cl">Accusés reçus</div>
+            </div>
+          </div>
+
+          <!-- Actions par phase -->
+          <div class="section-title">Actions disponibles</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+            <button class="ctrl-btn btn-purple" onclick="sendDMs()" <%= game.assignments.every(a=>a.dmSent) ? 'disabled title="DMs déjà envoyés"' : '' %>>
+              📨 Envoyer les rôles par DM
+            </button>
+            <button class="ctrl-btn btn-blue" onclick="createWolfThread()">
+              🐺 Créer le thread des Loups
+            </button>
+            <button class="ctrl-btn btn-orange" onclick="sendNightDMs()">
+              🌙 Envoyer actions nocturnes
+            </button>
+          </div>
+
+          <!-- Vote -->
+          <div class="section-title">Vote d'élimination</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;">
+            <div>
+              <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:4px;">Salon Discord (ID)</label>
+              <input type="text" id="vote-channel" placeholder="ID du salon" value="<%= voteChannelId || '' %>"
+                style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;width:200px;">
+            </div>
+            <div>
+              <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:4px;">Durée (minutes)</label>
+              <input type="number" id="vote-duration" value="5" min="1" max="30"
+                style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;width:80px;">
+            </div>
+            <button class="ctrl-btn btn-red" onclick="startVote()" <%= game.phase==='VOTE' ? 'disabled' : '' %>>
+              🗳️ <%= game.phase==='VOTE' ? 'Vote en cours…' : 'Lancer le vote' %>
+            </button>
+          </div>
+
+          <!-- Thread des loups -->
+          <div class="section-title">Thread des Loups-Garous</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;">
+            <div>
+              <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:4px;">Salon parent (ID)</label>
+              <input type="text" id="wolf-channel" placeholder="ID du salon" value="<%= wolfChannelId || '' %>"
+                style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;width:200px;">
+            </div>
+            <button class="ctrl-btn btn-blue" onclick="createWolfThread()">
+              🐺 Créer / Recréer le thread
+            </button>
+            <% if (game.wolfThreadId) { %>
+              <span style="font-size:12px;color:#66bb6a;">✅ Thread actif : <code><%= game.wolfThreadId %></code></span>
+            <% } %>
+          </div>
+
+          <!-- Élimination manuelle -->
+          <div class="section-title">Élimination manuelle (nuit / capacité spéciale)</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+            <div>
+              <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:4px;">Joueur à éliminer</label>
+              <select id="elim-target" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;">
+                <option value="">— Choisir —</option>
+                <% game.assignments.filter(a=>a.alive).forEach(a => { %>
+                  <option value="<%= a.userId %>"><%- a.displayName %> (<%- ROLES[a.roleId]?.emoji %> <%- ROLES[a.roleId]?.name %>)</option>
+                <% }); %>
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:4px;">Cause</label>
+              <select id="elim-by" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;">
+                <option value="wolves">🐺 Attaque des Loups</option>
+                <option value="ability">⚡ Capacité spéciale</option>
+                <option value="lovers">💔 Mort par amour</option>
+              </select>
+            </div>
+            <button class="ctrl-btn btn-red" onclick="eliminatePlayer()">☠️ Éliminer</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Historique des éliminations -->
+      <% if (game.eliminated?.length) { %>
+      <div class="card" style="margin-top:16px;">
+        <div class="card-header"><h2>☠️ Joueurs éliminés</h2></div>
+        <div class="card-body">
+          <div class="elim-list">
+            <% game.eliminated.forEach(e => { const role = ROLES[e.roleId]; %>
+            <div class="elim-row">
+              <span class="elim-round">Manche <%= e.round %></span>
+              <strong><%- e.displayName %></strong>
+              <span style="font-size:12px;color:var(--text-muted);">
+                <%= role?.emoji %> <%= role?.name %> — par <%= e.by === 'vote' ? '🗳️ vote' : e.by === 'wolves' ? '🐺 loups' : '⚡ capacité' %>
+                <% if (e.votes) { %>(<%=e.votes%> vote(s))<% } %>
+              </span>
+            </div>
+            <% }); %>
+          </div>
+        </div>
+      </div>
+      <% } %>
+      <% } %>
+    </div>
+
+    <!-- ══ TAB : NOTIFICATIONS ═══════════════════════════════════════════════ -->
+    <div class="ww-panel" id="panel-notifs">
+      <% if (!game) { %>
+        <div style="text-align:center;padding:48px;color:var(--text-muted);">Aucune partie en cours.</div>
+      <% } else { %>
+      <div class="card">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+          <h2>📨 Suivi des notifications de rôles</h2>
+          <button class="ctrl-btn btn-gray" onclick="location.reload()" style="font-size:12px;padding:6px 14px;">🔄 Actualiser</button>
+        </div>
+        <div class="card-body" style="padding:0;">
+          <table class="notif-table">
+            <thead><tr>
+              <th>Joueur</th><th>DM envoyé</th><th>Accusé de réception</th><th>Rôle (secret)</th>
+            </tr></thead>
+            <tbody>
+              <% game.assignments.forEach(a => {
+                const role = ROLES[a.roleId]; %>
+              <tr>
+                <td>
+                  <strong><%- a.displayName %></strong><br>
+                  <span style="font-size:11px;color:var(--text-muted);font-family:monospace;"><%= a.userId %></span>
+                </td>
+                <td>
+                  <% if (a.dmSent) { %>
+                    <span class="pill pill-ok">✅ Envoyé</span>
+                  <% } else if (a.dmError) { %>
+                    <span class="pill pill-err" title="<%= a.dmError %>">❌ Erreur</span>
+                  <% } else { %>
+                    <span class="pill pill-pend">⏳ En attente</span>
+                  <% } %>
+                </td>
+                <td>
+                  <% if (a.ackReceived) { %>
+                    <span class="pill pill-ok">✅ Confirmé</span>
+                  <% } else if (a.dmSent) { %>
+                    <span class="pill pill-warn">⏳ En attente</span>
+                  <% } else { %>
+                    <span class="pill pill-pend">—</span>
+                  <% } %>
+                </td>
+                <td><%= role?.emoji %> <strong><%= role?.name %></strong> <small style="color:var(--text-muted);">(<%= role?.team %>)</small></td>
+              </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <% } %>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  const PLAYERS_COUNT = <%= players.length %>;
+  const SAVED_CONFIG  = <%- JSON.stringify(savedRoleConfig) %>;
+
+  // ── Tabs ─────────────────────────────────────────────────────────────────
+  function showTab(id) {
+    document.querySelectorAll('.ww-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.ww-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + id)?.classList.add('active');
+    event.currentTarget.classList.add('active');
+  }
+
+  // ── Role total counter ───────────────────────────────────────────────────
+  function updateRoleTotal() {
+    let total = 0;
+    document.querySelectorAll('.role-count').forEach(i => { total += parseInt(i.value, 10) || 0; });
+    const el = document.getElementById('role-total');
+    const ctrlEl = document.getElementById('ctrl-role-count');
+    if (el) { el.textContent = total; el.style.color = total === PLAYERS_COUNT ? '#66bb6a' : total > PLAYERS_COUNT ? '#ef5350' : '#fff'; }
+    if (ctrlEl) ctrlEl.textContent = total;
+  }
+  function resetRoles() {
+    document.querySelectorAll('.role-count').forEach(i => { i.value = 0; });
+    updateRoleTotal();
+  }
+  updateRoleTotal();
+
+  // ── Save role config ─────────────────────────────────────────────────────
+  async function saveRoleConfig() {
+    const config = {};
+    document.querySelectorAll('.role-count').forEach(i => {
+      const v = parseInt(i.value, 10) || 0;
+      if (v > 0) config[i.dataset.role] = v;
+    });
+    const msg = document.getElementById('save-role-msg');
+    msg.textContent = '⏳ Sauvegarde…';
+    try {
+      const r = await fetch('/werewolf/config/roles', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ roleConfig: config }) });
+      const d = await r.json();
+      msg.textContent = d.ok ? '✅ Configuration sauvegardée !' : '❌ ' + d.error;
+      msg.style.color = d.ok ? '#66bb6a' : '#ef5350';
+    } catch { msg.textContent = '❌ Erreur réseau'; msg.style.color = '#ef5350'; }
+  }
+
+  // ── Start game ───────────────────────────────────────────────────────────
+  async function startGame() {
+    if (!confirm(`Lancer la partie avec ${PLAYERS_COUNT} joueurs ? Le tirage au sort va s'effectuer.`)) return;
+    await postAction('/werewolf/game/start');
+  }
+
+  // ── Send DMs ─────────────────────────────────────────────────────────────
+  async function sendDMs() {
+    if (!confirm('Envoyer les rôles par DM à tous les joueurs ?')) return;
+    await postAction('/werewolf/game/send-dms');
+  }
+
+  // ── Night DMs ────────────────────────────────────────────────────────────
+  async function sendNightDMs() {
+    if (!confirm('Envoyer les actions nocturnes aux rôles spéciaux (Voyante, Salvateur, Corbeau) ?')) return;
+    await postAction('/werewolf/game/night-dms');
+  }
+
+  // ── Wolf thread ──────────────────────────────────────────────────────────
+  async function createWolfThread() {
+    const channelId = document.getElementById('wolf-channel')?.value?.trim();
+    if (!channelId) { alert('Entre l\'ID du salon parent pour le thread des loups.'); return; }
+    await postAction('/werewolf/game/wolf-thread', { channelId });
+  }
+
+  // ── Start vote ───────────────────────────────────────────────────────────
+  async function startVote() {
+    const channelId = document.getElementById('vote-channel')?.value?.trim();
+    const duration  = parseInt(document.getElementById('vote-duration')?.value, 10) || 5;
+    if (!channelId) { alert('Entre l\'ID du salon de vote.'); return; }
+    if (!confirm(`Lancer un vote de ${duration} minutes dans le salon ${channelId} ?`)) return;
+    await postAction('/werewolf/game/vote', { channelId, duration });
+  }
+
+  // ── Eliminate ────────────────────────────────────────────────────────────
+  async function eliminatePlayer() {
+    const target = document.getElementById('elim-target')?.value;
+    const by     = document.getElementById('elim-by')?.value;
+    if (!target) { alert('Sélectionne un joueur à éliminer.'); return; }
+    const name = document.getElementById('elim-target').options[document.getElementById('elim-target').selectedIndex].text;
+    if (!confirm(`Éliminer ${name} ?`)) return;
+    await postAction('/werewolf/game/eliminate', { targetId: target, by });
+  }
+
+  // ── Generic POST ─────────────────────────────────────────────────────────
+  async function postAction(url, body = {}) {
+    try {
+      const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      const d = await r.json();
+      if (d.ok) { location.reload(); }
+      else { alert('❌ ' + (d.error || 'Erreur inconnue')); }
+    } catch (e) { alert('❌ Erreur réseau : ' + e.message); }
+  }
+
+  // ── Member search ────────────────────────────────────────────────────────
+  let _wwTimer = null;
+  async function searchWWMember(val) {
+    clearTimeout(_wwTimer);
+    const box = document.getElementById('ww-search-results');
+    if (!val || val.length < 2) { box.innerHTML = ''; return; }
+    _wwTimer = setTimeout(async () => {
+      box.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">🔍 Recherche…</div>';
+      try {
+        const r = await fetch('/birthdays/search-member?q=' + encodeURIComponent(val));
+        const d = await r.json();
+        if (!d.ok || !d.results?.length) {
+          box.innerHTML = `<div style="font-size:12px;color:var(--text-muted);padding:4px 0;">${d.error || 'Aucun résultat'}</div>`;
+          return;
+        }
+        box.innerHTML = d.results.map(m => `
+          <div class="member-suggestion" onclick="pickWWMember('${m.id}','${m.displayName.replace(/'/g,"\\'")}')">
+            <img src="${m.avatar}" style="width:26px;height:26px;border-radius:50%;" onerror="this.style.display='none'">
+            <div><div style="font-size:13px;font-weight:600;">${m.displayName}</div><div style="font-size:11px;color:var(--text-muted);">@${m.username} · ${m.id}</div></div>
+            <span style="margin-left:auto;font-size:11px;color:#7c5cfc;">→ Ajouter</span>
+          </div>`).join('');
+      } catch { box.innerHTML = '<div style="font-size:12px;color:#ef5350;">Erreur réseau</div>'; }
+    }, 300);
+  }
+  function pickWWMember(id, name) {
+    document.getElementById('ww-add-id').value   = id;
+    document.getElementById('ww-add-name').value = name;
+    document.getElementById('ww-search').value   = '';
+    document.getElementById('ww-search-results').innerHTML = `<div style="font-size:12px;color:#66bb6a;padding:4px 0;">✅ ${name} sélectionné(e)</div>`;
+  }
+
+  // Auto-refresh notifications toutes les 15s si partie en cours
+  <% if (game && ['NIGHT','DAY','VOTE'].includes(game.phase)) { %>
+  setInterval(() => { if (document.getElementById('panel-notifs').classList.contains('active')) location.reload(); }, 15000);
+  <% } %>
+</script>
+</body>
+</html>
