@@ -5584,6 +5584,249 @@ function createWebServer(discordClient) {
   // exclusivement par le bot (index.js via publishAndScheduleGiveaways)
   // ────────────────────────────────────────────────────────────────────────────
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LOUP-GAROU
+  // ═══════════════════════════════════════════════════════════════════════════
+  const werewolf = require('../werewolfManager');
+  // nitrado est déjà déclaré plus haut dans createWebServer (ligne ~3467)
+
+  const WW_SETTINGS_KEY = 'werewolf_settings';
+  async function getWWSettings() {
+    const r = await pgStore.getData(WW_SETTINGS_KEY, null);
+    const defaults = { rconIp: '', rconPort: 11190, rconPassword: '', channelId: '' };
+    if (!r) return defaults;
+    return typeof r === 'object' ? { ...defaults, ...r } : { ...defaults, ...JSON.parse(r) };
+  }
+  async function saveWWSettings(s) { await pgStore.setData(WW_SETTINGS_KEY, s); }
+  async function getWWHistory() {
+    const r = await pgStore.getData('werewolf_history', null);
+    return Array.isArray(r) ? r : (r ? JSON.parse(r) : []);
+  }
+  async function getSavedRoleConfig() {
+    const r = await pgStore.getData('werewolf_role_config', null);
+    return r && typeof r === 'object' ? r : (r ? JSON.parse(r) : {});
+  }
+
+  // ── Page principale ────────────────────────────────────────────────────────
+  app.get('/werewolf', requireAdmin, async (req, res) => {
+    try {
+      const [players, game, savedRoleConfig, settings, history] = await Promise.all([
+        werewolf.getPlayers(),
+        werewolf.getGame(),
+        getSavedRoleConfig(),
+        getWWSettings(),
+        getWWHistory(),
+      ]);
+      const game_ = game && game.phase !== 'ENDED' ? game : null;
+      const voteChannelId = game_?.voteChannelId || settings.channelId || '';
+      const wolfChannelId = game_?.wolfChannelId || settings.channelId || '';
+      res.render('werewolf', {
+        players, game: game_, savedRoleConfig, settings, history,
+        voteChannelId, wolfChannelId,
+        ROLES: werewolf.ROLES, TEAM_LABELS: werewolf.TEAM_LABELS,
+        botUser: discordClient?.user || null,
+        discordUser: req.session?.discordUser || null,
+        role: req.session?.role || 'admin',
+        success: req.query.success || null,
+        error:   req.query.error   || null,
+      });
+    } catch (e) {
+      res.render('werewolf', {
+        players: [], game: null, savedRoleConfig: {}, settings: {}, history: [],
+        voteChannelId: '', wolfChannelId: '',
+        ROLES: werewolf.ROLES, TEAM_LABELS: werewolf.TEAM_LABELS,
+        botUser: discordClient?.user || null,
+        discordUser: req.session?.discordUser || null,
+        role: req.session?.role || 'admin',
+        success: null, error: e.message,
+      });
+    }
+  });
+
+  // ── API état courant ───────────────────────────────────────────────────────
+  app.get('/werewolf/api/state', requireAdmin, async (req, res) => {
+    try {
+      const [game, players] = await Promise.all([werewolf.getGame(), werewolf.getPlayers()]);
+      res.json({ ok: true, game, players });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  // ── Joueurs ────────────────────────────────────────────────────────────────
+  app.post('/werewolf/players/add', requireAdmin, async (req, res) => {
+    try {
+      const { userId, displayName } = req.body;
+      if (!userId || !displayName) return res.redirect('/werewolf?error=' + encodeURIComponent('userId et displayName requis'));
+      await werewolf.addPlayer({ userId: userId.trim(), username: displayName.trim(), displayName: displayName.trim() });
+      res.redirect('/werewolf?success=' + encodeURIComponent(`${displayName} ajouté(e) à la liste`));
+    } catch (e) { res.redirect('/werewolf?error=' + encodeURIComponent(e.message)); }
+  });
+
+  app.post('/werewolf/players/remove', requireAdmin, async (req, res) => {
+    try {
+      const { userId } = req.body;
+      await werewolf.removePlayer(userId);
+      res.redirect('/werewolf?success=' + encodeURIComponent('Joueur retiré'));
+    } catch (e) { res.redirect('/werewolf?error=' + encodeURIComponent(e.message)); }
+  });
+
+  // ── Config rôles ───────────────────────────────────────────────────────────
+  app.post('/werewolf/config/roles', requireAdmin, async (req, res) => {
+    try {
+      const { roleConfig } = req.body;
+      if (!roleConfig || typeof roleConfig !== 'object') return res.json({ ok: false, error: 'Config invalide' });
+      await pgStore.setData('werewolf_role_config', roleConfig);
+      res.json({ ok: true });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  // ── Lancer la partie ───────────────────────────────────────────────────────
+  app.post('/werewolf/game/start', requireAdmin, async (req, res) => {
+    try {
+      const roleConfig = await getSavedRoleConfig();
+      await werewolf.startGame(roleConfig);
+      res.json({ ok: true });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  // ── DMs de rôle ────────────────────────────────────────────────────────────
+  app.post('/werewolf/game/send-dms', requireAdmin, async (req, res) => {
+    try {
+      if (!discordClient) return res.json({ ok: false, error: 'Bot Discord non connecté' });
+      const guildId = discordClient.guilds.cache.first()?.id || '';
+      const results = await werewolf.sendRoleDMs(discordClient, guildId);
+      const failCount = results.filter(r => !r.ok && !r.cached).length;
+      res.json({ ok: true, results, failCount });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  // ── Thread des loups ───────────────────────────────────────────────────────
+  app.post('/werewolf/game/wolf-thread', requireAdmin, async (req, res) => {
+    try {
+      if (!discordClient) return res.json({ ok: false, error: 'Bot Discord non connecté' });
+      const { channelId } = req.body;
+      if (!channelId) return res.json({ ok: false, error: 'ID du salon requis' });
+      const guildId  = discordClient.guilds.cache.first()?.id || '';
+      const adminId  = req.session?.discordUser?.id || null;
+      const thread   = await werewolf.createWolfThread(discordClient, guildId, channelId, adminId);
+      res.json({ ok: true, threadId: thread.id });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  // ── Lancer le vote ─────────────────────────────────────────────────────────
+  app.post('/werewolf/game/vote', requireAdmin, async (req, res) => {
+    try {
+      if (!discordClient) return res.json({ ok: false, error: 'Bot Discord non connecté' });
+      const { channelId, duration } = req.body;
+      if (!channelId) return res.json({ ok: false, error: 'ID du salon requis' });
+      const guildId = discordClient.guilds.cache.first()?.id || '';
+      await werewolf.createVotePoll(discordClient, guildId, channelId, parseInt(duration) || 5);
+      res.json({ ok: true });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  // ── Élimination manuelle ───────────────────────────────────────────────────
+  app.post('/werewolf/game/eliminate', requireAdmin, async (req, res) => {
+    try {
+      const { targetId, by } = req.body;
+      if (!targetId) return res.json({ ok: false, error: 'targetId requis' });
+      const result = await werewolf.eliminatePlayer(targetId, by || 'wolves');
+      res.json({ ok: true, ...result });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  // ── DMs actions nocturnes ──────────────────────────────────────────────────
+  app.post('/werewolf/game/night-dms', requireAdmin, async (req, res) => {
+    try {
+      if (!discordClient) return res.json({ ok: false, error: 'Bot Discord non connecté' });
+      await werewolf.sendNightActionDMs(discordClient);
+      res.json({ ok: true });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  // ── Basculer phase + RCON heure in-game ───────────────────────────────────
+  app.post('/werewolf/game/set-phase', requireAdmin, async (req, res) => {
+    try {
+      const { phase } = req.body;
+      if (!['NIGHT', 'DAY', 'VOTE', 'LOBBY'].includes(phase)) return res.json({ ok: false, error: 'Phase invalide' });
+      const game = await werewolf.getGame();
+      if (!game) return res.json({ ok: false, error: 'Aucune partie en cours' });
+      game.phase = phase;
+      await werewolf.saveGame(game);
+
+      // RCON — force l'heure in-game sur la Map Event
+      let rcon = null;
+      const settings = await getWWSettings();
+      if (settings.rconIp && settings.rconPort) {
+        const cmd = phase === 'NIGHT' ? 'SetTimeOfDay 00:00:00' : 'SetTimeOfDay 10:00:00';
+        try {
+          const response = await nitrado.sendRconDirect(settings.rconIp, parseInt(settings.rconPort), settings.rconPassword || '', cmd);
+          rcon = { ok: true, response: response || '(ok)' };
+        } catch (rconErr) {
+          rcon = { ok: false, error: rconErr.message };
+        }
+      } else {
+        rcon = { ok: false, error: 'RCON non configuré (onglet Paramètres)' };
+      }
+
+      // Si on passe en nuit, envoyer les DMs d'actions nocturnes automatiquement
+      if (phase === 'NIGHT' && discordClient) {
+        werewolf.sendNightActionDMs(discordClient).catch(err => console.error('[Werewolf] night DMs:', err.message));
+      }
+
+      res.json({ ok: true, rcon });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  // ── Reset + archivage ──────────────────────────────────────────────────────
+  app.post('/werewolf/game/reset', requireAdmin, async (req, res) => {
+    try {
+      const game = await werewolf.getGame();
+      if (game) {
+        const history = await getWWHistory();
+        history.unshift({ ...game, archivedAt: Date.now() });
+        if (history.length > 20) history.length = 20;
+        await pgStore.setData('werewolf_history', history);
+      }
+      await werewolf.saveGame(null);
+      await werewolf.savePlayers([]);
+      res.json({ ok: true });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  // ── Historique des parties ─────────────────────────────────────────────────
+  app.get('/werewolf/api/history', requireAdmin, async (req, res) => {
+    try {
+      const history = await getWWHistory();
+      res.json({ ok: true, history });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  // ── Paramètres RCON Map Event ──────────────────────────────────────────────
+  app.post('/werewolf/settings', requireAdmin, async (req, res) => {
+    try {
+      const { rconIp, rconPort, rconPassword, channelId } = req.body;
+      await saveWWSettings({
+        rconIp:       (rconIp || '').trim(),
+        rconPort:     parseInt(rconPort) || 11190,
+        rconPassword: rconPassword || '',
+        channelId:    (channelId || '').trim(),
+      });
+      res.redirect('/werewolf?success=' + encodeURIComponent('Paramètres sauvegardés'));
+    } catch (e) { res.redirect('/werewolf?error=' + encodeURIComponent(e.message)); }
+  });
+
+  // ── Test RCON Map Event ────────────────────────────────────────────────────
+  app.post('/werewolf/settings/rcon-test', requireAdmin, async (req, res) => {
+    try {
+      const settings = await getWWSettings();
+      if (!settings.rconIp || !settings.rconPort) return res.json({ ok: false, error: 'IP et port RCON non configurés' });
+      const response = await nitrado.sendRconDirect(settings.rconIp, parseInt(settings.rconPort), settings.rconPassword || '', 'listplayers');
+      res.json({ ok: true, response: response || '(pas de réponse — normal pour ARK)' });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+
   const PORT = 5000;
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🌐 Dashboard disponible sur le port ${PORT}`);

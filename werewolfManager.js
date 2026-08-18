@@ -645,6 +645,47 @@ async function handleNightAction(client, action, actorId, targetId) {
   return { ok: false };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ÉLIMINATION MANUELLE (nuit / capacité spéciale)
+// ─────────────────────────────────────────────────────────────────────────────
+async function eliminatePlayer(userId, by = 'wolves') {
+  const game = await getGame();
+  if (!game) throw new Error('Aucune partie en cours');
+  const a = game.assignments.find(x => x.userId === userId && x.alive);
+  if (!a) throw new Error('Joueur introuvable ou déjà éliminé');
+  a.alive = false;
+  game.eliminated.push({
+    userId:      a.userId,
+    displayName: a.displayName,
+    roleId:      a.roleId,
+    round:       game.round,
+    by,
+    eliminatedAt: Date.now(),
+  });
+  // Amoureux — si un des deux meurt, l'autre aussi
+  if (game.lovers?.includes(userId)) {
+    const partnerId = game.lovers.find(id => id !== userId);
+    if (partnerId) {
+      const partner = game.assignments.find(x => x.userId === partnerId && x.alive);
+      if (partner) {
+        partner.alive = false;
+        game.eliminated.push({
+          userId:      partner.userId,
+          displayName: partner.displayName,
+          roleId:      partner.roleId,
+          round:       game.round,
+          by:          'lovers',
+          eliminatedAt: Date.now(),
+        });
+      }
+    }
+  }
+  const victory = checkVictory(game);
+  if (victory) { game.phase = 'ENDED'; game.winner = victory; }
+  await saveGame(game);
+  return { eliminated: a, victory };
+}
+
 module.exports = {
   ROLES, TEAM_LABELS,
   getPlayers, savePlayers, addPlayer, removePlayer,
@@ -653,5 +694,6 @@ module.exports = {
   createWolfThread,
   createVotePoll, handleVote, updateVoteMessage, resolveVote,
   sendNightActionDMs, handleNightAction,
+  eliminatePlayer,
   checkVictory, buildVictoryEmbed,
 };

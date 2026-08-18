@@ -84,6 +84,7 @@ const client = new Client({
     Partials.Reaction,
   ],
 });
+client.setMaxListeners(25); // plusieurs listeners interactionCreate attendus
 
 // ── Correctif voice gateway ────────────────────────────────────────────────
 // Discord.js v14 conditionne l'appel à client.voice.onVoiceStateUpdate() par
@@ -5964,6 +5965,87 @@ client.on('interactionCreate', async interaction => {
 // Évite que le process crashe sur des erreurs réseau/interaction Discord
 client.on('error', (err) => {
   console.error('[Discord] Erreur client (non-fatale) :', err.message);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ══ LOUP-GAROU — handlers boutons Discord ════════════════════════════════════
+// ─────────────────────────────────────────────────────────────────────────────
+const werewolf = require('./werewolfManager');
+
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isButton()) return;
+  const id = interaction.customId;
+
+  // ── Accusé de réception du rôle ─────────────────────────────────────────
+  if (id.startsWith('ww_ack_')) {
+    const userId = id.replace('ww_ack_', '');
+    if (interaction.user.id !== userId) {
+      return interaction.reply({ content: '❌ Ce bouton ne t\'est pas destiné.', ephemeral: true });
+    }
+    try {
+      await werewolf.handleAck(userId);
+      await interaction.update({ components: [] });
+      await interaction.followUp({ content: '✅ Accusé de réception enregistré ! Bonne chance dans la partie 🐺', ephemeral: true });
+    } catch (e) {
+      await interaction.reply({ content: '❌ Erreur : ' + e.message, ephemeral: true });
+    }
+    return;
+  }
+
+  // ── Vote d'élimination ───────────────────────────────────────────────────
+  if (id.startsWith('ww_vote_')) {
+    const targetId = id.replace('ww_vote_', '');
+    try {
+      const result = await werewolf.handleVote(interaction.user.id, targetId);
+      if (!result.ok) return interaction.reply({ content: `❌ ${result.reason}`, ephemeral: true });
+      const target = (await werewolf.getGame())?.assignments.find(a => a.userId === targetId);
+      await interaction.reply({ content: `🗳️ Vote enregistré pour **${target?.displayName || targetId}**.${result.changed ? ' (changé)' : ''}`, ephemeral: true });
+      await werewolf.updateVoteMessage(client).catch(() => {});
+    } catch (e) {
+      await interaction.reply({ content: '❌ ' + e.message, ephemeral: true });
+    }
+    return;
+  }
+
+  // ── Action nocturne : Voyante ────────────────────────────────────────────
+  if (id.startsWith('ww_see_')) {
+    const targetId = id.replace('ww_see_', '');
+    try {
+      // Désactiver les boutons immédiatement
+      await interaction.update({ components: [] });
+      const result = await werewolf.handleNightAction(client, 'see', interaction.user.id, targetId);
+      if (!result.ok) await interaction.followUp({ content: '❌ Action invalide.', ephemeral: true });
+    } catch (e) {
+      await interaction.followUp({ content: '❌ ' + e.message, ephemeral: true }).catch(() => {});
+    }
+    return;
+  }
+
+  // ── Action nocturne : Salvateur ──────────────────────────────────────────
+  if (id.startsWith('ww_protect_')) {
+    const targetId = id.replace('ww_protect_', '');
+    try {
+      await interaction.update({ components: [] });
+      const result = await werewolf.handleNightAction(client, 'protect', interaction.user.id, targetId);
+      if (!result.ok) await interaction.followUp({ content: '❌ Action invalide.', ephemeral: true });
+    } catch (e) {
+      await interaction.followUp({ content: '❌ ' + e.message, ephemeral: true }).catch(() => {});
+    }
+    return;
+  }
+
+  // ── Action nocturne : Corbeau ────────────────────────────────────────────
+  if (id.startsWith('ww_mark_')) {
+    const targetId = id.replace('ww_mark_', '');
+    try {
+      await interaction.update({ components: [] });
+      const result = await werewolf.handleNightAction(client, 'mark', interaction.user.id, targetId);
+      if (!result.ok) await interaction.followUp({ content: '❌ Action invalide.', ephemeral: true });
+    } catch (e) {
+      await interaction.followUp({ content: '❌ ' + e.message, ephemeral: true }).catch(() => {});
+    }
+    return;
+  }
 });
 
 process.on('unhandledRejection', (reason) => {

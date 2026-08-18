@@ -116,6 +116,8 @@
           if (pending > 0) { %><span style="background:#ef5350;color:#fff;border-radius:20px;padding:1px 7px;font-size:11px;margin-left:4px;"><%= pending %></span><% }
         } %>
       </div>
+      <div class="ww-tab" onclick="showTab('history')">📚 Historique (<%= history.length %>)</div>
+      <div class="ww-tab" onclick="showTab('settings')">⚙️ Paramètres</div>
     </div>
 
     <!-- ══ TAB : JOUEURS ══════════════════════════════════════════════════ -->
@@ -311,6 +313,22 @@
             <% } %>
           </div>
 
+          <!-- Phase in-game — RCON Map Event -->
+          <div class="section-title">🌙 Phase in-game — Map Event</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center;">
+            <button class="ctrl-btn btn-blue" onclick="setPhase('NIGHT')" style="background:#1a237e;">
+              🌑 Passer en phase Nuit
+            </button>
+            <button class="ctrl-btn btn-orange" onclick="setPhase('DAY')" style="background:#e65100;">
+              ☀️ Passer en phase Jour
+            </button>
+            <span style="font-size:12px;color:var(--text-muted);">
+              Envoie <code>SetTimeOfDay 00:00:00</code> / <code>10:00:00</code> via RCON sur la Map Event.
+              <% if (!settings?.rconIp) { %><strong style="color:#ef5350;">⚠️ RCON non configuré</strong> — onglet ⚙️ Paramètres.<% } %>
+            </span>
+            <span id="rcon-phase-result"></span>
+          </div>
+
           <!-- Élimination manuelle -->
           <div class="section-title">Élimination manuelle (nuit / capacité spéciale)</div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
@@ -357,6 +375,101 @@
       </div>
       <% } %>
       <% } %>
+    </div>
+
+    <!-- ══ TAB : HISTORIQUE ══════════════════════════════════════════════════ -->
+    <div class="ww-panel" id="panel-history">
+      <% if (!history.length) { %>
+        <div style="text-align:center;padding:48px;color:var(--text-muted);">Aucune partie archivée pour l'instant.</div>
+      <% } else { %>
+      <% history.forEach((g, hi) => { %>
+      <div class="card" style="margin-bottom:14px;">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <h2>
+            <% if (g.winner === 'village') { %> 🎉 Victoire du Village
+            <% } else if (g.winner === 'wolves') { %> 🐺 Victoire des Loups
+            <% } else { %> 🏠 Partie non terminée
+            <% } %>
+            — <%= g.assignments?.length || 0 %> joueurs, <%= g.round %> manche(s)
+          </h2>
+          <span style="font-size:12px;color:var(--text-muted);">
+            Archivée le <%= g.archivedAt ? new Date(g.archivedAt).toLocaleString('fr-FR') : '—' %>
+          </span>
+        </div>
+        <div class="card-body" style="padding:12px 16px;">
+          <% if (g.assignments?.length) { %>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+            <% g.assignments.forEach(a => { const role = ROLES[a.roleId]; %>
+            <span style="padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;
+              background:rgba(<%= role?.team==='wolves'?'244,67,54':role?.team==='solo'?'156,39,176':'76,175,80' %>,.15);
+              border:1px solid rgba(<%= role?.team==='wolves'?'244,67,54':role?.team==='solo'?'156,39,176':'76,175,80' %>,.3);
+              color:<%= a.alive?'#fff':'#999' %>;">
+              <%= a.alive ? '✅' : '☠️' %> <%- a.displayName %> — <%= role?.emoji %> <%= role?.name %>
+            </span>
+            <% }); %>
+          </div>
+          <% } %>
+          <% if (g.eliminated?.length) { %>
+          <div style="font-size:12px;color:var(--text-muted);">
+            <strong>Éliminés :</strong>
+            <% g.eliminated.forEach((e,ei) => { const r = ROLES[e.roleId]; %>
+              <%= ei>0?'·':'' %> <%- e.displayName %> (<%= r?.emoji %> <%= r?.name %>, manche <%= e.round %>)
+            <% }); %>
+          </div>
+          <% } %>
+        </div>
+      </div>
+      <% }); %>
+      <% } %>
+    </div>
+
+    <!-- ══ TAB : PARAMÈTRES ═══════════════════════════════════════════════════ -->
+    <div class="ww-panel" id="panel-settings">
+      <div class="card">
+        <div class="card-header"><h2>⚙️ Paramètres — RCON Map Event</h2></div>
+        <div class="card-body">
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+            Configure la connexion RCON directe vers la <strong>Map Event</strong>. Utilisé pour forcer la nuit / le jour in-game quand tu changes de phase.
+          </p>
+          <form method="POST" action="/werewolf/settings" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:600px;">
+            <div style="grid-column:1/-1;">
+              <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Salon Discord par défaut (ID)</label>
+              <input type="text" name="channelId" value="<%= settings?.channelId || '' %>" placeholder="ID du salon pour les votes et threads"
+                style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">IP du serveur ARK (Map Event)</label>
+              <input type="text" name="rconIp" value="<%= settings?.rconIp || '' %>" placeholder="ex: 85.190.xxx.xxx"
+                style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Port RCON</label>
+              <input type="number" name="rconPort" value="<%= settings?.rconPort || 11190 %>" placeholder="11190"
+                style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;box-sizing:border-box;">
+            </div>
+            <div style="grid-column:1/-1;">
+              <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Mot de passe RCON</label>
+              <input type="password" name="rconPassword" value="<%= settings?.rconPassword || '' %>" placeholder="Mot de passe RCON ARK"
+                style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;box-sizing:border-box;">
+            </div>
+            <div style="grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+              <button type="submit" class="ctrl-btn btn-purple">💾 Sauvegarder</button>
+              <button type="button" class="ctrl-btn btn-gray" onclick="testRcon()">🔌 Tester la connexion RCON</button>
+              <span id="rcon-test-result" style="font-size:13px;"></span>
+            </div>
+          </form>
+
+          <div style="margin-top:24px;background:rgba(255,193,7,.08);border:1px solid rgba(255,193,7,.25);border-radius:10px;padding:14px 16px;">
+            <div style="font-size:12px;color:#ffd54f;font-weight:700;margin-bottom:8px;">ℹ️ Comment trouver l'IP et le port RCON</div>
+            <ol style="font-size:12px;color:var(--text-muted);margin:0;padding-left:18px;line-height:1.8;">
+              <li>Dans Nitrado : Serveurs → <strong>Map Event</strong> → Paramètres → Général</li>
+              <li>Note l'<strong>adresse IP</strong> du serveur</li>
+              <li>Dans <code>GameUserSettings.ini</code> : vérifie <code>RCONPort</code> (souvent 11190) et <code>RCONEnabled=True</code></li>
+              <li>Le mot de passe RCON est dans <code>ServerAdminPassword</code></li>
+            </ol>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ══ TAB : NOTIFICATIONS ═══════════════════════════════════════════════ -->
@@ -540,6 +653,40 @@
     document.getElementById('ww-add-name').value = name;
     document.getElementById('ww-search').value   = '';
     document.getElementById('ww-search-results').innerHTML = `<div style="font-size:12px;color:#66bb6a;padding:4px 0;">✅ ${name} sélectionné(e)</div>`;
+  }
+
+  // ── Phase RCON (nuit / jour in-game) ─────────────────────────────────────
+  async function setPhase(phase) {
+    const label = phase === 'NIGHT' ? '🌑 Phase Nuit' : '☀️ Phase Jour';
+    const cmd   = phase === 'NIGHT' ? 'SetTimeOfDay 00:00:00' : 'SetTimeOfDay 10:00:00';
+    const el    = document.getElementById('rcon-phase-result');
+    if (el) el.innerHTML = `<span style="color:var(--text-muted);">⏳ Envoi ${cmd}…</span>`;
+    try {
+      const r = await fetch('/werewolf/game/set-phase', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phase }),
+      });
+      const d = await r.json();
+      if (!d.ok) { alert('❌ ' + (d.error || 'Erreur')); if (el) el.innerHTML = ''; return; }
+      let rconMsg = '';
+      if (d.rcon?.ok) rconMsg = `<span style="color:#66bb6a;">✅ RCON OK — ${d.rcon.response || ''}</span>`;
+      else if (d.rcon) rconMsg = `<span style="color:#ef5350;" title="${d.rcon.error}">⚠️ RCON échoué</span>`;
+      if (el) el.innerHTML = rconMsg;
+      // Pas de reload complet, juste mise à jour du badge de phase
+      setTimeout(() => location.reload(), 1200);
+    } catch (e) { alert('❌ Erreur réseau : ' + e.message); if (el) el.innerHTML = ''; }
+  }
+
+  // ── Test connexion RCON ───────────────────────────────────────────────────
+  async function testRcon() {
+    const el = document.getElementById('rcon-test-result');
+    el.innerHTML = '<span style="color:var(--text-muted);">⏳ Test en cours…</span>';
+    try {
+      const r = await fetch('/werewolf/settings/rcon-test', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      const d = await r.json();
+      if (d.ok) el.innerHTML = `<span style="color:#66bb6a;">✅ Connecté — ${d.response}</span>`;
+      else      el.innerHTML = `<span style="color:#ef5350;">❌ ${d.error}</span>`;
+    } catch (e) { el.innerHTML = `<span style="color:#ef5350;">❌ Réseau : ${e.message}</span>`; }
   }
 
   // Auto-refresh notifications toutes les 15s si partie en cours
