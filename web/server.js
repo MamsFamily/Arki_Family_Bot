@@ -2486,26 +2486,44 @@ function createWebServer(discordClient) {
     if (!query || query.length < 2) {
       return res.json([]);
     }
-    if (!discordClient) {
-      return res.json([]);
-    }
+    const results = [];
     try {
-      const settings = getSettings();
-      const guildId = settings.guild.guildId;
-      const guild = guildId ? discordClient.guilds.cache.get(guildId) : discordClient.guilds.cache.first();
-      if (!guild) return res.json([]);
+      if (discordClient) {
+        const settings = getSettings();
+        const guildId = settings.guild.guildId;
+        const guild = guildId ? discordClient.guilds.cache.get(guildId) : discordClient.guilds.cache.first();
+        if (guild) {
+          const members = await guild.members.fetch({ query, limit: 15 });
+          results.push(...members.map(m => ({
+            id: m.user.id,
+            username: m.user.username,
+            displayName: m.displayName,
+            avatar: m.user.displayAvatarURL({ size: 32 }),
+          })));
+        }
+      }
 
-      const members = await guild.members.fetch({ query, limit: 15 });
-      const results = members.map(m => ({
-        id: m.user.id,
-        username: m.user.username,
-        displayName: m.displayName,
-        avatar: m.user.displayAvatarURL({ size: 32 }),
-      }));
+      // Un joueur peut avoir quitté le serveur Discord mais conserver un
+      // historique d'inventaire. Une recherche par ID doit donc aussi le trouver.
+      if (/^\d{2,}$/.test(query)) {
+        const knownIds = new Set([
+          ...Object.keys(inventoryManager.getAllInventories()),
+          ...inventoryManager.getTransactions({ limit: 50000 }).transactions.map(tx => tx.playerId),
+        ]);
+        for (const id of knownIds) {
+          if (results.length >= 15 || !String(id).startsWith(query) || results.some(member => member.id === id)) continue;
+          results.push({
+            id: String(id),
+            username: 'Joueur archivé',
+            displayName: `Joueur archivé · ${id}`,
+            avatar: '',
+          });
+        }
+      }
       res.json(results);
     } catch (e) {
       console.error('Erreur recherche membres:', e.message);
-      res.json([]);
+      res.json(results);
     }
   });
 
@@ -2640,6 +2658,50 @@ function createWebServer(discordClient) {
     } catch (e) { return playerId; }
   }
 
+  function describeDiamondSource(transaction) {
+    const actor = String(transaction.adminId || '');
+    const reason = String(transaction.reason || '');
+    const text = `${actor} ${reason}`.toLowerCase();
+
+    if (actor.startsWith('→ ')) {
+      return { key: 'transfer-sent', label: 'Transfert envoyé', detail: `Vers ${actor.slice(2)}` };
+    }
+    if (actor.startsWith('← ')) {
+      return { key: 'transfer-received', label: 'Transfert reçu', detail: `De ${actor.slice(2)}` };
+    }
+    if (text.includes('casino') || /slots|blackjack|roulette|poker/.test(text)) {
+      return { key: 'casino', label: 'Casino', detail: reason || actor };
+    }
+    if (actor === '/travail' || text.includes('travail quotidien')) {
+      return { key: 'work', label: 'Commande /travail', detail: reason || 'Travail quotidien' };
+    }
+    if (text.includes('/revenus') || text.includes('revenu hebdo')) {
+      return { key: 'income', label: 'Commande /revenus', detail: reason || actor };
+    }
+    if (reason.toLowerCase().startsWith('amende')) {
+      return { key: 'fine', label: 'Amende admin', detail: reason };
+    }
+    if (text.includes('récompense niveau') || text.includes('système xp')) {
+      return { key: 'xp', label: 'Récompense XP', detail: reason || actor };
+    }
+    if (text.includes('vote')) {
+      return { key: 'votes', label: 'Récompense de votes', detail: reason || actor };
+    }
+    if (text.includes('pari')) {
+      return { key: 'betting', label: 'Paris sportifs', detail: reason || actor };
+    }
+    if (text.includes('giveaway')) {
+      return { key: 'giveaway', label: 'Giveaway', detail: reason || actor };
+    }
+    if (actor === 'api' || actor === 'api-quizz') {
+      return { key: 'api', label: 'API / Quiz', detail: reason || actor };
+    }
+    if (/^\d{17,20}$/.test(actor) || actor === 'Admin' || actor === 'Staff' || actor === 'Dashboard' || actor.includes('Admin')) {
+      return { key: 'admin', label: 'Action admin', detail: reason || actor };
+    }
+    return { key: 'system', label: 'Système', detail: reason || actor || '—' };
+  }
+
   async function sendInventoryLog(action, adminName, itemType, quantity, playerId) {
     try {
       const settings = getSettings();
@@ -2750,6 +2812,38 @@ function createWebServer(discordClient) {
     res.json({ playerId, inventory, player });
   });
 
+  // ── Journal détaillé des diamants d'un joueur ─────────────────────────────
+  app.get('/inventory/api/player/:playerId/diamond-history', requireAuth, async (req, res) => {
+    const { playerId } = req.params;
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 1000);
+    const result = inventoryManager.getTransactions({ playerId, itemTypeId: 'diamants', limit });
+    const transactions = result.transactions.map(transaction => ({
+      ...transaction,
+      source: describeDiamondSource(transaction),
+    }));
+    const allDiamondTransactions = inventoryManager.getTransactions({
+      playerId,
+      itemTypeId: 'diamants',
+      limit: 50000,
+    }).transactions;
+    const received = allDiamondTransactions
+      .filter(transaction => transaction.quantity > 0)
+      .reduce((total, transaction) => total + transaction.quantity, 0);
+    const spent = allDiamondTransactions
+      .filter(transaction => transaction.quantity < 0)
+      .reduce((total, transaction) => total + Math.abs(transaction.quantity), 0);
+    const balance = inventoryManager.getPlayerInventory(playerId).diamants || 0;
+
+    res.json({
+      playerId,
+      balance,
+      received,
+      spent,
+      total: result.total,
+      transactions,
+    });
+  });
+
   app.get('/inventory/api/transactions', requireAuth, async (req, res) => {
     const filters = {};
     if (req.query.playerId) filters.playerId = req.query.playerId;
@@ -2789,6 +2883,10 @@ function createWebServer(discordClient) {
       }
     } catch (e) { /* silencieux — on retourne les IDs bruts si échec */ }
 
+    result.transactions = result.transactions.map(transaction => ({
+      ...transaction,
+      source: transaction.itemTypeId === 'diamants' ? describeDiamondSource(transaction) : null,
+    }));
     res.json(result);
   });
 

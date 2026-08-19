@@ -222,6 +222,34 @@
     .mini-tx-reason { color: var(--text-muted); font-style: italic; font-size: 11px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .mini-tx-player { color: var(--accent); font-weight: 600; font-size: 12px; }
     .mini-tx-player-id { color: var(--text-muted); font-family: monospace; font-size: 10px; }
+    .diamond-history {
+      margin-top: 20px;
+      border-top: 1px solid var(--border);
+      padding-top: 16px;
+    }
+    .diamond-summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin: 10px 0 12px;
+    }
+    .diamond-stat {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .diamond-stat-label {
+      color: var(--text-muted);
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .diamond-stat-value { display:block; font-size:16px; font-weight:800; margin-top:3px; }
+    .diamond-tx-source { color:#cbbdff; font-size:12px; font-weight:700; }
+    .diamond-tx-detail { color:var(--text-muted); font-size:11px; margin-top:2px; }
     /* ── Responsive mobile ──────────────────────────────────── */
     @media (max-width: 900px) {
       .players-layout {
@@ -257,6 +285,7 @@
         width: 100%;
         text-align: center;
       }
+        .diamond-summary { grid-template-columns: 1fr; }
     }
     .tx-table {
       width: 100%;
@@ -1092,6 +1121,15 @@
       html += '<button class="btn btn-sm btn-secondary" onclick="openPlayerEdit(\'' + escapeHtml(playerId) + '\', \'remove\')">- Retirer des items</button>';
       html += '</div>';
 
+      // Historique dédié aux diamants
+      html += '<div class="diamond-history">';
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">';
+      html += '<h4 style="font-size:13px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin:0;">💎 Historique des diamants</h4>';
+      html += '<button class="btn btn-sm btn-secondary" style="padding:4px 9px;font-size:11px;" onclick="loadDiamondHistory(\'' + escapeHtml(playerId) + '\')">↻ Actualiser</button>';
+      html += '</div>';
+      html += '<div id="playerDiamondHistory"><div style="color:var(--text-muted);font-size:12px;padding:10px 0;">Chargement...</div></div>';
+      html += '</div>';
+
       // Section mouvements récents (chargée après injection)
       html += '<div class="player-recent-tx">';
       html += '<h4>🕘 Mouvements récents</h4>';
@@ -1099,7 +1137,49 @@
       html += '</div>';
 
       container.innerHTML = html;
+      loadDiamondHistory(playerId);
       loadRecentPlayerTransactions(playerId);
+    }
+
+    function loadDiamondHistory(playerId) {
+      var listEl = document.getElementById('playerDiamondHistory');
+      if (!listEl) return;
+      listEl.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:10px 0;">Chargement...</div>';
+      fetch('/inventory/api/player/' + encodeURIComponent(playerId) + '/diamond-history?limit=100')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var txs = data.transactions || [];
+          var html = '<div class="diamond-summary">';
+          html += '<div class="diamond-stat"><span class="diamond-stat-label">Solde actuel</span><span class="diamond-stat-value" style="color:#b9a7ff;">' + Number(data.balance || 0).toLocaleString('fr-FR') + ' 💎</span></div>';
+          html += '<div class="diamond-stat"><span class="diamond-stat-label">Total reçu</span><span class="diamond-stat-value" style="color:#4caf50;">+' + Number(data.received || 0).toLocaleString('fr-FR') + ' 💎</span></div>';
+          html += '<div class="diamond-stat"><span class="diamond-stat-label">Total dépensé</span><span class="diamond-stat-value" style="color:#f44336;">−' + Number(data.spent || 0).toLocaleString('fr-FR') + ' 💎</span></div>';
+          html += '</div>';
+          if (txs.length === 0) {
+            listEl.innerHTML = html + '<div style="color:var(--text-muted);font-size:12px;padding:4px 0;">Aucun mouvement de diamants enregistré.</div>';
+            return;
+          }
+          html += '<div class="mini-tx-list">';
+          txs.forEach(function(tx) {
+            var added = tx.quantity > 0;
+            var source = tx.source || { label: 'Système', detail: tx.reason || '' };
+            var date = new Date(tx.timestamp);
+            var dateStr = date.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' })
+              + ' ' + date.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+            html += '<div class="mini-tx-row" style="align-items:flex-start;">';
+            html += '<span class="mini-tx-badge ' + (added ? 'add' : 'remove') + '">' + (added ? 'Ajout' : 'Retrait') + '</span>';
+            html += '<div style="flex:1;min-width:0;"><div class="diamond-tx-source">' + escapeHtml(source.label) + '</div>';
+            html += '<div class="diamond-tx-detail" title="' + escapeHtml(source.detail || tx.reason || '') + '">' + escapeHtml(source.detail || tx.reason || '—') + '</div></div>';
+            html += '<span class="mini-tx-qty ' + (added ? 'pos' : 'neg') + '">' + (added ? '+' : '−') + Math.abs(tx.quantity).toLocaleString('fr-FR') + ' 💎</span>';
+            html += '<span class="mini-tx-date">' + dateStr + '</span>';
+            html += '</div>';
+          });
+          html += '</div>';
+          html += '<div style="text-align:right;margin-top:10px;"><a href="#" style="font-size:12px;color:var(--accent);" onclick="goToPlayerHistory(\'' + escapeHtml(playerId) + '\');return false;">Voir tout le journal des diamants →</a></div>';
+          listEl.innerHTML = html;
+        })
+        .catch(function() {
+          if (listEl) listEl.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:10px 0;">Impossible de charger l\'historique des diamants.</div>';
+        });
     }
 
     function loadRecentPlayerTransactions(playerId) {
@@ -1156,6 +1236,7 @@
     function goToPlayerHistory(playerId) {
       document.getElementById('txSearchInput').value = '';
       document.getElementById('txFilterPlayer').value = playerId;
+      document.getElementById('txFilterItem').value = 'diamants';
       txTabLoaded = true; // Évite le double chargement depuis switchTab
       switchTab('transactions');
       loadTransactions();
@@ -1481,7 +1562,7 @@
       html += '<div style="overflow-x:auto;">';
       html += '<table class="tx-table">';
       html += '<thead><tr>';
-      html += '<th>Date</th><th>Joueur</th><th>Item</th><th>Op\u00e9ration</th><th>Quantit\u00e9</th><th>Admin</th><th>Raison</th>';
+      html += '<th>Date</th><th>Joueur</th><th>Item</th><th>Op\u00e9ration</th><th>Origine</th><th>Quantit\u00e9</th><th>Admin</th><th>Raison</th>';
       html += '</tr></thead><tbody>';
 
       txs.forEach(function(tx) {
@@ -1494,6 +1575,7 @@
 
         var qtyColor = tx.quantity > 0 ? '#4caf50' : '#f44336';
         var qtyStr = (tx.quantity > 0 ? '+' : '') + tx.quantity.toLocaleString('fr-FR');
+        var source = tx.source || null;
         var playerCell = '';
         if (tx.playerName) {
           playerCell = '<span style="font-weight:700;color:var(--accent);">' + escapeHtml(tx.playerName) + '</span><br>'
@@ -1506,8 +1588,9 @@
         html += '<td>' + playerCell + '</td>';
         html += '<td>' + itemLabel + '</td>';
         html += '<td><span class="' + typeClass + '">' + typeLabel + '</span></td>';
+        html += '<td>' + (source ? '<span class="diamond-tx-source">' + escapeHtml(source.label) + '</span>' : '—') + '</td>';
         html += '<td style="font-weight:800;font-size:15px;color:' + qtyColor + ';">' + qtyStr + '</td>';
-        html += '<td style="font-size:12px;">' + escapeHtml(tx.adminId) + '</td>';
+        html += '<td style="font-size:12px;">' + escapeHtml(tx.adminName || tx.adminId) + '</td>';
         html += '<td>' + escapeHtml(tx.reason || '-') + '</td>';
         html += '</tr>';
       });

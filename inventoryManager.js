@@ -7,6 +7,7 @@ const PG_KEY_ITEM_TYPES = 'inventory_item_types';
 const PG_KEY_INVENTORIES = 'inventory_data';
 const PG_KEY_TRANSACTIONS = 'inventory_transactions';
 const PG_KEY_CATEGORIES = 'inventory_categories';
+const MAX_TRANSACTION_HISTORY = 50000;
 
 let cachedItemTypes = null;
 let cachedInventories = null;
@@ -270,8 +271,8 @@ async function addToInventory(playerId, itemTypeId, quantity, adminId, reason) {
   };
   cachedTransactions.push(transaction);
 
-  if (cachedTransactions.length > 10000) {
-    cachedTransactions = cachedTransactions.slice(-5000);
+  if (cachedTransactions.length > MAX_TRANSACTION_HISTORY) {
+    cachedTransactions = cachedTransactions.slice(-MAX_TRANSACTION_HISTORY);
   }
 
   await saveInventories();
@@ -285,6 +286,7 @@ async function removeFromInventory(playerId, itemTypeId, quantity, adminId, reas
   }
   const current = cachedInventories[playerId][itemTypeId] || 0;
   const newQty = Math.max(0, current - quantity);
+  const actualRemoved = current - newQty;
   cachedInventories[playerId][itemTypeId] = newQty;
 
   if (newQty === 0) {
@@ -295,7 +297,7 @@ async function removeFromInventory(playerId, itemTypeId, quantity, adminId, reas
     id: generateId(),
     playerId,
     itemTypeId,
-    quantity: -quantity,
+    quantity: -actualRemoved,
     adminId: adminId || 'system',
     reason: reason || '',
     type: 'remove',
@@ -303,8 +305,8 @@ async function removeFromInventory(playerId, itemTypeId, quantity, adminId, reas
   };
   cachedTransactions.push(transaction);
 
-  if (cachedTransactions.length > 10000) {
-    cachedTransactions = cachedTransactions.slice(-5000);
+  if (cachedTransactions.length > MAX_TRANSACTION_HISTORY) {
+    cachedTransactions = cachedTransactions.slice(-MAX_TRANSACTION_HISTORY);
   }
 
   await saveInventories();
@@ -337,8 +339,8 @@ async function setInventoryItem(playerId, itemTypeId, quantity, adminId, reason)
   };
   cachedTransactions.push(transaction);
 
-  if (cachedTransactions.length > 10000) {
-    cachedTransactions = cachedTransactions.slice(-5000);
+  if (cachedTransactions.length > MAX_TRANSACTION_HISTORY) {
+    cachedTransactions = cachedTransactions.slice(-MAX_TRANSACTION_HISTORY);
   }
 
   await saveInventories();
@@ -365,8 +367,8 @@ async function resetPlayerInventory(playerId, adminId, reason) {
 
   delete cachedInventories[playerId];
 
-  if (cachedTransactions.length > 10000) {
-    cachedTransactions = cachedTransactions.slice(-5000);
+  if (cachedTransactions.length > MAX_TRANSACTION_HISTORY) {
+    cachedTransactions = cachedTransactions.slice(-MAX_TRANSACTION_HISTORY);
   }
 
   await saveInventories();
