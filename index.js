@@ -625,6 +625,7 @@ client.once('clientReady', async () => {
   await initInventory();
   await initSpecialPacks();
   await giveawayManager.initGiveaways();
+  await pollManager.initClassicPolls(client).catch(e => console.error('[Poll] Reprise des sondages:', e.message));
 
   config = getConfig();
 
@@ -5653,6 +5654,103 @@ client.on('guildMemberRemove', async (member) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // ══ SONDAGE (Poll) ═══════════════════════════════════════════════════════════
 client.on('interactionCreate', async interaction => {
+  // ── /sondage classique ──
+  if (interaction.isChatInputCommand() && interaction.commandName === 'sondage') {
+    if (!interaction.inGuild() || !interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+      return interaction.reply({ content: '❌ Réservé aux admins et modérateurs.', ephemeral: true });
+    }
+
+    const question = interaction.options.getString('question', true).trim();
+    const answers = [];
+    for (let index = 1; index <= 10; index++) {
+      const answer = interaction.options.getString(`reponse_${index}`);
+      if (answer?.trim()) answers.push(answer.trim());
+    }
+
+    if (question.length > 256) {
+      return interaction.reply({ content: '❌ La question ne peut pas dépasser 256 caractères.', ephemeral: true });
+    }
+    if (answers.length < 2 || answers.some(answer => answer.length > 80)) {
+      return interaction.reply({ content: '❌ Indique entre 2 et 10 réponses, de 80 caractères maximum chacune.', ephemeral: true });
+    }
+    const normalizedAnswers = answers.map(answer => answer.toLocaleLowerCase('fr-FR'));
+    if (new Set(normalizedAnswers).size !== answers.length) {
+      return interaction.reply({ content: '❌ Les réponses doivent toutes être différentes.', ephemeral: true });
+    }
+
+    const image = interaction.options.getAttachment('image');
+    const acceptedImage = !image || image.contentType?.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(image.name || '');
+    if (!acceptedImage) {
+      return interaction.reply({ content: '❌ Le fichier joint doit être une image (PNG, JPG, GIF ou WebP).', ephemeral: true });
+    }
+
+    const requestedPing = interaction.options.getBoolean('ping_everyone') || false;
+    if (requestedPing) {
+      const creatorCanPing = interaction.member.permissions.has(PermissionFlagsBits.MentionEveryone);
+      const botMember = interaction.guild.members.me;
+      const botCanPing = botMember && interaction.channel.permissionsFor(botMember)?.has(PermissionFlagsBits.MentionEveryone);
+      if (!creatorCanPing || !botCanPing) {
+        return interaction.reply({
+          content: '❌ La mention @everyone nécessite la permission « Mentionner @everyone » pour vous et pour le bot.',
+          ephemeral: true,
+        });
+      }
+    }
+
+    const duration = interaction.options.getString('duree') || 'unlimited';
+    const durationMs = { '1h': 60 * 60 * 1000, '24h': 24 * 60 * 60 * 1000, '3d': 3 * 24 * 60 * 60 * 1000, '7d': 7 * 24 * 60 * 60 * 1000 };
+    const endsAt = durationMs[duration] ? Date.now() + durationMs[duration] : null;
+    const allowMultiple = interaction.options.getBoolean('choix_multiple') || false;
+    const anonymous = interaction.options.getBoolean('anonyme') || false;
+    const imageName = image ? `sondage-${Date.now()}-${String(image.name || 'image').replace(/[^a-zA-Z0-9._-]/g, '_')}` : null;
+
+    try {
+      await interaction.deferReply();
+      const temporaryPoll = {
+        kind: 'classic',
+        question,
+        options: answers.map((text, id) => ({ id, text, voters: [] })),
+        allowMultiple,
+        anonymous,
+        endsAt,
+        imageName,
+        closed: false,
+      };
+      const message = await interaction.editReply({
+        content: requestedPing ? '@everyone' : undefined,
+        allowedMentions: { parse: requestedPing ? ['everyone'] : [] },
+        embeds: [pollManager.buildClassicEmbed(temporaryPoll)],
+        files: image ? [{ attachment: image.url, name: imageName }] : [],
+      });
+
+      const poll = await pollManager.createClassicPoll({
+        messageId: message.id,
+        channelId: interaction.channelId,
+        question,
+        options: answers,
+        createdBy: interaction.user.id,
+        allowMultiple,
+        anonymous,
+        endsAt,
+        imageName,
+      });
+      await message.edit({
+        embeds: [pollManager.buildClassicEmbed(poll)],
+        components: pollManager.buildClassicComponents(poll),
+      });
+      pollManager.scheduleClassicPollClose(client, poll);
+    } catch (err) {
+      console.error('[Poll] Erreur création sondage classique:', err);
+      const errorMessage = '❌ Erreur lors de la création du sondage.';
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply({ content: errorMessage, embeds: [], components: [], attachments: [] }).catch(() => {});
+      } else {
+        await interaction.reply({ content: errorMessage, ephemeral: true }).catch(() => {});
+      }
+    }
+    return;
+  }
+
   // ── /sondage ──
   if (interaction.isChatInputCommand() && interaction.commandName === 'sondage_autonome') {
     if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
@@ -5678,6 +5776,39 @@ client.on('interactionCreate', async interaction => {
   // ── Boutons poll ──
   if (interaction.isButton()) {
     const id = interaction.customId;
+
+    if (id.startsWith('classic_poll_vote_')) {
+      const encoded = id.slice('classic_poll_vote_'.length);
+      const separator = encoded.lastIndexOf('_');
+      const messageId = encoded.slice(0, separator);
+      const optionIdx = Number.parseInt(encoded.slice(separator + 1), 10);
+      const displayName = interaction.member?.displayName || interaction.user.globalName || interaction.user.username;
+      try {
+        await interaction.deferUpdate();
+        const { poll, voted } = await pollManager.toggleClassicVote(messageId, optionIdx, {
+          id: interaction.user.id,
+          name: displayName,
+        }, async updatedPoll => {
+          await interaction.editReply({
+            embeds: [pollManager.buildClassicEmbed(updatedPoll)],
+            components: pollManager.buildClassicComponents(updatedPoll),
+          });
+        });
+        await interaction.followUp({
+          content: voted ? '✅ Vote enregistré.' : '↩️ Vote retiré.',
+          ephemeral: true,
+        });
+      } catch (err) {
+        try {
+          if (interaction.deferred || interaction.replied) {
+            await interaction.followUp({ content: `❌ ${err.message}`, ephemeral: true });
+          } else {
+            await interaction.reply({ content: `❌ ${err.message}`, ephemeral: true });
+          }
+        } catch {}
+      }
+      return;
+    }
 
     // Voter pour une option
     if (id.startsWith('poll_vote_')) {

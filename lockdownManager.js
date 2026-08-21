@@ -32,7 +32,7 @@ const RESTRICTED_COMMANDS = new Set([
   'reclamation-panel', 'event-panel', 'blindtest',
   'roulette', 'dino-roulette', 'aide-admin',
   'migrer-ub', 'casino-debloquer', 'amende',
-  'sondage_autonome', 'pari-créer', 'pari-résoudre', 'pari-fermer',
+  'sondage', 'sondage_autonome', 'pari-créer', 'pari-résoudre', 'pari-fermer',
 ]);
 
 // ── État en mémoire ───────────────────────────────────────────────────────────

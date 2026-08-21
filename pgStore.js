@@ -250,6 +250,28 @@ async function setData(key, value) {
   }
 }
 
+async function appendUniqueToArray(key, item) {
+  if (!usePostgres) return false;
+  try {
+    const result = await pool.query(
+      `INSERT INTO app_data (key, value, updated_at)
+       VALUES ($1, jsonb_build_array($2::text), NOW())
+       ON CONFLICT (key) DO UPDATE SET
+         value = CASE
+           WHEN app_data.value @> jsonb_build_array($2::text) THEN app_data.value
+           ELSE app_data.value || jsonb_build_array($2::text)
+         END,
+         updated_at = NOW()
+       RETURNING value`,
+      [key, String(item)]
+    );
+    return result.rows[0]?.value || [];
+  } catch (err) {
+    console.error(`❌ Erreur ajout liste ${key}:`, err.message);
+    return false;
+  }
+}
+
 // ── Shop Orders ───────────────────────────────────────────────────────────────
 
 async function saveShopOrder(orderData) {
@@ -651,7 +673,7 @@ function getPool() {
 }
 
 module.exports = {
-  initPool, initTables, getData, setData, isPostgres, getPool,
+  initPool, initTables, getData, setData, appendUniqueToArray, isPostgres, getPool,
   saveSpawnTicket, loadAllOpenSpawnTickets, deleteSpawnTicket,
   saveShopOrder, loadAllOpenShopOrders, deleteShopOrder,
   archiveShopOrder, loadShopHistory, countShopHistory, loadShopOrderById, saveShopMessages,
