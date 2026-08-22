@@ -20,7 +20,6 @@ const ADMIN_ROLE_ID    = '1157044417526509578'; // rôle admin à ping
 
 // ── Liste complète des commandes restreintes (admin / staff / modo) ───────────
 const RESTRICTED_COMMANDS = new Set([
-  'restart-programmer',
   'inventaire-ajouter', 'inventaire-retirer', 'inventaire-transferer',
   'inventaire-admin', 'inventaire-distribuer-item', 'attribuer-pack',
   'creer-giveway', 'giveway-participants', 'giveaway-forcer-resultat',
@@ -28,7 +27,7 @@ const RESTRICTED_COMMANDS = new Set([
   'votes', 'annuler-votes-mois', 'publish-votes', 'test-votes',
   'distribution_recompenses', 'vote-rapport', 'pay-votes', 'set-choices',
   'xp-donner', 'xp-retirer', 'xp-forcer-niveau',
-  'serveur-panel', 'spawn-panel', 'ticket-shop-panel',
+  'spawn-panel', 'ticket-shop-panel',
   'reclamation-panel', 'event-panel', 'blindtest',
   'roulette', 'dino-roulette', 'aide-admin',
   'migrer-ub', 'casino-debloquer', 'amende',

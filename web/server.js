@@ -89,7 +89,7 @@ function createWebServer(discordClient) {
   });
 
   function isApiRequest(req) {
-    return req.path.startsWith('/api/') || req.path.startsWith('/nitrado/api/') || req.headers['content-type'] === 'application/json' || req.xhr;
+    return req.path.startsWith('/api/') || req.headers['content-type'] === 'application/json' || req.xhr;
   }
 
   // ── Génération de session (déconnexion forcée globale) ────────────────────
@@ -403,12 +403,11 @@ function createWebServer(discordClient) {
   app.get('/', requireAuth, async (req, res) => {
     const { getVotesConfig } = require('../votesConfig');
     const { fetchTopserveursRanking } = require('../topserveursService');
-    const { fetchNitradoServers } = require('../nitradoService');
     const votesConfig = getVotesConfig();
 
     const memberCount = discordClient?.guilds?.cache?.reduce((acc, g) => acc + g.memberCount, 0) || 0;
 
-    const [top5Result, nitradoResult] = await Promise.allSettled([
+    const [top5Result] = await Promise.allSettled([
       (async () => {
         const baseUrl = (votesConfig.TOPSERVEURS_RANKING_URL || 'https://api.top-serveurs.net/v1/servers/4ROMAU33GJTY/players-ranking')
           .replace('?type=lastMonth', '').replace('&type=lastMonth', '')
@@ -417,11 +416,9 @@ function createWebServer(discordClient) {
         const all = await fetchTopserveursRanking(currentUrl);
         return all.slice(0, 5);
       })(),
-      fetchNitradoServers(),
     ]);
 
     const top5 = top5Result.status === 'fulfilled' ? top5Result.value : [];
-    const nitradoServers = nitradoResult.status === 'fulfilled' ? nitradoResult.value : [];
 
     // Stats welcome (arrivées/départs mois courant)
     let welcomeStats = { joins: 0, leaves: 0, net: 0, month: '' };
@@ -436,7 +433,6 @@ function createWebServer(discordClient) {
       memberCount,
       uptime: process.uptime(),
       top5,
-      nitradoServers,
       welcomeStats,
     });
   });
@@ -456,16 +452,6 @@ function createWebServer(discordClient) {
       res.json({ ok: true, top5: all.slice(0, 5), updatedAt: Date.now() });
     } catch (err) {
       res.json({ ok: false, top5: [], updatedAt: Date.now() });
-    }
-  });
-
-  app.get('/api/nitrado', requireAuth, async (req, res) => {
-    const { fetchNitradoServers } = require('../nitradoService');
-    try {
-      const servers = await fetchNitradoServers();
-      res.json({ ok: true, servers, updatedAt: Date.now() });
-    } catch (err) {
-      res.json({ ok: false, servers: [], updatedAt: Date.now() });
     }
   });
 
@@ -3051,18 +3037,6 @@ function createWebServer(discordClient) {
     res.render('access-log', {
       logs: logs.slice().reverse(), // plus récent en premier
       path: '/admin/access-log',
-      role: req.session.role,
-      botUser: req.session.botUser || null,
-      discordUser: req.session.discordUser || null,
-    });
-  });
-
-  // ── Historique des redémarrages ───────────────────────────────────────────
-  app.get('/nitrado/restart-history', requireAdmin, async (req, res) => {
-    const logs = await getRestartLogs(300);
-    res.render('restart-history', {
-      logs,
-      path: '/nitrado/restart-history',
       role: req.session.role,
       botUser: req.session.botUser || null,
       discordUser: req.session.discordUser || null,

@@ -41,14 +41,11 @@ const { handleShopTicketCommand, handleShopTicketInteraction, publishShopTicketP
 const { handleSpawnTicketCommand, handleSpawnTicketInteraction, initSpawnTickets, getOpenSpawnTicketByUserId } = require('./spawnTicketCommand');
 const { publishEventPanel, handleEventTicketInteraction } = require('./eventTicketCommand');
 const { handleReclaimCommand, handleReclaimTicketInteraction, initReclaimTickets, handleReclaimRecapCommand } = require('./reclaimTicketCommand');
-const restartScheduler = require('./nitradoRestartScheduler');
-const { logRestart }   = require('./restartLogger');
 const { logCommand }   = require('./commandLogger');
 const lockdown         = require('./lockdownManager');
 const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
 const { registerCasinoHandlers } = require('./casino/casinoHandler');
 const boosterReproManager = require('./boosterReproManager');
-const { handleServerPanelCommand, handleServerPanelInteraction } = require('./serverPanelCommand');
 const { handleBlindTestCommand } = require('./blindTestCommand');
 const blindTestManager = require('./blindTestManager');
 const birthdayManager    = require('./birthdayManager');
@@ -1293,21 +1290,6 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  // ── Server Panel (boutons srvp_) ──────────────────────────────────────────
-  if (interaction.isButton() && interaction.customId.startsWith('srvp_')) {
-    try {
-      await handleServerPanelInteraction(interaction);
-    } catch (err) {
-      console.error('[ServerPanel] Erreur interaction:', err);
-      try {
-        const reply = { content: '❌ Une erreur est survenue dans le panneau serveurs.', ephemeral: true };
-        if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
-        else await interaction.reply(reply);
-      } catch (e) {}
-    }
-    return;
-  }
-
   // ── Giveaway: soumission modal création ──
   if (interaction.isModalSubmit() && interaction.customId.startsWith('giveway_create_modal_')) {
     const raw = interaction.customId.replace('giveway_create_modal_', '');
@@ -2323,20 +2305,6 @@ client.on('interactionCreate', async interaction => {
       console.error('[ReclaimTicket] Erreur commande /reclamation-panel:', err);
       try {
         const reply = { content: '❌ Impossible de publier le panneau réclamation. Réessaie.', ephemeral: true };
-        if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
-        else await interaction.reply(reply);
-      } catch (e) {}
-    }
-    return;
-  }
-
-  if (commandName === 'serveur-panel') {
-    try {
-      await handleServerPanelCommand(interaction);
-    } catch (err) {
-      console.error('[ServerPanel] Erreur commande /serveur-panel:', err);
-      try {
-        const reply = { content: '❌ Impossible de publier le panneau serveurs. Réessaie.', ephemeral: true };
         if (interaction.replied || interaction.deferred) await interaction.followUp(reply);
         else await interaction.reply(reply);
       } catch (e) {}
@@ -3719,12 +3687,6 @@ client.on('interactionCreate', async interaction => {
       '    **/xp-forcer-niveau** : Force un niveau SANS distribuer les récompenses (migration).',
       '    **/xp-retirer** : Retire de l\'XP à un joueur.',
       '',
-      '__🔄 Serveurs ARK SA (Nitrado)__',
-      '    **/restart-programmer voir** : Liste tous les plannings de redémarrage automatique.',
-      '    **/restart-programmer créer** : Programme un redémarrage quotidien (avec alertes in-game).',
-      '    **/restart-programmer toggle** : Activer ou désactiver un planning.',
-      '    **/restart-programmer supprimer** : Supprimer un planning.',
-      '    **/restart-programmer lancer** : Déclencher immédiatement un redémarrage (SaveWorld + restart).',
     ];
 
     const embed = new EmbedBuilder()
@@ -3734,7 +3696,7 @@ client.on('interactionCreate', async interaction => {
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
-  // ── /restart-programmer ───────────────────────────────────────────────────
+  /* Legacy Nitrado restart command removed from the Discord command registry.
   if (commandName === 'restart-programmer') {
     if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
       return interaction.reply({ content: '❌ Commande réservée aux administrateurs.', ephemeral: true });
@@ -3870,6 +3832,7 @@ client.on('interactionCreate', async interaction => {
 
     return interaction.editReply({ content: '❌ Sous-commande inconnue.' });
   }
+  */
 
   if (commandName === 'classement') {
     await interaction.deferReply();

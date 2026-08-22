@@ -143,14 +143,8 @@ const DEFAULTS = {
     blockResurrectionIfInsufficient: false,
   },
   aliases: {},
-  nitradoFtp: {},
-  // nitradoFtp est un objet keyed par serviceId : { [serviceId]: { host, port, user, password, secure } }
   amende: {
     allowedRoleIds: ['1157044417526509578'],
-  },
-  serverPanel: {
-    adminRoleIds: ['1157044417526509578'],  // rôle Admin Discord
-    // maps : lues depuis boosterRepro.maps (pas de config dupliquée)
   },
   boosterRepro: {
     enabled: false,
