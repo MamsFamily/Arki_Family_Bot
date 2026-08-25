@@ -23,94 +23,6 @@ import path from "path";
 import fs from "fs";
 
 const TZ = "Europe/Paris";
-const SETTLEMENT_CLOSURE_ID = "arki-summer-day14";
-
-/**
- * Envoie le snapshot final des Soleils à Arki Family.
- *
- * Configuration du bot d'été :
- * - SUMMER_EVENT_SETTLEMENT_URL : URL complète de /api/summer-event/settle
- * - SUMMER_EVENT_SETTLEMENT_API_KEY : clé API d'inventaire, dans les secrets
- *
- * L'envoi est volontairement effectué avant le flag de clôture Discord :
- * une erreur réseau ou une conversion partielle pourra ainsi être retentée
- * par le prochain appel de clôture.
- */
-async function settleFinalWallets(): Promise<boolean> {
-  const url = process.env.SUMMER_EVENT_SETTLEMENT_URL?.trim();
-  const apiKey = process.env.SUMMER_EVENT_SETTLEMENT_API_KEY?.trim();
-
-  if (!url || !apiKey) {
-    logger.error(
-      "[Completion] Règlement impossible : SUMMER_EVENT_SETTLEMENT_URL ou SUMMER_EVENT_SETTLEMENT_API_KEY manque"
-    );
-    return false;
-  }
-
-  const wallets = await db.query<{ user_id: string; balance: number }>(
-    "SELECT user_id, balance FROM wallets ORDER BY user_id"
-  );
-
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        closureId: SETTLEMENT_CLOSURE_ID,
-        wallets: wallets.map(({ user_id, balance }) => ({
-          user_id,
-          balance,
-        })),
-      }),
-    });
-
-    const rawBody = await response.text();
-    let body: {
-      success?: boolean;
-      credited?: unknown[];
-      skipped?: unknown[];
-      unknownUsers?: unknown[];
-      errors?: unknown[];
-      duplicate?: boolean;
-      error?: string;
-    };
-    try {
-      body = JSON.parse(rawBody);
-    } catch {
-      body = { error: rawBody.slice(0, 500) };
-    }
-
-    if (!response.ok || body.success !== true) {
-      logger.error(
-        {
-          status: response.status,
-          error: body.error,
-          unknownUsers: body.unknownUsers?.length ?? 0,
-          errors: body.errors?.length ?? 0,
-        },
-        "[Completion] Échec du règlement des Soleils"
-      );
-      return false;
-    }
-
-    logger.info(
-      {
-        closureId: SETTLEMENT_CLOSURE_ID,
-        credited: body.credited?.length ?? 0,
-        skipped: body.skipped?.length ?? 0,
-        duplicate: body.duplicate === true,
-      },
-      "[Completion] Conversion des Soleils terminée"
-    );
-    return true;
-  } catch (err) {
-    logger.error({ err }, "[Completion] API de règlement inaccessible");
-    return false;
-  }
-}
 
 /**
  * Texte de clôture affiché quand la construction du jour est terminée.
@@ -227,8 +139,8 @@ export const JOURNALS: Record<number, string> = {
 
 /**
  * Publie la clôture globale d'Arki' Summer une fois la dernière construction
- * terminée. Le flag est écrit uniquement après le règlement des Soleils et
- * l'envoi Discord afin qu'un tick ultérieur puisse rattraper un échec.
+ * terminée. Le flag est écrit uniquement après un envoi Discord réussi afin
+ * qu'un tick ultérieur puisse rattraper un échec réseau ou un redémarrage.
  */
 export async function announceFinalEventClosure(client: Client): Promise<boolean> {
   const finalDay = await db.queryOne<{ status: string; title: string }>(
@@ -279,9 +191,6 @@ export async function announceFinalEventClosure(client: Client): Promise<boolean
   );
 
   try {
-    const settlementOk = await settleFinalWallets();
-    if (!settlementOk) return false;
-
     const channel = await client.channels.fetch(channelId);
     if (!channel || !channel.isSendable()) return false;
     await channel.send({ embeds: [embed], components: [historyRow] });

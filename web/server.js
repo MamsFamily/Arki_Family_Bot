@@ -38,7 +38,6 @@ const pgStore = require('../pgStore');
 const birthdayManager     = require('../birthdayManager');
 const infinityRoadManager = require('../infinityRoadManager');
 const adminQuizManager    = require('../adminQuizManager');
-const { settleSummerEvent } = require('../summerEventSettlement');
 
 function createWebServer(discordClient) {
   const app = express();
@@ -223,38 +222,6 @@ function createWebServer(discordClient) {
       return res.status(500).json({ error: err.message });
     }
   });
-
-  // ─── Clôture Arki' Summer ─────────────────────────────────────────────────
-  // Reçoit le snapshot final de wallets du bot d'été et convertit les Soleils
-  // en diamants dans l'inventaire Arki Family, une seule fois par closureId.
-  app.post('/api/summer-event/settle', async (req, res) => {
-    if (!validateApiKey(req)) {
-      return res.status(401).json({ error: 'Clé API invalide ou manquante' });
-    }
-
-    const { closureId, wallets } = req.body || {};
-    if (!closureId || !Array.isArray(wallets)) {
-      return res.status(400).json({ error: 'Champs requis : closureId, wallets' });
-    }
-
-    let memberResolver = null;
-    if (discordClient) {
-      memberResolver = async (userId) => {
-        const guild = discordClient.guilds.cache.first();
-        if (!guild) return null;
-        return guild.members.fetch(userId).catch(() => null);
-      };
-    }
-
-    try {
-      const report = await settleSummerEvent({ closureId, wallets, memberResolver });
-      return res.json({ success: true, ...report });
-    } catch (err) {
-      console.error('[SummerEvent] Échec de la conversion finale:', err.message);
-      return res.status(400).json({ success: false, error: err.message });
-    }
-  });
-  // ────────────────────────────────────────────────────────────────────────────
 
   function getBaseUrl(req) {
     const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
