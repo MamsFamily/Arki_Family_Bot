@@ -3696,8 +3696,7 @@ client.on('interactionCreate', async interaction => {
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
-  /* Legacy Nitrado restart command removed from the Discord command registry.
-  if (commandName === 'restart-programmer') {
+  if (false && commandName === 'restart-programmer') {
     if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
       return interaction.reply({ content: '❌ Commande réservée aux administrateurs.', ephemeral: true });
     }
@@ -3794,7 +3793,7 @@ client.on('interactionCreate', async interaction => {
     if (sub === 'lancer') {
       return interaction.editReply({ content: '🔒 Les redémarrages via Discord sont temporairement désactivés. Utilise le dashboard Nitrado.' });
 
-      /* eslint-disable no-unreachable */
+      // eslint-disable no-unreachable
       const id = interaction.options.getString('id');
       const list = await restartScheduler.getAll();
       const sched = list.find(s => s.id === id);
@@ -3832,7 +3831,6 @@ client.on('interactionCreate', async interaction => {
 
     return interaction.editReply({ content: '❌ Sous-commande inconnue.' });
   }
-  */
 
   if (commandName === 'classement') {
     await interaction.deferReply();
