@@ -141,7 +141,12 @@ async function settleSummerEvent({ closureId, wallets, memberResolver = null }) 
     }
 
     report.success = report.errors.length === 0 && report.unknownUsers.length === 0;
-    await saveSettlements(settlementsWithResult(settlements, normalizedClosureId, report));
+    // Une clôture partielle reste rejouable : les crédits déjà effectués sont
+    // détectés par leur raison idempotente et les membres introuvables pourront
+    // être repris lors d'un nouvel envoi du même snapshot.
+    if (report.success) {
+      await saveSettlements(settlementsWithResult(settlements, normalizedClosureId, report));
+    }
     return report;
   });
 }
