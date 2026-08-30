@@ -487,50 +487,94 @@ async function handleCheck(interaction, ticketId, step) {
   await interaction.deferUpdate();
 }
 
-// ── Envoyer le mot de passe in-game en MP ────────────────────────────────────
+// ── Envoyer le mot de passe in-game en MP + dans le ticket ───────────────────
 async function handleSendPassword(interaction, ticketId) {
   if (!isStaff(interaction)) return interaction.reply(STAFF_ONLY_REPLY);
+
+  // Accuser réception immédiatement : la récupération du membre et l'envoi
+  // d'un MP peuvent dépasser le délai de réponse d'une interaction Discord.
+  await interaction.deferReply({ ephemeral: true });
+
   const data = await getOrReloadSpawnTicket(ticketId);
-  if (!data) return interaction.reply({ content: '❌ Ce ticket est introuvable. Il a peut-être déjà été finalisé ou supprimé.', ephemeral: true });
+  if (!data) return interaction.editReply({ content: '❌ Ce ticket est introuvable. Il a peut-être déjà été finalisé ou supprimé.' });
 
   const settings = getSpawnSettings();
   const password = settings.mapPassword || '';
 
   if (!password) {
-    return interaction.reply({
+    return interaction.editReply({
       content: '⚠️ Aucun mot de passe configuré. Va dans le Dashboard → Tickets → Spawn Joueur pour l\'ajouter.',
-      ephemeral: true,
     });
   }
 
+  const passwordEmbed = new EmbedBuilder()
+    .setColor(0x2ecc71)
+    .setTitle('🔑 Mot de passe in-game — Arki\' Family')
+    .setDescription(
+      `Voici le mot de passe pour accéder aux maps :\n\n` +
+      `## \`${password}\`\n` +
+      `-# *Tout en MAJUSCULE, sauf le « i » en minuscule*\n\n` +
+      `*Ne partage ce mot de passe avec personne.*`
+    )
+    .setFooter({ text: 'Arki\' Family' });
+
+  let dmSent = false;
+  let dmError = null;
   try {
     const member = await interaction.guild.members.fetch(data.userId);
-    await member.send({
+    await member.send({ embeds: [passwordEmbed] });
+    dmSent = true;
+  } catch (err) {
+    dmError = err;
+    console.warn('[SpawnTicket] MP du mot de passe impossible, envoi dans le ticket maintenu:', err.message);
+  }
+
+  // Le mot de passe est aussi publié dans le ticket afin que l'admission
+  // puisse continuer même si le joueur bloque les messages privés.
+  try {
+    await interaction.channel.send({
+      content: `<@${data.userId}>`,
       embeds: [new EmbedBuilder()
-        .setColor(0x2ecc71)
-        .setTitle('🔑 Mot de passe in-game — Arki\' Family')
+        .setColor(dmSent ? 0x2ecc71 : 0xe67e22)
+        .setTitle(dmSent
+          ? '🔑 Mot de passe in-game — envoyé en MP et rappelé ici'
+          : '⚠️ Mot de passe in-game — MP indisponible')
         .setDescription(
-          `Voici le mot de passe pour accéder aux maps :\n\n` +
+          `${dmSent
+            ? 'Le mot de passe a été envoyé en message privé. Voici également un rappel dans ce ticket :'
+            : 'Le message privé n’a pas pu être envoyé. Voici le mot de passe dans ce ticket :'}\n\n` +
           `## \`${password}\`\n` +
           `-# *Tout en MAJUSCULE, sauf le « i » en minuscule*\n\n` +
           `*Ne partage ce mot de passe avec personne.*`
         )
-        .setFooter({ text: 'Arki\' Family' })
+        .setFooter({ text: 'Arki\' Family · Message réservé au joueur et au staff' })
       ],
     });
 
-    await interaction.channel.send({
-      embeds: [new EmbedBuilder()
-        .setColor(0x2ecc71)
-        .setDescription(`🔑 Le mot de passe in-game a été envoyé en message privé à <@${data.userId}>.`)
-      ],
-    });
+    // Le bouton constitue lui-même l'envoi du mot de passe : cocher
+    // automatiquement la checklist évite une étape oubliée, y compris pour
+    // les tickets rechargés depuis PostgreSQL.
+    data.checks = { voc: false, enreg: false, password: false, ...(data.checks || {}), password: true };
+    await pgStore.saveSpawnTicket(data);
 
-    await interaction.reply({ content: '✅ Mot de passe envoyé en MP.', ephemeral: true });
+    try {
+      const checklistMsg = await interaction.channel.messages.fetch(data.checklistMessageId);
+      await checklistMsg.edit({
+        embeds: [buildChecklistEmbed(data)],
+        components: buildChecklistComponents(data),
+      });
+    } catch (err) {
+      console.error('[SpawnTicket] Erreur mise à jour checklist après envoi du mot de passe:', err.message);
+    }
+
+    await interaction.editReply({
+      content: dmSent
+        ? '✅ Mot de passe envoyé en MP et publié dans le ticket.'
+        : `⚠️ MP impossible, mais le mot de passe a été publié dans le ticket.\n\`${dmError?.message || 'raison inconnue'}\``,
+    });
   } catch (err) {
-    await interaction.reply({
-      content: `❌ Impossible d'envoyer le MP — le joueur a peut-être désactivé ses MPs.\n\`${err.message}\``,
-      ephemeral: true,
+    await interaction.editReply({
+      content: `❌ Impossible de publier le mot de passe dans le ticket.\n\`${err.message}\``,
     });
   }
 }
