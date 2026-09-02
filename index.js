@@ -32,6 +32,7 @@ const { initSettings, getSettings } = require('./settingsManager');
 const { initDinos, refreshDinoCache } = require('./dinoManager');
 const { initShop } = require('./shopManager');
 const { initInventory, getItemTypes, getItemTypeById, getPlayerInventory, getAllInventories, addToInventory, removeFromInventory, resetPlayerInventory, getTransactions, getPlayerTransactions, getCategories, refreshInventoryCache } = require('./inventoryManager');
+const restartScheduler = require('./nitradoRestartScheduler');
 const giveawayManager = require('./giveawayManager');
 const { initSpecialPacks, getSpecialPacks, getSpecialPack } = require('./specialPacksManager');
 const economyManager = require('./economyManager');
