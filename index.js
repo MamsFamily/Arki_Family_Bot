@@ -392,23 +392,36 @@ function buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus
   return msg;
 }
 
+function getPreviousVotePeriod() {
+  const parts = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris',
+    year: 'numeric',
+    month: 'numeric',
+  }).formatToParts(new Date());
+  const currentMonth = parseInt(parts.find(p => p.type === 'month').value, 10);
+  const currentYear = parseInt(parts.find(p => p.type === 'year').value, 10);
+  const month = currentMonth === 1 ? 12 : currentMonth - 1;
+  const year = currentMonth === 1 ? currentYear - 1 : currentYear;
+  return {
+    year,
+    month,
+    monthIndex: month - 1,
+    key: `${year}-${String(month).padStart(2, '0')}`,
+  };
+}
+
+let autoVotePublicationRunning = false;
+
 async function autoPublishVotes() {
-  // Marquer immédiatement pour couper la boucle de rattrapage même en cas de crash
-  try {
-    const nowForKey = new Date();
-    const pmForKey = parseInt(new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', month: 'numeric' }).format(nowForKey), 10);
-    const pyForKey  = parseInt(new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', year:  'numeric' }).format(nowForKey), 10);
-    const prevMonForKey = pmForKey === 1 ? 12 : pmForKey - 1;
-    const prevYrForKey  = pmForKey === 1 ? pyForKey - 1 : pyForKey;
-    const earlyKey = `${prevYrForKey}-${String(prevMonForKey).padStart(2, '0')}`;
-    await pgStore.setData('vote_last_publish', earlyKey);
-    console.log(`🔒 [AUTO-VOTES] Clé rattrapage posée : ${earlyKey}`);
-  } catch (e) {
-    console.warn('[AUTO-VOTES] Impossible de poser la clé anti-rattrapage:', e.message);
+  if (autoVotePublicationRunning) {
+    console.log('⏳ [AUTO-VOTES] Une publication est déjà en cours, nouvelle tentative ignorée.');
+    return;
   }
+  autoVotePublicationRunning = true;
 
   try {
     const votesConfig = getVotesConfig();
+    const votePeriod = getPreviousVotePeriod();
     const guildId = votesConfig.GUILD_ID;
     if (!guildId) {
       console.error('❌ [AUTO-VOTES] GUILD_ID non configuré');
@@ -433,8 +446,7 @@ async function autoPublishVotes() {
 
     const memberIndex = await buildMemberIndex(guild);
 
-    const parisMonth = parseInt(new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', month: 'numeric' }).format(new Date()), 10);
-    const lastMonth = parisMonth === 1 ? 11 : parisMonth - 2;
+    const lastMonth = votePeriod.monthIndex;
     const monthName = monthNameFr(lastMonth);
 
     let adminChannel = null;
@@ -502,6 +514,9 @@ async function autoPublishVotes() {
       if (votesConfig.RESULTS_CHANNEL_ID) resultsChannel = await client.channels.fetch(votesConfig.RESULTS_CHANNEL_ID);
     } catch (e) {
       console.error('❌ [AUTO-VOTES] Salon de résultats introuvable:', votesConfig.RESULTS_CHANNEL_ID, e.message);
+    }
+    if (!resultsChannel || !resultsChannel.isSendable?.()) {
+      throw new Error(`Salon de résultats indisponible ou non accessible : ${votesConfig.RESULTS_CHANNEL_ID || '(non configuré)'}`);
     }
     if (resultsChannel) {
       const pingPrefix = votesConfig.STYLE.everyonePing ? '|| @everyone ||\n' : '';
@@ -595,13 +610,15 @@ async function autoPublishVotes() {
     }
 
     // Marquer la publication pour éviter les doublons (rattrapage au redémarrage)
-    const pubKey = `${new Date().getFullYear()}-${String(lastMonth + 1).padStart(2, '0')}`;
+    const pubKey = votePeriod.key;
     try { await pgStore.setData('vote_last_publish', pubKey); } catch {}
 
     console.log(`✅ [AUTO-VOTES] Résultats publiés automatiquement - ${distributionResults.success} récompensés, ${distributionResults.notFound.length} non trouvés`);
 
   } catch (error) {
     console.error('❌ [AUTO-VOTES] Erreur lors de la publication automatique:', error);
+  } finally {
+    autoVotePublicationRunning = false;
   }
 }
 
@@ -701,28 +718,16 @@ client.once('clientReady', async () => {
   console.log('⏰ Publication automatique des votes programmée : 1er de chaque mois à 00h00 (Europe/Paris)');
 
   // ─── Rattrapage au démarrage ─────────────────────────────────────────────
-  // Si le bot redémarre après minuit le 1er du mois et a raté le cron
+  // Un redémarrage peut arriver n'importe quel jour du mois. Si la période
+  // précédente n'est pas marquée comme publiée, on retente après le démarrage.
   try {
-    const nowParis = new Intl.DateTimeFormat('fr-FR', {
-      timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit'
-    }).formatToParts(new Date());
-    const dayParis  = parseInt(nowParis.find(p => p.type === 'day').value, 10);
-    const monParis  = parseInt(nowParis.find(p => p.type === 'month').value, 10);
-    const yearParis = parseInt(nowParis.find(p => p.type === 'year').value, 10);
-
-    if (dayParis === 1) {
-      // Mois précédent (le mois dont on publie les votes)
-      const prevMon  = monParis === 1 ? 12 : monParis - 1;
-      const prevYear = monParis === 1 ? yearParis - 1 : yearParis;
-      const expectedKey = `${prevYear}-${String(prevMon).padStart(2, '0')}`;
-
-      const lastPublish = await pgStore.getData('vote_last_publish', null);
-      if (lastPublish !== expectedKey) {
-        console.log(`⚡ [RATTRAPAGE] Cron manqué — publication des votes ${expectedKey} dans 30s...`);
-        setTimeout(() => autoPublishVotes(), 30 * 1000);
-      } else {
-        console.log(`✅ [RATTRAPAGE] Votes ${expectedKey} déjà publiés, aucun rattrapage nécessaire.`);
-      }
+    const expectedKey = getPreviousVotePeriod().key;
+    const lastPublish = await pgStore.getData('vote_last_publish', null);
+    if (lastPublish !== expectedKey) {
+      console.log(`⚡ [RATTRAPAGE] Publication des votes ${expectedKey} manquante — nouvelle tentative dans 30s...`);
+      setTimeout(() => autoPublishVotes(), 30 * 1000);
+    } else {
+      console.log(`✅ [RATTRAPAGE] Votes ${expectedKey} déjà publiés, aucun rattrapage nécessaire.`);
     }
   } catch (e) {
     console.warn('[RATTRAPAGE] Vérification échouée:', e.message);
