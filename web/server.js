@@ -294,6 +294,15 @@ function createWebServer(discordClient) {
       // Connexion directe sans OAuth Discord
       req.session.authenticated = true;
       req.session.role = 'admin';
+      // Les middlewares d'accès attendent une identité Discord même pour
+      // l'accès direct. Sans cette identité, la session était immédiatement
+      // considérée comme non authentifiée après la redirection.
+      req.session.discordUser = {
+        id: 'dashboard-direct-admin',
+        username: 'admin-direct',
+        displayName: 'Administrateur',
+        avatar: null,
+      };
       req.session.sessionGen = await getCurrentSessionGen();
       await logAccess({ ip, success: true, account: 'Lola6', reason: 'Connexion directe admin' });
       return res.redirect('/');
