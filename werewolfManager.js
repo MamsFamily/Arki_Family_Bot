@@ -542,7 +542,7 @@ async function resolveVote(client, guildId, channelId) {
     // Idiot du village — survit à l'élimination
     if (eliminated.roleId === 'idiot_village') {
       eliminated.alive = true;
-      game.assignments.find(a => a.userId === eliminated.userId).ackReceived = true;
+      eliminated.canVote = false;
       resultEmbed = new EmbedBuilder()
         .setColor(0xe67e22)
         .setTitle(`🃏 ${eliminated.displayName} était… l'Idiot du Village !`)
@@ -552,15 +552,7 @@ async function resolveVote(client, guildId, channelId) {
         ).setTimestamp();
     } else {
       // Élimination normale
-      eliminated.alive = false;
-      game.eliminated.push({
-        userId:      eliminated.userId,
-        displayName: eliminated.displayName,
-        roleId:      eliminated.roleId,
-        round:       game.round,
-        by:          'vote',
-        votes:       sorted[0][1],
-      });
+      const deaths = applyElimination(game, eliminated.userId, 'vote');
       const role = ROLES[eliminated.roleId];
       resultEmbed = new EmbedBuilder()
         .setColor(0xe74c3c)
@@ -599,6 +591,16 @@ async function resolveVote(client, guildId, channelId) {
   }
 
   await saveGame(game);
+  if (eliminated && eliminated.roleId !== 'idiot_village' && !eliminated.alive) {
+    const hunterIds = game.eliminated
+      .filter(entry => entry.round === game.round && entry.roleId === 'chasseur')
+      .map(entry => entry.userId);
+    if (hunterIds.length) {
+      game.pendingHunterIds = [...new Set([...(game.pendingHunterIds || []), ...hunterIds])];
+      await saveGame(game);
+      await sendPendingDeathActionDMs(client, game);
+    }
+  }
   return { eliminated, tally, victory: victoryCheck };
 }
 
@@ -609,7 +611,9 @@ function checkVictory(game) {
   const alive       = game.assignments.filter(a => a.alive);
   const aliveWolves = alive.filter(a => ROLES[a.roleId]?.team === 'wolves');
   const aliveVillagers = alive.filter(a => ROLES[a.roleId]?.team === 'village');
+  const flute = alive.find(a => a.roleId === 'joueur_flute');
 
+  if (flute && alive.filter(a => a.userId !== flute.userId).every(a => game.charmed?.includes(a.userId))) return 'flute';
   if (aliveWolves.length === 0) return 'village';
   if (aliveWolves.length >= aliveVillagers.length) return 'wolves';
   return null;
@@ -618,12 +622,15 @@ function checkVictory(game) {
 function buildVictoryEmbed(game, winner) {
   const { EmbedBuilder } = require('discord.js');
   const isVillage = winner === 'village';
+  const isFlute = winner === 'flute';
   const embed = new EmbedBuilder()
-    .setColor(isVillage ? 0x2ecc71 : 0xe74c3c)
-    .setTitle(isVillage ? '🎉 VICTOIRE DU VILLAGE !' : '🐺 VICTOIRE DES LOUPS-GAROUS !')
+    .setColor(isVillage ? 0x2ecc71 : isFlute ? 0x9b59b6 : 0xe74c3c)
+    .setTitle(isVillage ? '🎉 VICTOIRE DU VILLAGE !' : isFlute ? '🪈 VICTOIRE DU JOUEUR DE FLÛTE !' : '🐺 VICTOIRE DES LOUPS-GAROUS !')
     .setDescription(
       isVillage
         ? 'Tous les Loups-Garous ont été éliminés ! Le village peut dormir en paix. 🌅'
+        : isFlute
+          ? 'Tous les survivants ont été ensorcelés. Le Joueur de Flûte gagne seul !'
         : 'Les Loups-Garous ont pris le contrôle du village ! La nuit règne pour toujours. 🌑'
     )
     .addFields({
@@ -1057,37 +1064,17 @@ async function eliminatePlayer(userId, by = 'wolves') {
   if (!game) throw new Error('Aucune partie en cours');
   const a = game.assignments.find(x => x.userId === userId && x.alive);
   if (!a) throw new Error('Joueur introuvable ou déjà éliminé');
-  a.alive = false;
-  game.eliminated.push({
-    userId:      a.userId,
-    displayName: a.displayName,
-    roleId:      a.roleId,
-    round:       game.round,
-    by,
-    eliminatedAt: Date.now(),
-  });
-  // Amoureux — si un des deux meurt, l'autre aussi
-  if (game.lovers?.includes(userId)) {
-    const partnerId = game.lovers.find(id => id !== userId);
-    if (partnerId) {
-      const partner = game.assignments.find(x => x.userId === partnerId && x.alive);
-      if (partner) {
-        partner.alive = false;
-        game.eliminated.push({
-          userId:      partner.userId,
-          displayName: partner.displayName,
-          roleId:      partner.roleId,
-          round:       game.round,
-          by:          'lovers',
-          eliminatedAt: Date.now(),
-        });
-      }
-    }
-  }
+  const deaths = applyElimination(game, userId, by);
   const victory = checkVictory(game);
   if (victory) { game.phase = 'ENDED'; game.winner = victory; }
+  if (deaths.some(death => death.roleId === 'chasseur')) {
+    game.pendingHunterIds = [...new Set([
+      ...(game.pendingHunterIds || []),
+      ...deaths.filter(death => death.roleId === 'chasseur').map(death => death.userId),
+    ])];
+  }
   await saveGame(game);
-  return { eliminated: a, victory };
+  return { eliminated: a, deaths, victory };
 }
 
 module.exports = {
@@ -1097,7 +1084,7 @@ module.exports = {
   startGame, sendRoleDMs, handleAck,
   createWolfThread,
   createVotePoll, handleVote, updateVoteMessage, resolveVote,
-  sendNightActionDMs, handleNightAction,
+   sendNightActionDMs, handleNightAction, resolveNight,
   eliminatePlayer,
   checkVictory, buildVictoryEmbed,
 };
