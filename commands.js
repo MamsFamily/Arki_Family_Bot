@@ -197,6 +197,10 @@ const commands = [
     ],
   },
   {
+    name: 'loup-garou-roles',
+    description: '🐺 Publie les rôles actifs du Loup-Garou et leurs descriptions',
+  },
+  {
     name: 'creer-giveway',
     description: 'Crée et publie un giveaway dans le salon courant (Admin et Modo)',
     options: [

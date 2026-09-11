@@ -333,7 +333,7 @@ function buildActiveRoleEmbeds(roleConfig = {}, playerCount = 0) {
       `**Rôles susceptibles d’être utilisés pour cette partie.**\n` +
       `La composition s’adapte automatiquement au nombre de joueurs.\n\n` +
       `**Composition prévue pour ${playerCount || '—'} joueur(s) :**\n${automaticLines}\n\n` +
-      firstDescription,
+      `${firstDescription}`.slice(0, 4096),
     );
   }
   return embeds;

@@ -178,16 +178,19 @@
         <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
           <h2>🎭 Configuration des rôles</h2>
           <div style="display:flex;align-items:center;gap:10px;">
-            <span id="role-total-badge" style="font-size:13px;color:var(--text-muted);">Total : <strong id="role-total">0</strong> / <strong><%= players.length %></strong> joueurs</span>
+            <span id="role-total-badge" style="font-size:13px;color:var(--text-muted);"><strong id="role-total">0</strong> rôle(s) actif(s)</span>
             <button class="ctrl-btn btn-gray" onclick="resetRoles()" style="font-size:12px;padding:6px 14px;">✕ Réinitialiser</button>
           </div>
         </div>
         <div class="card-body">
           <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
-            Configure le nombre de chaque rôle. Le total doit être égal au nombre de joueurs (<strong><%= players.length %></strong>).
+             Active les rôles que tu veux autoriser pour cette partie. La composition et le nombre de Loups sont calculés automatiquement selon le nombre de joueurs présents.
           </p>
 
-          <% const teamOrder = ['village','wolves','solo'];
+           <% const savedEnabledRoles = Array.isArray(savedRoleConfig?.enabledRoles)
+                ? savedRoleConfig.enabledRoles
+                : Object.entries(savedRoleConfig || {}).filter(([, count]) => Number(count) > 0).map(([roleId]) => roleId);
+              const teamOrder = ['village','wolves','solo'];
              const teamTitles = { village:'🟢 Camp Village', wolves:'🔴 Camp Loups-Garous', solo:'🟣 Camp Solitaire' };
              teamOrder.forEach(team => {
                const teamRoles = Object.entries(ROLES).filter(([,r]) => r.team === team);
@@ -202,18 +205,25 @@
               </div>
               <div class="role-desc"><%= role.description %></div>
               <div class="role-qty">
-                <label>Nombre :</label>
-                <input type="number" class="role-count" data-role="<%= roleId %>" min="0" max="<%= role.maxCount %>"
-                  value="<%= savedRoleConfig[roleId] || 0 %>" oninput="updateRoleTotal()">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                  <input type="checkbox" class="role-enabled" data-role="<%= roleId %>"
+                    <%= savedEnabledRoles.includes(roleId) || role.required ? 'checked' : '' %>
+                    <%= role.required ? 'disabled' : '' %>>
+                  <span><%= role.required ? 'Toujours actif' : 'Actif pour le tirage' %></span>
+                </label>
+                <% if (role.required) { %><span style="font-size:11px;color:var(--text-muted);">Rôle de base</span><% } %>
               </div>
             </div>
             <% }); });%>
           </div>
 
-          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;">
+           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;">
             <button class="ctrl-btn btn-purple" onclick="saveRoleConfig()">💾 Sauvegarder la configuration</button>
             <span id="save-role-msg" style="font-size:13px;color:var(--text-muted);"></span>
           </div>
+           <div id="role-preview" style="margin-top:16px;padding:12px 14px;border-radius:10px;background:rgba(124,92,252,.08);border:1px solid rgba(124,92,252,.2);font-size:13px;color:var(--text-muted);">
+             La composition automatique apparaîtra ici.
+           </div>
         </div>
       </div>
     </div>
@@ -227,7 +237,7 @@
         <div class="card-body">
           <div class="counters-row">
             <div class="counter-box"><div class="cv"><%= players.length %></div><div class="cl">Joueurs</div></div>
-            <div class="counter-box"><div class="cv" id="ctrl-role-count">0</div><div class="cl">Rôles config.</div></div>
+            <div class="counter-box"><div class="cv" id="ctrl-role-count">0</div><div class="cl">Rôles actifs</div></div>
           </div>
           <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
             Configure les rôles dans l'onglet "Rôles" puis lance la partie. Le tirage au sort s'effectue automatiquement et les rôles sont envoyés par DM à chaque joueur.
@@ -577,27 +587,26 @@
   }
 
   // ── Role total counter ───────────────────────────────────────────────────
+  function getEnabledRoles() {
+    return [...document.querySelectorAll('.role-enabled:checked')].map(i => i.dataset.role);
+  }
   function updateRoleTotal() {
-    let total = 0;
-    document.querySelectorAll('.role-count').forEach(i => { total += parseInt(i.value, 10) || 0; });
+    const total = document.querySelectorAll('.role-enabled:checked').length;
     const el = document.getElementById('role-total');
     const ctrlEl = document.getElementById('ctrl-role-count');
-    if (el) { el.textContent = total; el.style.color = total === PLAYERS_COUNT ? '#66bb6a' : total > PLAYERS_COUNT ? '#ef5350' : '#fff'; }
+    if (el) { el.textContent = total; el.style.color = '#fff'; }
     if (ctrlEl) ctrlEl.textContent = total;
+    previewRoleConfig();
   }
   function resetRoles() {
-    document.querySelectorAll('.role-count').forEach(i => { i.value = 0; });
+    document.querySelectorAll('.role-enabled:not(:disabled)').forEach(i => { i.checked = false; });
     updateRoleTotal();
   }
   updateRoleTotal();
 
   // ── Save role config ─────────────────────────────────────────────────────
   async function saveRoleConfig() {
-    const config = {};
-    document.querySelectorAll('.role-count').forEach(i => {
-      const v = parseInt(i.value, 10) || 0;
-      if (v > 0) config[i.dataset.role] = v;
-    });
+    const config = { enabledRoles: getEnabledRoles() };
     const msg = document.getElementById('save-role-msg');
     msg.textContent = '⏳ Sauvegarde…';
     try {
@@ -606,6 +615,36 @@
       msg.textContent = d.ok ? '✅ Configuration sauvegardée !' : '❌ ' + d.error;
       msg.style.color = d.ok ? '#66bb6a' : '#ef5350';
     } catch { msg.textContent = '❌ Erreur réseau'; msg.style.color = '#ef5350'; }
+  }
+
+  async function previewRoleConfig() {
+    const box = document.getElementById('role-preview');
+    if (!box) return;
+    if (PLAYERS_COUNT < 4) {
+      box.innerHTML = '⚠️ Il faut au moins 4 joueurs pour lancer une partie.';
+      return;
+    }
+    try {
+      const r = await fetch('/werewolf/config/preview', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ playerCount: PLAYERS_COUNT, roleConfig: { enabledRoles: getEnabledRoles() } }),
+      });
+      const d = await r.json();
+      if (!d.ok) {
+        box.innerHTML = '⚠️ ' + d.error;
+        return;
+      }
+      const labels = Object.entries(d.composition).map(([roleId, count]) => {
+        const input = document.querySelector(`[data-role="${roleId}"]`);
+        const card = input?.closest('.role-card');
+        const label = card?.querySelector('.role-name')?.textContent?.trim() || roleId;
+        return `<span style="display:inline-block;margin:3px 6px 3px 0;padding:4px 8px;border-radius:14px;background:rgba(124,92,252,.15);color:#e5ddff;">${label} ×${count}</span>`;
+      }).join('');
+      box.innerHTML = `<strong style="color:#fff;">🎲 Composition automatique pour ${PLAYERS_COUNT} joueur(s)</strong><br><span style="display:block;margin-top:8px;">${labels}</span>`;
+    } catch {
+      box.innerHTML = '⚠️ Prévisualisation indisponible.';
+    }
   }
 
   // ── Start game ───────────────────────────────────────────────────────────

@@ -5753,10 +5753,29 @@ function createWebServer(discordClient) {
   app.post('/werewolf/config/roles', requireAdmin, async (req, res) => {
     try {
       const { roleConfig } = req.body;
-      if (!roleConfig || typeof roleConfig !== 'object') return res.json({ ok: false, error: 'Config invalide' });
-      await pgStore.setData('werewolf_role_config', roleConfig);
+      if (!roleConfig || typeof roleConfig !== 'object' || !Array.isArray(roleConfig.enabledRoles)) {
+        return res.json({ ok: false, error: 'Sélection de rôles invalide' });
+      }
+      const enabledRoles = werewolf.getEnabledRoleIds(roleConfig);
+      await pgStore.setData('werewolf_role_config', { enabledRoles });
       res.json({ ok: true });
     } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  // ── Prévisualisation de la composition automatique ─────────────────────────
+  app.post('/werewolf/config/preview', requireAdmin, async (req, res) => {
+    try {
+      const playerCount = parseInt(req.body.playerCount, 10);
+      const roleConfig = req.body.roleConfig || {};
+      const composition = werewolf.buildAutomaticRoleConfig(playerCount, roleConfig);
+      res.json({
+        ok: true,
+        composition,
+        enabledRoles: werewolf.getEnabledRoleIds(roleConfig),
+      });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
   });
 
   // ── Lancer la partie ───────────────────────────────────────────────────────

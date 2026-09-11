@@ -2129,6 +2129,35 @@ client.on('interactionCreate', async interaction => {
 
   const { commandName } = interaction;
 
+  if (commandName === 'loup-garou-roles') {
+    if (!hasRoulettePermission(interaction.member)) {
+      return interaction.reply({
+        content: '❌ Seuls les administrateurs et les Modos peuvent publier les rôles du Loup-Garou.',
+        ephemeral: true,
+      });
+    }
+
+    try {
+      const saved = await pgStore.getData('werewolf_role_config', {});
+      const players = await werewolf.getPlayers();
+      const embeds = werewolf.buildActiveRoleEmbeds(saved || {}, players.length);
+      if (!embeds.length) {
+        return interaction.reply({
+          content: '❌ Aucun rôle actif. Active au moins les rôles de base dans le dashboard.',
+          ephemeral: true,
+        });
+      }
+      await interaction.reply({
+        content: '🐺 **Rôles actifs pour le Loup-Garou** — la composition finale dépendra du nombre de joueurs présents.',
+        embeds,
+      });
+    } catch (e) {
+      console.error('[Werewolf] publication des rôles:', e);
+      await interaction.reply({ content: '❌ Impossible de publier les rôles : ' + e.message, ephemeral: true });
+    }
+    return;
+  }
+
   if (commandName === 'shop') {
     try {
       await handleShopCommand(interaction);
