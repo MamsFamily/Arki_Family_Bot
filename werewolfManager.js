@@ -14,6 +14,7 @@ const ROLES = {
   villageois: {
     name: 'Villageois', emoji: '🧑‍🌾', team: 'village', maxCount: 20,
     description: 'Simple villageois. Ton seul pouvoir est ton vote lors des débats. Travaille avec les autres pour démasquer les Loups-Garous.',
+    required: true,
     night: false,
   },
   voyante: {
@@ -80,6 +81,7 @@ const ROLES = {
   loup_garou: {
     name: 'Loup-Garou', emoji: '🐺', team: 'wolves', maxCount: 10,
     description: 'Chaque nuit, tu te réunis avec les autres Loups-Garous pour choisir une victime à dévorer. Le jour, tu te fondas dans la masse pour passer inaperçu. Élimine tous les Villageois.',
+    required: true,
     night: true, nightAction: 'devour',
   },
   grand_mechant_loup: {
