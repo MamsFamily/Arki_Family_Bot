@@ -5839,7 +5839,9 @@ function createWebServer(discordClient) {
         if (!nightResult.ok) return res.json(nightResult);
         game = await werewolf.getGame();
       }
-      game.phase = phase;
+      // resolveNight peut terminer la partie immédiatement après les morts de
+      // la nuit ; ne pas écraser cet état en repassant artificiellement à DAY.
+      if (game.phase !== 'ENDED') game.phase = phase;
       await werewolf.saveGame(game);
 
       // RCON — force l'heure in-game sur la Map Event
