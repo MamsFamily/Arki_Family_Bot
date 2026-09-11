@@ -6144,6 +6144,48 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
+  // ── Actions nocturnes privées ─────────────────────────────────────────────
+  const nightActions = [
+    ['ww_devour_', 'devour'],
+    ['ww_infect_', 'infect'],
+    ['ww_white_', 'white'],
+    ['ww_witch_kill_', 'witch_kill'],
+    ['ww_hunter_', 'hunter'],
+    ['ww_link1_', 'link1'],
+    ['ww_link2_', 'link2'],
+    ['ww_charm1_', 'charm1'],
+    ['ww_charm2_', 'charm2'],
+    ['ww_assassin_', 'assassin'],
+  ];
+  for (const [prefix, action] of nightActions) {
+    if (!id.startsWith(prefix)) continue;
+    const targetId = id.slice(prefix.length);
+    try {
+      await interaction.update({ components: [] });
+      const result = await werewolf.handleNightAction(client, action, interaction.user.id, targetId);
+      if (!result.ok) {
+        await interaction.followUp({ content: `❌ ${result.reason || 'Action invalide.'}`, ephemeral: true });
+      }
+    } catch (e) {
+      await interaction.followUp({ content: '❌ ' + e.message, ephemeral: true }).catch(() => {});
+    }
+    return;
+  }
+
+  if (id === 'ww_witch_save' || id === 'ww_witch_skip') {
+    try {
+      await interaction.update({ components: [] });
+      const action = id === 'ww_witch_save' ? 'witch_save' : 'witch_skip';
+      const result = await werewolf.handleNightAction(client, action, interaction.user.id, null);
+      if (!result.ok) {
+        await interaction.followUp({ content: `❌ ${result.reason || 'Action invalide.'}`, ephemeral: true });
+      }
+    } catch (e) {
+      await interaction.followUp({ content: '❌ ' + e.message, ephemeral: true }).catch(() => {});
+    }
+    return;
+  }
+
   // ── Action nocturne : Voyante ────────────────────────────────────────────
   if (id.startsWith('ww_see_')) {
     const targetId = id.replace('ww_see_', '');

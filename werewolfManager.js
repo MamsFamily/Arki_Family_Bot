@@ -488,6 +488,7 @@ async function handleVote(userId, targetId) {
   const voter  = game.assignments.find(a => a.userId === userId && a.alive);
   const target = game.assignments.find(a => a.userId === targetId && a.alive);
   if (!voter)  return { ok: false, reason: 'Tu n\'es pas un joueur vivant' };
+  if (voter.canVote === false) return { ok: false, reason: 'Tu as perdu ton droit de vote' };
   if (!target) return { ok: false, reason: 'Cible invalide ou éliminée' };
   if (userId === targetId) return { ok: false, reason: 'Tu ne peux pas voter pour toi-même' };
 
@@ -532,6 +533,7 @@ async function resolveVote(client, guildId, channelId) {
   const eliminated = sorted[0] ? game.assignments.find(a => a.userId === sorted[0][0]) : null;
 
   let resultEmbed;
+  let voteDeaths = [];
   if (!eliminated || sorted[0][1] === 0) {
     resultEmbed = new EmbedBuilder()
       .setColor(0x95a5a6)
@@ -552,7 +554,7 @@ async function resolveVote(client, guildId, channelId) {
         ).setTimestamp();
     } else {
       // Élimination normale
-      const deaths = applyElimination(game, eliminated.userId, 'vote');
+      voteDeaths = applyElimination(game, eliminated.userId, 'vote');
       const role = ROLES[eliminated.roleId];
       resultEmbed = new EmbedBuilder()
         .setColor(0xe74c3c)
@@ -591,10 +593,10 @@ async function resolveVote(client, guildId, channelId) {
   }
 
   await saveGame(game);
-  if (eliminated && eliminated.roleId !== 'idiot_village' && !eliminated.alive) {
-    const hunterIds = game.eliminated
-      .filter(entry => entry.round === game.round && entry.roleId === 'chasseur')
-      .map(entry => entry.userId);
+  if (voteDeaths.length) {
+    const hunterIds = voteDeaths
+      .filter(death => death.roleId === 'chasseur')
+      .map(death => death.userId);
     if (hunterIds.length) {
       game.pendingHunterIds = [...new Set([...(game.pendingHunterIds || []), ...hunterIds])];
       await saveGame(game);

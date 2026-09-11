@@ -5828,8 +5828,17 @@ function createWebServer(discordClient) {
     try {
       const { phase } = req.body;
       if (!['NIGHT', 'DAY', 'VOTE', 'LOBBY'].includes(phase)) return res.json({ ok: false, error: 'Phase invalide' });
-      const game = await werewolf.getGame();
+      let game = await werewolf.getGame();
       if (!game) return res.json({ ok: false, error: 'Aucune partie en cours' });
+
+      // La nuit doit être résolue avant d'ouvrir le jour : attaques, potions,
+      // amoureux, Ancien et Chasseur sont ainsi persistés dans le même passage.
+      if (phase === 'DAY' && game.phase === 'NIGHT') {
+        if (!discordClient) return res.json({ ok: false, error: 'Bot Discord non connecté : impossible de résoudre la nuit' });
+        const nightResult = await werewolf.resolveNight(discordClient, req.body.channelId || game.voteChannelId || game.wolfChannelId);
+        if (!nightResult.ok) return res.json(nightResult);
+        game = await werewolf.getGame();
+      }
       game.phase = phase;
       await werewolf.saveGame(game);
 
