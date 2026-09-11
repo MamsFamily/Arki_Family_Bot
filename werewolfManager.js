@@ -235,16 +235,120 @@ async function removePlayer(userId) {
   return players;
 }
 
+function getEnabledRoleIds(roleConfig = {}) {
+  let ids;
+  if (Array.isArray(roleConfig)) {
+    ids = roleConfig;
+  } else if (Array.isArray(roleConfig.enabledRoles)) {
+    ids = roleConfig.enabledRoles;
+  } else {
+    // Compatibilité avec l'ancien format { roleId: nombre }.
+    ids = Object.entries(roleConfig)
+      .filter(([, count]) => Number(count) > 0)
+      .map(([roleId]) => roleId);
+  }
+
+  const enabled = new Set(ids.filter(roleId => ROLES[roleId]));
+  Object.entries(ROLES)
+    .filter(([, role]) => role.required)
+    .forEach(([roleId]) => enabled.add(roleId));
+  return [...enabled];
+}
+
+function buildAutomaticRoleConfig(playerCount, roleConfig = {}) {
+  if (playerCount < 4) throw new Error('Il faut au moins 4 joueurs pour commencer');
+
+  const enabled = new Set(getEnabledRoleIds(roleConfig));
+  const hasWolfRole = ['loup_garou', 'grand_mechant_loup', 'loup_infect']
+    .some(roleId => enabled.has(roleId));
+  if (!hasWolfRole) throw new Error('Active au moins un rôle de Loup-Garou');
+
+  const config = {};
+  const add = (roleId, count = 1) => {
+    if (count > 0) config[roleId] = (config[roleId] || 0) + count;
+  };
+  const total = () => Object.values(config).reduce((sum, count) => sum + count, 0);
+
+  // Environ un tiers de Loups, avec toujours au moins un Loup.
+  const wolfCount = Math.max(1, Math.floor(playerCount / 3));
+  const specialWolf = ['grand_mechant_loup', 'loup_infect']
+    .find(roleId => enabled.has(roleId) && wolfCount >= 2);
+  if (specialWolf) add(specialWolf);
+  add('loup_garou', wolfCount - (specialWolf ? 1 : 0));
+
+  // Un seul rôle solitaire complexe par partie, uniquement quand la partie
+  // laisse assez de place aux camps principaux.
+  const soloRole = ['joueur_flute', 'loup_blanc', 'assassin', 'ange']
+    .find(roleId => enabled.has(roleId));
+  if (soloRole && playerCount >= 7) add(soloRole);
+
+  // Les rôles spéciaux actifs sont ajoutés dans un ordre stable. On conserve
+  // toujours une place pour au moins un Villageois simple.
+  const villageRoles = [
+    'voyante', 'sorciere', 'salvateur', 'cupidon', 'chasseur',
+    'corbeau', 'ancien', 'capitaine', 'idiot_village', 'petite_fille', 'servante',
+  ];
+  for (const roleId of villageRoles) {
+    if (!enabled.has(roleId) || total() >= playerCount - 1) continue;
+    add(roleId);
+  }
+
+  add('villageois', Math.max(1, playerCount - total()));
+  return config;
+}
+
+function buildActiveRoleEmbeds(roleConfig = {}, playerCount = 0) {
+  const { EmbedBuilder } = require('discord.js');
+  const enabledIds = getEnabledRoleIds(roleConfig);
+  const activeRoles = enabledIds.map(roleId => ({ roleId, role: ROLES[roleId] }));
+  const automaticConfig = playerCount >= 4
+    ? buildAutomaticRoleConfig(playerCount, roleConfig)
+    : null;
+  const automaticLines = automaticConfig
+    ? Object.entries(automaticConfig)
+      .map(([roleId, count]) => `${ROLES[roleId]?.emoji || ''} **${ROLES[roleId]?.name || roleId}** ×${count}`)
+      .join('\n')
+    : 'Ajoute au moins 4 joueurs pour afficher une composition automatique.';
+
+  const embeds = [];
+  for (const [team, title, color] of [
+    ['village', '🟢 Rôles du Village activés', 0x2ecc71],
+    ['wolves', '🔴 Rôles des Loups activés', 0xe74c3c],
+    ['solo', '🟣 Rôles solitaires activés', 0x9b59b6],
+  ]) {
+    const roles = activeRoles.filter(({ role }) => role.team === team);
+    if (!roles.length) continue;
+    const description = roles.map(({ role }) =>
+      `### ${role.emoji} ${role.name}\n${role.description}`,
+    ).join('\n\n');
+    embeds.push(new EmbedBuilder()
+      .setColor(color)
+      .setTitle(title)
+      .setDescription(description.slice(0, 4096)));
+  }
+
+  if (embeds.length) {
+    const firstDescription = embeds[0].data.description || '';
+    embeds[0].setDescription(
+      `**Rôles susceptibles d’être utilisés pour cette partie.**\n` +
+      `La composition s’adapte automatiquement au nombre de joueurs.\n\n` +
+      `**Composition prévue pour ${playerCount || '—'} joueur(s) :**\n${automaticLines}\n\n` +
+      firstDescription,
+    );
+  }
+  return embeds;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // DÉMARRAGE DE LA PARTIE — TIRAGE AU SORT
 // ─────────────────────────────────────────────────────────────────────────────
 async function startGame(roleConfig) {
   const players = await getPlayers();
-  if (players.length < 4) throw new Error('Il faut au moins 4 joueurs pour commencer');
+  const automaticConfig = buildAutomaticRoleConfig(players.length, roleConfig);
 
   // Construire le pool de rôles
   const pool = [];
-  for (const [roleId, count] of Object.entries(roleConfig)) {
+  for (const [roleId, count] of Object.entries(automaticConfig)) {
     if (!ROLES[roleId] || count <= 0) continue;
     for (let i = 0; i < count; i++) pool.push(roleId);
   }
@@ -274,6 +378,8 @@ async function startGame(roleConfig) {
     round:       0,
     startedAt:   Date.now(),
     assignments,
+    enabledRoles: getEnabledRoleIds(roleConfig),
+    roleConfig:   automaticConfig,
     votes:       {},        // { voterId: targetId }
     voteDeadline: null,     // timestamp fin du vote
     voteMessageId: null,
@@ -1085,6 +1191,7 @@ module.exports = {
   ROLES, TEAM_LABELS,
   getPlayers, savePlayers, addPlayer, removePlayer,
   getGame, saveGame,
+  getEnabledRoleIds, buildAutomaticRoleConfig, buildActiveRoleEmbeds,
   startGame, sendRoleDMs, handleAck,
   createWolfThread,
   createVotePoll, handleVote, updateVoteMessage, resolveVote,
