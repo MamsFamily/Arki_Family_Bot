@@ -638,63 +638,168 @@ function buildVictoryEmbed(game, winner) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ACTIONS NOCTURNES (VOYANTE, SORCIÈRE, SALVATEUR, CORBEAU)
+// ACTIONS NOCTURNES PRIVÉES
 // ─────────────────────────────────────────────────────────────────────────────
+async function sendWitchActionDM(client, game = null) {
+  game = game || await getGame();
+  if (!game) return false;
+  const night = ensureNightState(game);
+  const witch = game.assignments.find(a => a.alive && a.roleId === 'sorciere');
+  if (!witch || night.witchResolved || !night.wolfTarget) return false;
+
+  const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+  const rows = [];
+  const controls = new ActionRowBuilder();
+  if (game.sorciere?.lifePotion) {
+    controls.addComponents(
+      new ButtonBuilder()
+        .setCustomId('ww_witch_save')
+        .setLabel('🧪 Sauver la victime')
+        .setStyle(ButtonStyle.Success),
+    );
+  }
+  controls.addComponents(
+    new ButtonBuilder()
+      .setCustomId('ww_witch_skip')
+      .setLabel('⏭️ Ne rien utiliser')
+      .setStyle(ButtonStyle.Secondary),
+  );
+  rows.push(controls);
+  if (game.sorciere?.deathPotion) {
+    rows.push(...buildTargetRows(
+      getAlivePlayers(game, { excludeId: witch.userId }),
+      'ww_witch_kill_',
+      'Danger',
+      '☠️',
+    ).slice(0, 4));
+  }
+
+  const user = await client.users.fetch(witch.userId);
+  await user.send({
+    content:
+      `🧪 **Nuit ${game.round} — Sorcière**\n\n` +
+      `Les Loups-Garous ont ciblé **${game.assignments.find(a => a.userId === night.wolfTarget)?.displayName || 'un joueur'}**.\n` +
+      `${game.sorciere?.lifePotion ? 'Tu peux utiliser ta potion de vie. ' : ''}` +
+      `${game.sorciere?.deathPotion ? 'Tu peux aussi choisir une victime pour ta potion de mort.' : ''}`,
+    components: rows,
+  });
+  night.witchPrompted = true;
+  await saveGame(game);
+  return true;
+}
+
+async function sendPendingDeathActionDMs(client, game = null) {
+  game = game || await getGame();
+  if (!game) return;
+  const pending = game.pendingHunterIds || [];
+  const hunterTargets = getAlivePlayers(game);
+  for (const hunterId of pending) {
+    const hunter = game.assignments.find(a => a.userId === hunterId);
+    if (!hunter || hunter.hunterPrompted || !hunterTargets.length) continue;
+    try {
+      await sendPrivateTargetPrompt(
+        client,
+        hunterId,
+        '🏹 **Ton dernier pouvoir, Chasseur**\n\nTu as été éliminé. Choisis immédiatement un joueur à abattre.',
+        hunterTargets,
+        'ww_hunter_',
+        'Danger',
+        '🏹',
+      );
+      hunter.hunterPrompted = true;
+    } catch (e) {
+      console.error(`[Werewolf] hunter DM error for ${hunter.displayName}:`, e.message);
+    }
+  }
+  await saveGame(game);
+}
+
 async function sendNightActionDMs(client) {
   const game = await getGame();
   if (!game) return;
-  const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+  const night = ensureNightState(game);
+  if (night.actionRound !== game.round) {
+    game.night = {
+      actionRound: game.round,
+      wolfVotes: {},
+      wolfTarget: null,
+      witchSaved: false,
+      witchKillTarget: null,
+      whiteWolfTarget: null,
+      infectTarget: null,
+      cupidonFirstTarget: null,
+      fluteFirstTarget: null,
+      witchResolved: false,
+      witchPrompted: false,
+    };
+    game.savedTonight = null;
+    await saveGame(game);
+  }
 
-  for (const a of game.assignments.filter(x => x.alive)) {
-    const role = ROLES[a.roleId];
-    if (!role?.night || !role?.nightAction) continue;
-    if (a.roleId === 'loup_garou' || a.roleId === 'grand_mechant_loup' || a.roleId === 'loup_infect' || a.roleId === 'loup_blanc') continue;
-
+  const alive = game.assignments.filter(a => a.alive);
+  for (const a of alive) {
     try {
-      const user = await client.users.fetch(a.userId);
-      const alive = game.assignments.filter(x => x.alive && x.userId !== a.userId);
+      const targets = getAlivePlayers(game, { excludeId: a.userId });
+
+      if (['loup_garou', 'grand_mechant_loup', 'loup_infect'].includes(a.roleId)) {
+        const wolfTargets = targets.filter(p => ROLES[p.roleId]?.team !== 'wolves');
+        await sendPrivateTargetPrompt(
+          client,
+          a.userId,
+          `🐺 **Nuit ${game.round} — Repaire des Loups**\n\nChoisis la victime à proposer aux autres Loups-Garous. La cible retenue sera décidée parmi leurs choix.`,
+          wolfTargets,
+          'ww_devour_',
+          'Danger',
+          '🐺',
+        );
+        if (a.roleId === 'loup_infect' && game.infectionAvailable !== false) {
+          await sendPrivateTargetPrompt(
+            client,
+            a.userId,
+            '🦠 **Père des Loups — pouvoir d’infection**\n\nChoisis une cible à convertir au lieu de la dévorer.',
+            wolfTargets,
+            'ww_infect_',
+            'Primary',
+            '🦠',
+          );
+        }
+        continue;
+      }
+
+      if (a.roleId === 'loup_blanc' && game.round % 2 === 0) {
+        const wolfTargets = targets.filter(p => ROLES[p.roleId]?.team === 'wolves');
+        await sendPrivateTargetPrompt(
+          client,
+          a.userId,
+          `🤍🐺 **Nuit ${game.round} — pouvoir du Loup Blanc**\n\nChoisis un Loup-Garou à éliminer secrètement.`,
+          wolfTargets,
+          'ww_white_',
+          'Danger',
+          '🤍',
+        );
+        continue;
+      }
 
       if (a.roleId === 'voyante') {
-        const rows = [];
-        let row = new ActionRowBuilder();
-        let i = 0;
-        for (const p of alive) {
-          if (i > 0 && i % 5 === 0) { rows.push(row); row = new ActionRowBuilder(); }
-          row.addComponents(new ButtonBuilder().setCustomId(`ww_see_${p.userId}`).setLabel(p.displayName.slice(0,80)).setStyle(ButtonStyle.Primary));
-          i++;
-        }
-        if (i % 5 !== 0 || i === 0) rows.push(row);
-        await user.send({ content: `🔮 **Nuit ${game.round}** — Voyante, qui veux-tu observer ce soir ?`, components: rows.slice(0,5) });
-      }
-      if (a.roleId === 'salvateur') {
-        const rows = [];
-        let row = new ActionRowBuilder();
-        let i = 0;
-        const targets = game.assignments.filter(x => x.alive);
-        for (const p of targets) {
-          if (i > 0 && i % 5 === 0) { rows.push(row); row = new ActionRowBuilder(); }
-          row.addComponents(new ButtonBuilder().setCustomId(`ww_protect_${p.userId}`).setLabel(p.displayName.slice(0,80)).setStyle(ButtonStyle.Success));
-          i++;
-        }
-        if (i % 5 !== 0 || i === 0) rows.push(row);
-        await user.send({ content: `🛡️ **Nuit ${game.round}** — Salvateur, qui veux-tu protéger cette nuit ?`, components: rows.slice(0,5) });
-      }
-      if (a.roleId === 'corbeau') {
-        const rows = [];
-        let row = new ActionRowBuilder();
-        let i = 0;
-        for (const p of alive) {
-          if (i > 0 && i % 5 === 0) { rows.push(row); row = new ActionRowBuilder(); }
-          row.addComponents(new ButtonBuilder().setCustomId(`ww_mark_${p.userId}`).setLabel(p.displayName.slice(0,80)).setStyle(ButtonStyle.Danger));
-          i++;
-        }
-        if (i % 5 !== 0 || i === 0) rows.push(row);
-        await user.send({ content: `🐦‍⬛ **Nuit ${game.round}** — Corbeau, qui veux-tu marquer (+2 votes demain) ?`, components: rows.slice(0,5) });
+        await sendPrivateTargetPrompt(client, a.userId, `🔮 **Nuit ${game.round} — Voyante**\n\nChoisis le joueur dont tu veux connaître le rôle.`, targets, 'ww_see_', 'Primary', '🔮');
+      } else if (a.roleId === 'salvateur') {
+        await sendPrivateTargetPrompt(client, a.userId, `🛡️ **Nuit ${game.round} — Salvateur**\n\nChoisis le joueur à protéger cette nuit.`, alive, 'ww_protect_', 'Success', '🛡️');
+      } else if (a.roleId === 'corbeau') {
+        await sendPrivateTargetPrompt(client, a.userId, `🐦‍⬛ **Nuit ${game.round} — Corbeau**\n\nChoisis le joueur qui recevra 2 votes supplémentaires demain.`, targets, 'ww_mark_', 'Danger', '🐦‍⬛');
+      } else if (a.roleId === 'cupidon' && game.round === 1 && !game.lovers?.length) {
+        await sendPrivateTargetPrompt(client, a.userId, '💘 **Première nuit — Cupidon**\n\nChoisis le premier joueur à unir par les liens de l’amour.', targets, 'ww_link1_', 'Primary', '💘');
+      } else if (a.roleId === 'joueur_flute') {
+        await sendPrivateTargetPrompt(client, a.userId, `🪈 **Nuit ${game.round} — Joueur de Flûte**\n\nChoisis le premier joueur à ensorceler.`, targets, 'ww_charm1_', 'Primary', '🪈');
+      } else if (a.roleId === 'assassin') {
+        await sendPrivateTargetPrompt(client, a.userId, `🗡️ **Nuit ${game.round} — Assassin**\n\nChoisis ta cible secrète.`, targets, 'ww_assassin_', 'Danger', '🗡️');
       }
     } catch (e) {
       console.error(`[Werewolf] nightAction DM error for ${a.displayName}:`, e.message);
     }
   }
+
+  const nightAfterPrompts = await getGame();
+  if (nightAfterPrompts) await sendWitchActionDM(client, nightAfterPrompts);
 }
 
 async function handleNightAction(client, action, actorId, targetId) {
