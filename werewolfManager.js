@@ -804,33 +804,249 @@ async function sendNightActionDMs(client) {
 
 async function handleNightAction(client, action, actorId, targetId) {
   const game = await getGame();
-  if (!game) return { ok: false };
-  const actor  = game.assignments.find(a => a.userId === actorId && a.alive);
-  const target = game.assignments.find(a => a.userId === targetId);
-  if (!actor || !target) return { ok: false };
+  if (!game) return { ok: false, reason: 'Aucune partie en cours' };
+  const night = ensureNightState(game);
+
+  // Le Chasseur agit après sa mort : il n'est donc plus vivant.
+  if (action === 'hunter') {
+    if (!game.pendingHunterIds?.includes(actorId)) return { ok: false, reason: 'Aucun pouvoir de Chasseur en attente' };
+    const target = game.assignments.find(a => a.userId === targetId && a.alive);
+    if (!target) return { ok: false, reason: 'Cible invalide ou déjà éliminée' };
+    const deaths = applyElimination(game, targetId, 'hunter');
+    game.pendingHunterIds = game.pendingHunterIds.filter(id => id !== actorId);
+    await saveGame(game);
+    await client.users.fetch(actorId).then(user =>
+      user.send(`🏹 **Ton tir est parti.** Tu as éliminé **${target.displayName}**.`).catch(() => {}),
+    );
+    return { ok: true, deaths: deaths.map(d => d.userId) };
+  }
+
+  const actor = game.assignments.find(a => a.userId === actorId && a.alive);
+  const target = targetId ? game.assignments.find(a => a.userId === targetId && a.alive) : null;
+  if (!actor) return { ok: false, reason: 'Tu ne peux plus utiliser ce pouvoir' };
 
   if (action === 'see') {
+    if (actor.roleId !== 'voyante' || !target) return { ok: false, reason: 'Action invalide' };
     const role = ROLES[target.roleId];
-    const user = await client.users.fetch(actorId);
-    await user.send(`🔮 **Résultat de ta vision :** ${target.displayName} est… **${role?.emoji} ${role?.name}** (${TEAM_LABELS[role?.team] || role?.team})`).catch(() => {});
+    await client.users.fetch(actorId).then(user =>
+      user.send(`🔮 **Résultat de ta vision :** ${target.displayName} est… **${role?.emoji} ${role?.name}** (${TEAM_LABELS[role?.team] || role?.team})`).catch(() => {}),
+    );
     return { ok: true };
   }
+
   if (action === 'protect') {
+    if (actor.roleId !== 'salvateur' || !target) return { ok: false, reason: 'Action invalide' };
     game.savedTonight = targetId;
     await saveGame(game);
-    const user = await client.users.fetch(actorId);
-    await user.send(`🛡️ Tu protèges **${target.displayName}** cette nuit.`).catch(() => {});
+    await client.users.fetch(actorId).then(user =>
+      user.send(`🛡️ Tu protèges **${target.displayName}** cette nuit.`).catch(() => {}),
+    );
     return { ok: true };
   }
+
   if (action === 'mark') {
+    if (actor.roleId !== 'corbeau' || !target) return { ok: false, reason: 'Action invalide' };
     game.extraVotes = game.extraVotes || {};
     game.extraVotes[targetId] = (game.extraVotes[targetId] || 0) + 2;
     await saveGame(game);
-    const user = await client.users.fetch(actorId);
-    await user.send(`🐦‍⬛ **${target.displayName}** recevra +2 votes lors du prochain vote.`).catch(() => {});
+    await client.users.fetch(actorId).then(user =>
+      user.send(`🐦‍⬛ **${target.displayName}** recevra 2 votes supplémentaires lors du prochain vote.`).catch(() => {}),
+    );
     return { ok: true };
   }
-  return { ok: false };
+
+  if (action === 'devour' || action === 'infect') {
+    if (!['loup_garou', 'grand_mechant_loup', 'loup_infect'].includes(actor.roleId) || !target) {
+      return { ok: false, reason: 'Action invalide' };
+    }
+    if (ROLES[target.roleId]?.team === 'wolves') return { ok: false, reason: 'Les Loups ne peuvent pas cibler un allié' };
+    night.wolfVotes[actorId] = targetId;
+    if (action === 'infect') {
+      if (actor.roleId !== 'loup_infect' || game.infectionAvailable === false) {
+        return { ok: false, reason: 'Pouvoir d’infection déjà utilisé' };
+      }
+      night.infectTarget = targetId;
+    }
+    const livingWolves = game.assignments.filter(a => a.alive && ROLES[a.roleId]?.team === 'wolves');
+    const allVoted = livingWolves.every(wolf => night.wolfVotes[wolf.userId]);
+    if (allVoted) {
+      const tally = {};
+      Object.values(night.wolfVotes).forEach(id => { tally[id] = (tally[id] || 0) + 1; });
+      night.wolfTarget = Object.entries(tally).sort((a, b) => b[1] - a[1])[0]?.[0] || targetId;
+    }
+    await saveGame(game);
+    if (night.wolfTarget) await sendWitchActionDM(client, game);
+    await client.users.fetch(actorId).then(user =>
+      user.send(`🐺 Choix enregistré pour **${target.displayName}**.`).catch(() => {}),
+    );
+    return { ok: true, pending: !night.wolfTarget };
+  }
+
+  if (action === 'white') {
+    if (actor.roleId !== 'loup_blanc' || game.round % 2 !== 0 || !target || ROLES[target.roleId]?.team !== 'wolves') {
+      return { ok: false, reason: 'Action du Loup Blanc invalide cette nuit' };
+    }
+    night.whiteWolfTarget = targetId;
+    await saveGame(game);
+    await client.users.fetch(actorId).then(user =>
+      user.send(`🤍🐺 **${target.displayName}** a été désigné secrètement.`).catch(() => {}),
+    );
+    return { ok: true };
+  }
+
+  if (action === 'witch_save' || action === 'witch_skip' || action === 'witch_kill') {
+    if (actor.roleId !== 'sorciere' || night.witchResolved) return { ok: false, reason: 'Action de Sorcière invalide' };
+    if (action === 'witch_save') {
+      if (!game.sorciere?.lifePotion || !night.wolfTarget) return { ok: false, reason: 'Potion de vie indisponible' };
+      game.sorciere.lifePotion = false;
+      night.witchSaved = true;
+    } else if (action === 'witch_kill') {
+      if (!game.sorciere?.deathPotion || !target) return { ok: false, reason: 'Potion de mort indisponible' };
+      game.sorciere.deathPotion = false;
+      night.witchKillTarget = targetId;
+    }
+    night.witchResolved = true;
+    await saveGame(game);
+    const message = action === 'witch_save'
+      ? '🧪 Tu as sauvé la victime des Loups.'
+      : action === 'witch_kill'
+        ? `☠️ Tu as désigné **${target.displayName}** avec ta potion de mort.`
+        : '⏭️ Tu n’utilises aucune potion cette nuit.';
+    await client.users.fetch(actorId).then(user => user.send(message).catch(() => {}));
+    return { ok: true };
+  }
+
+  if (action === 'link1') {
+    if (actor.roleId !== 'cupidon' || game.round !== 1 || !target) return { ok: false, reason: 'Action de Cupidon invalide' };
+    night.cupidonFirstTarget = targetId;
+    await saveGame(game);
+    await sendPrivateTargetPrompt(
+      client,
+      actorId,
+      `💘 **${target.displayName}** est le premier amoureux. Choisis maintenant le second.`,
+      getAlivePlayers(game, { excludeId: targetId }),
+      'ww_link2_',
+      'Primary',
+      '💘',
+    );
+    return { ok: true };
+  }
+
+  if (action === 'link2') {
+    if (actor.roleId !== 'cupidon' || game.round !== 1 || !target || !night.cupidonFirstTarget || targetId === night.cupidonFirstTarget) {
+      return { ok: false, reason: 'Second choix de Cupidon invalide' };
+    }
+    game.lovers = [night.cupidonFirstTarget, targetId];
+    await saveGame(game);
+    await client.users.fetch(actorId).then(user =>
+      user.send('💘 Les deux joueurs sont maintenant liés par les liens de l’amour.').catch(() => {}),
+    );
+    return { ok: true };
+  }
+
+  if (action === 'charm1') {
+    if (actor.roleId !== 'joueur_flute' || !target || game.charmed.includes(targetId)) {
+      return { ok: false, reason: 'Cible invalide ou déjà ensorcelée' };
+    }
+    night.fluteFirstTarget = targetId;
+    await saveGame(game);
+    await sendPrivateTargetPrompt(
+      client,
+      actorId,
+      `🪈 **${target.displayName}** est le premier joueur ensorcelé. Choisis le second.`,
+      getAlivePlayers(game, { excludeId: targetId }).filter(p => !game.charmed.includes(p.userId)),
+      'ww_charm2_',
+      'Primary',
+      '🪄',
+    );
+    return { ok: true };
+  }
+
+  if (action === 'charm2') {
+    if (actor.roleId !== 'joueur_flute' || !target || !night.fluteFirstTarget || targetId === night.fluteFirstTarget || game.charmed.includes(targetId)) {
+      return { ok: false, reason: 'Second choix du Joueur de Flûte invalide' };
+    }
+    game.charmed.push(night.fluteFirstTarget, targetId);
+    await saveGame(game);
+    await client.users.fetch(actorId).then(user =>
+      user.send(`🪈 **${target.displayName}** et ton autre cible sont maintenant ensorcelés.`).catch(() => {}),
+    );
+    return { ok: true };
+  }
+
+  if (action === 'assassin') {
+    if (actor.roleId !== 'assassin' || !target) return { ok: false, reason: 'Action de l’Assassin invalide' };
+    game.assassinTarget = targetId;
+    await saveGame(game);
+    await client.users.fetch(actorId).then(user =>
+      user.send(`🗡️ **${target.displayName}** est maintenant ta cible secrète.`).catch(() => {}),
+    );
+    return { ok: true };
+  }
+
+  return { ok: false, reason: 'Action inconnue' };
+}
+
+async function resolveNight(client, channelId = null) {
+  const game = await getGame();
+  if (!game || game.phase !== 'NIGHT') return { ok: false, reason: 'La partie n’est pas en phase nuit' };
+  const night = ensureNightState(game);
+  const deaths = [];
+
+  if (night.infectTarget && game.infectionAvailable !== false) {
+    const infected = game.assignments.find(a => a.userId === night.infectTarget && a.alive);
+    if (infected && ROLES[infected.roleId]?.team !== 'wolves') {
+      infected.roleId = 'loup_garou';
+      game.infectionAvailable = false;
+      night.wolfTarget = null;
+    }
+  }
+
+  if (night.wolfTarget && !night.infectTarget) {
+    const victim = game.assignments.find(a => a.userId === night.wolfTarget && a.alive);
+    if (victim && victim.userId !== game.savedTonight && !night.witchSaved) {
+      if (victim.roleId === 'ancien' && !game.ancienShieldUsed) {
+        game.ancienShieldUsed = true;
+      } else {
+        deaths.push(...applyElimination(game, victim.userId, 'wolves'));
+      }
+    }
+  }
+
+  if (night.witchKillTarget) {
+    deaths.push(...applyElimination(game, night.witchKillTarget, 'witch'));
+  }
+  if (night.whiteWolfTarget) {
+    deaths.push(...applyElimination(game, night.whiteWolfTarget, 'white_wolf'));
+  }
+
+  const victory = checkVictory(game);
+  if (victory) {
+    game.phase = 'ENDED';
+    game.winner = victory;
+  } else {
+    game.phase = 'DAY';
+  }
+  await saveGame(game);
+
+  if (client && deaths.length) {
+    const channel = channelId || game.voteChannelId || game.wolfChannelId;
+    if (channel) {
+      try {
+        const discordChannel = await client.channels.fetch(channel);
+        await discordChannel.send(`🌅 **Le jour se lève.** ${deaths.map(d => `☠️ **${d.displayName}**`).join(', ')} ${deaths.length > 1 ? 'ont été éliminés' : 'a été éliminé(e)'} cette nuit.`);
+      } catch {}
+    }
+  }
+  if (deaths.some(a => a.roleId === 'chasseur')) {
+    game.pendingHunterIds = [...new Set([
+      ...(game.pendingHunterIds || []),
+      ...deaths.filter(a => a.roleId === 'chasseur').map(a => a.userId),
+    ])];
+    await saveGame(game);
+    if (client) await sendPendingDeathActionDMs(client, game);
+  }
+  return { ok: true, deaths, victory };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
