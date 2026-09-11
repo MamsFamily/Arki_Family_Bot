@@ -134,6 +134,85 @@ async function getGame() {
 }
 async function saveGame(state) { await pgStore.setData(KEY_GAME, state); }
 
+function ensureNightState(game) {
+  game.night = game.night || {};
+  game.night.wolfVotes = game.night.wolfVotes || {};
+  game.night.wolfTarget = game.night.wolfTarget || null;
+  game.night.witchSaved = game.night.witchSaved || false;
+  game.night.witchKillTarget = game.night.witchKillTarget || null;
+  game.night.whiteWolfTarget = game.night.whiteWolfTarget || null;
+  game.night.infectTarget = game.night.infectTarget || null;
+  game.night.cupidonFirstTarget = game.night.cupidonFirstTarget || null;
+  game.night.fluteFirstTarget = game.night.fluteFirstTarget || null;
+  game.night.witchResolved = game.night.witchResolved || false;
+  game.night.actionRound = game.night.actionRound || 0;
+  game.charmed = Array.isArray(game.charmed) ? game.charmed : [];
+  game.pendingHunterIds = Array.isArray(game.pendingHunterIds) ? game.pendingHunterIds : [];
+  return game.night;
+}
+
+function getAlivePlayers(game, { excludeId = null } = {}) {
+  return game.assignments.filter(a => a.alive && a.userId !== excludeId);
+}
+
+function buildTargetRows(targets, customId, style = 'Secondary', emoji = '🎯') {
+  const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+  const buttonStyle = ButtonStyle[style] || ButtonStyle.Secondary;
+  const rows = [];
+  let row = new ActionRowBuilder();
+  targets.forEach((target, index) => {
+    if (index > 0 && index % 5 === 0) {
+      rows.push(row);
+      row = new ActionRowBuilder();
+    }
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${customId}${target.userId}`)
+        .setLabel(target.displayName.slice(0, 80))
+        .setStyle(buttonStyle)
+        .setEmoji(emoji),
+    );
+  });
+  if (row.components.length) rows.push(row);
+  return rows.slice(0, 5);
+}
+
+async function sendPrivateTargetPrompt(client, userId, content, targets, customId, style = 'Secondary', emoji = '🎯') {
+  const user = await client.users.fetch(userId);
+  await user.send({
+    content,
+    components: buildTargetRows(targets, customId, style, emoji),
+  });
+}
+
+function applyElimination(game, userId, by = 'wolves') {
+  const eliminated = [];
+  const eliminateOne = (targetId, reason) => {
+    const target = game.assignments.find(a => a.userId === targetId && a.alive);
+    if (!target) return;
+    target.alive = false;
+    const record = {
+      userId: target.userId,
+      displayName: target.displayName,
+      roleId: target.roleId,
+      round: game.round,
+      by: reason,
+      eliminatedAt: Date.now(),
+    };
+    game.eliminated.push(record);
+    eliminated.push(target);
+  };
+
+  eliminateOne(userId, by);
+
+  // Les amoureux meurent ensemble.
+  if (game.lovers?.includes(userId)) {
+    const partnerId = game.lovers.find(id => id !== userId);
+    if (partnerId) eliminateOne(partnerId, 'lovers');
+  }
+  return eliminated;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // GESTION DES JOUEURS (LOBBY)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -204,6 +283,10 @@ async function startGame(roleConfig) {
     lovers:      [],        // [userId, userId]
     sorciere:    { lifePotion: true, deathPotion: true },
     savedTonight: null,     // Salvateur
+    night:       null,      // Actions privées de la nuit en cours
+    charmed:     [],        // Joueurs ensorcelés par le Joueur de Flûte
+    pendingHunterIds: [],   // Chasseurs à qui envoyer le choix post-mortem
+    assassinTarget: null,
     history:     [],
   };
 
