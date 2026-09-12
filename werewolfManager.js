@@ -1320,25 +1320,7 @@ async function resolveNight(client, channelId = null) {
   }
   await saveGame(game);
 
-  if (client) {
-    const channel = channelId || game.voteChannelId || game.wolfChannelId;
-    if (channel) {
-      try {
-        const discordChannel = await client.channels.fetch(channel);
-        const deathLines = deaths.length ? deaths.map(d => {
-          const role = ROLES[d.roleId];
-          const roleLabel = role
-            ? `${role.emoji} **${role.name}** (${TEAM_LABELS[role.team] || role.team})`
-            : 'rôle inconnu';
-          return `☠️ **${d.displayName}** — ${roleLabel}`;
-        }).join('\n') : '🌙 **Personne n’a été éliminé cette nuit.**';
-        await discordChannel.send(
-          `🌅 **Le jour se lève.**\n${deathLines}\n\n` +
-          `Les rôles sont révélés après une élimination ; les rôles et pouvoirs des joueurs encore vivants restent secrets.`,
-        );
-      } catch {}
-    }
-  }
+  if (client) await announceDay(client, game, channelId, deaths);
   if (deaths.some(a => a.roleId === 'chasseur')) {
     game.pendingHunterIds = [...new Set([
       ...(game.pendingHunterIds || []),
@@ -1348,6 +1330,30 @@ async function resolveNight(client, channelId = null) {
     if (client) await sendPendingDeathActionDMs(client, game);
   }
   return { ok: true, deaths, victory };
+}
+
+async function announceDay(client, game, channelId, deaths = []) {
+  const channel = channelId || game.voteChannelId || game.wolfChannelId;
+  if (!channel) return { ok: false, reason: 'Salon Discord de l’événement non configuré' };
+  try {
+    const discordChannel = await client.channels.fetch(channel);
+    const deathLines = deaths.length ? deaths.map(d => {
+      const role = ROLES[d.roleId];
+      const roleLabel = role
+        ? `${role.emoji} **${role.name}** (${TEAM_LABELS[role.team] || role.team})`
+        : 'rôle inconnu';
+      return `☠️ **${d.displayName}** — ${roleLabel}`;
+    }).join('\n') : '🌙 **Personne n’a été éliminé cette nuit.**';
+    await discordChannel.send(
+      `🌅 **Le jour se lève.**\n${deathLines}\n\n` +
+      `Les rôles sont révélés après une élimination ; les rôles et pouvoirs des joueurs encore vivants restent secrets.`,
+    );
+    game.dayAnnouncementRound = game.round;
+    await saveGame(game);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, reason: `Annonce du jour impossible : ${error.message}` };
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1386,7 +1392,7 @@ module.exports = {
   startGame, sendRoleDMs, handleAck,
   createWolfThread,
   createVotePoll, handleVote, updateVoteMessage, resolveVote,
-   sendNightActionDMs, handleNightAction, confirmWolfTarget, resolveNight,
+   sendNightActionDMs, handleNightAction, confirmWolfTarget, resolveNight, announceDay,
   eliminatePlayer,
   checkVictory, buildVictoryEmbed,
 };

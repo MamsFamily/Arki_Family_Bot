@@ -5843,7 +5843,7 @@ function createWebServer(discordClient) {
   app.post('/werewolf/game/wolf-thread', requireAdmin, async (req, res) => {
     try {
       if (!discordClient) return res.json({ ok: false, error: 'Bot Discord non connecté' });
-      const { channelId } = req.body;
+      const { channelId } = await getWWSettings();
       if (!channelId) return res.json({ ok: false, error: 'ID du salon requis' });
       const guildId  = discordClient.guilds.cache.first()?.id || '';
       const adminId  = req.session?.discordUser?.id || null;
@@ -5856,7 +5856,8 @@ function createWebServer(discordClient) {
   app.post('/werewolf/game/vote', requireAdmin, async (req, res) => {
     try {
       if (!discordClient) return res.json({ ok: false, error: 'Bot Discord non connecté' });
-      const { channelId, duration } = req.body;
+      const { duration } = req.body;
+      const { channelId } = await getWWSettings();
       if (!channelId) return res.json({ ok: false, error: 'ID du salon requis' });
       const guildId = discordClient.guilds.cache.first()?.id || '';
       await werewolf.createVotePoll(discordClient, guildId, channelId, parseInt(duration) || 5);
@@ -5886,11 +5887,15 @@ function createWebServer(discordClient) {
   // ── Basculer la phase de jeu ───────────────────────────────────────────────
   app.post('/werewolf/game/set-phase', requireAdmin, async (req, res) => {
     try {
-      const { phase, channelId, duration } = req.body;
+      const { phase, duration } = req.body;
       if (!['NIGHT', 'DAY', 'VOTE', 'LOBBY'].includes(phase)) return res.json({ ok: false, error: 'Phase invalide' });
       let game = await werewolf.getGame();
       if (!game) return res.json({ ok: false, error: 'Aucune partie en cours' });
+      if (phase === 'DAY' && game.phase === 'VOTE') {
+        return res.json({ ok: false, error: 'Un vote est déjà en cours' });
+      }
       const wasNight = game.phase === 'NIGHT';
+      const { channelId } = await getWWSettings();
 
       // La nuit doit être résolue avant d'ouvrir le jour : attaques, potions,
       // amoureux, Ancien et Chasseur sont ainsi persistés dans le même passage.
@@ -5900,11 +5905,21 @@ function createWebServer(discordClient) {
         const nightResult = await werewolf.resolveNight(discordClient, channelId);
         if (!nightResult.ok) return res.json(nightResult);
         game = await werewolf.getGame();
-        if (game.phase !== 'ENDED') {
-          const guildId = discordClient.guilds.cache.first()?.id || '';
-          await werewolf.createVotePoll(discordClient, guildId, channelId, parseInt(duration) || 5);
-          return res.json({ ok: true, voteStarted: true, deaths: nightResult.deaths });
-        }
+      } else if (phase === 'DAY' && game.phase === 'DAY' && game.dayAnnouncementRound !== game.round) {
+        if (!discordClient) return res.json({ ok: false, error: 'Bot Discord non connecté : impossible d’annoncer le jour' });
+        if (!channelId) return res.json({ ok: false, error: 'Configure le salon Discord de l’événement avant de lancer le jour' });
+        const currentDeaths = (game.eliminated || []).filter(death =>
+          death.round === game.round && death.by !== 'vote',
+        );
+        const announcement = await werewolf.announceDay(discordClient, game, channelId, currentDeaths);
+        if (!announcement.ok) return res.json({ ok: false, error: announcement.reason });
+        game = await werewolf.getGame();
+      }
+      if (phase === 'DAY' && game.phase !== 'ENDED') {
+        if (!channelId) return res.json({ ok: false, error: 'Configure le salon Discord de l’événement avant de lancer le vote' });
+        const guildId = discordClient.guilds.cache.first()?.id || '';
+        await werewolf.createVotePoll(discordClient, guildId, channelId, parseInt(duration) || 5);
+        return res.json({ ok: true, voteStarted: true });
       }
       // resolveNight peut terminer la partie immédiatement après les morts de
       // la nuit ; ne pas écraser cet état en repassant artificiellement à DAY.
