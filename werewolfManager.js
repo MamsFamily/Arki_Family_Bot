@@ -142,6 +142,7 @@ function ensureNightState(game) {
   game.night.wolfTarget = game.night.wolfTarget || null;
   game.night.wolfProposedTarget = game.night.wolfProposedTarget || null;
   game.night.wolfTargetConfirmed = game.night.wolfTargetConfirmed || false;
+  game.night.manualDeaths = Array.isArray(game.night.manualDeaths) ? game.night.manualDeaths : [];
   game.night.witchSaved = game.night.witchSaved || false;
   game.night.witchKillTarget = game.night.witchKillTarget || null;
   game.night.whiteWolfTarget = game.night.whiteWolfTarget || null;
@@ -873,6 +874,7 @@ async function sendNightActionDMs(client) {
       wolfProposedTarget: null,
       wolfTargetConfirmed: false,
       wolfVoteMessageId: null,
+      manualDeaths: [],
       witchSaved: false,
       witchKillTarget: null,
       whiteWolfTarget: null,
@@ -1279,7 +1281,8 @@ async function resolveNight(client, channelId = null) {
   const game = await getGame();
   if (!game || game.phase !== 'NIGHT') return { ok: false, reason: 'La partie n’est pas en phase nuit' };
   const night = ensureNightState(game);
-  const deaths = [];
+  const deaths = [...night.manualDeaths];
+  night.manualDeaths = [];
 
   if (night.infectTarget && game.infectionAvailable !== false) {
     const infected = game.assignments.find(a => a.userId === night.infectTarget && a.alive);
@@ -1317,18 +1320,18 @@ async function resolveNight(client, channelId = null) {
   }
   await saveGame(game);
 
-  if (client && deaths.length) {
+  if (client) {
     const channel = channelId || game.voteChannelId || game.wolfChannelId;
     if (channel) {
       try {
         const discordChannel = await client.channels.fetch(channel);
-        const deathLines = deaths.map(d => {
+        const deathLines = deaths.length ? deaths.map(d => {
           const role = ROLES[d.roleId];
           const roleLabel = role
             ? `${role.emoji} **${role.name}** (${TEAM_LABELS[role.team] || role.team})`
             : 'rôle inconnu';
           return `☠️ **${d.displayName}** — ${roleLabel}`;
-        }).join('\n');
+        }).join('\n') : '🌙 **Personne n’a été éliminé cette nuit.**';
         await discordChannel.send(
           `🌅 **Le jour se lève.**\n${deathLines}\n\n` +
           `Les rôles sont révélés après une élimination ; les rôles et pouvoirs des joueurs encore vivants restent secrets.`,
@@ -1357,7 +1360,14 @@ async function eliminatePlayer(userId, by = 'wolves') {
   if (!a) throw new Error('Joueur introuvable ou déjà éliminé');
   const deaths = applyElimination(game, userId, by);
   const victory = checkVictory(game);
-  if (victory) { game.phase = 'ENDED'; game.winner = victory; }
+  if (game.phase === 'NIGHT') {
+    const night = ensureNightState(game);
+    const knownIds = new Set(night.manualDeaths.map(death => death.userId));
+    night.manualDeaths.push(...deaths.filter(death => !knownIds.has(death.userId)));
+  } else if (victory) {
+    game.phase = 'ENDED';
+    game.winner = victory;
+  }
   if (deaths.some(death => death.roleId === 'chasseur')) {
     game.pendingHunterIds = [...new Set([
       ...(game.pendingHunterIds || []),
