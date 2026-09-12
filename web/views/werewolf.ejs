@@ -329,20 +329,19 @@
             <% } %>
           </div>
 
-          <!-- Phase in-game — RCON Map Event -->
-          <div class="section-title">🌙 Phase in-game — Map Event</div>
+          <!-- Cycle nuit / jour -->
+          <div class="section-title">🌙 Cycle de la partie</div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center;">
             <button class="ctrl-btn btn-blue" onclick="setPhase('NIGHT')" style="background:#1a237e;">
-              🌑 Passer en phase Nuit
+              🌑 La nuit tombe
             </button>
             <button class="ctrl-btn btn-orange" onclick="setPhase('DAY')" style="background:#e65100;">
-              ☀️ Passer en phase Jour
+              ☀️ Le jour se lève
             </button>
             <span style="font-size:12px;color:var(--text-muted);">
-              Envoie <code>SetTimeOfDay 00:00:00</code> / <code>10:00:00</code> via RCON sur la Map Event.
-              <% if (!settings?.rconIp) { %><strong style="color:#ef5350;">⚠️ RCON non configuré</strong> — onglet ⚙️ Paramètres.<% } %>
+              La nuit envoie les actions privées. Le jour résout les actions nocturnes.
             </span>
-            <span id="rcon-phase-result"></span>
+            <span id="phase-result"></span>
           </div>
 
           <!-- Élimination manuelle -->
@@ -469,29 +468,8 @@
                 style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;box-sizing:border-box;">
             </div>
 
-            <!-- RCON -->
-            <div style="grid-column:1/-1;margin-top:8px;">
-              <div class="section-title" style="margin-top:0;">🎮 RCON — Map Event ARK</div>
-            </div>
-            <div>
-              <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">IP du serveur ARK</label>
-              <input type="text" name="rconIp" value="<%= settings?.rconIp || '' %>" placeholder="ex: 85.190.xxx.xxx"
-                style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;box-sizing:border-box;">
-            </div>
-            <div>
-              <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Port RCON</label>
-              <input type="number" name="rconPort" value="<%= settings?.rconPort || 11190 %>" placeholder="11190"
-                style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;box-sizing:border-box;">
-            </div>
-            <div style="grid-column:1/-1;">
-              <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Mot de passe RCON</label>
-              <input type="password" name="rconPassword" value="<%= settings?.rconPassword || '' %>" placeholder="ServerAdminPassword"
-                style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;box-sizing:border-box;">
-            </div>
             <div style="grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
               <button type="submit" class="ctrl-btn btn-purple">💾 Sauvegarder</button>
-              <button type="button" class="ctrl-btn btn-gray" onclick="testRcon()">🔌 Tester RCON</button>
-              <span id="rcon-test-result" style="font-size:13px;"></span>
             </div>
           </form>
 
@@ -748,12 +726,11 @@
     }
   }
 
-  // ── Phase RCON (nuit / jour in-game) ─────────────────────────────────────
+  // ── Cycle nuit / jour ────────────────────────────────────────────────────
   async function setPhase(phase) {
     const label = phase === 'NIGHT' ? '🌑 Phase Nuit' : '☀️ Phase Jour';
-    const cmd   = phase === 'NIGHT' ? 'SetTimeOfDay 00:00:00' : 'SetTimeOfDay 10:00:00';
-    const el    = document.getElementById('rcon-phase-result');
-    if (el) el.innerHTML = `<span style="color:var(--text-muted);">⏳ Envoi ${cmd}…</span>`;
+    const el    = document.getElementById('phase-result');
+    if (el) el.innerHTML = `<span style="color:var(--text-muted);">⏳ ${label}…</span>`;
     try {
       const r = await fetch('/werewolf/game/set-phase', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -761,11 +738,7 @@
       });
       const d = await r.json();
       if (!d.ok) { alert('❌ ' + (d.error || 'Erreur')); if (el) el.innerHTML = ''; return; }
-      let rconMsg = '';
-      if (d.rcon?.ok) rconMsg = `<span style="color:#66bb6a;">✅ RCON OK — ${d.rcon.response || ''}</span>`;
-      else if (d.rcon) rconMsg = `<span style="color:#ef5350;" title="${d.rcon.error}">⚠️ RCON échoué</span>`;
-      if (el) el.innerHTML = rconMsg;
-      // Pas de reload complet, juste mise à jour du badge de phase
+      if (el) el.innerHTML = `<span style="color:#66bb6a;">✅ ${label}</span>`;
       setTimeout(() => location.reload(), 1200);
     } catch (e) { alert('❌ Erreur réseau : ' + e.message); if (el) el.innerHTML = ''; }
   }
@@ -784,18 +757,6 @@
       });
       const d = await r.json();
       if (d.ok) el.innerHTML = `<span style="color:#66bb6a;">✅ Message publié ! (ID : ${d.messageId})</span>`;
-      else      el.innerHTML = `<span style="color:#ef5350;">❌ ${d.error}</span>`;
-    } catch (e) { el.innerHTML = `<span style="color:#ef5350;">❌ Réseau : ${e.message}</span>`; }
-  }
-
-  // ── Test connexion RCON ───────────────────────────────────────────────────
-  async function testRcon() {
-    const el = document.getElementById('rcon-test-result');
-    el.innerHTML = '<span style="color:var(--text-muted);">⏳ Test en cours…</span>';
-    try {
-      const r = await fetch('/werewolf/settings/rcon-test', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
-      const d = await r.json();
-      if (d.ok) el.innerHTML = `<span style="color:#66bb6a;">✅ Connecté — ${d.response}</span>`;
       else      el.innerHTML = `<span style="color:#ef5350;">❌ ${d.error}</span>`;
     } catch (e) { el.innerHTML = `<span style="color:#ef5350;">❌ Réseau : ${e.message}</span>`; }
   }
