@@ -5749,6 +5749,39 @@ function createWebServer(discordClient) {
     } catch (e) { res.redirect('/werewolf?error=' + encodeURIComponent(e.message)); }
   });
 
+  // Synchronise le lobby avec les membres Discord qui possèdent le rôle Event.
+  app.post('/werewolf/players/sync-discord', requireAdmin, async (req, res) => {
+    try {
+      if (!discordClient) return res.json({ ok: false, error: 'Bot Discord non connecté sur ce dashboard' });
+      const settings = await getWWSettings();
+      if (!settings.eventRoleId) return res.json({ ok: false, error: 'ID du rôle Event non configuré' });
+      const guild = discordClient.guilds.cache.first();
+      if (!guild) return res.json({ ok: false, error: 'Serveur Discord introuvable' });
+
+      const members = await guild.members.fetch();
+      const registered = members.filter(member =>
+        !member.user.bot && member.roles.cache.has(settings.eventRoleId),
+      );
+      const current = await werewolf.getPlayers();
+      const existingIds = new Set(current.map(player => player.userId));
+      let added = 0;
+      for (const member of registered.values()) {
+        if (existingIds.has(member.id)) continue;
+        await werewolf.addPlayer({
+          userId: member.id,
+          username: member.user.username,
+          displayName: member.displayName || member.user.globalName || member.user.username,
+        });
+        existingIds.add(member.id);
+        added++;
+      }
+      res.json({ ok: true, added, total: registered.size });
+    } catch (e) {
+      console.error('[Werewolf] synchronisation Discord:', e);
+      res.json({ ok: false, error: e.message });
+    }
+  });
+
   // ── Config rôles ───────────────────────────────────────────────────────────
   app.post('/werewolf/config/roles', requireAdmin, async (req, res) => {
     try {
