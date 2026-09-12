@@ -265,35 +265,56 @@ function buildAutomaticRoleConfig(playerCount, roleConfig = {}) {
 
   const config = {};
   const add = (roleId, count = 1) => {
-    if (count > 0) config[roleId] = (config[roleId] || 0) + count;
+    const role = ROLES[roleId];
+    if (!role || count <= 0) return 0;
+    const current = config[roleId] || 0;
+    const available = Math.max(0, role.maxCount - current);
+    const added = Math.min(count, available);
+    if (added > 0) config[roleId] = current + added;
+    return added;
   };
   const total = () => Object.values(config).reduce((sum, count) => sum + count, 0);
 
-  // Environ un tiers de Loups, avec toujours au moins un Loup.
+  // Progression des Loups : 1 pour 4-5 joueurs, 2 pour 6-8, 3 pour 9-11,
+  // puis un Loup supplémentaire par tranche de trois joueurs.
   const wolfCount = Math.max(1, Math.floor(playerCount / 3));
-  const specialWolf = ['grand_mechant_loup', 'loup_infect']
-    .find(roleId => enabled.has(roleId) && wolfCount >= 2);
+
+  // Les Loups spéciaux sont réservés aux parties d'au moins 10 joueurs.
+  // Il n'y en a jamais plus d'un afin de conserver des Loups-Garous simples.
+  const specialWolf = playerCount >= 10
+    ? ['grand_mechant_loup', 'loup_infect'].find(roleId => enabled.has(roleId))
+    : null;
   if (specialWolf) add(specialWolf);
   add('loup_garou', wolfCount - (specialWolf ? 1 : 0));
 
-  // Un seul rôle solitaire complexe par partie, uniquement quand la partie
-  // laisse assez de place aux camps principaux.
+  // Un seul rôle solitaire par partie, à partir de 12 joueurs seulement.
+  // Avant ce seuil, les camps Village/Loups restent simples et lisibles.
   const soloRole = ['joueur_flute', 'loup_blanc', 'assassin', 'ange']
     .find(roleId => enabled.has(roleId));
-  if (soloRole && playerCount >= 7) add(soloRole);
+  if (soloRole && playerCount >= 12) add(soloRole);
 
-  // Les rôles spéciaux actifs sont ajoutés dans un ordre stable. On conserve
-  // toujours une place pour au moins un Villageois simple.
+  // Le nombre de rôles spéciaux du Village progresse avec la taille de la
+  // partie au lieu d'ajouter tous les rôles cochés : 1 pour 4-5 joueurs,
+  // 2 pour 6-8, 3 pour 9-11, etc.
   const villageRoles = [
     'voyante', 'sorciere', 'salvateur', 'cupidon', 'chasseur',
     'corbeau', 'ancien', 'capitaine', 'idiot_village', 'petite_fille', 'servante',
   ];
+  const villageSpecialLimit = Math.max(1, Math.floor(playerCount / 3));
+  let villageSpecialCount = 0;
   for (const roleId of villageRoles) {
-    if (!enabled.has(roleId) || total() >= playerCount - 1) continue;
-    add(roleId);
+    if (
+      !enabled.has(roleId)
+      || villageSpecialCount >= villageSpecialLimit
+      || total() >= playerCount - 1
+    ) continue;
+    villageSpecialCount += add(roleId);
   }
 
   add('villageois', Math.max(1, playerCount - total()));
+  if (total() !== playerCount) {
+    throw new Error(`Impossible de générer ${playerCount} rôles avec les limites configurées`);
+  }
   return config;
 }
 
