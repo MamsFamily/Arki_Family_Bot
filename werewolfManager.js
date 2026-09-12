@@ -13,18 +13,18 @@ const ROLES = {
   // ── Village ────────────────────────────────────────────────────────────────
   villageois: {
     name: 'Villageois', emoji: '🧑‍🌾', team: 'village', maxCount: 20,
-    description: 'Simple villageois. Ton seul pouvoir est ton vote lors des débats. Travaille avec les autres pour démasquer les Loups-Garous.',
+    description: `Tu n'as pas de pouvoir nocturne. Chaque jour, tu participes aux discussions et tu votes pour éliminer le joueur que tu soupçonnes. Observe les incohérences, compare les comportements et aide le Village à identifier les Loups-Garous. Tu gagnes lorsque tous les Loups-Garous sont éliminés. 🔒 Ton rôle doit rester secret : ne dis pas publiquement que tu es Villageois, sauf si ta stratégie l'exige.`,
     required: true,
     night: false,
   },
   voyante: {
     name: 'Voyante', emoji: '🔮', team: 'village', maxCount: 1,
-    description: 'Chaque nuit, tu peux regarder dans les étoiles et découvrir la véritable nature (rôle) d\'un joueur de ton choix. Utilise cette information avec sagesse.',
+    description: `Chaque nuit, tu peux inspecter un joueur vivant et découvrir son rôle exact. Cette information est puissante, mais elle fait de toi une cible prioritaire pour les Loups. Tu dois convaincre le Village avec tes déductions sans fournir une preuve trop évidente de ton identité. Tu gagnes avec le Village. 🔒 Secret absolu : ne révèle jamais que tu connais le rôle d'un joueur et ne dis jamais « je suis la Voyante » ; présente tes conclusions comme des soupçons ou des raisonnements.`,
     night: true, nightAction: 'see',
   },
   sorciere: {
     name: 'Sorcière', emoji: '🧪', team: 'village', maxCount: 1,
-    description: 'Tu possèdes deux potions : une de vie (ressuscite la victime des loups) et une de mort (élimine un joueur). Chacune ne peut être utilisée qu\'une seule fois dans la partie.',
+    description: `Tu possèdes deux potions utilisables chacune une seule fois : la potion de vie peut sauver la victime des Loups pendant la nuit, et la potion de mort peut éliminer le joueur de ton choix. Tu peux conserver une potion pour une nuit ultérieure ou ne rien utiliser. Tu gagnes avec le Village. 🔒 Ne révèle jamais que tu es la Sorcière, quelles potions tu possèdes ou quelle potion tu as utilisée.`,
     night: true, nightAction: 'potion', hasPotions: true,
   },
   chasseur: {
