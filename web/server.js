@@ -5673,7 +5673,7 @@ function createWebServer(discordClient) {
   const WW_SETTINGS_KEY = 'werewolf_settings';
   async function getWWSettings() {
     const r = await pgStore.getData(WW_SETTINGS_KEY, null);
-    const defaults = { rconIp: '', rconPort: 11190, rconPassword: '', channelId: '' };
+    const defaults = { channelId: '' };
     if (!r) return defaults;
     return typeof r === 'object' ? { ...defaults, ...r } : { ...defaults, ...JSON.parse(r) };
   }
@@ -5883,7 +5883,7 @@ function createWebServer(discordClient) {
     } catch (e) { res.json({ ok: false, error: e.message }); }
   });
 
-  // ── Basculer phase + RCON heure in-game ───────────────────────────────────
+  // ── Basculer la phase de jeu ───────────────────────────────────────────────
   app.post('/werewolf/game/set-phase', requireAdmin, async (req, res) => {
     try {
       const { phase } = req.body;
@@ -5904,27 +5904,12 @@ function createWebServer(discordClient) {
       if (game.phase !== 'ENDED') game.phase = phase;
       await werewolf.saveGame(game);
 
-      // RCON — force l'heure in-game sur la Map Event
-      let rcon = null;
-      const settings = await getWWSettings();
-      if (settings.rconIp && settings.rconPort) {
-        const cmd = phase === 'NIGHT' ? 'SetTimeOfDay 00:00:00' : 'SetTimeOfDay 10:00:00';
-        try {
-          const response = await nitrado.sendRconDirect(settings.rconIp, parseInt(settings.rconPort), settings.rconPassword || '', cmd);
-          rcon = { ok: true, response: response || '(ok)' };
-        } catch (rconErr) {
-          rcon = { ok: false, error: rconErr.message };
-        }
-      } else {
-        rcon = { ok: false, error: 'RCON non configuré (onglet Paramètres)' };
-      }
-
       // Si on passe en nuit, envoyer les DMs d'actions nocturnes automatiquement
       if (phase === 'NIGHT' && discordClient) {
         werewolf.sendNightActionDMs(discordClient).catch(err => console.error('[Werewolf] night DMs:', err.message));
       }
 
-      res.json({ ok: true, rcon });
+      res.json({ ok: true });
     } catch (e) { res.json({ ok: false, error: e.message }); }
   });
 
@@ -5952,14 +5937,11 @@ function createWebServer(discordClient) {
     } catch (e) { res.json({ ok: false, error: e.message }); }
   });
 
-  // ── Paramètres RCON Map Event ──────────────────────────────────────────────
+  // ── Paramètres Discord Loup-Garou ─────────────────────────────────────────
   app.post('/werewolf/settings', requireAdmin, async (req, res) => {
     try {
-      const { rconIp, rconPort, rconPassword, channelId, eventRoleId, registrationChannelId } = req.body;
+      const { channelId, eventRoleId, registrationChannelId } = req.body;
       await saveWWSettings({
-        rconIp:                  (rconIp || '').trim(),
-        rconPort:                parseInt(rconPort) || 11190,
-        rconPassword:            rconPassword || '',
         channelId:               (channelId || '').trim(),
         eventRoleId:             (eventRoleId || '').trim(),
         registrationChannelId:   (registrationChannelId || '').trim(),
@@ -6011,16 +5993,6 @@ function createWebServer(discordClient) {
       const msg = await channel.send({ embeds: [embed], components: [row] });
 
       res.json({ ok: true, messageId: msg.id, channelId: msg.channelId });
-    } catch (e) { res.json({ ok: false, error: e.message }); }
-  });
-
-  // ── Test RCON Map Event ────────────────────────────────────────────────────
-  app.post('/werewolf/settings/rcon-test', requireAdmin, async (req, res) => {
-    try {
-      const settings = await getWWSettings();
-      if (!settings.rconIp || !settings.rconPort) return res.json({ ok: false, error: 'IP et port RCON non configurés' });
-      const response = await nitrado.sendRconDirect(settings.rconIp, parseInt(settings.rconPort), settings.rconPassword || '', 'listplayers');
-      res.json({ ok: true, response: response || '(pas de réponse — normal pour ARK)' });
     } catch (e) { res.json({ ok: false, error: e.message }); }
   });
 
