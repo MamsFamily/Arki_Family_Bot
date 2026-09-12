@@ -10,8 +10,8 @@
     .ww-tabs { display:flex; gap:4px; margin-bottom:20px; flex-wrap:wrap; }
     .ww-tab  { appearance:none; -webkit-appearance:none; padding:8px 18px; border-radius:10px; border:1px solid var(--border); background:var(--bg-input); color:var(--text-muted); cursor:pointer; font:inherit; font-size:13px; font-weight:600; transition:all .15s; touch-action:manipulation; }
     .ww-tab.active, .ww-tab:hover { background:rgba(124,92,252,.2); border-color:rgba(124,92,252,.5); color:#fff; }
-    .ww-panel[hidden] { display:none !important; }
-    .ww-panel { display:block; }
+    .ww-panel { display:none; }
+    .ww-panel.active { display:block; }
 
     /* ── Players ── */
     .player-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; }
@@ -108,22 +108,22 @@
 
     <!-- TABS -->
     <div class="ww-tabs">
-      <button type="button" class="ww-tab active" data-tab="players" aria-selected="true">👥 Joueurs (<%= players.length %>)</button>
-      <button type="button" class="ww-tab" data-tab="roles" aria-selected="false">🎭 Rôles</button>
-      <button type="button" class="ww-tab" data-tab="control" aria-selected="false">🎮 Contrôle</button>
-      <button type="button" class="ww-tab" data-tab="notifs" aria-selected="false" id="tab-notifs">
+      <button type="button" class="ww-tab active" data-tab="players" aria-selected="true" onclick="showTab('players', this)">👥 Joueurs (<%= players.length %>)</button>
+      <button type="button" class="ww-tab" data-tab="roles" aria-selected="false" onclick="showTab('roles', this)">🎭 Rôles</button>
+      <button type="button" class="ww-tab" data-tab="control" aria-selected="false" onclick="showTab('control', this)">🎮 Contrôle</button>
+      <button type="button" class="ww-tab" data-tab="notifs" aria-selected="false" id="tab-notifs" onclick="showTab('notifs', this)">
         📨 Notifications
         <% if (game) {
           const pending = game.assignments.filter(a => !a.ackReceived).length;
           if (pending > 0) { %><span style="background:#ef5350;color:#fff;border-radius:20px;padding:1px 7px;font-size:11px;margin-left:4px;"><%= pending %></span><% }
         } %>
       </button>
-      <button type="button" class="ww-tab" data-tab="history" aria-selected="false">📚 Historique (<%= history.length %>)</button>
-      <button type="button" class="ww-tab" data-tab="settings" aria-selected="false">⚙️ Paramètres</button>
+      <button type="button" class="ww-tab" data-tab="history" aria-selected="false" onclick="showTab('history', this)">📚 Historique (<%= history.length %>)</button>
+      <button type="button" class="ww-tab" data-tab="settings" aria-selected="false" onclick="showTab('settings', this)">⚙️ Paramètres</button>
     </div>
 
     <!-- ══ TAB : JOUEURS ══════════════════════════════════════════════════ -->
-    <div class="ww-panel" id="panel-players">
+    <div class="ww-panel active" id="panel-players">
       <div class="card">
           <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
             <h2>➕ Ajouter un joueur</h2>
@@ -178,7 +178,7 @@
     </div>
 
     <!-- ══ TAB : RÔLES ══════════════════════════════════════════════════════ -->
-    <div class="ww-panel" id="panel-roles" hidden>
+    <div class="ww-panel" id="panel-roles">
       <div class="card">
         <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
           <h2>🎭 Configuration des rôles</h2>
@@ -235,7 +235,7 @@
     </div>
 
     <!-- ══ TAB : CONTRÔLE ═══════════════════════════════════════════════════ -->
-    <div class="ww-panel" id="panel-control" hidden>
+    <div class="ww-panel" id="panel-control">
       <% if (!game || game.phase === 'LOBBY' || game.phase === 'ENDED') { %>
       <!-- Pas de partie en cours -->
       <div class="card">
@@ -394,7 +394,7 @@
     </div>
 
     <!-- ══ TAB : HISTORIQUE ══════════════════════════════════════════════════ -->
-    <div class="ww-panel" id="panel-history" hidden>
+    <div class="ww-panel" id="panel-history">
       <% if (!history.length) { %>
         <div style="text-align:center;padding:48px;color:var(--text-muted);">Aucune partie archivée pour l'instant.</div>
       <% } else { %>
@@ -440,7 +440,7 @@
     </div>
 
     <!-- ══ TAB : PARAMÈTRES ═══════════════════════════════════════════════════ -->
-    <div class="ww-panel" id="panel-settings" hidden>
+    <div class="ww-panel" id="panel-settings">
       <div class="card">
         <div class="card-header"><h2>⚙️ Paramètres</h2></div>
         <div class="card-body">
@@ -527,7 +527,7 @@
     </div>
 
     <!-- ══ TAB : NOTIFICATIONS ═══════════════════════════════════════════════ -->
-    <div class="ww-panel" id="panel-notifs" hidden>
+    <div class="ww-panel" id="panel-notifs">
       <% if (!game) { %>
         <div style="text-align:center;padding:48px;color:var(--text-muted);">Aucune partie en cours.</div>
       <% } else { %>
