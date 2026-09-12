@@ -10,8 +10,7 @@
     .ww-tabs { display:flex; gap:4px; margin-bottom:20px; flex-wrap:wrap; }
     .ww-tab  { appearance:none; -webkit-appearance:none; padding:8px 18px; border-radius:10px; border:1px solid var(--border); background:var(--bg-input); color:var(--text-muted); cursor:pointer; font:inherit; font-size:13px; font-weight:600; line-height:1.2; text-decoration:none; transition:all .15s; touch-action:manipulation; }
     .ww-tab.active, .ww-tab:hover { background:rgba(124,92,252,.2); border-color:rgba(124,92,252,.5); color:#fff; }
-    .ww-panel { display:none; }
-    .ww-panel.active { display:block; }
+    .ww-panel { width:100%; }
 
     /* ── Players ── */
     .player-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; }
@@ -123,7 +122,7 @@
     </div>
 
     <!-- ══ TAB : JOUEURS ══════════════════════════════════════════════════ -->
-    <div class="ww-panel <%= activeTab === 'players' ? 'active' : '' %>" id="panel-players">
+    <div class="ww-panel" id="panel-players" style="display:<%= activeTab === 'players' ? 'block' : 'none' %> !important;">
       <div class="card">
           <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
             <h2>➕ Ajouter un joueur</h2>
@@ -178,7 +177,7 @@
     </div>
 
     <!-- ══ TAB : RÔLES ══════════════════════════════════════════════════════ -->
-    <div class="ww-panel <%= activeTab === 'roles' ? 'active' : '' %>" id="panel-roles">
+    <div class="ww-panel" id="panel-roles" style="display:<%= activeTab === 'roles' ? 'block' : 'none' %> !important;">
       <div class="card">
         <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
           <h2>🎭 Configuration des rôles</h2>
@@ -235,7 +234,7 @@
     </div>
 
     <!-- ══ TAB : CONTRÔLE ═══════════════════════════════════════════════════ -->
-    <div class="ww-panel <%= activeTab === 'control' ? 'active' : '' %>" id="panel-control">
+    <div class="ww-panel" id="panel-control" style="display:<%= activeTab === 'control' ? 'block' : 'none' %> !important;">
       <% if (!game || game.phase === 'LOBBY' || game.phase === 'ENDED') { %>
       <!-- Pas de partie en cours -->
       <div class="card">
@@ -394,7 +393,7 @@
     </div>
 
     <!-- ══ TAB : HISTORIQUE ══════════════════════════════════════════════════ -->
-    <div class="ww-panel <%= activeTab === 'history' ? 'active' : '' %>" id="panel-history">
+    <div class="ww-panel" id="panel-history" style="display:<%= activeTab === 'history' ? 'block' : 'none' %> !important;">
       <% if (!history.length) { %>
         <div style="text-align:center;padding:48px;color:var(--text-muted);">Aucune partie archivée pour l'instant.</div>
       <% } else { %>
@@ -440,7 +439,7 @@
     </div>
 
     <!-- ══ TAB : PARAMÈTRES ═══════════════════════════════════════════════════ -->
-    <div class="ww-panel <%= activeTab === 'settings' ? 'active' : '' %>" id="panel-settings">
+    <div class="ww-panel" id="panel-settings" style="display:<%= activeTab === 'settings' ? 'block' : 'none' %> !important;">
       <div class="card">
         <div class="card-header"><h2>⚙️ Paramètres</h2></div>
         <div class="card-body">
@@ -527,7 +526,7 @@
     </div>
 
     <!-- ══ TAB : NOTIFICATIONS ═══════════════════════════════════════════════ -->
-    <div class="ww-panel <%= activeTab === 'notifs' ? 'active' : '' %>" id="panel-notifs">
+    <div class="ww-panel" id="panel-notifs" style="display:<%= activeTab === 'notifs' ? 'block' : 'none' %> !important;">
       <% if (!game) { %>
         <div style="text-align:center;padding:48px;color:var(--text-muted);">Aucune partie en cours.</div>
       <% } else { %>
@@ -583,23 +582,6 @@
 <script>
   const PLAYERS_COUNT = <%= players.length %>;
   const SAVED_CONFIG  = <%- JSON.stringify(savedRoleConfig) %>;
-
-  // ── Tabs ─────────────────────────────────────────────────────────────────
-  function showTab(id, tabElement) {
-    const panel = document.getElementById('panel-' + id);
-    if (!panel) return;
-
-    document.querySelectorAll('.ww-tab').forEach(tab => {
-      const selected = tab === tabElement || tab.dataset.tab === id;
-      tab.classList.toggle('active', selected);
-      tab.setAttribute('aria-selected', selected ? 'true' : 'false');
-    });
-    document.querySelectorAll('.ww-panel').forEach(p => {
-      p.classList.toggle('active', p === panel);
-      p.hidden = p !== panel;
-    });
-    panel.hidden = false;
-  }
 
   // ── Role total counter ───────────────────────────────────────────────────
   function getEnabledRoles() {
