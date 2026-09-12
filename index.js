@@ -6203,6 +6203,19 @@ client.on('interactionCreate', async interaction => {
           return interaction.editReply('✅ Tu es déjà inscrit(e) à l\'event ! Retrouve le salon dédié aux joueurs.');
         }
         await member.roles.add(settings.eventRoleId, 'Inscription event Loup-Garou');
+        try {
+          await werewolf.addPlayer({
+            userId: interaction.user.id,
+            username: interaction.user.username,
+            displayName: member.displayName || interaction.user.globalName || interaction.user.username,
+          });
+        } catch (playerError) {
+          // Le rôle Discord reste attribué si le joueur était déjà présent
+          // dans la liste interne (par exemple après un ajout manuel).
+          if (!/déjà/i.test(playerError.message || '')) {
+            console.error('[Werewolf] ajout joueur après inscription:', playerError.message);
+          }
+        }
         return interaction.editReply(
           '🐺 **Tu es inscrit(e) à l\'event Loup-Garou !**\n\n' +
           'Tu as maintenant accès au salon dédié aux joueurs. À très bientôt pour la partie !'
@@ -6214,6 +6227,10 @@ client.on('interactionCreate', async interaction => {
           return interaction.editReply('Tu n\'es pas inscrit(e) à l\'event.');
         }
         await member.roles.remove(settings.eventRoleId, 'Désinscription event Loup-Garou');
+        const currentGame = await werewolf.getGame();
+        if (!currentGame || currentGame.phase === 'LOBBY') {
+          await werewolf.removePlayer(interaction.user.id).catch(() => {});
+        }
         return interaction.editReply('❌ Tu as été désinscrit(e) de l\'event Loup-Garou.');
       }
     } catch (e) {

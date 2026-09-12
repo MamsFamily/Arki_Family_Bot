@@ -90,15 +90,16 @@
         <h1>🐺 Loup-Garou</h1>
         <p>Gestion de la partie Loup-Garou — votes Discord, rôles secrets, thread des loups</p>
       </div>
-      <% if (game) { %>
       <div style="display:flex;align-items:center;gap:10px;">
+        <button class="ctrl-btn btn-gray" onclick="location.reload()">🔄 Actualiser</button>
+        <% if (game) { %>
         <span class="phase-badge phase-<%= game.phase %>">
           <% const phaseLabels = {LOBBY:'🏠 Lobby',NIGHT:'🌙 Nuit',DAY:'☀️ Jour',VOTE:'🗳️ Vote',RESULT:'📊 Résultat',ENDED:'🏆 Terminé'}; %>
           <%= phaseLabels[game.phase] || game.phase %> — Manche <%= game.round %>
         </span>
         <button class="ctrl-btn btn-gray" onclick="if(confirm('Réinitialiser la partie ?')) postAction('/werewolf/game/reset')">🔄 Reset</button>
+        <% } %>
       </div>
-      <% } %>
     </div>
 
     <% if (success) { %><div class="toast-ok" style="display:block;margin-bottom:16px;">✅ <%= success %></div><% } %>
@@ -106,18 +107,18 @@
 
     <!-- TABS -->
     <div class="ww-tabs">
-      <div class="ww-tab active" onclick="showTab('players')">👥 Joueurs (<%= players.length %>)</div>
-      <div class="ww-tab" onclick="showTab('roles')">🎭 Rôles</div>
-      <div class="ww-tab" onclick="showTab('control')">🎮 Contrôle</div>
-      <div class="ww-tab" onclick="showTab('notifs')" id="tab-notifs">
+      <div class="ww-tab active" onclick="showTab('players', this)">👥 Joueurs (<%= players.length %>)</div>
+      <div class="ww-tab" onclick="showTab('roles', this)">🎭 Rôles</div>
+      <div class="ww-tab" onclick="showTab('control', this)">🎮 Contrôle</div>
+      <div class="ww-tab" onclick="showTab('notifs', this)" id="tab-notifs">
         📨 Notifications
         <% if (game) {
           const pending = game.assignments.filter(a => !a.ackReceived).length;
           if (pending > 0) { %><span style="background:#ef5350;color:#fff;border-radius:20px;padding:1px 7px;font-size:11px;margin-left:4px;"><%= pending %></span><% }
         } %>
       </div>
-      <div class="ww-tab" onclick="showTab('history')">📚 Historique (<%= history.length %>)</div>
-      <div class="ww-tab" onclick="showTab('settings')">⚙️ Paramètres</div>
+      <div class="ww-tab" onclick="showTab('history', this)">📚 Historique (<%= history.length %>)</div>
+      <div class="ww-tab" onclick="showTab('settings', this)">⚙️ Paramètres</div>
     </div>
 
     <!-- ══ TAB : JOUEURS ══════════════════════════════════════════════════ -->
@@ -580,11 +581,11 @@
   const SAVED_CONFIG  = <%- JSON.stringify(savedRoleConfig) %>;
 
   // ── Tabs ─────────────────────────────────────────────────────────────────
-  function showTab(id) {
+  function showTab(id, tabElement) {
     document.querySelectorAll('.ww-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.ww-panel').forEach(p => p.classList.remove('active'));
     document.getElementById('panel-' + id)?.classList.add('active');
-    event.currentTarget.classList.add('active');
+    (tabElement || document.querySelector(`.ww-tab[onclick*="showTab('${id}'"]`))?.classList.add('active');
   }
 
   // ── Role total counter ───────────────────────────────────────────────────
