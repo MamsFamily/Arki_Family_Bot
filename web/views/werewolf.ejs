@@ -595,6 +595,7 @@
       tab.setAttribute('aria-selected', selected ? 'true' : 'false');
     });
     document.querySelectorAll('.ww-panel').forEach(p => {
+      p.classList.toggle('active', p === panel);
       p.hidden = p !== panel;
     });
     panel.hidden = false;
