@@ -649,6 +649,9 @@ client.once('clientReady', async () => {
   // Restaurer le vote Loup-Garou après un redémarrage du bot.
   try {
     const activeWerewolfGame = await werewolf.getGame();
+    if (activeWerewolfGame?.lovers?.length === 2) {
+      await werewolf.notifyLovers(client, activeWerewolfGame);
+    }
     if (activeWerewolfGame?.phase === 'VOTE' && activeWerewolfGame.voteChannelId) {
       const guildId = client.guilds.cache.first()?.id;
       const receivedVotes = Object.keys(activeWerewolfGame.votes || {}).length;

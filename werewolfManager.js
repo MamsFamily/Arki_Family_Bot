@@ -866,6 +866,42 @@ async function sendPendingDeathActionDMs(client, game = null) {
   await saveGame(game);
 }
 
+async function notifyLovers(client, game = null) {
+  game = game || await getGame();
+  if (!game || !Array.isArray(game.lovers) || game.lovers.length !== 2) {
+    return { notified: [], failures: [] };
+  }
+
+  game.loversNotifiedIds = game.loversNotifiedIds || [];
+  const notified = [];
+  const failures = [];
+  for (const loverId of game.lovers) {
+    if (game.loversNotifiedIds.includes(loverId)) continue;
+    const lover = game.assignments.find(a => a.userId === loverId);
+    const partnerId = game.lovers.find(id => id !== loverId);
+    const partner = game.assignments.find(a => a.userId === partnerId);
+    if (!lover || !partner) {
+      failures.push(lover?.displayName || loverId);
+      continue;
+    }
+    try {
+      const user = await client.users.fetch(lover.userId);
+      await user.send(
+        `💘 **Tu es désormais amoureux/amoureuse de ${partner.displayName}.**\n\n` +
+        `Si l’un de vous meurt, l’autre mourra immédiatement de chagrin. ` +
+        `Votre lien et l’identité de ton partenaire doivent rester secrets.`,
+      );
+      game.loversNotifiedIds.push(loverId);
+      notified.push(lover.displayName);
+    } catch (error) {
+      failures.push(lover.displayName);
+      console.error(`[Werewolf] lover DM error for ${lover.displayName}:`, error.message);
+    }
+  }
+  await saveGame(game);
+  return { notified, failures };
+}
+
 async function sendNightActionDMs(client) {
   const game = await getGame();
   if (!game) return;
@@ -1118,25 +1154,8 @@ async function handleNightAction(client, action, actorId, targetId) {
 
     game.lovers = [firstLover.userId, targetId];
     await saveGame(game);
-
-    const loverMessages = [
-      [firstLover, target],
-      [target, firstLover],
-    ];
-    const dmFailures = [];
-    for (const [lover, partner] of loverMessages) {
-      try {
-        const user = await client.users.fetch(lover.userId);
-        await user.send(
-          `💘 **Tu es désormais amoureux/amoureuse de ${partner.displayName}.**\n\n` +
-          `Si l’un de vous meurt, l’autre mourra immédiatement de chagrin. ` +
-          `Votre lien et l’identité de ton partenaire doivent rester secrets.`,
-        );
-      } catch (error) {
-        dmFailures.push(lover.displayName);
-        console.error(`[Werewolf] lover DM error for ${lover.displayName}:`, error.message);
-      }
-    }
+    const loverNotifications = await notifyLovers(client, game);
+    const dmFailures = loverNotifications.failures;
 
     await client.users.fetch(actorId).then(user =>
       user.send(
@@ -1424,7 +1443,7 @@ module.exports = {
   startGame, sendRoleDMs, handleAck,
   createWolfThread,
   createVotePoll, handleVote, updateVoteMessage, resolveVote,
-   sendNightActionDMs, handleNightAction, confirmWolfTarget, resolveNight, announceDay,
+   sendNightActionDMs, notifyLovers, handleNightAction, confirmWolfTarget, resolveNight, announceDay,
   eliminatePlayer,
   checkVictory, buildVictoryEmbed,
 };
