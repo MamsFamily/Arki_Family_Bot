@@ -29,47 +29,47 @@ const ROLES = {
   },
   chasseur: {
     name: 'Chasseur', emoji: '🏹', team: 'village', maxCount: 1,
-    description: 'Si tu es éliminé (par vote ou par les loups), tu peux immédiatement abattre un autre joueur de ton choix avant de mourir. Ton fusil ne rate jamais.',
+    description: `Si tu es éliminé par les Loups ou par le vote du Village, tu peux tirer immédiatement sur un autre joueur avant de mourir. Ton tir est définitif : choisis avec attention, car tu peux éliminer un allié par erreur. Tu gagnes avec le Village. 🔒 Ton rôle et l'existence de ton tir doivent rester secrets tant que tu es vivant.`,
     night: false, onDeath: 'shoot',
   },
   cupidon: {
     name: 'Cupidon', emoji: '💘', team: 'village', maxCount: 1,
-    description: 'Au début de la partie (première nuit), tu choisis deux joueurs et les unis par les liens de l\'amour. Si l\'un des amoureux meurt, l\'autre meurt de chagrin immédiatement.',
+    description: `Pendant la première nuit, tu choisis deux joueurs qui deviennent amoureux. Si l'un des amoureux meurt, l'autre meurt immédiatement de chagrin. Les amoureux peuvent appartenir à des camps différents et doivent alors adapter leur stratégie pour être les derniers survivants. Tu gagnes normalement avec le Village, sauf si les conditions des amoureux modifient la victoire. 🔒 Ne révèle jamais l'identité des amoureux ni ton rôle.`,
     night: true, nightAction: 'link', firstNightOnly: true,
   },
   petite_fille: {
     name: 'Petite Fille', emoji: '👧', team: 'village', maxCount: 1,
-    description: 'Pendant la phase nuit, tu peux essayer d\'espionner les Loups-Garous. Si tu es surprise en train d\'épier, tu es dévorée à leur place.',
+    description: `Tu appartiens au Village et tu peux tenter d'espionner les échanges ou les actions des Loups pendant la nuit. Cette information peut aider le Village, mais l'espionnage est extrêmement dangereux : si les Loups te repèrent, tu peux devenir leur victime. Tu gagnes lorsque les Loups sont éliminés. 🔒 Ne dis jamais que tu espionnes et ne révèle pas publiquement comment tu as obtenu une information.`,
     night: false,
   },
   ancien: {
     name: 'Ancien', emoji: '🧓', team: 'village', maxCount: 1,
-    description: 'Tu possèdes la sagesse des années et résistes à la première attaque des Loups-Garous. Mais si tu es éliminé par vote du village, tous les villageois perdent leurs pouvoirs spéciaux.',
+    description: `Ta sagesse te permet de résister à la première attaque des Loups-Garous. En revanche, si le Village t'élimine par erreur, le Village perd ses pouvoirs spéciaux selon les règles de la partie. Les attaques ou effets ultérieurs peuvent alors t'éliminer normalement. Tu gagnes avec le Village. 🔒 Garde ton identité secrète : annoncer que tu es l'Ancien peut pousser les Loups à te cibler.`,
     night: false,
   },
   capitaine: {
     name: 'Capitaine', emoji: '⚓', team: 'village', maxCount: 1,
-    description: 'Ton vote compte double lors des éliminations. À ta mort, tu transmets le titre de Capitaine à un joueur de ton choix.',
+    description: `Tu es un membre du Village dont la voix a une importance particulière lors des éliminations. Le titre de Capitaine peut être transmis à un joueur de ton choix lorsque tu meurs, selon les règles de la partie. Utilise ton influence pour orienter les débats sans devenir une cible évidente. Tu gagnes avec le Village. 🔒 Ne révèle pas ton rôle uniquement pour justifier le poids de ton vote.`,
     night: false,
   },
   salvateur: {
     name: 'Salvateur', emoji: '🛡️', team: 'village', maxCount: 1,
-    description: 'Chaque nuit, tu peux protéger un joueur (y compris toi-même) contre les Loups-Garous. Tu ne peux pas protéger la même personne deux nuits de suite.',
+    description: `Chaque nuit, tu peux protéger un joueur vivant, y compris toi-même, contre l'attaque des Loups. La même personne ne peut pas être protégée deux nuits de suite. Tu ne connais pas forcément le résultat de ta protection : analyse les événements du lendemain pour déduire si elle a fonctionné. Tu gagnes avec le Village. 🔒 Ne révèle jamais qui tu protèges ni que tu es le Salvateur.`,
     night: true, nightAction: 'protect',
   },
   corbeau: {
     name: 'Corbeau', emoji: '🐦‍⬛', team: 'village', maxCount: 1,
-    description: 'Chaque nuit, tu peux désigner un joueur qui recevra 2 votes supplémentaires lors du vote du lendemain. Un pouvoir subtil et dangereux entre de bonnes mains.',
+    description: `Chaque nuit, tu peux désigner secrètement un joueur. Lors du vote du lendemain, cette cible reçoit deux votes supplémentaires, ce qui peut faire basculer l'élimination. Choisis une cible que tu penses dangereuse et vérifie les conséquences de ton choix avec les débats publics. Tu gagnes avec le Village. 🔒 Ne révèle jamais ta cible ni ton identité de Corbeau.`,
     night: true, nightAction: 'mark',
   },
   idiot_village: {
     name: 'Idiot du Village', emoji: '🃏', team: 'village', maxCount: 1,
-    description: 'Si le village vote ton élimination, ton rôle est révélé mais tu restes en vie — tu perds simplement ton droit de vote. Les Loups-Garous peuvent toujours te tuer.',
+    description: `Si le Village vote ton élimination, ton rôle est révélé et tu restes en vie, mais tu perds ton droit de vote pour la suite. Tu peux encore participer aux discussions et être éliminé par les Loups. Ton objectif reste d'aider le Village à trouver les Loups. 🔒 Tant que tu n'es pas révélé par un vote, ne dis pas que tu es l'Idiot pour éviter de devenir une cible.`,
     night: false,
   },
   ange: {
     name: 'Ange', emoji: '😇', team: 'solo', maxCount: 1,
-    description: 'Tu gagnes seul si tu es éliminé lors du premier vote du village. Si tu survis au premier vote, tu deviens un simple Villageois.',
+    description: `Tu as un objectif solitaire : être éliminé par le tout premier vote du Village. Si le Village te désigne lors de ce vote, tu gagnes immédiatement seul. Si tu survis au premier vote, tu perds ton objectif et continues la partie comme un Villageois. 🔒 Ne révèle jamais que tu es l'Ange et ne rends pas ton comportement trop évident, sinon les joueurs pourraient comprendre ta stratégie.`,
     night: false,
   },
   servante: {
