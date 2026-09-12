@@ -336,10 +336,10 @@
               🌑 La nuit tombe
             </button>
             <button class="ctrl-btn btn-orange" onclick="setPhase('DAY')" style="background:#e65100;">
-              ☀️ Le jour se lève
+              ☀️ Le jour se lève + lancer le vote
             </button>
             <span style="font-size:12px;color:var(--text-muted);">
-              La nuit envoie les actions privées. Le jour résout les actions nocturnes.
+              La nuit envoie les actions privées. Le jour annonce les résultats, puis lance automatiquement le vote avec le salon et la durée configurés ci-dessus.
             </span>
             <span id="phase-result"></span>
           </div>
@@ -730,11 +730,17 @@
   async function setPhase(phase) {
     const label = phase === 'NIGHT' ? '🌑 Phase Nuit' : '☀️ Phase Jour';
     const el    = document.getElementById('phase-result');
+    const channelId = document.getElementById('vote-channel')?.value?.trim();
+    const duration = parseInt(document.getElementById('vote-duration')?.value, 10) || 5;
+    if (phase === 'DAY' && !channelId) {
+      alert('Entre l’ID du salon Discord du vote avant de lancer le jour.');
+      return;
+    }
     if (el) el.innerHTML = `<span style="color:var(--text-muted);">⏳ ${label}…</span>`;
     try {
       const r = await fetch('/werewolf/game/set-phase', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phase }),
+        body: JSON.stringify({ phase, channelId, duration }),
       });
       const d = await r.json();
       if (!d.ok) { alert('❌ ' + (d.error || 'Erreur')); if (el) el.innerHTML = ''; return; }

@@ -5886,18 +5886,25 @@ function createWebServer(discordClient) {
   // ── Basculer la phase de jeu ───────────────────────────────────────────────
   app.post('/werewolf/game/set-phase', requireAdmin, async (req, res) => {
     try {
-      const { phase } = req.body;
+      const { phase, channelId, duration } = req.body;
       if (!['NIGHT', 'DAY', 'VOTE', 'LOBBY'].includes(phase)) return res.json({ ok: false, error: 'Phase invalide' });
       let game = await werewolf.getGame();
       if (!game) return res.json({ ok: false, error: 'Aucune partie en cours' });
+      const wasNight = game.phase === 'NIGHT';
 
       // La nuit doit être résolue avant d'ouvrir le jour : attaques, potions,
       // amoureux, Ancien et Chasseur sont ainsi persistés dans le même passage.
-      if (phase === 'DAY' && game.phase === 'NIGHT') {
+      if (phase === 'DAY' && wasNight) {
         if (!discordClient) return res.json({ ok: false, error: 'Bot Discord non connecté : impossible de résoudre la nuit' });
-        const nightResult = await werewolf.resolveNight(discordClient, req.body.channelId || game.voteChannelId || game.wolfChannelId);
+        if (!channelId) return res.json({ ok: false, error: 'Configure le salon Discord du vote avant de lancer le jour' });
+        const nightResult = await werewolf.resolveNight(discordClient, channelId);
         if (!nightResult.ok) return res.json(nightResult);
         game = await werewolf.getGame();
+        if (game.phase !== 'ENDED') {
+          const guildId = discordClient.guilds.cache.first()?.id || '';
+          await werewolf.createVotePoll(discordClient, guildId, channelId, parseInt(duration) || 5);
+          return res.json({ ok: true, voteStarted: true, deaths: nightResult.deaths });
+        }
       }
       // resolveNight peut terminer la partie immédiatement après les morts de
       // la nuit ; ne pas écraser cet état en repassant artificiellement à DAY.
