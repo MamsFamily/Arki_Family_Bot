@@ -497,40 +497,53 @@ async function createWolfThread(client, guildId, channelId, adminId) {
   const game = await getGame();
   if (!game) throw new Error('Aucune partie en cours');
 
-  const guild   = await client.guilds.fetch(guildId);
-  const channel = await client.channels.fetch(channelId);
-  const wolves  = game.assignments.filter(a => ROLES[a.roleId]?.team === 'wolves' && a.alive);
+  await client.guilds.fetch(guildId);
+  const wolves = game.assignments.filter(a => ROLES[a.roleId]?.team === 'wolves' && a.alive);
+  let thread = null;
+  let created = false;
 
-  // Créer un fil privé
-  const thread = await channel.threads.create({
-    name:                 `🐺 Loups-Garous — Nuit ${game.round}`,
-    autoArchiveDuration:  10080, // 7 jours
-    type:                 12,    // PRIVATE_THREAD
-    invitable:            false,
-    reason:               'Thread privé Loups-Garous — Loup Garou game',
-  });
+  if (game.wolfThreadId) {
+    thread = await client.channels.fetch(game.wolfThreadId).catch(() => null);
+    if (thread?.archived) await thread.setArchived(false, 'Nouvelle nuit Loup-Garou');
+  }
+
+  if (!thread) {
+    const channel = await client.channels.fetch(channelId);
+    thread = await channel.threads.create({
+      name:                 `🐺 Loups-Garous — Partie en cours`,
+      autoArchiveDuration:  10080, // 7 jours
+      type:                 12,    // PRIVATE_THREAD
+      invitable:            false,
+      reason:               'Thread privé Loups-Garous — Loup Garou game',
+    });
+    created = true;
+  }
 
   // Ajouter les loups
   for (const wolf of wolves) {
-    try { await thread.members.add(wolf.userId); } catch {}
+    await thread.members.add(wolf.userId);
   }
   // Ajouter l'admin
-  if (adminId) { try { await thread.members.add(adminId); } catch {} }
+  if (adminId) await thread.members.add(adminId);
 
-  // Message d'accueil
-  const wolfNames = wolves.map(w => `<@${w.userId}>`).join(', ');
-  await thread.send(
-    `## 🐺 Bienvenue dans le repaire des Loups-Garous !\n\n` +
-    `Loups présents : ${wolfNames}\n\n` +
-    `Utilisez ce fil pour vous concerter chaque nuit. **L'administrateur peut lire ce fil.**\n` +
-    `Chaque Loup choisit sa proposition depuis son DM. Les propositions et le décompte apparaissent ici, puis la victime doit être confirmée avec le bouton du fil.`
-  );
+  if (created) {
+    const wolfNames = wolves.map(w => `<@${w.userId}>`).join(', ');
+    await thread.send(
+      `## 🐺 Bienvenue dans le repaire des Loups-Garous !\n\n` +
+      `Loups présents : ${wolfNames}\n\n` +
+      `Utilisez ce fil pour vous concerter chaque nuit. **L'administrateur peut lire ce fil.**\n` +
+      `Chaque Loup choisit sa proposition depuis son DM. Les propositions et le décompte apparaissent ici, puis la victime doit être confirmée avec le bouton du fil.`
+    );
+  } else {
+    await thread.send(`🌙 **Nuit ${game.round}** — le choix de la victime est ouvert.`);
+  }
 
   game.wolfThreadId  = thread.id;
   game.wolfChannelId = channelId;
   game.wolfAdminId   = adminId || null;
   await saveGame(game);
-  if (Object.keys(ensureNightState(game).wolfVotes).length) {
+  const night = ensureNightState(game);
+  if (night.actionRound === game.round && Object.keys(night.wolfVotes).length) {
     await updateWolfVoteThread(client, game);
   }
   return thread;
@@ -866,6 +879,42 @@ async function sendPendingDeathActionDMs(client, game = null) {
   await saveGame(game);
 }
 
+async function notifyLovers(client, game = null) {
+  game = game || await getGame();
+  if (!game || !Array.isArray(game.lovers) || game.lovers.length !== 2) {
+    return { notified: [], failures: [] };
+  }
+
+  game.loversNotifiedIds = game.loversNotifiedIds || [];
+  const notified = [];
+  const failures = [];
+  for (const loverId of game.lovers) {
+    if (game.loversNotifiedIds.includes(loverId)) continue;
+    const lover = game.assignments.find(a => a.userId === loverId);
+    const partnerId = game.lovers.find(id => id !== loverId);
+    const partner = game.assignments.find(a => a.userId === partnerId);
+    if (!lover || !partner) {
+      failures.push(lover?.displayName || loverId);
+      continue;
+    }
+    try {
+      const user = await client.users.fetch(lover.userId);
+      await user.send(
+        `💘 **Tu es désormais amoureux/amoureuse de ${partner.displayName}.**\n\n` +
+        `Si l’un de vous meurt, l’autre mourra immédiatement de chagrin. ` +
+        `Votre lien et l’identité de ton partenaire doivent rester secrets.`,
+      );
+      game.loversNotifiedIds.push(loverId);
+      notified.push(lover.displayName);
+    } catch (error) {
+      failures.push(lover.displayName);
+      console.error(`[Werewolf] lover DM error for ${lover.displayName}:`, error.message);
+    }
+  }
+  await saveGame(game);
+  return { notified, failures };
+}
+
 async function sendNightActionDMs(client) {
   const game = await getGame();
   if (!game) return;
@@ -1113,12 +1162,23 @@ async function handleNightAction(client, action, actorId, targetId) {
     if (actor.roleId !== 'cupidon' || game.round !== 1 || !target || !night.cupidonFirstTarget || targetId === night.cupidonFirstTarget) {
       return { ok: false, reason: 'Second choix de Cupidon invalide' };
     }
-    game.lovers = [night.cupidonFirstTarget, targetId];
+    const firstLover = game.assignments.find(a => a.userId === night.cupidonFirstTarget);
+    if (!firstLover) return { ok: false, reason: 'Premier choix de Cupidon introuvable' };
+
+    game.lovers = [firstLover.userId, targetId];
     await saveGame(game);
+    const loverNotifications = await notifyLovers(client, game);
+    const dmFailures = loverNotifications.failures;
+
     await client.users.fetch(actorId).then(user =>
-      user.send('💘 Les deux joueurs sont maintenant liés par les liens de l’amour.').catch(() => {}),
+      user.send(
+        `💘 **${firstLover.displayName}** et **${target.displayName}** sont maintenant liés par les liens de l’amour.` +
+        (dmFailures.length
+          ? `\n⚠️ Le DM n’a pas pu être envoyé à : ${dmFailures.join(', ')}.`
+          : '\n✅ Les deux amoureux ont été avertis en privé.'),
+      ).catch(() => {}),
     );
-    return { ok: true };
+    return { ok: true, dmFailures };
   }
 
   if (action === 'charm1') {
@@ -1396,7 +1456,7 @@ module.exports = {
   startGame, sendRoleDMs, handleAck,
   createWolfThread,
   createVotePoll, handleVote, updateVoteMessage, resolveVote,
-   sendNightActionDMs, handleNightAction, confirmWolfTarget, resolveNight, announceDay,
+   sendNightActionDMs, notifyLovers, handleNightAction, confirmWolfTarget, resolveNight, announceDay,
   eliminatePlayer,
   checkVictory, buildVictoryEmbed,
 };
