@@ -5688,6 +5688,10 @@ function createWebServer(discordClient) {
   }
 
   // ── Page principale ────────────────────────────────────────────────────────
+  app.get('/werewolf/version', (req, res) => {
+    res.json({ ok: true, uiVersion: 'werewolf-sections-v5' });
+  });
+
   app.get('/werewolf', requireAdmin, async (req, res) => {
     const allowedTabs = new Set(['players', 'roles', 'control', 'notifs', 'history', 'settings']);
     const activeTab = allowedTabs.has(req.query.tab) ? req.query.tab : 'players';

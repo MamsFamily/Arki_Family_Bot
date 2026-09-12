@@ -104,25 +104,26 @@
 
     <% if (success) { %><div class="toast-ok" style="display:block;margin-bottom:16px;">✅ <%= success %></div><% } %>
     <% if (error)   { %><div class="toast-err" style="display:block;margin-bottom:16px;">❌ <%= error   %></div><% } %>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;">Interface Loup-Garou v5 — toutes les sections sont accessibles ci-dessous.</div>
 
     <!-- TABS -->
     <div class="ww-tabs">
-      <a href="/werewolf?tab=players" class="ww-tab <%= activeTab === 'players' ? 'active' : '' %>" data-tab="players" aria-selected="<%= activeTab === 'players' %>">👥 Joueurs (<%= players.length %>)</a>
-      <a href="/werewolf?tab=roles" class="ww-tab <%= activeTab === 'roles' ? 'active' : '' %>" data-tab="roles" aria-selected="<%= activeTab === 'roles' %>">🎭 Rôles</a>
-      <a href="/werewolf?tab=control" class="ww-tab <%= activeTab === 'control' ? 'active' : '' %>" data-tab="control" aria-selected="<%= activeTab === 'control' %>">🎮 Contrôle</a>
-      <a href="/werewolf?tab=notifs" class="ww-tab <%= activeTab === 'notifs' ? 'active' : '' %>" data-tab="notifs" aria-selected="<%= activeTab === 'notifs' %>" id="tab-notifs">
+      <a href="#panel-players" class="ww-tab">👥 Joueurs (<%= players.length %>)</a>
+      <a href="#panel-roles" class="ww-tab">🎭 Rôles</a>
+      <a href="#panel-control" class="ww-tab">🎮 Contrôle</a>
+      <a href="#panel-notifs" class="ww-tab" id="tab-notifs">
         📨 Notifications
         <% if (game) {
           const pending = game.assignments.filter(a => !a.ackReceived).length;
           if (pending > 0) { %><span style="background:#ef5350;color:#fff;border-radius:20px;padding:1px 7px;font-size:11px;margin-left:4px;"><%= pending %></span><% }
         } %>
       </a>
-      <a href="/werewolf?tab=history" class="ww-tab <%= activeTab === 'history' ? 'active' : '' %>" data-tab="history" aria-selected="<%= activeTab === 'history' %>">📚 Historique (<%= history.length %>)</a>
-      <a href="/werewolf?tab=settings" class="ww-tab <%= activeTab === 'settings' ? 'active' : '' %>" data-tab="settings" aria-selected="<%= activeTab === 'settings' %>">⚙️ Paramètres</a>
+      <a href="#panel-history" class="ww-tab">📚 Historique (<%= history.length %>)</a>
+      <a href="#panel-settings" class="ww-tab">⚙️ Paramètres</a>
     </div>
 
     <!-- ══ TAB : JOUEURS ══════════════════════════════════════════════════ -->
-    <div class="ww-panel" id="panel-players" style="display:<%= activeTab === 'players' ? 'block' : 'none' %> !important;">
+    <div class="ww-panel" id="panel-players" style="display:block !important;scroll-margin-top:16px;">
       <div class="card">
           <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
             <h2>➕ Ajouter un joueur</h2>
@@ -177,7 +178,7 @@
     </div>
 
     <!-- ══ TAB : RÔLES ══════════════════════════════════════════════════════ -->
-    <div class="ww-panel" id="panel-roles" style="display:<%= activeTab === 'roles' ? 'block' : 'none' %> !important;">
+    <div class="ww-panel" id="panel-roles" style="display:block !important;scroll-margin-top:16px;margin-top:24px;">
       <div class="card">
         <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
           <h2>🎭 Configuration des rôles</h2>
@@ -234,7 +235,7 @@
     </div>
 
     <!-- ══ TAB : CONTRÔLE ═══════════════════════════════════════════════════ -->
-    <div class="ww-panel" id="panel-control" style="display:<%= activeTab === 'control' ? 'block' : 'none' %> !important;">
+    <div class="ww-panel" id="panel-control" style="display:block !important;scroll-margin-top:16px;margin-top:24px;">
       <% if (!game || game.phase === 'LOBBY' || game.phase === 'ENDED') { %>
       <!-- Pas de partie en cours -->
       <div class="card">
@@ -393,7 +394,7 @@
     </div>
 
     <!-- ══ TAB : HISTORIQUE ══════════════════════════════════════════════════ -->
-    <div class="ww-panel" id="panel-history" style="display:<%= activeTab === 'history' ? 'block' : 'none' %> !important;">
+    <div class="ww-panel" id="panel-history" style="display:block !important;scroll-margin-top:16px;margin-top:24px;">
       <% if (!history.length) { %>
         <div style="text-align:center;padding:48px;color:var(--text-muted);">Aucune partie archivée pour l'instant.</div>
       <% } else { %>
@@ -439,7 +440,7 @@
     </div>
 
     <!-- ══ TAB : PARAMÈTRES ═══════════════════════════════════════════════════ -->
-    <div class="ww-panel" id="panel-settings" style="display:<%= activeTab === 'settings' ? 'block' : 'none' %> !important;">
+    <div class="ww-panel" id="panel-settings" style="display:block !important;scroll-margin-top:16px;margin-top:24px;">
       <div class="card">
         <div class="card-header"><h2>⚙️ Paramètres</h2></div>
         <div class="card-body">
@@ -526,7 +527,7 @@
     </div>
 
     <!-- ══ TAB : NOTIFICATIONS ═══════════════════════════════════════════════ -->
-    <div class="ww-panel" id="panel-notifs" style="display:<%= activeTab === 'notifs' ? 'block' : 'none' %> !important;">
+    <div class="ww-panel" id="panel-notifs" style="display:block !important;scroll-margin-top:16px;margin-top:24px;">
       <% if (!game) { %>
         <div style="text-align:center;padding:48px;color:var(--text-muted);">Aucune partie en cours.</div>
       <% } else { %>
