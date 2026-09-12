@@ -5689,6 +5689,8 @@ function createWebServer(discordClient) {
 
   // ── Page principale ────────────────────────────────────────────────────────
   app.get('/werewolf', requireAdmin, async (req, res) => {
+    const allowedTabs = new Set(['players', 'roles', 'control', 'notifs', 'history', 'settings']);
+    const activeTab = allowedTabs.has(req.query.tab) ? req.query.tab : 'players';
     try {
       const [players, game, savedRoleConfig, settings, history] = await Promise.all([
         werewolf.getPlayers(),
@@ -5703,6 +5705,7 @@ function createWebServer(discordClient) {
       res.render('werewolf', {
         players, game: game_, savedRoleConfig, settings, history,
         voteChannelId, wolfChannelId,
+        activeTab,
         ROLES: werewolf.ROLES, TEAM_LABELS: werewolf.TEAM_LABELS,
         botUser: discordClient?.user || null,
         discordUser: req.session?.discordUser || null,
@@ -5714,6 +5717,7 @@ function createWebServer(discordClient) {
       res.render('werewolf', {
         players: [], game: null, savedRoleConfig: {}, settings: {}, history: [],
         voteChannelId: '', wolfChannelId: '',
+        activeTab,
         ROLES: werewolf.ROLES, TEAM_LABELS: werewolf.TEAM_LABELS,
         botUser: discordClient?.user || null,
         discordUser: req.session?.discordUser || null,
