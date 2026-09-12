@@ -646,6 +646,28 @@ client.once('clientReady', async () => {
 
   createWebServer(client);
 
+  // Restaurer le vote Loup-Garou après un redémarrage du bot.
+  try {
+    const activeWerewolfGame = await werewolf.getGame();
+    if (activeWerewolfGame?.phase === 'VOTE' && activeWerewolfGame.voteChannelId) {
+      const guildId = client.guilds.cache.first()?.id;
+      const receivedVotes = Object.keys(activeWerewolfGame.votes || {}).length;
+      if (activeWerewolfGame.voteDeadline > Date.now()) {
+        await werewolf.updateVoteMessage(client);
+        setTimeout(
+          () => werewolf.resolveVote(client, guildId, activeWerewolfGame.voteChannelId).catch(() => {}),
+          activeWerewolfGame.voteDeadline - Date.now() + 2000,
+        );
+      } else if (receivedVotes === 0 && guildId) {
+        await werewolf.createVotePoll(client, guildId, activeWerewolfGame.voteChannelId, 5);
+      } else {
+        await werewolf.resolveVote(client, guildId, activeWerewolfGame.voteChannelId);
+      }
+    }
+  } catch (error) {
+    console.error('[Loup-Garou] Reprise du vote impossible :', error.message);
+  }
+
   // Initialiser les crons anniversaires
   birthdayManager.initBirthdayCron(client);
 

@@ -543,8 +543,6 @@ async function createVotePoll(client, guildId, channelId, durationMinutes = 5) {
   const game = await getGame();
   if (!game) throw new Error('Aucune partie en cours');
 
-  const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-
   const alivePlayers = game.assignments.filter(a => a.alive);
   const deadline     = Date.now() + durationMinutes * 60 * 1000;
   game.votes         = {};
@@ -559,27 +557,9 @@ async function createVotePoll(client, guildId, channelId, durationMinutes = 5) {
   // Embed principal
   const embed = buildVoteEmbed(game, alivePlayers, deadline);
 
-  // Boutons (un par joueur vivant, max 25)
-  const rows = [];
-  let currentRow = new ActionRowBuilder();
-  let btnCount   = 0;
-  for (const p of alivePlayers) {
-    if (btnCount > 0 && btnCount % 5 === 0) {
-      rows.push(currentRow);
-      currentRow = new ActionRowBuilder();
-    }
-    currentRow.addComponents(
-      new ButtonBuilder()
-        .setCustomId(`ww_vote_${p.userId}`)
-        .setLabel(p.displayName.slice(0, 80))
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji('🗳️')
-    );
-    btnCount++;
-  }
-  if (btnCount % 5 !== 0 || btnCount === 0) rows.push(currentRow);
+  const rows = buildVoteRows(alivePlayers);
 
-  const msg = await channel.send({ embeds: [embed], components: rows.slice(0, 5) });
+  const msg = await channel.send({ embeds: [embed], components: rows });
   game.voteMessageId = msg.id;
   await saveGame(game);
 
@@ -587,6 +567,25 @@ async function createVotePoll(client, guildId, channelId, durationMinutes = 5) {
   setTimeout(() => resolveVote(client, guildId, channelId).catch(() => {}), durationMinutes * 60 * 1000 + 2000);
 
   return msg;
+}
+
+function buildVoteRows(alivePlayers) {
+  const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+  const rows = [];
+  for (let offset = 0; offset < Math.min(alivePlayers.length, 25); offset += 5) {
+    const row = new ActionRowBuilder();
+    for (const player of alivePlayers.slice(offset, offset + 5)) {
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`ww_vote_${player.userId}`)
+          .setLabel(player.displayName.slice(0, 80))
+          .setStyle(ButtonStyle.Secondary)
+          .setEmoji('🗳️'),
+      );
+    }
+    rows.push(row);
+  }
+  return rows;
 }
 
 function buildVoteEmbed(game, alivePlayers, deadline) {
@@ -606,12 +605,16 @@ function buildVoteEmbed(game, alivePlayers, deadline) {
       const p = game.assignments.find(x => x.userId === uid);
       return `• **${p?.displayName || uid}** — ${cnt} vote(s)`;
     });
+  const candidateLines = (alivePlayers || game.assignments.filter(a => a.alive))
+    .slice(0, 25)
+    .map(player => `• ${player.displayName}`);
 
   return new EmbedBuilder()
     .setColor(0xe74c3c)
     .setTitle('🗳️ VOTE D\'ÉLIMINATION')
     .setDescription(
       `Le village doit désigner un suspect !\n\n` +
+      `👥 **Propositions :**\n${candidateLines.join('\n') || 'Aucun joueur vivant'}\n\n` +
       `⏳ **Temps restant :** <t:${deadlineTs}:R> (fin <t:${deadlineTs}:T>)\n` +
       `📊 **Votes reçus :** ${voteCount} / ${totalVoters}\n\n` +
       (tallyLines.length ? `**Décompte en cours :**\n${tallyLines.join('\n')}` : '_Aucun vote pour l\'instant…_')
@@ -645,7 +648,8 @@ async function updateVoteMessage(client) {
     const msg     = await channel.messages.fetch(game.voteMessageId);
     const alive   = game.assignments.filter(a => a.alive);
     const embed   = buildVoteEmbed(game, alive, game.voteDeadline);
-    await msg.edit({ embeds: [embed] });
+    const rows    = buildVoteRows(alive);
+    await msg.edit({ embeds: [embed], components: rows });
   } catch {}
 }
 
