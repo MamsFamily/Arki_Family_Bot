@@ -124,7 +124,10 @@
     <!-- ══ TAB : JOUEURS ══════════════════════════════════════════════════ -->
     <div class="ww-panel active" id="panel-players">
       <div class="card">
-        <div class="card-header"><h2>➕ Ajouter un joueur</h2></div>
+          <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+            <h2>➕ Ajouter un joueur</h2>
+            <button class="ctrl-btn btn-gray" onclick="syncDiscordPlayers()" style="font-size:12px;padding:7px 12px;">🔄 Synchroniser les inscrits Discord</button>
+          </div>
         <div class="card-body">
           <!-- Recherche Discord -->
           <div style="background:rgba(88,101,242,.08);border:1px solid rgba(88,101,242,.25);border-radius:10px;padding:14px 16px;margin-bottom:14px;">
@@ -732,6 +735,24 @@
     document.getElementById('ww-add-name').value = name;
     document.getElementById('ww-search').value   = '';
     document.getElementById('ww-search-results').innerHTML = `<div style="font-size:12px;color:#66bb6a;padding:4px 0;">✅ ${name} sélectionné(e)</div>`;
+  }
+
+  async function syncDiscordPlayers() {
+    try {
+      const response = await fetch('/werewolf/players/sync-discord', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+      });
+      const data = await response.json();
+      if (!data.ok) {
+        alert('❌ ' + (data.error || 'Synchronisation impossible'));
+        return;
+      }
+      alert(`✅ Synchronisation terminée : ${data.added} joueur(s) ajouté(s), ${data.total} membre(s) possèdent le rôle Event.`);
+      location.reload();
+    } catch (error) {
+      alert('❌ Erreur réseau : ' + error.message);
+    }
   }
 
   // ── Phase RCON (nuit / jour in-game) ─────────────────────────────────────

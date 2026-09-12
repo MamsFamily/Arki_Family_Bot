@@ -6200,6 +6200,17 @@ client.on('interactionCreate', async interaction => {
 
       if (id === 'ww_register_event') {
         if (hasRole) {
+          // Répare aussi les anciennes inscriptions qui avaient le rôle Discord
+          // mais n'avaient pas encore été ajoutées à la liste de la partie.
+          await werewolf.addPlayer({
+            userId: interaction.user.id,
+            username: interaction.user.username,
+            displayName: member.displayName || interaction.user.globalName || interaction.user.username,
+          }).catch(playerError => {
+            if (!/déjà/i.test(playerError.message || '')) {
+              console.error('[Werewolf] synchronisation joueur déjà inscrit:', playerError.message);
+            }
+          });
           return interaction.editReply('✅ Tu es déjà inscrit(e) à l\'event ! Retrouve le salon dédié aux joueurs.');
         }
         await member.roles.add(settings.eventRoleId, 'Inscription event Loup-Garou');
