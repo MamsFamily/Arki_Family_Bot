@@ -1113,12 +1113,40 @@ async function handleNightAction(client, action, actorId, targetId) {
     if (actor.roleId !== 'cupidon' || game.round !== 1 || !target || !night.cupidonFirstTarget || targetId === night.cupidonFirstTarget) {
       return { ok: false, reason: 'Second choix de Cupidon invalide' };
     }
-    game.lovers = [night.cupidonFirstTarget, targetId];
+    const firstLover = game.assignments.find(a => a.userId === night.cupidonFirstTarget);
+    if (!firstLover) return { ok: false, reason: 'Premier choix de Cupidon introuvable' };
+
+    game.lovers = [firstLover.userId, targetId];
     await saveGame(game);
+
+    const loverMessages = [
+      [firstLover, target],
+      [target, firstLover],
+    ];
+    const dmFailures = [];
+    for (const [lover, partner] of loverMessages) {
+      try {
+        const user = await client.users.fetch(lover.userId);
+        await user.send(
+          `💘 **Tu es désormais amoureux/amoureuse de ${partner.displayName}.**\n\n` +
+          `Si l’un de vous meurt, l’autre mourra immédiatement de chagrin. ` +
+          `Votre lien et l’identité de ton partenaire doivent rester secrets.`,
+        );
+      } catch (error) {
+        dmFailures.push(lover.displayName);
+        console.error(`[Werewolf] lover DM error for ${lover.displayName}:`, error.message);
+      }
+    }
+
     await client.users.fetch(actorId).then(user =>
-      user.send('💘 Les deux joueurs sont maintenant liés par les liens de l’amour.').catch(() => {}),
+      user.send(
+        `💘 **${firstLover.displayName}** et **${target.displayName}** sont maintenant liés par les liens de l’amour.` +
+        (dmFailures.length
+          ? `\n⚠️ Le DM n’a pas pu être envoyé à : ${dmFailures.join(', ')}.`
+          : '\n✅ Les deux amoureux ont été avertis en privé.'),
+      ).catch(() => {}),
     );
-    return { ok: true };
+    return { ok: true, dmFailures };
   }
 
   if (action === 'charm1') {
