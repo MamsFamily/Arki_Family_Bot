@@ -497,40 +497,53 @@ async function createWolfThread(client, guildId, channelId, adminId) {
   const game = await getGame();
   if (!game) throw new Error('Aucune partie en cours');
 
-  const guild   = await client.guilds.fetch(guildId);
-  const channel = await client.channels.fetch(channelId);
-  const wolves  = game.assignments.filter(a => ROLES[a.roleId]?.team === 'wolves' && a.alive);
+  await client.guilds.fetch(guildId);
+  const wolves = game.assignments.filter(a => ROLES[a.roleId]?.team === 'wolves' && a.alive);
+  let thread = null;
+  let created = false;
 
-  // Créer un fil privé
-  const thread = await channel.threads.create({
-    name:                 `🐺 Loups-Garous — Nuit ${game.round}`,
-    autoArchiveDuration:  10080, // 7 jours
-    type:                 12,    // PRIVATE_THREAD
-    invitable:            false,
-    reason:               'Thread privé Loups-Garous — Loup Garou game',
-  });
+  if (game.wolfThreadId) {
+    thread = await client.channels.fetch(game.wolfThreadId).catch(() => null);
+    if (thread?.archived) await thread.setArchived(false, 'Nouvelle nuit Loup-Garou');
+  }
+
+  if (!thread) {
+    const channel = await client.channels.fetch(channelId);
+    thread = await channel.threads.create({
+      name:                 `🐺 Loups-Garous — Partie en cours`,
+      autoArchiveDuration:  10080, // 7 jours
+      type:                 12,    // PRIVATE_THREAD
+      invitable:            false,
+      reason:               'Thread privé Loups-Garous — Loup Garou game',
+    });
+    created = true;
+  }
 
   // Ajouter les loups
   for (const wolf of wolves) {
-    try { await thread.members.add(wolf.userId); } catch {}
+    await thread.members.add(wolf.userId);
   }
   // Ajouter l'admin
-  if (adminId) { try { await thread.members.add(adminId); } catch {} }
+  if (adminId) await thread.members.add(adminId);
 
-  // Message d'accueil
-  const wolfNames = wolves.map(w => `<@${w.userId}>`).join(', ');
-  await thread.send(
-    `## 🐺 Bienvenue dans le repaire des Loups-Garous !\n\n` +
-    `Loups présents : ${wolfNames}\n\n` +
-    `Utilisez ce fil pour vous concerter chaque nuit. **L'administrateur peut lire ce fil.**\n` +
-    `Chaque Loup choisit sa proposition depuis son DM. Les propositions et le décompte apparaissent ici, puis la victime doit être confirmée avec le bouton du fil.`
-  );
+  if (created) {
+    const wolfNames = wolves.map(w => `<@${w.userId}>`).join(', ');
+    await thread.send(
+      `## 🐺 Bienvenue dans le repaire des Loups-Garous !\n\n` +
+      `Loups présents : ${wolfNames}\n\n` +
+      `Utilisez ce fil pour vous concerter chaque nuit. **L'administrateur peut lire ce fil.**\n` +
+      `Chaque Loup choisit sa proposition depuis son DM. Les propositions et le décompte apparaissent ici, puis la victime doit être confirmée avec le bouton du fil.`
+    );
+  } else {
+    await thread.send(`🌙 **Nuit ${game.round}** — le choix de la victime est ouvert.`);
+  }
 
   game.wolfThreadId  = thread.id;
   game.wolfChannelId = channelId;
   game.wolfAdminId   = adminId || null;
   await saveGame(game);
-  if (Object.keys(ensureNightState(game).wolfVotes).length) {
+  const night = ensureNightState(game);
+  if (night.actionRound === game.round && Object.keys(night.wolfVotes).length) {
     await updateWolfVoteThread(client, game);
   }
   return thread;

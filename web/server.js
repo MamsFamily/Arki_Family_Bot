@@ -5896,6 +5896,9 @@ function createWebServer(discordClient) {
       }
       const wasNight = game.phase === 'NIGHT';
       const { channelId } = await getWWSettings();
+      if (phase === 'NIGHT' && !channelId) {
+        return res.json({ ok: false, error: 'Configure le salon Discord unique de l’événement avant de lancer la nuit' });
+      }
 
       // La nuit doit être résolue avant d'ouvrir le jour : attaques, potions,
       // amoureux, Ancien et Chasseur sont ainsi persistés dans le même passage.
@@ -5926,9 +5929,13 @@ function createWebServer(discordClient) {
       if (game.phase !== 'ENDED') game.phase = phase;
       await werewolf.saveGame(game);
 
-      // Si on passe en nuit, envoyer les DMs d'actions nocturnes automatiquement
+      // Si on passe en nuit, préparer automatiquement le fil privé des Loups
+      // avant d'envoyer les actions, afin que leurs propositions y apparaissent.
       if (phase === 'NIGHT' && discordClient) {
-        werewolf.sendNightActionDMs(discordClient).catch(err => console.error('[Werewolf] night DMs:', err.message));
+        const guildId = discordClient.guilds.cache.first()?.id || '';
+        const adminId = req.session?.discordUser?.id || null;
+        await werewolf.createWolfThread(discordClient, guildId, channelId, adminId);
+        await werewolf.sendNightActionDMs(discordClient);
       }
 
       res.json({ ok: true });
