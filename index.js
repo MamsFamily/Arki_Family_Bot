@@ -2148,7 +2148,7 @@ client.on('interactionCreate', async interaction => {
         });
       }
       await interaction.reply({
-        content: '🐺 **Rôles actifs pour le Loup-Garou** — la composition finale dépendra du nombre de joueurs présents.',
+        content: '🐺 **Rôles actifs pour le Loup-Garou** — la composition finale dépendra du nombre de joueurs présents.\n\n🔒 **Tous les rôles, pouvoirs, informations obtenues et actions nocturnes doivent rester secrets.** Ne révèle jamais ton rôle ni le contenu de tes DMs ; par exemple, une Voyante ne doit pas dire qu’elle connaît le rôle d’un joueur.',
         embeds,
       });
     } catch (e) {

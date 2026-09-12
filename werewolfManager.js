@@ -74,40 +74,40 @@ const ROLES = {
   },
   servante: {
     name: 'Servante Dévouée', emoji: '🤝', team: 'village', maxCount: 1,
-    description: 'Si un joueur avec un rôle spécial est éliminé par vote, tu peux choisir secrètement d\'endosser son rôle avant que son identité ne soit révélée.',
+    description: `Lorsqu'un joueur possédant un rôle spécial est éliminé par le vote du Village, tu peux choisir secrètement d'endosser son rôle avant que son identité ne soit révélée, selon les règles de la partie. Tu changes alors de possibilités sans révéler immédiatement ton identité. Tu gagnes avec le camp que tu rejoins. 🔒 Ne révèle jamais que tu es la Servante ni le rôle que tu convoites.`,
     night: false,
   },
   // ── Loups ──────────────────────────────────────────────────────────────────
   loup_garou: {
     name: 'Loup-Garou', emoji: '🐺', team: 'wolves', maxCount: 10,
-    description: 'Chaque nuit, tu te réunis avec les autres Loups-Garous pour choisir une victime à dévorer. Le jour, tu te fondas dans la masse pour passer inaperçu. Élimine tous les Villageois.',
+    description: `Chaque nuit, tu participes au choix de la victime des Loups-Garous. Coordonne-toi avec ton équipe sans te dévoiler, puis le jour, fais semblant d'être un Villageois et oriente les votes contre les bons suspects. Tu gagnes lorsque les Loups deviennent majoritaires ou que le Village ne peut plus les arrêter. 🔒 Ton rôle, l'identité de tes alliés et vos décisions nocturnes doivent rester secrets. Ne dis jamais que tu es un Loup-Garou.`,
     required: true,
     night: true, nightAction: 'devour',
   },
   grand_mechant_loup: {
     name: 'Grand Méchant Loup', emoji: '🐺💀', team: 'wolves', maxCount: 1,
-    description: 'Tu es un Loup-Garou mais plus puissant. Tant qu\'aucun joueur ayant un rôle spécial n\'a été dévoré, tu peux attaquer une victime supplémentaire chaque nuit.',
+    description: `Tu appartiens aux Loups et participes à leur attaque. Tant qu'aucun joueur possédant un rôle spécial n'a été dévoré, ton pouvoir peut permettre une attaque supplémentaire pendant la nuit. Ce pouvoir disparaît dès que la condition n'est plus remplie. Tu gagnes avec les Loups. 🔒 Ne révèle jamais ton statut de Grand Méchant Loup, ton pouvoir ou l'identité de tes alliés.`,
     night: true, nightAction: 'devour',
   },
   loup_blanc: {
     name: 'Loup Blanc', emoji: '🤍🐺', team: 'solo', maxCount: 1,
-    description: 'Tu joues comme un Loup-Garou mais ton but est de gagner seul. Une nuit sur deux, tu peux éliminer un de tes alliés Loups-Garous. Tu gagnes si tu es le dernier survivant.',
+    description: `Tu es reconnu par les Loups comme un allié, mais tu poursuis un objectif solitaire. Tu participes aux attaques des Loups et, une nuit sur deux, tu peux tenter d'éliminer un Loup allié. Tu gagnes seul si tu deviens le dernier survivant ou si les conditions prévues par la partie sont remplies. 🔒 Ne révèle jamais que tu es le Loup Blanc : même tes alliés Loups doivent douter de tes intentions.`,
     night: true, nightAction: 'devour',
   },
   loup_infect: {
     name: 'Père des Loups', emoji: '🦠🐺', team: 'wolves', maxCount: 1,
-    description: 'Une fois dans la partie, au lieu de dévorer la victime choisie, tu peux l\'infecter et la convertir en Loup-Garou. La victime garde secrètement son rôle mais rejoint l\'équipe des loups.',
+    description: `Une seule fois dans la partie, tu peux remplacer l'attaque des Loups par une infection. La victime rejoint alors secrètement l'équipe des Loups au lieu de mourir et conserve son identité de rôle auprès des autres joueurs. Utilise ce pouvoir au moment où un nouvel allié peut changer l'issue de la partie. Tu gagnes avec les Loups. 🔒 Ne révèle jamais l'infection, la victime convertie ou ton rôle de Loup Infect.`,
     night: true, nightAction: 'devour',
   },
   // ── Neutres ────────────────────────────────────────────────────────────────
   joueur_flute: {
     name: 'Joueur de Flûte', emoji: '🪈', team: 'solo', maxCount: 1,
-    description: 'Tu n\'appartiens à aucun camp. Chaque nuit, tu ensorcèles deux joueurs. Tu gagnes si tu réussis à ensorceler tous les survivants avant la fin de la partie.',
+    description: `Tu n'appartiens ni au Village ni aux Loups. Chaque nuit, tu ensorcelles secrètement jusqu'à deux joueurs vivants. Les joueurs ensorcelés peuvent être informés de leur état, mais ils ne doivent pas connaître ton identité. Tu gagnes seul lorsque tous les survivants sont ensorcelés, selon les conditions de la partie. 🔒 Ne dis jamais que tu es le Joueur de Flûte et cache tes cibles derrière des votes et des arguments crédibles.`,
     night: true, nightAction: 'charm',
   },
   assassin: {
     name: 'Assassin', emoji: '🗡️', team: 'solo', maxCount: 1,
-    description: 'Tu as une liste secrète de cibles à éliminer dans un ordre précis. Si tu remplis ton contrat, tu gagnes. Tu joues comme un Villageois en apparence.',
+    description: `Tu possèdes un contrat composé de cibles à éliminer dans un ordre précis. Tu peux participer aux débats comme un Villageois, mais ton véritable objectif est de terminer ton contrat avant la fin de la partie. Tu gagnes seul si toutes tes cibles sont éliminées dans le bon ordre. 🔒 Ton contrat, tes cibles et ton rôle sont strictement secrets : ne laisse pas deviner que tes votes suivent une mission personnelle.`,
     night: false,
   },
 };
@@ -332,6 +332,8 @@ function buildActiveRoleEmbeds(roleConfig = {}, playerCount = 0) {
     embeds[0].setDescription(
       `**Rôles susceptibles d’être utilisés pour cette partie.**\n` +
       `La composition s’adapte automatiquement au nombre de joueurs.\n\n` +
+      `🔒 **Règle essentielle : les rôles, pouvoirs, informations obtenues et actions nocturnes sont secrets.** ` +
+      `Ne révèle jamais ton rôle (par exemple, la Voyante ne doit pas dire qu’elle connaît le rôle d’un joueur) et ne divulgue pas les messages privés.\n\n` +
       `**Composition prévue pour ${playerCount || '—'} joueur(s) :**\n${automaticLines}\n\n` +
       `${firstDescription}`.slice(0, 4096),
     );
