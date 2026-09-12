@@ -937,6 +937,17 @@ async function handleNightAction(client, action, actorId, targetId) {
     await client.users.fetch(actorId).then(user =>
       user.send(`🏹 **Ton tir est parti.** Tu as éliminé **${target.displayName}**.`).catch(() => {}),
     );
+    const publicChannelId = game.voteChannelId || game.wolfChannelId;
+    if (publicChannelId) {
+      try {
+        const publicChannel = await client.channels.fetch(publicChannelId);
+        const deathLines = deaths.map(death => {
+          const role = ROLES[death.roleId];
+          return `☠️ **${death.displayName}** — ${role?.emoji || ''} **${role?.name || 'rôle inconnu'}** (${TEAM_LABELS[role?.team] || role?.team || 'inconnu'})`;
+        }).join('\n');
+        await publicChannel.send(`🏹 **Le Chasseur a tiré avant de mourir.**\n${deathLines}\n\nLes rôles sont révélés après une élimination ; les rôles des survivants restent secrets.`);
+      } catch {}
+    }
     return { ok: true, deaths: deaths.map(d => d.userId) };
   }
 
@@ -1153,7 +1164,17 @@ async function resolveNight(client, channelId = null) {
     if (channel) {
       try {
         const discordChannel = await client.channels.fetch(channel);
-        await discordChannel.send(`🌅 **Le jour se lève.** ${deaths.map(d => `☠️ **${d.displayName}**`).join(', ')} ${deaths.length > 1 ? 'ont été éliminés' : 'a été éliminé(e)'} cette nuit.`);
+        const deathLines = deaths.map(d => {
+          const role = ROLES[d.roleId];
+          const roleLabel = role
+            ? `${role.emoji} **${role.name}** (${TEAM_LABELS[role.team] || role.team})`
+            : 'rôle inconnu';
+          return `☠️ **${d.displayName}** — ${roleLabel}`;
+        }).join('\n');
+        await discordChannel.send(
+          `🌅 **Le jour se lève.**\n${deathLines}\n\n` +
+          `Les rôles sont révélés après une élimination ; les rôles et pouvoirs des joueurs encore vivants restent secrets.`,
+        );
       } catch {}
     }
   }
