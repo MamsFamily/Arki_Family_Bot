@@ -329,14 +329,14 @@ function buildActiveRoleEmbeds(roleConfig = {}, playerCount = 0) {
 
   if (embeds.length) {
     const firstDescription = embeds[0].data.description || '';
-    embeds[0].setDescription(
+    embeds[0].setDescription((
       `**Rôles susceptibles d’être utilisés pour cette partie.**\n` +
       `La composition s’adapte automatiquement au nombre de joueurs.\n\n` +
       `🔒 **Règle essentielle : les rôles, pouvoirs, informations obtenues et actions nocturnes sont secrets.** ` +
       `Ne révèle jamais ton rôle (par exemple, la Voyante ne doit pas dire qu’elle connaît le rôle d’un joueur) et ne divulgue pas les messages privés.\n\n` +
       `**Composition prévue pour ${playerCount || '—'} joueur(s) :**\n${automaticLines}\n\n` +
-      `${firstDescription}`.slice(0, 4096),
-    );
+      firstDescription
+    ).slice(0, 4096));
   }
   return embeds;
 }

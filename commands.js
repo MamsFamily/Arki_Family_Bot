@@ -201,6 +201,15 @@ const commands = [
     description: '🐺 Publie les rôles actifs du Loup-Garou et leurs descriptions',
   },
   {
+    name: 'loup-garou-inscription',
+    description: '🐺 Configure et publie le panneau de participation au Loup-Garou',
+    default_member_permissions: '8',
+    options: [
+      { name: 'salon', type: 7, description: 'Salon public où publier le bouton', required: true },
+      { name: 'role', type: 8, description: 'Rôle donné aux participants', required: true },
+    ],
+  },
+  {
     name: 'creer-giveway',
     description: 'Crée et publie un giveaway dans le salon courant (Admin et Modo)',
     options: [

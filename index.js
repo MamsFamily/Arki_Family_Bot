@@ -2129,6 +2129,87 @@ client.on('interactionCreate', async interaction => {
 
   const { commandName } = interaction;
 
+  if (commandName === 'loup-garou-inscription') {
+    if (!hasRoulettePermission(interaction.member)) {
+      return interaction.reply({
+        content: '❌ Seuls les administrateurs et les Modos peuvent publier le panneau de participation.',
+        ephemeral: true,
+      });
+    }
+
+    const channel = interaction.options.getChannel('salon');
+    const eventRole = interaction.options.getRole('role');
+    if (!channel?.isTextBased?.()) {
+      return interaction.reply({ content: '❌ Le salon choisi doit être un salon textuel.', ephemeral: true });
+    }
+
+    const botMember = interaction.guild?.members?.me ||
+      await interaction.guild?.members?.fetch(client.user.id).catch(() => null);
+    if (!botMember?.permissionsIn(channel).has('SendMessages')) {
+      return interaction.reply({
+        content: '❌ Le bot ne peut pas écrire dans ce salon. Vérifie ses permissions.',
+        ephemeral: true,
+      });
+    }
+    if (!botMember.permissions.has('ManageRoles') || eventRole.position >= botMember.roles.highest.position) {
+      return interaction.reply({
+        content: '❌ Le bot doit avoir **Gérer les rôles** et son rôle doit être placé au-dessus du rôle choisi.',
+        ephemeral: true,
+      });
+    }
+
+    try {
+      const { getData, setData } = require('./pgStore');
+      const currentRaw = await getData('werewolf_settings', {});
+      const current = currentRaw && typeof currentRaw === 'object'
+        ? currentRaw
+        : (currentRaw ? JSON.parse(currentRaw) : {});
+      await setData('werewolf_settings', {
+        ...current,
+        eventRoleId: eventRole.id,
+        registrationChannelId: channel.id,
+      });
+
+      const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+      const embed = new EmbedBuilder()
+        .setColor(0x7c5cfc)
+        .setTitle('🐺 Inscription — Event Loup-Garou')
+        .setDescription(
+          'Un event Loup-Garou est organisé sur le serveur ! Clique sur le bouton ci-dessous pour t’inscrire et rejoindre le salon dédié aux joueurs.\n\n' +
+          '> Clique une deuxième fois pour te désinscrire.'
+        )
+        .addFields({
+          name: '📋 Comment ça marche ?',
+          value:
+            '**1.** Clique sur ✅ Je participe\n' +
+            '**2.** Tu reçois le rôle joueur et l’accès au salon event\n' +
+            '**3.** L’administrateur te donnera les instructions avant la partie',
+        })
+        .setFooter({ text: 'Arki Family — Event Loup-Garou' })
+        .setTimestamp();
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('ww_register_event')
+          .setLabel('✅ Je participe !')
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId('ww_unregister_event')
+          .setLabel('❌ Me désinscrire')
+          .setStyle(ButtonStyle.Secondary),
+      );
+      const message = await channel.send({ embeds: [embed], components: [row] });
+      await interaction.reply({
+        content: `✅ Panneau publié dans <#${channel.id}>.\nRôle attribué : <@&${eventRole.id}>`,
+        ephemeral: true,
+      });
+      console.log(`[Werewolf] panneau d'inscription publié: ${message.id} dans ${channel.id}`);
+    } catch (e) {
+      console.error('[Werewolf] publication inscription:', e);
+      await interaction.reply({ content: '❌ Impossible de publier le panneau : ' + e.message, ephemeral: true });
+    }
+    return;
+  }
+
   if (commandName === 'loup-garou-roles') {
     if (!hasRoulettePermission(interaction.member)) {
       return interaction.reply({
