@@ -6282,6 +6282,24 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
+  // ── Confirmation de la victime par les Loups ─────────────────────────────
+  if (id.startsWith('ww_wolf_confirm_')) {
+    const targetId = id.replace('ww_wolf_confirm_', '');
+    try {
+      const result = await werewolf.confirmWolfTarget(client, interaction.user.id, targetId);
+      if (!result.ok) {
+        return interaction.reply({ content: `❌ ${result.reason}`, ephemeral: true });
+      }
+      await interaction.reply({
+        content: `✅ Victime confirmée : **${result.targetName}**.`,
+        ephemeral: true,
+      });
+    } catch (e) {
+      await interaction.reply({ content: '❌ ' + e.message, ephemeral: true }).catch(() => {});
+    }
+    return;
+  }
+
   // ── Actions nocturnes privées ─────────────────────────────────────────────
   const nightActions = [
     ['ww_devour_', 'devour'],
