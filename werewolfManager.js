@@ -140,6 +140,8 @@ function ensureNightState(game) {
   game.night = game.night || {};
   game.night.wolfVotes = game.night.wolfVotes || {};
   game.night.wolfTarget = game.night.wolfTarget || null;
+  game.night.wolfProposedTarget = game.night.wolfProposedTarget || null;
+  game.night.wolfTargetConfirmed = game.night.wolfTargetConfirmed || false;
   game.night.witchSaved = game.night.witchSaved || false;
   game.night.witchKillTarget = game.night.witchKillTarget || null;
   game.night.whiteWolfTarget = game.night.whiteWolfTarget || null;
@@ -409,6 +411,7 @@ async function startGame(roleConfig) {
     voteChannelId: null,
     wolfThreadId:  null,
     wolfChannelId: null,
+    wolfAdminId:   null,
     eliminated:  [],        // { userId, roleId, round, by: 'vote'|'wolves'|'ability' }
     extraVotes:  {},        // { userId: bonus } (Corbeau)
     lovers:      [],        // [userId, userId]
@@ -519,12 +522,16 @@ async function createWolfThread(client, guildId, channelId, adminId) {
     `## 🐺 Bienvenue dans le repaire des Loups-Garous !\n\n` +
     `Loups présents : ${wolfNames}\n\n` +
     `Utilisez ce fil pour vous concerter chaque nuit. **L'administrateur peut lire ce fil.**\n` +
-    `Choisissez votre victime et communiquez-la à l'administrateur.`
+    `Chaque Loup choisit sa proposition depuis son DM. Les propositions et le décompte apparaissent ici, puis la victime doit être confirmée avec le bouton du fil.`
   );
 
   game.wolfThreadId  = thread.id;
   game.wolfChannelId = channelId;
+  game.wolfAdminId   = adminId || null;
   await saveGame(game);
+  if (Object.keys(ensureNightState(game).wolfVotes).length) {
+    await updateWolfVoteThread(client, game);
+  }
   return thread;
 }
 
@@ -863,6 +870,9 @@ async function sendNightActionDMs(client) {
       actionRound: game.round,
       wolfVotes: {},
       wolfTarget: null,
+      wolfProposedTarget: null,
+      wolfTargetConfirmed: false,
+      wolfVoteMessageId: null,
       witchSaved: false,
       witchKillTarget: null,
       whiteWolfTarget: null,
@@ -1010,6 +1020,9 @@ async function handleNightAction(client, action, actorId, targetId) {
     if (!['loup_garou', 'grand_mechant_loup', 'loup_infect'].includes(actor.roleId) || !target) {
       return { ok: false, reason: 'Action invalide' };
     }
+    if (night.wolfTargetConfirmed) {
+      return { ok: false, reason: 'La victime des Loups est déjà confirmée pour cette nuit' };
+    }
     if (ROLES[target.roleId]?.team === 'wolves') return { ok: false, reason: 'Les Loups ne peuvent pas cibler un allié' };
     night.wolfVotes[actorId] = targetId;
     if (action === 'infect') {
@@ -1023,14 +1036,21 @@ async function handleNightAction(client, action, actorId, targetId) {
     if (allVoted) {
       const tally = {};
       Object.values(night.wolfVotes).forEach(id => { tally[id] = (tally[id] || 0) + 1; });
-      night.wolfTarget = Object.entries(tally).sort((a, b) => b[1] - a[1])[0]?.[0] || targetId;
+      night.wolfProposedTarget = Object.entries(tally).sort((a, b) => b[1] - a[1])[0]?.[0] || targetId;
     }
     await saveGame(game);
-    if (night.wolfTarget) await sendWitchActionDM(client, game);
+    await updateWolfVoteThread(client, game);
     await client.users.fetch(actorId).then(user =>
-      user.send(`🐺 Choix enregistré pour **${target.displayName}**.`).catch(() => {}),
+      user.send(
+        `🐺 Choix enregistré pour **${target.displayName}**.` +
+        (allVoted
+          ? game.wolfThreadId
+            ? '\nLa proposition finale doit maintenant être confirmée dans le fil privé des Loups.'
+            : '\nAucun fil des Loups n’est configuré. L’administrateur doit le créer depuis le dashboard pour confirmer la victime.'
+          : `\nEn attente des autres Loups (${Object.keys(night.wolfVotes).length}/${livingWolves.length}).`),
+      ).catch(() => {}),
     );
-    return { ok: true, pending: !night.wolfTarget };
+    return { ok: true, pending: !allVoted };
   }
 
   if (action === 'white') {
@@ -1138,6 +1158,123 @@ async function handleNightAction(client, action, actorId, targetId) {
   return { ok: false, reason: 'Action inconnue' };
 }
 
+async function updateWolfVoteThread(client, game) {
+  if (!game.wolfThreadId) return false;
+  const night = ensureNightState(game);
+  const livingWolves = game.assignments.filter(a =>
+    a.alive && ['loup_garou', 'grand_mechant_loup', 'loup_infect'].includes(a.roleId),
+  );
+  const votes = livingWolves
+    .filter(wolf => night.wolfVotes[wolf.userId])
+    .map(wolf => ({
+      wolf,
+      target: game.assignments.find(a => a.userId === night.wolfVotes[wolf.userId]),
+    }));
+  const allVoted = livingWolves.length > 0 && votes.length === livingWolves.length;
+  const tally = {};
+  votes.forEach(({ target }) => {
+    if (target) tally[target.userId] = (tally[target.userId] || 0) + 1;
+  });
+
+  const lines = votes.length
+    ? votes.map(({ wolf, target }) =>
+      `🐺 **${wolf.displayName}** propose **${target?.displayName || 'une cible inconnue'}**`,
+    ).join('\n')
+    : '_Aucune proposition enregistrée._';
+  const tallyLines = Object.entries(tally)
+    .sort((a, b) => b[1] - a[1])
+    .map(([id, count]) => {
+      const target = game.assignments.find(a => a.userId === id);
+      return `• **${target?.displayName || id}** — ${count} voix`;
+    }).join('\n');
+
+  const content =
+    `## 🐺 Choix de la victime — Nuit ${game.round}\n\n` +
+    `${lines}\n\n` +
+    `**Avancement : ${votes.length}/${livingWolves.length} Loups ont voté**\n` +
+    (tallyLines ? `\n**Décompte :**\n${tallyLines}\n` : '') +
+    (night.wolfTargetConfirmed
+      ? `\n✅ Victime confirmée : **${game.assignments.find(a => a.userId === night.wolfTarget)?.displayName || 'cible inconnue'}**.`
+      : allVoted
+      ? '\n✅ Tous les Loups ont voté. Confirmez maintenant la victime retenue.'
+      : '\n⏳ En attente des autres Loups.');
+
+  const components = [];
+  if (allVoted && !night.wolfTargetConfirmed) {
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const candidates = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+    for (let i = 0; i < candidates.length; i += 5) {
+      const row = new ActionRowBuilder();
+      for (const [targetId, count] of candidates.slice(i, i + 5)) {
+        const target = game.assignments.find(a => a.userId === targetId);
+        row.addComponents(
+          new ButtonBuilder()
+            .setCustomId(`ww_wolf_confirm_${targetId}`)
+            .setLabel(`Confirmer ${target?.displayName || targetId} (${count})`.slice(0, 80))
+            .setStyle(ButtonStyle.Danger)
+            .setEmoji('✅'),
+        );
+      }
+      components.push(row);
+    }
+  }
+
+  try {
+    const thread = await client.channels.fetch(game.wolfThreadId);
+    let message = null;
+    if (night.wolfVoteMessageId) {
+      message = await thread.messages.fetch(night.wolfVoteMessageId).catch(() => null);
+    }
+    if (message) {
+      await message.edit({ content, components });
+    } else {
+      message = await thread.send({ content, components });
+      night.wolfVoteMessageId = message.id;
+      await saveGame(game);
+    }
+    return true;
+  } catch (error) {
+    console.error('[Werewolf] mise à jour du vote des Loups:', error.message);
+    return false;
+  }
+}
+
+async function confirmWolfTarget(client, actorId, targetId) {
+  const game = await getGame();
+  if (!game || game.phase !== 'NIGHT') return { ok: false, reason: 'La partie n’est pas en phase nuit' };
+  const night = ensureNightState(game);
+  const livingWolves = game.assignments.filter(a =>
+    a.alive && ['loup_garou', 'grand_mechant_loup', 'loup_infect'].includes(a.roleId),
+  );
+  if (!livingWolves.length || !livingWolves.every(wolf => night.wolfVotes[wolf.userId])) {
+    return { ok: false, reason: 'Tous les Loups doivent voter avant la confirmation' };
+  }
+  const actorIsWolf = livingWolves.some(wolf => wolf.userId === actorId);
+  const actorIsAdmin = Boolean(game.wolfAdminId && game.wolfAdminId === actorId);
+  if (!actorIsWolf && !actorIsAdmin) {
+    return { ok: false, reason: 'Seuls les Loups ou l’administrateur de la partie peuvent confirmer' };
+  }
+  const target = game.assignments.find(a => a.userId === targetId && a.alive);
+  if (!target || ROLES[target.roleId]?.team === 'wolves' || !Object.values(night.wolfVotes).includes(targetId)) {
+    return { ok: false, reason: 'Cette cible ne fait pas partie des propositions valides' };
+  }
+
+  night.wolfTarget = targetId;
+  night.wolfProposedTarget = targetId;
+  night.wolfTargetConfirmed = true;
+  if (night.infectTarget && night.infectTarget !== targetId) night.infectTarget = null;
+  await saveGame(game);
+  await updateWolfVoteThread(client, game);
+  if (game.wolfThreadId) {
+    try {
+      const thread = await client.channels.fetch(game.wolfThreadId);
+      await thread.send(`✅ **Victime confirmée : ${target.displayName}.** Le choix est verrouillé pour cette nuit.`);
+    } catch {}
+  }
+  await sendWitchActionDM(client, game);
+  return { ok: true, targetName: target.displayName };
+}
+
 async function resolveNight(client, channelId = null) {
   const game = await getGame();
   if (!game || game.phase !== 'NIGHT') return { ok: false, reason: 'La partie n’est pas en phase nuit' };
@@ -1239,7 +1376,7 @@ module.exports = {
   startGame, sendRoleDMs, handleAck,
   createWolfThread,
   createVotePoll, handleVote, updateVoteMessage, resolveVote,
-   sendNightActionDMs, handleNightAction, resolveNight,
+   sendNightActionDMs, handleNightAction, confirmWolfTarget, resolveNight,
   eliminatePlayer,
   checkVictory, buildVictoryEmbed,
 };
