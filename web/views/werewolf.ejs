@@ -299,11 +299,6 @@
           <div class="section-title">Vote d'élimination</div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;">
             <div>
-              <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:4px;">Salon Discord (ID)</label>
-              <input type="text" id="vote-channel" placeholder="ID du salon" value="<%= voteChannelId || '' %>"
-                style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;width:200px;">
-            </div>
-            <div>
               <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:4px;">Durée (minutes)</label>
               <input type="number" id="vote-duration" value="5" min="1" max="30"
                 style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;width:80px;">
@@ -311,16 +306,14 @@
             <button class="ctrl-btn btn-red" onclick="startVote()" <%= game.phase==='VOTE' ? 'disabled' : '' %>>
               🗳️ <%= game.phase==='VOTE' ? 'Vote en cours…' : 'Lancer le vote' %>
             </button>
+            <span style="font-size:12px;color:var(--text-muted);">
+              Salon Event : <code><%= settings?.channelId || 'non configuré' %></code>
+            </span>
           </div>
 
           <!-- Thread des loups -->
           <div class="section-title">Thread des Loups-Garous</div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;">
-            <div>
-              <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:4px;">Salon parent (ID)</label>
-              <input type="text" id="wolf-channel" placeholder="ID du salon" value="<%= wolfChannelId || '' %>"
-                style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;width:200px;">
-            </div>
             <button class="ctrl-btn btn-blue" onclick="createWolfThread()">
               🐺 Créer / Recréer le thread
             </button>
@@ -463,9 +456,11 @@
               <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Où le message d'inscription sera posté</div>
             </div>
             <div style="grid-column:1/-1;">
-              <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Salon Discord jeu (votes, threads) — ID</label>
+               <label style="display:block;font-size:11px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Salon Discord unique de l’événement — ID</label>
               <input type="text" name="channelId" value="<%= settings?.channelId || '' %>" placeholder="ID du salon dédié aux joueurs inscrits"
+                 required
                 style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#fff;font-size:13px;box-sizing:border-box;">
+               <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Utilisé pour le fil des Loups, les annonces du jour, les votes et les résultats.</div>
             </div>
 
             <div style="grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
@@ -643,18 +638,14 @@
 
   // ── Wolf thread ──────────────────────────────────────────────────────────
   async function createWolfThread() {
-    const channelId = document.getElementById('wolf-channel')?.value?.trim();
-    if (!channelId) { alert('Entre l\'ID du salon parent pour le thread des loups.'); return; }
-    await postAction('/werewolf/game/wolf-thread', { channelId });
+    await postAction('/werewolf/game/wolf-thread');
   }
 
   // ── Start vote ───────────────────────────────────────────────────────────
   async function startVote() {
-    const channelId = document.getElementById('vote-channel')?.value?.trim();
     const duration  = parseInt(document.getElementById('vote-duration')?.value, 10) || 5;
-    if (!channelId) { alert('Entre l\'ID du salon de vote.'); return; }
-    if (!confirm(`Lancer un vote de ${duration} minutes dans le salon ${channelId} ?`)) return;
-    await postAction('/werewolf/game/vote', { channelId, duration });
+    if (!confirm(`Lancer un vote de ${duration} minutes dans le salon unique de l’événement ?`)) return;
+    await postAction('/werewolf/game/vote', { duration });
   }
 
   // ── Eliminate ────────────────────────────────────────────────────────────
@@ -730,17 +721,12 @@
   async function setPhase(phase) {
     const label = phase === 'NIGHT' ? '🌑 Phase Nuit' : '☀️ Phase Jour';
     const el    = document.getElementById('phase-result');
-    const channelId = document.getElementById('vote-channel')?.value?.trim();
     const duration = parseInt(document.getElementById('vote-duration')?.value, 10) || 5;
-    if (phase === 'DAY' && !channelId) {
-      alert('Entre l’ID du salon Discord du vote avant de lancer le jour.');
-      return;
-    }
     if (el) el.innerHTML = `<span style="color:var(--text-muted);">⏳ ${label}…</span>`;
     try {
       const r = await fetch('/werewolf/game/set-phase', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phase, channelId, duration }),
+        body: JSON.stringify({ phase, duration }),
       });
       const d = await r.json();
       if (!d.ok) { alert('❌ ' + (d.error || 'Erreur')); if (el) el.innerHTML = ''; return; }
