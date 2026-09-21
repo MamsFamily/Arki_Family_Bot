@@ -493,6 +493,71 @@ async function buildWelcomeEmbed(member, guild, client, forceIsNew = null) {
   return { embed, attachment, isNew };
 }
 
+async function buildGoodbyeEmbed(member, guild) {
+  const settings = getSettings();
+  const ws = settings.welcome || {};
+  const visits = await getMemberVisits(member.id, guild.id);
+  const visitCount = Math.max(visits.length, 1);
+  const now = Date.now();
+  const currentVisit = visits[visits.length - 1];
+  const joinedAt = Number(currentVisit?.joined_at || member.joinedTimestamp || now);
+  const stayDuration = Math.max(0, Number(currentVisit?.left_at || now) - joinedAt);
+  const recordedTotalDuration = visits.reduce((total, visit) => {
+    const start = Number(visit.joined_at || 0);
+    const end = Number(visit.left_at || now);
+    return total + Math.max(0, end - start);
+  }, 0);
+  const totalDuration = recordedTotalDuration || stayDuration;
+  const name = member.displayName || member.user.username;
+  const vars = {
+    user: name,
+    userMention: `<@${member.id}>`,
+    server: guild.name,
+    memberCount: guild.memberCount.toLocaleString('fr-FR'),
+    visitCount: String(visitCount),
+    visitOrdinal: ordinalFr(visitCount),
+    stayDuration: formatDuration(stayDuration),
+    totalDuration: formatDuration(totalDuration),
+    joinedDate: `<t:${Math.floor(joinedAt / 1000)}:D>`,
+  };
+
+  const embed = new EmbedBuilder()
+    .setColor(parseInt((ws.goodbyeColor || '#ff5c5c').replace('#', ''), 16))
+    .setTitle(applyVariables(ws.goodbyeTitle || '👋 Un membre vient de partir…', vars))
+    .setDescription(applyVariables(
+      ws.goodbyeMessage || 'À bientôt **{user}** ! Nous espérons te revoir sur **{server}**.',
+      vars,
+    ))
+    .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }))
+    .addFields(
+      {
+        name: '📅 Présent depuis',
+        value: `${vars.joinedDate}\nSéjour de **${vars.stayDuration}**`,
+        inline: true,
+      },
+      {
+        name: '🔁 Passages',
+        value: `**${visitCount}** passage${visitCount > 1 ? 's' : ''}`,
+        inline: true,
+      },
+      {
+        name: '⏱️ Temps cumulé',
+        value: `**${vars.totalDuration}**`,
+        inline: true,
+      },
+      {
+        name: '👥 Membres restants',
+        value: `**${vars.memberCount}**`,
+        inline: true,
+      },
+    )
+    .setFooter({ text: `ID : ${member.id}` })
+    .setTimestamp();
+
+  if (ws.goodbyeImageUrl) embed.setImage(ws.goodbyeImageUrl);
+  return { embed, vars };
+}
+
 // DM au membre à l'arrivée
 async function sendWelcomeDM(member, guild) {
   const settings = getSettings();
@@ -528,6 +593,7 @@ module.exports = {
   getMemberVisits,
   insertMemberHistory,
   buildWelcomeEmbed,
+  buildGoodbyeEmbed,
   sendWelcomeDM,
   getWelcomeStats,
   applyVariables,

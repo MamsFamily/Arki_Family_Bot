@@ -499,6 +499,12 @@ function createWebServer(discordClient) {
         returnTitle: req.body.returnTitle || '👋 Bon retour parmi nous, {user} !',
         newMessage: req.body.newMessage || '',
         returnMessage: req.body.returnMessage || '',
+        goodbyeEnabled: req.body.goodbyeEnabled === '1',
+        goodbyeChannelId: req.body.goodbyeChannelId || '',
+        goodbyeColor: req.body.goodbyeColor || '#ff5c5c',
+        goodbyeTitle: req.body.goodbyeTitle || '👋 Un membre vient de partir…',
+        goodbyeMessage: req.body.goodbyeMessage || '',
+        goodbyeImageUrl: req.body.goodbyeImageUrl || '',
         dmEnabled: req.body.dmEnabled === '1',
         dmMessage: req.body.dmMessage || '',
         autoRolesNew: existing.autoRolesNew || [],
@@ -513,6 +519,28 @@ function createWebServer(discordClient) {
       const settings = getSettings();
       res.render('welcome', { welcome: settings.welcome || {}, channels: [], success: null, error: 'Erreur : ' + err.message,
         botUser: discordClient?.user || null, discordUser: req.session?.discordUser || null, role: req.session?.role || 'admin' });
+    }
+  });
+
+  app.post('/welcome/test-goodbye', requireAdmin, async (req, res) => {
+    try {
+      if (!discordClient) return res.json({ ok: false, error: 'Bot Discord non connecté' });
+      const settings = getSettings();
+      const ws = settings.welcome || {};
+      const guild = discordClient.guilds.cache.first();
+      if (!guild) return res.json({ ok: false, error: 'Serveur Discord introuvable' });
+      const channelId = req.body.channelId || ws.goodbyeChannelId;
+      if (!channelId) return res.json({ ok: false, error: 'Choisis le salon de départ' });
+      const channel = await guild.channels.fetch(channelId);
+      if (!channel?.isTextBased()) return res.json({ ok: false, error: 'Salon de départ invalide' });
+      const userId = req.body.userId || req.session?.discordUser?.id || guild.ownerId;
+      const member = await guild.members.fetch(userId);
+      const { buildGoodbyeEmbed } = require('../welcomeManager');
+      const { embed } = await buildGoodbyeEmbed(member, guild);
+      await channel.send({ embeds: [embed] });
+      res.json({ ok: true });
+    } catch (err) {
+      res.json({ ok: false, error: err.message });
     }
   });
 
