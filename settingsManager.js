@@ -82,6 +82,8 @@ const DEFAULTS = {
     goodbyeTitle: '👋 Un membre vient de partir…',
     goodbyeMessage: 'À bientôt **{user}** ! Nous espérons te revoir sur **{server}**.',
     goodbyeImageUrl: '',
+    goodbyeShowModerator: true,
+    goodbyeShowReason: true,
     dmEnabled: false,
     dmMessage: "👋 Bienvenue sur **{server}**, {user} !\n\nN'hésite pas à lire le règlement et à ouvrir un ticket pour commencer ton aventure ARK.",
     autoRolesNew: [],

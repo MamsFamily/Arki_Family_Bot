@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Partials, AttachmentBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, AttachmentBuilder, PermissionFlagsBits, AuditLogEvent, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, REST, Routes } = require('discord.js');
 
 // Normalise les séparateurs de milliers de fr-FR : remplace les espaces insécables
 // (U+202F narrow no-break space, U+00A0 no-break space) par des espaces normaux
@@ -5742,7 +5742,32 @@ client.on('guildMemberRemove', async (member) => {
       if (!channel?.isTextBased()) {
         throw new Error('Salon de départ introuvable ou non textuel');
       }
-      const { embed } = await buildGoodbyeEmbed(member, member.guild);
+      // Discord peut émettre guildMemberRemove avant d'avoir écrit l'entrée
+      // correspondante dans les journaux d'audit.
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      const departure = { type: 'voluntary', moderator: null, reason: null };
+      try {
+        const [banLogs, kickLogs] = await Promise.all([
+          member.guild.fetchAuditLogs({ type: AuditLogEvent.MemberBanAdd, limit: 6 }),
+          member.guild.fetchAuditLogs({ type: AuditLogEvent.MemberKick, limit: 6 }),
+        ]);
+        const cutoff = Date.now() - 15000;
+        const banEntry = banLogs.entries.find(entry =>
+          entry.target?.id === member.id && entry.createdTimestamp >= cutoff
+        );
+        const kickEntry = kickLogs.entries.find(entry =>
+          entry.target?.id === member.id && entry.createdTimestamp >= cutoff
+        );
+        const auditEntry = banEntry || kickEntry;
+        if (auditEntry) {
+          departure.type = banEntry ? 'ban' : 'kick';
+          departure.moderator = auditEntry.executor || null;
+          departure.reason = auditEntry.reason || null;
+        }
+      } catch (auditErr) {
+        console.warn('[Welcome] Journaux d’audit indisponibles pour le départ:', auditErr.message);
+      }
+      const { embed } = await buildGoodbyeEmbed(member, member.guild, departure);
       await channel.send({ embeds: [embed] });
     }
   } catch (err) {

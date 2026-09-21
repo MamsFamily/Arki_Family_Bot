@@ -493,7 +493,7 @@ async function buildWelcomeEmbed(member, guild, client, forceIsNew = null) {
   return { embed, attachment, isNew };
 }
 
-async function buildGoodbyeEmbed(member, guild) {
+async function buildGoodbyeEmbed(member, guild, departure = {}) {
   const settings = getSettings();
   const ws = settings.welcome || {};
   const visits = await getMemberVisits(member.id, guild.id);
@@ -509,6 +509,17 @@ async function buildGoodbyeEmbed(member, guild) {
   }, 0);
   const totalDuration = recordedTotalDuration || stayDuration;
   const name = member.displayName || member.user.username;
+  const departureType = departure.type === 'ban'
+    ? 'Bannissement'
+    : departure.type === 'kick'
+      ? 'Expulsion'
+      : 'Départ volontaire';
+  const departureIcon = departure.type === 'ban' ? '🔨' : departure.type === 'kick' ? '🥾' : '👋';
+  const moderatorName = departure.moderator?.tag
+    || departure.moderator?.username
+    || departure.moderator?.toString?.()
+    || 'Non disponible';
+  const reason = departure.reason || 'Aucune raison indiquée';
   const vars = {
     user: name,
     userMention: `<@${member.id}>`,
@@ -519,6 +530,9 @@ async function buildGoodbyeEmbed(member, guild) {
     stayDuration: formatDuration(stayDuration),
     totalDuration: formatDuration(totalDuration),
     joinedDate: `<t:${Math.floor(joinedAt / 1000)}:D>`,
+    departureType,
+    moderator: moderatorName,
+    reason,
   };
 
   const embed = new EmbedBuilder()
@@ -530,6 +544,11 @@ async function buildGoodbyeEmbed(member, guild) {
     ))
     .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }))
     .addFields(
+      {
+        name: `${departureIcon} Type de départ`,
+        value: `**${departureType}**`,
+        inline: true,
+      },
       {
         name: '📅 Présent depuis',
         value: `${vars.joinedDate}\nSéjour de **${vars.stayDuration}**`,
@@ -554,6 +573,20 @@ async function buildGoodbyeEmbed(member, guild) {
     .setFooter({ text: `ID : ${member.id}` })
     .setTimestamp();
 
+  if (departure.type !== 'voluntary' && ws.goodbyeShowModerator !== false) {
+    embed.addFields({
+      name: '🛡️ Modérateur',
+      value: departure.moderator ? `<@${departure.moderator.id}>` : vars.moderator,
+      inline: true,
+    });
+  }
+  if (departure.type !== 'voluntary' && ws.goodbyeShowReason !== false) {
+    embed.addFields({
+      name: '📝 Raison',
+      value: vars.reason.slice(0, 1024),
+      inline: false,
+    });
+  }
   if (ws.goodbyeImageUrl) embed.setImage(ws.goodbyeImageUrl);
   return { embed, vars };
 }
