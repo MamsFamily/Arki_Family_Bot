@@ -505,6 +505,8 @@ function createWebServer(discordClient) {
         goodbyeTitle: req.body.goodbyeTitle || '👋 Un membre vient de partir…',
         goodbyeMessage: req.body.goodbyeMessage || '',
         goodbyeImageUrl: req.body.goodbyeImageUrl || '',
+        goodbyeShowModerator: req.body.goodbyeShowModerator === '1',
+        goodbyeShowReason: req.body.goodbyeShowReason === '1',
         dmEnabled: req.body.dmEnabled === '1',
         dmMessage: req.body.dmMessage || '',
         autoRolesNew: existing.autoRolesNew || [],
@@ -536,7 +538,13 @@ function createWebServer(discordClient) {
       const userId = req.body.userId || req.session?.discordUser?.id || guild.ownerId;
       const member = await guild.members.fetch(userId);
       const { buildGoodbyeEmbed } = require('../welcomeManager');
-      const { embed } = await buildGoodbyeEmbed(member, guild);
+      const testType = ['voluntary', 'kick', 'ban'].includes(req.body.type) ? req.body.type : 'voluntary';
+      const departure = {
+        type: testType,
+        moderator: testType === 'voluntary' ? null : (discordClient.user || null),
+        reason: testType === 'voluntary' ? null : 'Raison de démonstration',
+      };
+      const { embed } = await buildGoodbyeEmbed(member, guild, departure);
       await channel.send({ embeds: [embed] });
       res.json({ ok: true });
     } catch (err) {
