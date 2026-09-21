@@ -51,8 +51,8 @@
     <%- include('sidebar') %>
     <main class="main-content">
       <div class="page-header">
-        <h1>👋 Message de bienvenue</h1>
-        <p>Configurez les messages d'accueil pour les nouveaux membres et les revenants</p>
+        <h1>👋 Arrivées et départs</h1>
+        <p>Configurez les messages d’accueil, de retour et de départ des membres</p>
       </div>
 
       <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
@@ -101,6 +101,7 @@
         <div class="section-tabs">
           <button type="button" class="section-tab active" onclick="switchTab('new', this)">🔵 Nouveau membre</button>
           <button type="button" class="section-tab" onclick="switchTab('return', this)">🟡 Membre revenant</button>
+          <button type="button" class="section-tab" onclick="switchTab('goodbye', this)">👋 Départs</button>
           <button type="button" class="section-tab" onclick="switchTab('banner', this)">🖼️ Bannière</button>
           <button type="button" class="section-tab" onclick="switchTab('dm', this)">✉️ Message privé</button>
           <button type="button" class="section-tab" onclick="switchTab('annexe', this)">📖 Annexe variables</button>
@@ -170,6 +171,60 @@
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Départs -->
+        <div id="tab-goodbye" class="tab-content">
+          <div class="card" style="margin-bottom:20px;">
+            <div class="card-header">
+              <h2>👋 Message de départ</h2>
+              <label class="toggle-switch">
+                <input type="checkbox" name="goodbyeEnabled" value="1" <%= welcome.goodbyeEnabled ? 'checked' : '' %>>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="card-body">
+              <div class="form-row" style="display:grid;grid-template-columns:1fr 120px;gap:16px;margin-bottom:16px;">
+                <div class="form-group">
+                  <label class="form-label">Salon réservé aux départs</label>
+                  <% if (channels && channels.length > 0) { %>
+                    <select name="goodbyeChannelId" id="goodbyeChannelId" class="form-control">
+                      <option value="">— Choisir un salon —</option>
+                      <% channels.forEach(ch => { %>
+                        <option value="<%= ch.id %>" <%= welcome.goodbyeChannelId === ch.id ? 'selected' : '' %>>#<%= ch.name %></option>
+                      <% }) %>
+                    </select>
+                  <% } else { %>
+                    <input type="text" name="goodbyeChannelId" id="goodbyeChannelId" class="form-control" value="<%= welcome.goodbyeChannelId || '' %>" placeholder="ID du salon">
+                  <% } %>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Couleur</label>
+                  <input type="color" name="goodbyeColor" class="form-control" value="<%= welcome.goodbyeColor || '#ff5c5c' %>" style="height:38px;padding:2px;">
+                </div>
+              </div>
+              <div class="form-group" style="margin-bottom:16px;">
+                <label class="form-label">Titre</label>
+                <input type="text" name="goodbyeTitle" class="form-control" value="<%= welcome.goodbyeTitle || '👋 Un membre vient de partir…' %>">
+              </div>
+              <div class="form-group" style="margin-bottom:16px;">
+                <label class="form-label">Message</label>
+                <textarea name="goodbyeMessage" class="form-control" rows="4"><%= welcome.goodbyeMessage || 'À bientôt **{user}** ! Nous espérons te revoir sur **{server}**.' %></textarea>
+              </div>
+              <div class="form-group" style="margin-bottom:16px;">
+                <label class="form-label">URL de l’image personnalisée</label>
+                <input type="url" name="goodbyeImageUrl" class="form-control" value="<%= welcome.goodbyeImageUrl || '' %>" placeholder="https://.../image.png">
+                <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">L’image apparaît en grand sous les informations. L’avatar Discord reste affiché en vignette.</div>
+              </div>
+              <div style="padding:12px;background:var(--bg-input);border-radius:6px;font-size:12px;color:var(--text-muted);margin-bottom:16px;">
+                Variables : <code>{user}</code>, <code>{userMention}</code>, <code>{server}</code>, <code>{memberCount}</code>,
+                <code>{visitCount}</code>, <code>{visitOrdinal}</code>, <code>{stayDuration}</code>,
+                <code>{totalDuration}</code>, <code>{joinedDate}</code>.
+              </div>
+              <button type="button" class="btn btn-secondary" onclick="testGoodbye()">🧪 Envoyer un test</button>
+              <span style="font-size:11px;color:var(--text-muted);margin-left:8px;">Enregistre les paramètres avant le test pour appliquer le titre, le texte et l’image.</span>
             </div>
           </div>
         </div>
@@ -586,6 +641,21 @@
       });
       var d = await res.json();
       alert(d.message || (d.error ? '❌ ' + d.error : '✅ Test envoyé !'));
+    }
+
+    async function testGoodbye() {
+      var channelId = document.getElementById('goodbyeChannelId')?.value || '';
+      if (!channelId) {
+        alert('❌ Choisis d’abord le salon réservé aux départs.');
+        return;
+      }
+      var res = await fetch('/welcome/test-goodbye', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelId }),
+      });
+      var data = await res.json();
+      alert(data.ok ? '✅ Message de départ envoyé dans le salon.' : '❌ ' + (data.error || 'Test impossible'));
     }
 
     updatePreview();

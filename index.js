@@ -44,7 +44,7 @@ const { publishEventPanel, handleEventTicketInteraction } = require('./eventTick
 const { handleReclaimCommand, handleReclaimTicketInteraction, initReclaimTickets, handleReclaimRecapCommand } = require('./reclaimTicketCommand');
 const { logCommand }   = require('./commandLogger');
 const lockdown         = require('./lockdownManager');
-const { recordJoin, recordLeave, buildWelcomeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
+const { recordJoin, recordLeave, buildWelcomeEmbed, buildGoodbyeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
 const { registerCasinoHandlers } = require('./casino/casinoHandler');
 const boosterReproManager = require('./boosterReproManager');
 const { handleBlindTestCommand } = require('./blindTestCommand');
@@ -5661,7 +5661,7 @@ const token = process.env.DISCORD_TOKEN;
 // ─── WELCOME SYSTEM ────────────────────────────────────────────────────────
 client.on('guildMemberAdd', async (member) => {
   try {
-    recordJoin(member.id, member.guild.id);
+    await recordJoin(member.id, member.guild.id);
 
     // ── Cadeau de bienvenue : 3 000 💎 ──────────────────────────────────────
     try {
@@ -5734,7 +5734,17 @@ client.on('guildMemberAdd', async (member) => {
 
 client.on('guildMemberRemove', async (member) => {
   try {
-    recordLeave(member.id, member.guild.id);
+    await recordLeave(member.id, member.guild.id);
+    const ws = getSettings().welcome || {};
+    if (ws.goodbyeEnabled && ws.goodbyeChannelId) {
+      const channel = member.guild.channels.cache.get(ws.goodbyeChannelId)
+        || await member.guild.channels.fetch(ws.goodbyeChannelId).catch(() => null);
+      if (!channel?.isTextBased()) {
+        throw new Error('Salon de départ introuvable ou non textuel');
+      }
+      const { embed } = await buildGoodbyeEmbed(member, member.guild);
+      await channel.send({ embeds: [embed] });
+    }
   } catch (err) {
     console.error('[Welcome] guildMemberRemove error:', err.message);
   }
