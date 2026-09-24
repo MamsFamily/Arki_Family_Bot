@@ -544,8 +544,8 @@ function createWebServer(discordClient) {
         moderator: testType === 'voluntary' ? null : (discordClient.user || null),
         reason: testType === 'voluntary' ? null : 'Raison de démonstration',
       };
-      const { embed } = await buildGoodbyeEmbed(member, guild, departure);
-      await channel.send({ embeds: [embed] });
+      const { embed, attachment } = await buildGoodbyeEmbed(member, guild, departure);
+      await channel.send({ embeds: [embed], files: attachment ? [attachment] : [] });
       res.json({ ok: true });
     } catch (err) {
       res.json({ ok: false, error: err.message });

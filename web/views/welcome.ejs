@@ -214,9 +214,9 @@
                 <textarea name="goodbyeMessage" class="form-control" rows="4"><%= welcome.goodbyeMessage || 'À bientôt **{user}** ! Nous espérons te revoir sur **{server}**.' %></textarea>
               </div>
               <div class="form-group" style="margin-bottom:16px;">
-                <label class="form-label">URL de l’image personnalisée</label>
+                <label class="form-label">URL de la photo de couverture</label>
                 <input type="url" name="goodbyeImageUrl" class="form-control" value="<%= welcome.goodbyeImageUrl || '' %>" placeholder="https://.../image.png">
-                <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">L’image apparaît en grand sous les informations. L’avatar Discord reste affiché en vignette.</div>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Le bot crée un bandeau compact avec cette image et l’avatar du membre superposé. Sans URL valide, il utilise la bannière du serveur ou un fond coloré.</div>
               </div>
               <div style="padding:14px;background:var(--bg-input);border-radius:6px;margin-bottom:16px;">
                 <div style="font-size:13px;font-weight:700;margin-bottom:10px;">🔎 Détails des expulsions et bannissements</div>

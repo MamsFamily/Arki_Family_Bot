@@ -5767,8 +5767,8 @@ client.on('guildMemberRemove', async (member) => {
       } catch (auditErr) {
         console.warn('[Welcome] Journaux d’audit indisponibles pour le départ:', auditErr.message);
       }
-      const { embed } = await buildGoodbyeEmbed(member, member.guild, departure);
-      await channel.send({ embeds: [embed] });
+      const { embed, attachment } = await buildGoodbyeEmbed(member, member.guild, departure);
+      await channel.send({ embeds: [embed], files: attachment ? [attachment] : [] });
     }
   } catch (err) {
     console.error('[Welcome] guildMemberRemove error:', err.message);

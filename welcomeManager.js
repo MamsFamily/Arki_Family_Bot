@@ -284,6 +284,51 @@ async function generateWelcomeBanner(member, guild, isNew, settings) {
   return canvas.toBuffer('image/png');
 }
 
+// Bandeau horizontal compact : l'avatar fait partie de l'image plutôt que de
+// prendre une colonne dans l'embed Discord (surtout visible sur mobile).
+async function generateGoodbyeBanner(member, guild, imageUrl, color) {
+  const W = 900, H = 180;
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext('2d');
+  const background = (imageUrl && await loadImageSafe(imageUrl))
+    || (guild.bannerURL && await loadImageSafe(guild.bannerURL({ size: 1024, extension: 'png' })));
+
+  if (background) {
+    const scale = Math.max(W / background.width, H / background.height);
+    ctx.drawImage(background,
+      (W - background.width * scale) / 2,
+      (H - background.height * scale) / 2,
+      background.width * scale, background.height * scale);
+  } else {
+    const gradient = ctx.createLinearGradient(0, 0, W, H);
+    gradient.addColorStop(0, '#111827');
+    gradient.addColorStop(1, color);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  const x = 94, y = H / 2, radius = 63;
+  ctx.beginPath();
+  ctx.arc(x, y, radius + 7, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x, y, radius + 3, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  const avatar = await loadImageSafe(member.user.displayAvatarURL({ extension: 'png', size: 256 }));
+  if (avatar) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(avatar, x - radius, y - radius, radius * 2, radius * 2);
+    ctx.restore();
+  }
+  return canvas.toBuffer('image/png');
+}
+
 // Détection palier remarquable (100, 250, 500, 1000, 1500...)
 function isMilestone(n) {
   if (n < 100) return false;
@@ -535,60 +580,36 @@ async function buildGoodbyeEmbed(member, guild, departure = {}) {
     reason,
   };
 
-  const embed = new EmbedBuilder()
-    .setColor(parseInt((ws.goodbyeColor || '#ff5c5c').replace('#', ''), 16))
-    .setTitle(applyVariables(ws.goodbyeTitle || '👋 Un membre vient de partir…', vars))
-    .setDescription(applyVariables(
-      ws.goodbyeMessage || 'À bientôt **{user}** ! Nous espérons te revoir sur **{server}**.',
-      vars,
-    ))
-    .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }))
-    .addFields(
-      {
-        name: `${departureIcon} Type de départ`,
-        value: `**${departureType}**`,
-        inline: true,
-      },
-      {
-        name: '📅 Présent depuis',
-        value: `${vars.joinedDate}\nSéjour de **${vars.stayDuration}**`,
-        inline: true,
-      },
-      {
-        name: '🔁 Passages',
-        value: `**${visitCount}** passage${visitCount > 1 ? 's' : ''}`,
-        inline: true,
-      },
-      {
-        name: '⏱️ Temps cumulé',
-        value: `**${vars.totalDuration}**`,
-        inline: true,
-      },
-      {
-        name: '👥 Membres restants',
-        value: `**${vars.memberCount}**`,
-        inline: true,
-      },
-    )
-    .setFooter({ text: `ID : ${member.id}` })
-    .setTimestamp();
+  const message = applyVariables(
+    ws.goodbyeMessage || 'À bientôt **{user}** ! Nous espérons te revoir sur **{server}**.',
+    vars,
+  );
+  const details = [
+    `${departureIcon} **${departureType}** · 📅 Depuis ${vars.joinedDate} (${vars.stayDuration})`,
+    `🔁 ${visitCount} passage${visitCount > 1 ? 's' : ''} · ⏱️ ${vars.totalDuration} au total · 👥 ${vars.memberCount} membres`,
+  ];
+  if (departure.type === 'kick' || departure.type === 'ban') {
+    if (ws.goodbyeShowModerator !== false) {
+      details.push(`🛡️ Modérateur : ${departure.moderator?.id ? `<@${departure.moderator.id}>` : vars.moderator}`);
+    }
+    if (ws.goodbyeShowReason !== false) details.push(`📝 Raison : ${vars.reason.slice(0, 500)}`);
+  }
 
-  if (departure.type !== 'voluntary' && ws.goodbyeShowModerator !== false) {
-    embed.addFields({
-      name: '🛡️ Modérateur',
-      value: departure.moderator ? `<@${departure.moderator.id}>` : vars.moderator,
-      inline: true,
-    });
+  const color = ws.goodbyeColor || '#ff5c5c';
+  const embed = new EmbedBuilder()
+    .setColor(parseInt(color.replace('#', ''), 16))
+    .setTitle(applyVariables(ws.goodbyeTitle || '👋 Un membre vient de partir…', vars))
+    .setDescription(`${message}\n\n${details.join('\n')}`.slice(0, 4096));
+
+  let attachment = null;
+  try {
+    const image = await generateGoodbyeBanner(member, guild, ws.goodbyeImageUrl, color);
+    attachment = new AttachmentBuilder(image, { name: 'goodbye.png' });
+    embed.setImage('attachment://goodbye.png');
+  } catch (err) {
+    console.warn('[Welcome] Erreur génération bandeau de départ:', err.message);
   }
-  if (departure.type !== 'voluntary' && ws.goodbyeShowReason !== false) {
-    embed.addFields({
-      name: '📝 Raison',
-      value: vars.reason.slice(0, 1024),
-      inline: false,
-    });
-  }
-  if (ws.goodbyeImageUrl) embed.setImage(ws.goodbyeImageUrl);
-  return { embed, vars };
+  return { embed, attachment, vars };
 }
 
 // DM au membre à l'arrivée
