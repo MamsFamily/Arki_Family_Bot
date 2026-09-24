@@ -42,132 +42,83 @@
   </div>
   <nav class="sidebar-nav">
     <% if (role === 'admin') { %>
-    <a href="/" class="nav-link <%= path === '/' ? 'active' : '' %>">
-      <span class="icon">🏠</span> Tableau de bord
-    </a>
-    <a href="/roulette" class="nav-link <%= path === '/roulette' ? 'active' : '' %>">
-      <span class="icon">🎰</span> Roulette
-    </a>
-
-    <div class="nav-section">Votes</div>
-    <a href="/votes" class="nav-link <%= path === '/votes' ? 'active' : '' %>">
-      <span class="icon">📊</span> Classement
-    </a>
-    <a href="/rewards" class="nav-link <%= path === '/rewards' ? 'active' : '' %>">
-      <span class="icon">💎</span> Récompenses
-    </a>
-    <a href="/message" class="nav-link <%= path === '/message' ? 'active' : '' %>">
-      <span class="icon">📝</span> Message publié
-    </a>
+      <a href="/" class="nav-link nav-home <%= path === '/' ? 'active' : '' %>" <%= path === '/' ? 'aria-current="page"' : '' %>><span class="icon">⌂</span> Vue d'ensemble</a>
     <% } %>
-
-    <div class="nav-section">Shop</div>
-    <a href="/shop" class="nav-link <%= path === '/shop' ? 'active' : '' %>">
-      <span class="icon">🛒</span> Gestion Shop
-    </a>
-    <a href="/dinos" class="nav-link <%= path === '/dinos' ? 'active' : '' %>">
-      <span class="icon">🦖</span> Prix Dinos
-    </a>
-
-    <div class="nav-section">Inventaires</div>
-    <a href="/inventory" class="nav-link <%= path === '/inventory' ? 'active' : '' %>">
-      <span class="icon">📦</span> Inventaires
-    </a>
-    <% if (role === 'admin') { %>
-    <a href="/special-packs" class="nav-link <%= path === '/special-packs' ? 'active' : '' %>">
-      <span class="icon">🎁</span> Packs Spéciaux
-    </a>
-    <% } %>
+    <label class="nav-search-label" for="navSearch">TROUVER UNE PAGE</label>
+    <input id="navSearch" class="nav-search" type="search" placeholder="Rechercher dans le menu…" autocomplete="off" aria-label="Rechercher une page">
+    <div id="navSearchEmpty" class="nav-search-empty" hidden>Aucune page trouvée</div>
 
     <% if (role === 'admin') { %>
-    <div class="nav-section">Économie</div>
-    <a href="/economy" class="nav-link <%= path === '/economy' ? 'active' : '' %>">
-      <span class="icon">💰</span> Revenus &amp; Rôles
-    </a>
-    <a href="/economy/amendes" class="nav-link <%= path === '/economy/amendes' ? 'active' : '' %>">
-      <span class="icon">🚨</span> Historique Amendes
-    </a>
-    <a href="/xp" class="nav-link <%= path === '/xp' ? 'active' : '' %>">
-      <span class="icon">⭐</span> Niveaux &amp; XP
-    </a>
-    <a href="/casino" class="nav-link <%= path === '/casino' ? 'active' : '' %>">
-      <span class="icon">🎰</span> Casino
-    </a>
-
-    <div class="nav-section">Anniversaires</div>
-    <a href="/birthdays" class="nav-link <%= path === '/birthdays' ? 'active' : '' %>">
-      <span class="icon">🎂</span> Anniversaires
-    </a>
-
+    <details class="nav-group" <%= ['/welcome','/welcome/phrases','/birthdays','/votes','/rewards','/message','/giveaways'].includes(path) ? 'open' : '' %>>
+      <summary>👥 <span>Communauté</span></summary>
+      <div class="nav-group-links">
+        <a href="/welcome" class="nav-link <%= path === '/welcome' ? 'active' : '' %>">Arrivées et départs</a>
+        <a href="/welcome/phrases" class="nav-link <%= path === '/welcome/phrases' ? 'active' : '' %>">Phrases d'accueil</a>
+        <a href="/birthdays" class="nav-link <%= path === '/birthdays' ? 'active' : '' %>">Anniversaires</a>
+        <a href="/votes" class="nav-link <%= path === '/votes' ? 'active' : '' %>">Votes · Classement</a>
+        <a href="/rewards" class="nav-link <%= path === '/rewards' ? 'active' : '' %>">Votes · Récompenses</a>
+        <a href="/message" class="nav-link <%= path === '/message' ? 'active' : '' %>">Votes · Message publié</a>
+        <a href="/giveaways" class="nav-link <%= path === '/giveaways' ? 'active' : '' %>">Giveaways</a>
+      </div>
+    </details>
     <% } %>
 
-    <div class="nav-section">Jeux</div>
-    <% if (role === 'admin') { %>
-    <a href="/infinity-road" class="nav-link <%= path === '/infinity-road' ? 'active' : '' %>">
-      <span class="icon">🛣️</span> Route de l'Infini
-    </a>
-    <% } %>
-    <a href="/blind-test" class="nav-link <%= path === '/blind-test' ? 'active' : '' %>">
-      <span class="icon">🎵</span> Blind Test
-    </a>
-    <a href="/werewolf" class="nav-link <%= path === '/werewolf' ? 'active' : '' %>">
-      <span class="icon">🐺</span> Loup-Garou
-    </a>
-    <% if (role === 'admin') { %>
-    <div class="nav-section">Tickets</div>
-    <a href="/tickets" class="nav-link <%= path === '/tickets' ? 'active' : '' %>">
-      <span class="icon">🎫</span> Tickets
-    </a>
-    <% } %>
-    <a href="/admin-quiz" class="nav-link <%= path === '/admin-quiz' ? 'active' : '' %>">
-      <span class="icon">🎯</span> Quiz Admins
-    </a>
-    <a href="/reclaim-history" class="nav-link <%= path && path.startsWith('/reclaim-history') ? 'active' : '' %>">
-      <span class="icon">📋</span> Historique Réclamations
-    </a>
-    <a href="/shop-history" class="nav-link <%= path && path.startsWith('/shop-history') ? 'active' : '' %>">
-      <span class="icon">🛒</span> Historique Shop
-    </a>
+    <details class="nav-group" <%= ['/shop','/dinos','/inventory','/special-packs','/economy','/economy/amendes','/xp','/casino'].includes(path) || (path && path.startsWith('/shop-history')) ? 'open' : '' %>>
+      <summary>🛒 <span>Boutique &amp; économie</span></summary>
+      <div class="nav-group-links">
+        <a href="/shop" class="nav-link <%= path === '/shop' ? 'active' : '' %>">Shop</a>
+        <a href="/dinos" class="nav-link <%= path === '/dinos' ? 'active' : '' %>">Prix dinos</a>
+        <a href="/inventory" class="nav-link <%= path === '/inventory' ? 'active' : '' %>">Inventaires</a>
+        <a href="/shop-history" class="nav-link <%= path && path.startsWith('/shop-history') ? 'active' : '' %>">Historique shop</a>
+        <% if (role === 'admin') { %>
+        <a href="/special-packs" class="nav-link <%= path === '/special-packs' ? 'active' : '' %>">Packs spéciaux</a>
+        <a href="/economy" class="nav-link <%= path === '/economy' ? 'active' : '' %>">Revenus &amp; rôles</a>
+        <a href="/economy/amendes" class="nav-link <%= path === '/economy/amendes' ? 'active' : '' %>">Historique amendes</a>
+        <a href="/xp" class="nav-link <%= path === '/xp' ? 'active' : '' %>">Niveaux &amp; XP</a>
+        <a href="/casino" class="nav-link <%= path === '/casino' ? 'active' : '' %>">Casino</a>
+        <% } %>
+      </div>
+    </details>
 
-    <div class="nav-section">Événements</div>
-    <a href="/giveaways" class="nav-link <%= path === '/giveaways' ? 'active' : '' %>">
-      <span class="icon">🎉</span> Giveaways
-    </a>
-    <a href="/paris-sportifs" class="nav-link <%= path === '/paris-sportifs' ? 'active' : '' %>">
-      <span class="icon">⚽</span> Paris Sportifs
-    </a>
-    <% if (role === 'admin') { %>
-    <a href="/booster-repro" class="nav-link <%= path === '/booster-repro' ? 'active' : '' %>">
-      <span class="icon">🧬</span> Booster Repro
-    </a>
-    <% } %>
+    <details class="nav-group" <%= ['/roulette','/infinity-road','/blind-test','/werewolf','/admin-quiz','/paris-sportifs','/booster-repro'].includes(path) ? 'open' : '' %>>
+      <summary>🎮 <span>Jeux &amp; activités</span></summary>
+      <div class="nav-group-links">
+        <% if (role === 'admin') { %>
+        <a href="/roulette" class="nav-link <%= path === '/roulette' ? 'active' : '' %>">Roulette</a>
+        <a href="/infinity-road" class="nav-link <%= path === '/infinity-road' ? 'active' : '' %>">Route de l'Infini</a>
+        <% } %>
+        <a href="/blind-test" class="nav-link <%= path === '/blind-test' ? 'active' : '' %>">Blind Test</a>
+        <a href="/werewolf" class="nav-link <%= path === '/werewolf' ? 'active' : '' %>">Loup-Garou</a>
+        <a href="/admin-quiz" class="nav-link <%= path === '/admin-quiz' ? 'active' : '' %>">Quiz Admins</a>
+        <a href="/paris-sportifs" class="nav-link <%= path === '/paris-sportifs' ? 'active' : '' %>">Paris sportifs</a>
+        <% if (role === 'admin') { %>
+        <a href="/booster-repro" class="nav-link <%= path === '/booster-repro' ? 'active' : '' %>">Booster repro</a>
+        <% } %>
+      </div>
+    </details>
+
+    <details class="nav-group" <%= ['/tickets','/admin/discord-admins','/admin/lockdown'].includes(path) || (path && path.startsWith('/reclaim-history')) ? 'open' : '' %>>
+      <summary>🛡️ <span>Modération &amp; tickets</span></summary>
+      <div class="nav-group-links">
+        <% if (role === 'admin') { %><a href="/tickets" class="nav-link <%= path === '/tickets' ? 'active' : '' %>">Tickets</a><% } %>
+        <a href="/reclaim-history" class="nav-link <%= path && path.startsWith('/reclaim-history') ? 'active' : '' %>">Réclamations</a>
+        <% if (role === 'admin') { %>
+        <a href="/admin/discord-admins" class="nav-link <%= path === '/admin/discord-admins' ? 'active' : '' %>">Membres admin / modo</a>
+        <a href="/admin/lockdown" class="nav-link <%= path === '/admin/lockdown' ? 'active' : '' %>">Verrouillage Discord</a>
+        <% } %>
+      </div>
+    </details>
 
     <% if (role === 'admin') { %>
-    <div class="nav-section">Système</div>
-    <a href="/welcome" class="nav-link <%= path === '/welcome' ? 'active' : '' %>">
-      <span class="icon">👋</span> Bienvenue
-    </a>
-    <a href="/welcome/phrases" class="nav-link <%= path === '/welcome/phrases' ? 'active' : '' %>">
-      <span class="icon">💬</span> Phrases d'accueil
-    </a>
-    <a href="/admin/access-log" class="nav-link <%= path === '/admin/access-log' ? 'active' : '' %>" style="border-left: 2px solid #ef5350;">
-      <span class="icon">🛡️</span> Journal Connexions
-    </a>
-    <a href="/admin/command-logs" class="nav-link <%= path === '/admin/command-logs' ? 'active' : '' %>" style="border-left: 2px solid #ef5350;">
-      <span class="icon">📜</span> Logs Commandes Discord
-    </a>
-    <a href="/admin/lockdown" class="nav-link <%= path === '/admin/lockdown' ? 'active' : '' %>" style="border-left: 2px solid #c62828;">
-      <span class="icon">🔒</span> Verrouillage Discord
-    </a>
-    <a href="/admin/discord-admins" class="nav-link <%= path === '/admin/discord-admins' ? 'active' : '' %>" style="border-left: 2px solid #ffd54f;">
-      <span class="icon">👑</span> Membres Admin/Modo
-    </a>
-    <a href="/discord-ref" class="nav-link <%= path === '/discord-ref' ? 'active' : '' %>">
-      <span class="icon">📚</span> Référence Discord
-    </a>
-    <a href="/settings" class="nav-link <%= path === '/settings' ? 'active' : '' %>">
-      <span class="icon">⚙️</span> Paramètres
-    </a>
+    <details class="nav-group" <%= ['/settings','/discord-ref','/admin/access-log','/admin/command-logs'].includes(path) ? 'open' : '' %>>
+      <summary>⚙️ <span>Configuration &amp; journaux</span></summary>
+      <div class="nav-group-links">
+        <a href="/settings" class="nav-link <%= path === '/settings' ? 'active' : '' %>">Paramètres</a>
+        <a href="/discord-ref" class="nav-link <%= path === '/discord-ref' ? 'active' : '' %>">Référence Discord</a>
+        <a href="/admin/access-log" class="nav-link <%= path === '/admin/access-log' ? 'active' : '' %>">Journal connexions</a>
+        <a href="/admin/command-logs" class="nav-link <%= path === '/admin/command-logs' ? 'active' : '' %>">Logs commandes Discord</a>
+      </div>
+    </details>
     <% } %>
   </nav>
   <div class="sidebar-footer">
@@ -185,3 +136,33 @@
     </a>
   </div>
 </aside>
+<script>
+  (function() {
+    var search = document.getElementById('navSearch');
+    var nav = document.querySelector('.sidebar-nav');
+    var groups = Array.from(nav.querySelectorAll('.nav-group'));
+    var openBeforeSearch = [];
+    search.addEventListener('input', function() {
+      var query = search.value.trim().toLocaleLowerCase('fr');
+      if (query && !search.dataset.filtering) {
+        openBeforeSearch = groups.filter(function(group) { return group.open; });
+        search.dataset.filtering = 'true';
+      }
+      var found = 0;
+      groups.forEach(function(group) {
+        var matches = 0;
+        group.querySelectorAll('.nav-link').forEach(function(link) {
+          var match = !query || link.textContent.toLocaleLowerCase('fr').includes(query);
+          link.hidden = !match;
+          if (match) matches++;
+        });
+        group.hidden = !!query && !matches;
+        if (query) group.open = matches > 0;
+        else group.open = openBeforeSearch.includes(group);
+        found += matches;
+      });
+      if (!query) delete search.dataset.filtering;
+      document.getElementById('navSearchEmpty').hidden = !query || found > 0;
+    });
+  })();
+</script>

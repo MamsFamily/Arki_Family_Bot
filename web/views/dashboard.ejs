@@ -35,64 +35,44 @@ function top5Html(top5) {
   <div class="layout">
     <%- include('sidebar') %>
     <main class="main-content">
-      <div class="dashboard-banner">
-        <img src="/images/banner.png" alt="Arki' Family">
+      <div class="dashboard-hero">
+        <div>
+          <span class="dashboard-eyebrow">ARKI FAMILY · CENTRE DE CONTRÔLE</span>
+          <h1>Vue d'ensemble</h1>
+          <p>Les informations essentielles et les accès rapides au même endroit.</p>
+          <div class="dashboard-status"><span class="status-dot"></span> <%= botUser ? 'Bot Discord connecté' : 'Dashboard disponible · bot géré séparément' %> <span class="status-separator">·</span> Session <%= Math.floor(uptime / 3600) %>h<%= Math.floor((uptime % 3600) / 60).toString().padStart(2, '0') %></div>
+        </div>
+        <img src="/images/logo-brut.png" alt="" class="dashboard-hero-logo">
       </div>
 
-      <div class="page-header">
-        <h1>Tableau de bord</h1>
-        <p>Vue d'ensemble de votre bot Discord</p>
-      </div>
+      <section class="dashboard-section" aria-labelledby="quick-title">
+        <div class="dashboard-section-heading"><div><span class="section-kicker">ACCÈS RAPIDES</span><h2 id="quick-title">Que voulez-vous gérer ?</h2></div></div>
+        <div class="dashboard-shortcuts">
+          <a href="/welcome" class="dashboard-shortcut"><span class="shortcut-icon">👋</span><span><strong>Communauté</strong><small>Arrivées, départs et messages</small></span><span class="shortcut-arrow">↗</span></a>
+          <a href="/tickets" class="dashboard-shortcut"><span class="shortcut-icon">🎫</span><span><strong>Modération</strong><small>Tickets et demandes</small></span><span class="shortcut-arrow">↗</span></a>
+          <a href="/shop" class="dashboard-shortcut"><span class="shortcut-icon">🛒</span><span><strong>Boutique</strong><small>Produits et inventaires</small></span><span class="shortcut-arrow">↗</span></a>
+          <a href="/settings" class="dashboard-shortcut"><span class="shortcut-icon">⚙️</span><span><strong>Configuration</strong><small>Paramètres du bot</small></span><span class="shortcut-arrow">↗</span></a>
+        </div>
+      </section>
 
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-icon">👥</div>
-          <div class="stat-value"><%= memberCount.toLocaleString('fr-FR') %></div>
-          <div class="stat-label">Membres</div>
+      <section class="dashboard-section" aria-labelledby="community-title">
+        <div class="dashboard-section-heading"><div><span class="section-kicker">COMMUNAUTÉ</span><h2 id="community-title">Votre serveur <small><%= typeof welcomeStats !== 'undefined' ? welcomeStats.month : '' %></small></h2></div><a href="/welcome" class="section-action">Gérer les membres ↗</a></div>
+        <div class="dashboard-metrics">
+          <div class="dashboard-metric"><span>Membres actuels</span><strong><%= memberCount.toLocaleString('fr-FR') %></strong></div>
+          <% if (typeof welcomeStats !== 'undefined') { %>
+          <div class="dashboard-metric"><span>Arrivées ce mois</span><strong><%= welcomeStats.joins %></strong></div>
+          <div class="dashboard-metric"><span>Départs ce mois</span><strong><%= welcomeStats.leaves %></strong></div>
+          <div class="dashboard-metric"><span>Évolution nette</span><strong class="<%= welcomeStats.net >= 0 ? 'metric-positive' : 'metric-negative' %>"><%= welcomeStats.net >= 0 ? '+' : '' %><%= welcomeStats.net %></strong></div>
+          <% } %>
         </div>
-        <div class="stat-card">
-          <div class="stat-icon">⏱️</div>
-          <div class="stat-value"><%= Math.floor(uptime / 3600) %>h<%= Math.floor((uptime % 3600) / 60).toString().padStart(2, '0') %></div>
-          <div class="stat-label">Uptime</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">🏆</div>
-          <div class="stat-value" id="stat-votes-first"><%= top5.length > 0 ? top5[0].votes : '—' %></div>
-          <div class="stat-label">Votes – 1er ce mois</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">🗳️</div>
-          <div class="stat-value" id="stat-votes-total"><%= top5.reduce((s, p) => s + p.votes, 0).toLocaleString('fr-FR') %></div>
-          <div class="stat-label">Total votes top 5</div>
-        </div>
-      </div>
+      </section>
 
-      <!-- Stats arrivées / départs du mois -->
-      <% if (typeof welcomeStats !== 'undefined') { %>
-      <div class="stats-grid" style="margin-top:0;">
-        <div class="stat-card" style="border-top:3px solid #1de9b6;">
-          <div class="stat-icon">📥</div>
-          <div class="stat-value" style="color:#1de9b6;"><%= welcomeStats.joins %></div>
-          <div class="stat-label">Arrivées ce mois</div>
+      <section class="dashboard-section" aria-labelledby="votes-title">
+        <div class="dashboard-section-heading"><div><span class="section-kicker">VOTES</span><h2 id="votes-title">Classement du mois</h2></div><a href="/votes" class="section-action">Voir les votes ↗</a></div>
+        <div class="dashboard-votes-summary">
+          <span>🏆 Premier du classement <strong id="stat-votes-first"><%= top5.length > 0 ? top5[0].votes : '—' %></strong> votes</span>
+          <span>🗳️ Total du top 5 <strong id="stat-votes-total"><%= top5.reduce((s, p) => s + p.votes, 0).toLocaleString('fr-FR') %></strong> votes</span>
         </div>
-        <div class="stat-card" style="border-top:3px solid #ff5252;">
-          <div class="stat-icon">📤</div>
-          <div class="stat-value" style="color:#ff5252;"><%= welcomeStats.leaves %></div>
-          <div class="stat-label">Départs ce mois</div>
-        </div>
-        <div class="stat-card" style="border-top:3px solid <%= welcomeStats.net >= 0 ? '#1de9b6' : '#ff5252' %>;">
-          <div class="stat-icon"><%= welcomeStats.net >= 0 ? '📈' : '📉' %></div>
-          <div class="stat-value" style="color:<%= welcomeStats.net >= 0 ? '#1de9b6' : '#ff5252' %>;"><%= welcomeStats.net >= 0 ? '+' : '' %><%= welcomeStats.net %></div>
-          <div class="stat-label">Solde net</div>
-        </div>
-        <div class="stat-card" style="border-top:3px solid var(--border-color);">
-          <div class="stat-icon">📅</div>
-          <div class="stat-value" style="font-size:16px;"><%= welcomeStats.month || '—' %></div>
-          <div class="stat-label">Période</div>
-        </div>
-      </div>
-      <% } %>
-
       <div class="card">
         <div class="card-header">
           <h2>🏆 Top 5 voteurs — mois en cours</h2>
@@ -106,6 +86,7 @@ function top5Html(top5) {
           <%- top5Html(top5) %>
         </div>
       </div>
+      </section>
 
     </main>
   </div>
