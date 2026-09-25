@@ -3,3 +3,4 @@
 - [Workflow startup](workflow-startup.md) — doit être `node index.js` (bot + web), pas `createWebServer(null)` seul.
 ---
 - [Voice gateway signalling fix](voice-gateway-fix.md) — Discord.js v14 : connexion vocale bloquée en signalling si bot pas en cache membre, fix via listener raw.
+- [Récompenses et annonces XP](xp-rewards-announcements.md) — ne jamais conditionner les gains au salon ou à la réussite des annonces Discord.
