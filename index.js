@@ -5088,41 +5088,50 @@ client.on('messageCreate', async message => {
   // Cooldown anti-spam
   const lastMsg = await xpManager.getCooldown(message.author.id);
   if (Date.now() - lastMsg < xpConfig.cooldownMs) return;
-  await xpManager.setCooldown(message.author.id);
-
   // Gain XP aléatoire
   const gain   = Math.floor(Math.random() * (xpConfig.maxXp - xpConfig.minXp + 1)) + xpConfig.minXp;
   const result = await xpManager.addXp(message.author.id, gain);
+  await xpManager.setCooldown(message.author.id);
 
   // Level-up
-  if (result.leveledUp && xpConfig.channelId) {
-    try {
-      const channel = message.guild.channels.cache.get(xpConfig.channelId);
-      if (channel) {
-        for (const lg of result.levelsGained) {
-          const reward = lg.reward;
-          if (reward > 0) await addToInventory(message.author.id, 'diamants', reward, 'Système XP', `Récompense niveau ${lg.level}`);
-
-          const embed = new EmbedBuilder()
-            .setColor(0xf9c740)
-            .setTitle('🎉 Niveau supérieur !')
-            .setDescription(
-              `${message.author}, tu viens de passer au **niveau ${lg.level}** ! <a:emoji_15:11571117439012786216>\n\n` +
-              (reward > 0 ? `🎁 Récompense : **+${reward.toLocaleString('fr-FR')} 💎**` : '')
-            )
-            .setThumbnail(message.author.displayAvatarURL({ size: 128 }))
-            .setTimestamp();
-
-          await channel.send({ embeds: [embed] });
-        }
-      }
-    } catch (e) {
-      console.error('[XP] Erreur envoi level-up:', e.message);
-    }
-  } else if (result.leveledUp) {
-    // Créditer quand même les diamants si pas de salon configuré
+  if (result.leveledUp) {
+    // Les récompenses ne dépendent jamais de la disponibilité du salon d'annonce.
     for (const lg of result.levelsGained) {
-      if (lg.reward > 0) await addToInventory(message.author.id, 'diamants', lg.reward, 'Système XP', `Récompense niveau ${lg.level}`);
+      try {
+        if (lg.reward > 0) await addToInventory(message.author.id, 'diamants', lg.reward, 'Système XP', `Récompense niveau ${lg.level}`);
+      } catch (e) {
+        console.error(`[XP] Erreur récompense niveau ${lg.level}:`, e);
+      }
+    }
+    if (xpConfig.channelId) {
+      try {
+        const channel = message.guild.channels.cache.get(xpConfig.channelId)
+          || await message.guild.channels.fetch(xpConfig.channelId);
+        if (!channel?.isTextBased() || typeof channel.send !== 'function') {
+          console.error(`[XP] Salon d'annonce introuvable ou non textuel : ${xpConfig.channelId}`);
+        } else {
+          for (const lg of result.levelsGained) {
+            const embed = new EmbedBuilder()
+              .setColor(0xf9c740)
+              .setTitle('🎉 Niveau supérieur !')
+              .setDescription(
+                `${message.author}, tu viens de passer au **niveau ${lg.level}** ! <a:emoji_15:11571117439012786216>\n\n` +
+                (lg.reward > 0 ? `🎁 Récompense : **+${lg.reward.toLocaleString('fr-FR')} 💎**` : '')
+              )
+              .setThumbnail(message.author.displayAvatarURL({ size: 128 }))
+              .setTimestamp();
+            try {
+              await channel.send({ embeds: [embed] });
+            } catch (e) {
+              console.error(`[XP] Erreur annonce niveau ${lg.level}:`, e);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[XP] Erreur salon level-up:', e);
+      }
+    } else {
+      console.warn('[XP] Level-up sans salon d’annonce configuré');
     }
   }
 });

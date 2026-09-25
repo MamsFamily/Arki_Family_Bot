@@ -3170,10 +3170,12 @@ function createWebServer(discordClient) {
   // ── Niveaux & XP ────────────────────────────────────────────────────────────
   app.get('/xp', requireAdmin, async (req, res) => {
     const config = await xpManager.loadXpConfig();
+    const activity = await xpManager.getXpActivity();
+    const guild = discordClient?.guilds.cache.first();
+    const xpWarnings = [];
     const discordRoles = [];
     const discordChannels = [];
     try {
-      const guild = discordClient?.guilds.cache.first();
       if (guild) {
         [...guild.roles.cache.values()]
           .filter(r => r.name !== '@everyone')
@@ -3183,11 +3185,21 @@ function createWebServer(discordClient) {
           .filter(c => c.type === 0)
           .sort((a, b) => a.name.localeCompare(b.name))
           .forEach(c => discordChannels.push({ id: c.id, name: c.name }));
+        if (config.roleId && !guild.roles.cache.has(config.roleId)) {
+          xpWarnings.push('Le rôle requis pour gagner de l’XP est introuvable sur le serveur : aucun membre ne pourra progresser.');
+        }
+        if (config.channelId && !guild.channels.cache.has(config.channelId)) {
+          xpWarnings.push('Le salon d’annonce configuré est introuvable. Les gains restent possibles, mais les passages de niveau ne seront pas annoncés.');
+        }
       }
     } catch (e) {}
+    if (!guild) xpWarnings.push('Bot Discord non connecté à ce dashboard : le rôle et le salon ne peuvent pas être vérifiés ici.');
+    if (!config.channelId) xpWarnings.push('Aucun salon d’annonce défini : les passages de niveau ne seront pas annoncés.');
     res.render('xp', {
       path: '/xp',
       config,
+      activity,
+      xpWarnings,
       discordRoles,
       discordChannels,
       botUser: discordClient?.user || null,
@@ -3206,8 +3218,13 @@ function createWebServer(discordClient) {
     if (cooldownMs !== undefined)     config.cooldownMs       = parseInt(cooldownMs) || 60000;
     if (rewardMultiplier !== undefined) config.rewardMultiplier = parseInt(rewardMultiplier) || 1000;
     if (excludedChannels !== undefined) config.excludedChannels = excludedChannels;
-    await xpManager.saveXpConfig(config);
-    res.json({ ok: true });
+    try {
+      await xpManager.saveXpConfig(config);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error('[XP] Erreur sauvegarde config:', err);
+      res.status(503).json({ error: 'Impossible d’enregistrer la configuration XP.' });
+    }
   });
 
   app.post('/xp/rewards/set', requireAdmin, express.json(), async (req, res) => {

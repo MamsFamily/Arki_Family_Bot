@@ -217,7 +217,7 @@ async function deleteSpawnTicket(ticketId) {
   }
 }
 
-async function getData(key, fallback) {
+async function getData(key, fallback, { throwOnError = false } = {}) {
   if (!usePostgres) return null;
   try {
     const res = await pool.query('SELECT value FROM app_data WHERE key = $1', [key]);
@@ -231,6 +231,7 @@ async function getData(key, fallback) {
     return null;
   } catch (err) {
     console.error(`❌ Erreur lecture ${key}:`, err.message);
+    if (throwOnError) throw err;
     return null;
   }
 }

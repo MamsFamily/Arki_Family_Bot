@@ -42,6 +42,25 @@
 
       <div class="xp-section">
 
+        <% const lastGainAge = activity.lastGainAt ? Date.now() - activity.lastGainAt : null; %>
+        <div class="<%= lastGainAge === null || lastGainAge > 7 * 86400000 ? 'alert alert-error' : 'alert alert-success' %>" role="status">
+          <span>
+            <strong>Activité du pass :</strong>
+            <%= activity.players %> joueur<%= activity.players > 1 ? 's' : '' %> avec une progression enregistrée.
+            <% if (activity.lastGainAt) { %>
+              Dernier message ayant rapporté de l'XP : <%= new Date(activity.lastGainAt).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' }) %> (heure de Paris).
+            <% } else { %>
+              Aucun gain par message enregistré.
+            <% } %>
+            <% if (lastGainAge === null || lastGainAge > 7 * 86400000) { %>
+              Vérifiez le rôle requis, les salons exclus et que le bot Discord est en ligne.
+            <% } %>
+          </span>
+        </div>
+        <% xpWarnings.forEach(warning => { %>
+          <div class="alert alert-error" role="alert"><%= warning %></div>
+        <% }); %>
+
         <!-- Résumé formule -->
         <div class="xp-formula" style="margin-bottom:20px;">
           <strong>Courbe exponentielle ×1</strong> (identique à DraftBot) —
@@ -81,6 +100,9 @@
                 <label class="form-label">🏷 Rôle requis pour gagner de l'XP</label>
                 <select id="cfgRole" class="form-control">
                   <option value="">— Tous les membres —</option>
+                  <% if (config.roleId && !discordRoles.some(r => r.id === config.roleId)) { %>
+                    <option value="<%= config.roleId %>" selected>Rôle enregistré (<%= config.roleId %>)</option>
+                  <% } %>
                   <% discordRoles.forEach(r => { %>
                     <option value="<%= r.id %>" <%= config.roleId === r.id ? 'selected' : '' %>><%= r.name %></option>
                   <% }); %>
@@ -91,6 +113,9 @@
                 <label class="form-label">📢 Salon d'annonce level-up</label>
                 <select id="cfgChannel" class="form-control">
                   <option value="">— Désactivé —</option>
+                  <% if (config.channelId && !discordChannels.some(c => c.id === config.channelId)) { %>
+                    <option value="<%= config.channelId %>" selected>Salon enregistré (<%= config.channelId %>)</option>
+                  <% } %>
                   <% discordChannels.forEach(c => { %>
                     <option value="<%= c.id %>" <%= config.channelId === c.id ? 'selected' : '' %>>#<%= c.name %></option>
                   <% }); %>
@@ -241,7 +266,7 @@
         body: JSON.stringify({ roleId, channelId, minXp, maxXp, cooldownMs: cooldownSec * 1000, rewardMultiplier: rewardMult, excludedChannels }),
       });
       const data = await res.json();
-      if (data.error) return alert('❌ ' + data.error);
+       if (!res.ok || data.error) return alert('❌ ' + (data.error || 'Enregistrement impossible'));
 
       // Mettre à jour les cartes résumé
       document.getElementById('sc-xp').textContent   = `${minXp}–${maxXp}`;

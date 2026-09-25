@@ -47,23 +47,23 @@ const DEFAULT_CONFIG = {
 };
 
 async function loadXpConfig() {
-  const data = await pgStore.getData('xp_config');
+  const data = await pgStore.getData('xp_config', null, { throwOnError: true });
   if (!data) return { ...DEFAULT_CONFIG };
   return { ...DEFAULT_CONFIG, ...data };
 }
 
 async function saveXpConfig(config) {
-  await pgStore.setData('xp_config', config);
+  if (!await pgStore.setData('xp_config', config)) throw new Error('Enregistrement de la configuration XP impossible');
 }
 
 // ─── Données XP joueurs ───────────────────────────────────────────────────────
 async function loadXpData() {
-  const data = await pgStore.getData('xp_data');
+  const data = await pgStore.getData('xp_data', null, { throwOnError: true });
   return data || {};
 }
 
 async function saveXpData(data) {
-  await pgStore.setData('xp_data', data);
+  if (!await pgStore.setData('xp_data', data)) throw new Error('Enregistrement des données XP impossible');
 }
 
 async function getUserData(userId) {
@@ -111,12 +111,12 @@ async function setXp(userId, totalXp) {
 
 // ─── Cooldowns anti-spam ──────────────────────────────────────────────────────
 async function loadCooldowns() {
-  const data = await pgStore.getData('xp_cooldowns');
+  const data = await pgStore.getData('xp_cooldowns', null, { throwOnError: true });
   return data || {};
 }
 
 async function saveCooldowns(data) {
-  await pgStore.setData('xp_cooldowns', data);
+  if (!await pgStore.setData('xp_cooldowns', data)) throw new Error('Enregistrement des cooldowns XP impossible');
 }
 
 async function getCooldown(userId) {
@@ -135,6 +135,15 @@ async function getAllXpData() {
   return await loadXpData();
 }
 
+async function getXpActivity() {
+  const [players, cooldowns] = await Promise.all([loadXpData(), loadCooldowns()]);
+  const timestamps = Object.values(cooldowns).map(Number).filter(Number.isFinite);
+  return {
+    players: Object.keys(players).length,
+    lastGainAt: timestamps.length ? Math.max(...timestamps) : null,
+  };
+}
+
 module.exports = {
   xpToNextLevel,
   totalXpForLevel,
@@ -149,4 +158,5 @@ module.exports = {
   getCooldown,
   setCooldown,
   getAllXpData,
+  getXpActivity,
 };
