@@ -3604,9 +3604,10 @@ function createWebServer(discordClient) {
   const legionJournal = require('./legionJournal');
 
   app.use('/legion', requireAdmin, (req, res, next) => {
-    if (/^\d{17,20}$/.test(String(req.session.discordUser?.id || ''))) return next();
-    if (isApiRequest(req)) return res.status(403).json({ ok: false, error: 'Connexion administrateur Discord requise pour Legion.' });
-    return res.status(403).send('Connexion administrateur Discord requise pour Legion. <a href="/logout">Se déconnecter</a>');
+    const identity = String(req.session.discordUser?.id || '');
+    if (/^\d{17,20}$/.test(identity) || identity === 'dashboard-direct-admin') return next();
+    if (isApiRequest(req)) return res.status(403).json({ ok: false, error: 'Identité administrateur requise pour Legion.' });
+    return res.status(403).send('Identité administrateur requise pour Legion. <a href="/logout">Se déconnecter</a>');
   });
 
   app.get('/legion', requireAdmin, async (req, res) => {
