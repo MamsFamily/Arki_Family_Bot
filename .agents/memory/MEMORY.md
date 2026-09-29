@@ -4,3 +4,5 @@
 ---
 - [Voice gateway signalling fix](voice-gateway-fix.md) — Discord.js v14 : connexion vocale bloquée en signalling si bot pas en cache membre, fix via listener raw.
 - [Récompenses et annonces XP](xp-rewards-announcements.md) — ne jamais conditionner les gains au salon ou à la réussite des annonces Discord.
+- [Périmètre des cartes Legion](legion-map-scope.md) — toute action groupée doit cibler explicitement les 12 cartes ARK, jamais tous les serveurs du compte.
+- [Journal Legion et incidents](legion-incident-journal.md) — un redémarrage observé via uptime ne prouve pas un crash ; séparer commande acceptée et effet confirmé.

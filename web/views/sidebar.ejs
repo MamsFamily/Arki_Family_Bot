@@ -80,10 +80,11 @@
       </div>
     </details>
 
-    <details class="nav-group" <%= ['/roulette','/infinity-road','/blind-test','/werewolf','/admin-quiz','/paris-sportifs','/booster-repro'].includes(path) ? 'open' : '' %>>
+    <details class="nav-group" <%= ['/legion','/roulette','/infinity-road','/blind-test','/werewolf','/admin-quiz','/paris-sportifs'].includes(path) ? 'open' : '' %>>
       <summary>🎮 <span>Jeux &amp; activités</span></summary>
       <div class="nav-group-links">
         <% if (role === 'admin') { %>
+        <a href="/legion" class="nav-link <%= path === '/legion' ? 'active' : '' %>">Serveurs ARK · Legion</a>
         <a href="/roulette" class="nav-link <%= path === '/roulette' ? 'active' : '' %>">Roulette</a>
         <a href="/infinity-road" class="nav-link <%= path === '/infinity-road' ? 'active' : '' %>">Route de l'Infini</a>
         <% } %>
@@ -91,9 +92,6 @@
         <a href="/werewolf" class="nav-link <%= path === '/werewolf' ? 'active' : '' %>">Loup-Garou</a>
         <a href="/admin-quiz" class="nav-link <%= path === '/admin-quiz' ? 'active' : '' %>">Quiz Admins</a>
         <a href="/paris-sportifs" class="nav-link <%= path === '/paris-sportifs' ? 'active' : '' %>">Paris sportifs</a>
-        <% if (role === 'admin') { %>
-        <a href="/booster-repro" class="nav-link <%= path === '/booster-repro' ? 'active' : '' %>">Booster repro</a>
-        <% } %>
       </div>
     </details>
 

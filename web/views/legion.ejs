@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Serveurs ARK · Legion — Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .legion-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:20px; }
+    .legion-head h1 { font-size:1.7rem; margin-bottom:7px; }
+    .legion-head p, .legion-note { color:var(--text-secondary); line-height:1.5; }
+    .legion-actions { display:flex; gap:10px; flex-wrap:wrap; }
+    .legion-btn { border:1px solid var(--border); border-radius:8px; background:var(--bg-secondary); color:var(--text-primary); cursor:pointer; padding:10px 13px; font-weight:650; font:inherit; }
+    .legion-btn:hover { border-color:var(--accent); }
+    .legion-btn:disabled { opacity:.45; cursor:not-allowed; }
+    .legion-btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+    .legion-btn.stop { color:var(--error); }
+    .legion-alert { padding:14px 16px; margin:0 0 20px; background:var(--bg-card); border:1px solid var(--border); border-radius:10px; line-height:1.5; }
+    .legion-alert.error { border-color:var(--error); }
+    .legion-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(265px,1fr)); gap:15px; }
+    .legion-card { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:18px; min-width:0; }
+    .legion-card header { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; }
+    .legion-card h2 { font-size:1.04rem; margin:0; }
+    .legion-state { font-size:.79rem; font-weight:700; color:var(--text-secondary); white-space:nowrap; }
+    .legion-state.running { color:var(--success); }
+    .legion-state.offline, .legion-state.stopped, .legion-state.suspended { color:var(--error); }
+    .legion-card label { display:inline-flex; align-items:center; gap:8px; font-size:.86rem; color:var(--text-secondary); cursor:pointer; margin-bottom:16px; }
+    .legion-card input[type=checkbox] { accent-color:var(--accent); width:16px; height:16px; }
+    .legion-stats { display:grid; grid-template-columns:1fr 1fr; gap:11px; margin:0 0 17px; }
+    .legion-stats div { display:flex; flex-direction:column; gap:4px; }
+    .legion-stats dt { color:var(--text-secondary); font-size:.78rem; }
+    .legion-stats dd { font-weight:700; margin:0; font-size:.9rem; }
+    .legion-card-actions { display:flex; flex-wrap:wrap; gap:7px; }
+    .legion-card-actions .legion-btn { flex:1; font-size:.81rem; padding:8px 9px; }
+    .legion-note { margin-top:18px; font-size:.84rem; }
+    #legion-message { margin:0 0 18px; }
+    #legion-message:empty { display:none; }
+    .legion-tabs { display:flex; gap:8px; border-bottom:1px solid var(--border); margin:0 0 22px; }
+    .legion-tabs button { border:0; border-bottom:3px solid transparent; background:none; color:var(--text-secondary); padding:12px 15px; cursor:pointer; font:inherit; }
+    .legion-tabs button.active { color:var(--text-primary); border-bottom-color:var(--accent); font-weight:700; }
+    .legion-panel { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:20px; margin:0 0 20px; }
+    .legion-panel h2 { margin:0 0 9px; font-size:1.15rem; }
+    .legion-panel p { color:var(--text-secondary); line-height:1.5; margin:0 0 16px; }
+    .legion-form { display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin:16px 0; }
+    .legion-form label { display:flex; flex-direction:column; gap:6px; font-size:.83rem; color:var(--text-secondary); }
+    .legion-form input, .legion-form select, .legion-filter { padding:9px 10px; background:var(--bg-input); border:1px solid var(--border); border-radius:8px; color:var(--text-primary); font:inherit; }
+    .legion-targets { display:flex; gap:10px; flex-wrap:wrap; margin:12px 0; }
+    .legion-targets label { display:inline-flex; gap:6px; align-items:center; background:var(--bg-secondary); padding:7px 10px; border-radius:7px; cursor:pointer; }
+    .legion-list { list-style:none; display:grid; gap:9px; margin:15px 0 0; padding:0; }
+    .legion-list li { padding:12px; background:var(--bg-secondary); border:1px solid var(--border); border-radius:8px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+    .legion-list small { color:var(--text-secondary); }
+    .legion-row-actions { display:flex; gap:6px; }
+    @media (max-width:600px) { .legion-head h1 { font-size:1.4rem; } .legion-grid { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="legion-head">
+        <div>
+          <h1>Serveurs ARK · Legion Hosting</h1>
+          <p>12 cartes du cluster. Le serveur d’essai est exclu de cette page et des actions.</p>
+        </div>
+        <div class="legion-actions">
+          <button class="legion-btn" type="button" id="refresh">Actualiser</button>
+          <button class="legion-btn primary" type="button" id="restart-selection" disabled>Redémarrer la sélection</button>
+          <button class="legion-btn stop" type="button" id="wipe-selection" disabled>DestroyWildDinos · sélection</button>
+        </div>
+      </div>
+      <% if (error) { %><div class="legion-alert error" role="alert"><%= error %></div><% } %>
+      <div id="legion-message" role="status" aria-live="polite"></div>
+      <nav class="legion-tabs" aria-label="Serveurs et journaux">
+        <button type="button" class="active" data-tab="cards">Cartes</button>
+        <button type="button" data-tab="journal">Journaux des maps</button>
+        <button type="button" data-tab="schedules">Planifications</button>
+      </nav>
+      <section id="tab-cards" aria-label="Cartes">
+      <div class="legion-grid" id="legion-grid">
+        <% servers.forEach(function(server) { %>
+          <article class="legion-card" data-id="<%= server.id %>">
+            <header>
+              <h2><%= server.name %></h2>
+              <span class="legion-state <%= server.state %>"><%= server.state === 'running' ? '● En ligne' : server.state === 'offline' || server.state === 'stopped' ? '● Hors ligne' : server.state === 'starting' ? '◌ Démarrage' : server.state === 'stopping' ? '◌ Arrêt' : server.state === 'suspended' ? '● Suspendu' : '● État inconnu' %></span>
+            </header>
+            <label><input type="checkbox" class="legion-select"> Sélectionner cette carte</label>
+            <dl class="legion-stats">
+              <div><dt>CPU</dt><dd class="cpu"><%= server.cpu == null ? '—' : server.cpu.toFixed(1) + ' %' %></dd></div>
+              <div><dt>RAM utilisée</dt><dd class="memory"><%= server.memory == null ? '—' : (server.memory / 1073741824).toFixed(1) + ' Go' %></dd></div>
+              <div><dt>Stockage utilisé</dt><dd class="disk"><%= server.disk == null ? '—' : (server.disk / 1073741824).toFixed(1) + ' Go' %></dd></div>
+            </dl>
+            <% if (server.resourceError) { %><p class="legion-note"><%= server.resourceError %></p><% } %>
+            <div class="legion-card-actions">
+              <button type="button" class="legion-btn" data-signal="start">Démarrer</button>
+              <button type="button" class="legion-btn" data-signal="restart">Redémarrer</button>
+              <button type="button" class="legion-btn stop" data-signal="stop">Arrêter</button>
+            </div>
+          </article>
+        <% }); %>
+      </div>
+      <p class="legion-note">DestroyWildDinos supprime les dinos sauvages, qui réapparaîtront naturellement. Les dinos apprivoisés ne sont pas concernés. Une confirmation est demandée avant l’envoi.</p>
+      </section>
+      <section id="tab-journal" class="legion-panel" aria-label="Journaux des maps" hidden>
+        <h2>Journaux des maps</h2>
+        <p>Redémarrages et wipes manuels ou programmés, actions GPanel et interruptions observées. « Accepté » signifie que GPanel a reçu la commande, pas que son effet dans le jeu est confirmé. Une interruption ne prouve pas à elle seule un bug ; sa cause reste inconnue.</p>
+        <label for="journal-map">Carte : </label>
+        <select id="journal-map" class="legion-filter">
+          <option value="">Toutes · événements du dashboard</option>
+          <% maps.forEach(function(map) { %><option value="<%= map.id %>"><%= map.name %></option><% }); %>
+        </select>
+        <button type="button" class="legion-btn" id="journal-refresh">Actualiser</button>
+        <ul id="journal-list" class="legion-list" aria-live="polite"></ul>
+      </section>
+      <section id="tab-schedules" class="legion-panel" aria-label="Planifications" hidden>
+        <h2>Planifications quotidiennes</h2>
+        <p>Heure de Paris. Sélectionne explicitement les cartes ; le serveur d’essai ne peut pas être planifié. Une action échouée est inscrite au journal.</p>
+        <form id="schedule-form">
+          <div class="legion-form">
+            <label>Nom <input name="name" required maxlength="80" placeholder="Ex. Wipe quotidien"></label>
+            <label>Action <select name="type"><option value="wild_dinos">DestroyWildDinos</option><option value="restart">Redémarrage</option></select></label>
+            <label>Heure <input name="time" type="time" required></label>
+            <button type="submit" class="legion-btn primary">Programmer</button>
+          </div>
+          <div class="legion-targets">
+            <% maps.forEach(function(map) { %><label><input type="checkbox" name="ids" value="<%= map.id %>"> <%= map.name %></label><% }); %>
+          </div>
+        </form>
+        <ul id="schedule-list" class="legion-list" aria-live="polite"></ul>
+      </section>
+    </main>
+  </div>
+  <script>
+    const grid = document.getElementById('legion-grid');
+    const message = document.getElementById('legion-message');
+    const restartSelection = document.getElementById('restart-selection');
+    const wipeSelection = document.getElementById('wipe-selection');
+    const labels = { running:'● En ligne', offline:'● Hors ligne', stopped:'● Hors ligne',
+      starting:'◌ Démarrage', stopping:'◌ Arrêt', suspended:'● Suspendu', unknown:'● État inconnu' };
+
+    function notify(text, error = false) {
+      message.textContent = text;
+      message.className = 'legion-alert' + (error ? ' error' : '');
+    }
+    function updateSelection() {
+      const count = grid.querySelectorAll('.legion-select:checked').length;
+      restartSelection.disabled = !count;
+      wipeSelection.disabled = !count;
+      restartSelection.textContent = count ? `Redémarrer ${count} carte${count > 1 ? 's' : ''}` : 'Redémarrer la sélection';
+    }
+    document.querySelectorAll('.legion-tabs button').forEach(button => button.addEventListener('click', () => {
+      document.querySelectorAll('.legion-tabs button').forEach(item => item.classList.toggle('active', item === button));
+      ['cards','journal','schedules'].forEach(tab => {
+        document.getElementById('tab-' + tab).hidden = tab !== button.dataset.tab;
+      });
+      if (button.dataset.tab === 'journal') loadJournal();
+      if (button.dataset.tab === 'schedules') loadSchedules();
+    }));
+    grid.addEventListener('change', updateSelection);
+    grid.addEventListener('click', async event => {
+      const button = event.target.closest('button[data-signal]');
+      if (!button) return;
+      const card = button.closest('.legion-card');
+      const id = card.dataset.id, name = card.querySelector('h2').textContent, signal = button.dataset.signal;
+      if (!confirm(`${signal === 'stop' ? 'Arrêter' : signal === 'start' ? 'Démarrer' : 'Redémarrer'} ${name} ?`)) return;
+      button.disabled = true;
+      try {
+        const response = await fetch(`/legion/api/power/${encodeURIComponent(id)}`, {
+          method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({signal}),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.error || 'Commande refusée');
+        notify(`Commande envoyée à ${name}. L’état se mettra à jour après actualisation.`);
+      } catch (error) { notify(error.message, true); }
+      finally { button.disabled = false; }
+    });
+    restartSelection.addEventListener('click', async () => {
+      const ids = [...grid.querySelectorAll('.legion-select:checked')].map(input => input.closest('.legion-card').dataset.id);
+      if (!ids.length || !confirm(`Redémarrer ${ids.length} carte(s) sélectionnée(s) ?`)) return;
+      restartSelection.disabled = true;
+      try {
+        const response = await fetch('/legion/api/restart-selection', {
+          method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids}),
+        });
+        const data = await response.json();
+        if (!data.results) throw new Error(data.error || 'Commande refusée');
+        const failed = data.results.filter(result => !result.ok);
+        notify(`${data.results.length - failed.length}/${data.results.length} redémarrage(s) accepté(s)` +
+          (failed.length ? ` — échecs : ${failed.map(result => result.id + ' (' + result.error + ')').join(', ')}` : '.'),
+          failed.length > 0);
+      } catch (error) { notify(error.message, true); }
+      finally { updateSelection(); }
+    });
+    wipeSelection.addEventListener('click', async () => {
+      const ids = [...grid.querySelectorAll('.legion-select:checked')].map(input => input.closest('.legion-card').dataset.id);
+      if (!ids.length || !confirm(`Lancer DestroyWildDinos sur ${ids.length} carte(s) sélectionnée(s) ? Les dinos sauvages seront supprimés.`)) return;
+      wipeSelection.disabled = true;
+      try {
+        const response = await fetch('/legion/api/wild-dinos', {
+          method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids}),
+        });
+        const data = await response.json();
+        if (!data.results) throw new Error(data.error || 'Commande refusée');
+        const failed = data.results.filter(result => !result.ok);
+        notify(`${data.results.length - failed.length}/${data.results.length} commande(s) acceptée(s) par GPanel` +
+          (failed.length ? ` — échecs : ${failed.map(result => result.id + ' (' + result.error + ')').join(', ')}` : '.'),
+          failed.length > 0);
+      } catch (error) { notify(error.message, true); }
+      finally { updateSelection(); }
+    });
+    const mapNames = Object.fromEntries([...document.querySelectorAll('#journal-map option[value]')]
+      .filter(option => option.value).map(option => [option.value, option.textContent]));
+    const eventNames = { restart:'Redémarrage', start:'Démarrage', stop:'Arrêt',
+      wild_dinos:'DestroyWildDinos', state_change:'État observé', unexpected_restart:'Redémarrage inattendu' };
+    async function loadJournal() {
+      const list = document.getElementById('journal-list');
+      list.textContent = 'Chargement…';
+      try {
+        const mapId = document.getElementById('journal-map').value;
+        const response = await fetch('/legion/api/journal' + (mapId ? '?mapId=' + encodeURIComponent(mapId) : ''));
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.error || 'Journal indisponible');
+        list.replaceChildren();
+        if (!data.events.length) { list.textContent = 'Aucun événement pour cette sélection.'; return; }
+        data.events.forEach(event => {
+          const li = document.createElement('li');
+          const text = document.createElement('span');
+          const title = document.createElement('strong');
+          title.textContent = (mapNames[event.map_id] || event.map_id) + ' · ' + (eventNames[event.event_type] || event.event_type);
+          const meta = document.createElement('small');
+          meta.textContent = `${new Date(event.occurred_at).toLocaleString('fr-FR')} · ${event.origin} · ${event.status} · ${event.actor}` +
+            (event.details ? ` · ${event.details}` : '');
+          text.append(title, document.createElement('br'), meta);
+          li.append(text);
+          list.append(li);
+        });
+      } catch (error) { list.textContent = error.message; }
+    }
+    document.getElementById('journal-map').addEventListener('change', loadJournal);
+    document.getElementById('journal-refresh').addEventListener('click', loadJournal);
+    async function loadSchedules() {
+      const list = document.getElementById('schedule-list');
+      list.textContent = 'Chargement…';
+      try {
+        const response = await fetch('/legion/api/schedules');
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.error || 'Planifications indisponibles');
+        list.replaceChildren();
+        if (!data.schedules.length) { list.textContent = 'Aucune planification.'; return; }
+        data.schedules.forEach(schedule => {
+          const li = document.createElement('li');
+          const text = document.createElement('span');
+          const title = document.createElement('strong');
+          title.textContent = schedule.name;
+          const meta = document.createElement('small');
+          meta.textContent = `${eventNames[schedule.event_type]} · ${schedule.time_of_day} (Paris) · ${schedule.map_ids.map(id => mapNames[id] || id).join(', ')} · ${schedule.active ? 'Actif' : 'En pause'}`;
+          text.append(title, document.createElement('br'), meta);
+          const actions = document.createElement('span');
+          actions.className = 'legion-row-actions';
+          for (const [label, action] of [[schedule.active ? 'Pause' : 'Activer','toggle'], ['Supprimer','delete']]) {
+            const btn = document.createElement('button');
+            btn.type = 'button'; btn.className = 'legion-btn'; btn.textContent = label;
+            btn.addEventListener('click', async () => {
+              if (action === 'delete' && !confirm(`Supprimer le planning « ${schedule.name} » ?`)) return;
+              btn.disabled = true;
+              try {
+                const response = await fetch('/legion/api/schedules/' + encodeURIComponent(schedule.id), {
+                  method:action === 'delete' ? 'DELETE' : 'PATCH',
+                  headers:{'Content-Type':'application/json'},
+                  body:action === 'delete' ? undefined : JSON.stringify({active:!schedule.active}),
+                });
+                const data = await response.json();
+                if (!response.ok || !data.ok) throw new Error(data.error || 'Modification refusée');
+                await loadSchedules();
+              } catch (error) { notify(error.message, true); btn.disabled = false; }
+            });
+            actions.append(btn);
+          }
+          li.append(text, actions); list.append(li);
+        });
+      } catch (error) { list.textContent = error.message; }
+    }
+    document.getElementById('schedule-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const ids = [...form.querySelectorAll('input[name=ids]:checked')].map(input => input.value);
+      if (!ids.length) return notify('Sélectionne au moins une carte pour ce planning.', true);
+      const type = form.elements.type.value;
+      if (!confirm(`Programmer ${eventNames[type]} chaque jour à ${form.elements.time.value} sur ${ids.length} carte(s) ?`)) return;
+      const button = form.querySelector('button[type=submit]');
+      button.disabled = true;
+      try {
+        const response = await fetch('/legion/api/schedules', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({name:form.elements.name.value, type, time:form.elements.time.value, ids}),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.error || 'Création refusée');
+        form.reset(); notify('Planning enregistré.'); await loadSchedules();
+      } catch (error) { notify(error.message, true); }
+      finally { button.disabled = false; }
+    });
+    document.getElementById('refresh').addEventListener('click', async event => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        const response = await fetch('/legion/api/servers');
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.error || 'État indisponible');
+        data.servers.forEach(server => {
+          const card = grid.querySelector(`[data-id="${server.id}"]`);
+          if (!card) return;
+          const state = card.querySelector('.legion-state');
+          state.textContent = labels[server.state] || labels.unknown;
+          state.className = 'legion-state ' + server.state;
+          card.querySelector('.cpu').textContent = server.cpu == null ? '—' : server.cpu.toFixed(1) + ' %';
+          card.querySelector('.memory').textContent = server.memory == null ? '—' : (server.memory / 1073741824).toFixed(1) + ' Go';
+          card.querySelector('.disk').textContent = server.disk == null ? '—' : (server.disk / 1073741824).toFixed(1) + ' Go';
+        });
+        notify('États actualisés.');
+      } catch (error) { notify(error.message, true); }
+      finally { button.disabled = false; }
+    });
+  </script>
+</body>
+</html>

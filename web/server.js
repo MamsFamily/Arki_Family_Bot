@@ -46,6 +46,7 @@ function createWebServer(discordClient) {
   pgStore.initPool();
   pgStore.initTables().then(async () => {
     await inventoryManager.initInventory().catch(e => console.error('[Inventory] initInventory au démarrage dashboard:', e.message));
+    await require('./legionJournal').init().catch(e => console.error('[Legion] init:', e.message));
     // loadState uniquement si dashboard standalone (sans bot) — sinon index.js le fait après ready
     if (!discordClient) {
       await adminQuizManager.loadState().catch(e => console.error('[AdminQuiz] loadState au démarrage dashboard:', e.message));
@@ -89,7 +90,8 @@ function createWebServer(discordClient) {
   });
 
   function isApiRequest(req) {
-    return req.path.startsWith('/api/') || req.headers['content-type'] === 'application/json' || req.xhr;
+    return req.path.startsWith('/api/') || req.path.startsWith('/legion/api/') ||
+      req.headers['content-type'] === 'application/json' || req.xhr;
   }
 
   // ── Génération de session (déconnexion forcée globale) ────────────────────
@@ -3596,7 +3598,109 @@ function createWebServer(discordClient) {
     res.json({ success: true });
   });
 
-  // ─── NITRADO ──────────────────────────────────────────────────────────────────
+  // ─── LEGION HOSTING ───────────────────────────────────────────────────────────
+  const legion = require('./legionManager');
+  const legionJournal = require('./legionJournal');
+
+  app.use('/legion', requireAdmin, (req, res, next) => {
+    if (/^\d{17,20}$/.test(String(req.session.discordUser?.id || ''))) return next();
+    if (isApiRequest(req)) return res.status(403).json({ ok: false, error: 'Connexion administrateur Discord requise pour Legion.' });
+    return res.status(403).send('Connexion administrateur Discord requise pour Legion. <a href="/logout">Se déconnecter</a>');
+  });
+
+  app.get('/legion', requireAdmin, async (req, res) => {
+    let servers = [];
+    let error = null;
+    try { servers = await legion.getServers(); }
+    catch (e) { error = e.message; }
+    res.render('legion', {
+      path: req.path, botUser: discordClient?.user || null,
+      discordUser: req.session.discordUser, role: req.session.role,
+      servers, maps: legion.MAPS, error,
+    });
+  });
+
+  app.get('/legion/api/servers', requireAdmin, async (req, res) => {
+    try { res.json({ ok: true, servers: await legion.getServers() }); }
+    catch (e) { res.status(502).json({ ok: false, error: e.message }); }
+  });
+
+  app.post('/legion/api/power/:id', requireAdmin, async (req, res) => {
+    const { signal } = req.body || {};
+    try {
+      const result = await legionJournal.execute(req.params.id, signal, 'manuel',
+        req.session.discordUser?.displayName || 'Admin Dashboard');
+      res.status(result.ok ? 200 : 502).json(result);
+    } catch (e) {
+      res.status(e.message.includes('non autorisée') || e.message.includes('ne fait pas partie') ? 400 : 502)
+        .json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post('/legion/api/restart-selection', requireAdmin, async (req, res) => {
+    try {
+      const ids = legionJournal.validateIds(req.body?.ids);
+      const results = await Promise.all(ids.map(id => legionJournal.execute(id, 'restart', 'manuel',
+        req.session.discordUser?.displayName || 'Admin Dashboard')));
+      res.status(results.every(result => result.ok) ? 200 : 502).json({
+        ok: results.every(result => result.ok), results,
+      });
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+  });
+
+  app.post('/legion/api/wild-dinos', requireAdmin, async (req, res) => {
+    try {
+      const ids = legionJournal.validateIds(req.body?.ids);
+      const results = await Promise.all(ids.map(id => legionJournal.execute(id, 'wild_dinos', 'manuel',
+        req.session.discordUser?.displayName || 'Admin Dashboard')));
+      res.status(results.every(result => result.ok) ? 200 : 502).json({
+        ok: results.every(result => result.ok), results,
+      });
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+  });
+
+  app.get('/legion/api/journal', requireAdmin, async (req, res) => {
+    try { res.json({ ok: true, events: await legionJournal.listEvents(req.query.mapId || null) }); }
+    catch (e) { res.status(502).json({ ok: false, error: e.message }); }
+  });
+
+  app.get('/legion/api/schedules', requireAdmin, async (req, res) => {
+    try { res.json({ ok: true, schedules: await legionJournal.listSchedules() }); }
+    catch (e) { res.status(502).json({ ok: false, error: e.message }); }
+  });
+  app.post('/legion/api/schedules', requireAdmin, async (req, res) => {
+    try {
+      if (!legionJournal.isReady()) return res.status(503).json({ ok: false, error: 'Planificateur Legion indisponible' });
+      const id = await legionJournal.createSchedule(req.body || {});
+      res.json({ ok: true, id });
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+  });
+  app.patch('/legion/api/schedules/:id', requireAdmin, async (req, res) => {
+    try {
+      if (!legionJournal.isReady()) return res.status(503).json({ ok: false, error: 'Planificateur Legion indisponible' });
+      await legionJournal.setScheduleActive(req.params.id, req.body?.active);
+      res.json({ ok: true });
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+  });
+  app.delete('/legion/api/schedules/:id', requireAdmin, async (req, res) => {
+    try {
+      await legionJournal.removeSchedule(req.params.id);
+      res.json({ ok: true });
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+  });
+
+  // Les anciennes pages Nitrado ne sont plus exposées. Les données historiques
+  // restent conservées pendant la migration pour éviter toute perte.
+  app.use('/nitrado', (req, res) => {
+    if (req.method === 'GET' && req.path === '/') return res.redirect('/legion');
+    return res.status(410).json({ ok: false, error: 'Nitrado retiré ; utilise Legion Hosting.' });
+  });
+  app.use('/booster-repro', (req, res) => {
+    if (req.method === 'GET' && req.path === '/') return res.redirect('/legion');
+    return res.status(410).json({ ok: false, error: 'Booster Repro Nitrado retiré.' });
+  });
+
+  // ─── NITRADO (conservé tant que les automatismes n'ont pas été migrés) ──────
   const nitrado = require('./nitradoManager');
   const { logRestart, getLogs: getRestartLogs } = require('../restartLogger');
 
@@ -4796,7 +4900,7 @@ function createWebServer(discordClient) {
   }
 
   // Initialiser les jobs au démarrage
-  getScheduledCmds().then(cmds => cmds.forEach(startJob)).catch(() => {});
+  // Anciens jobs Nitrado désactivés : conserver les données pour l'historique.
 
   // Lister les commandes programmées
   app.get('/nitrado/api/scheduled', requireAdmin, async (req, res) => {

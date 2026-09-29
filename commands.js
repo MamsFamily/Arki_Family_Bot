@@ -1,5 +1,19 @@
 const commands = [
   {
+    name: 'destroywilddinos',
+    description: 'Supprime les dinos sauvages sur une carte Legion ou sur les 12 cartes (Admin)',
+    options: [{
+      name: 'carte',
+      type: 3,
+      description: 'Carte ARK ciblée (ou toutes les 12 cartes du cluster)',
+      required: true,
+      choices: [
+        { name: 'Toutes les 12 cartes du cluster', value: 'all' },
+        ...require('./web/legionManager').MAPS.map(map => ({ name: map.name, value: map.id })),
+      ],
+    }],
+  },
+  {
     name: 'roulette',
     description: 'Lance la roue de la chance Arki (Admin et Modo)',
   },
@@ -378,10 +392,6 @@ const commands = [
         required: true,
       },
     ],
-  },
-  {
-    name: 'activer-booster',
-    description: '🧬 Active un booster de reproduction sur une map (si tu en possèdes un)',
   },
   {
     name: 'reclamation-panel',

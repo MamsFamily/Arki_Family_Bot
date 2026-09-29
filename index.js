@@ -12,6 +12,8 @@ const { Client, GatewayIntentBits, Partials, AttachmentBuilder, PermissionFlagsB
 })();
 
 const commands = require('./commands');
+const { createDestroyWildDinosHandler } = require('./destroyWildDinosCommand');
+const destroyWildDinosHandler = createDestroyWildDinosHandler();
 const fs = require('fs');
 const path = require('path');
 const VOTE_BANNER_PATH = path.join(__dirname, 'assets/vote-banner.jpg');
@@ -674,10 +676,7 @@ client.once('clientReady', async () => {
   // Initialiser les crons anniversaires
   birthdayManager.initBirthdayCron(client);
 
-  // Initialiser les plannings de redémarrage ARK SA + polling 60s
-  await restartScheduler.init().catch(e => console.error('[RestartSched] init error:', e.message));
   await lockdown.loadState().catch(e => console.error('[Lockdown] loadState error:', e.message));
-  restartScheduler.startPolling(60000);
 
   // Rattraper les giveaways expirés pendant l'absence du bot
   // → Annoncer les résultats + distribuer les gains comme si c'était la fin normale
@@ -706,9 +705,6 @@ client.once('clientReady', async () => {
 
   // Enregistrer les handlers du casino
   registerCasinoHandlers(client, { pgStore, getPlayerInventory, addToInventory, removeFromInventory });
-
-  // Initialiser le système booster repro (cron de restauration automatique)
-  boosterReproManager.init(client);
 
   // Charger l'état du Quiz Admin
   await adminQuizManager.loadState().catch(e => console.error('[AdminQuiz] loadState:', e.message));
@@ -1164,6 +1160,21 @@ client.on('interactionCreate', async interaction => {
       content: '❌ Les commandes ne sont pas autorisées dans un fil de poker.',
       ephemeral: true
     });
+  }
+
+  if ((interaction.isChatInputCommand() && interaction.commandName === 'destroywilddinos') ||
+      (interaction.isButton() && interaction.customId.startsWith('legion:wild:'))) {
+    try { await destroyWildDinosHandler.handle(interaction); }
+    catch (error) {
+      console.error('[Legion] Commande Discord DestroyWildDinos :', error);
+      const response = { content: 'Erreur pendant la commande Legion. Vérifie le journal avant de réessayer.',
+        components: [] };
+      try {
+        if (interaction.deferred || interaction.replied) await interaction.editReply(response);
+        else await interaction.reply({ ...response, ephemeral: true });
+      } catch (replyError) { console.error('[Legion] Réponse Discord :', replyError.message); }
+    }
+    return;
   }
 
   // ── Shop interactions (buttons + select menus) ──
@@ -4729,6 +4740,7 @@ client.on('interactionCreate', async interaction => {
 client.on('interactionCreate', async interaction => {
   // ── Commande slash /activer-booster ──────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'activer-booster') {
+    return interaction.reply({ content: 'Le Booster Repro Nitrado a été retiré. Les cartes sont désormais gérées sur Legion Hosting.', ephemeral: true });
     const cfg = getSettings().boosterRepro || {};
 
     if (!cfg.enabled) {
@@ -4792,6 +4804,7 @@ client.on('interactionCreate', async interaction => {
 
   // ── Sélection de la map ───────────────────────────────────────────────────
   if (interaction.isStringSelectMenu() && interaction.customId.startsWith('booster_map_select::')) {
+    return interaction.update({ content: 'Le Booster Repro Nitrado a été retiré.', components: [], embeds: [] });
     const parts = interaction.customId.split('::');
     const itemName = parts[1];
     const durationHours = parseInt(parts[2]) || 6;
