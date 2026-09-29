@@ -6,6 +6,7 @@ const journal = require('../web/legionJournal');
 const scheduler = require('../nitradoRestartScheduler');
 const booster = require('../boosterReproManager');
 const legionIni = require('../web/legionIni');
+const iniLock = require('../web/legionIniMutationLock');
 const { getBoosterMaps } = require('../boosterReproMaps');
 const { createDestroyWildDinosHandler } = require('../destroyWildDinosCommand');
 
@@ -124,6 +125,7 @@ test('le booster sauvegarde les valeurs réelles, les restaure, et refuse une an
   const originals = {
     getData: store.getData, setData: store.setData,
     readFile: legion.readFile, writeFile: legion.writeFile,
+    withMapIniLock: iniLock.withMapIniLock,
   };
   const mapId = legion.MAPS[0].id;
   const path = '/ShooterGame/Saved/Config/WindowsServer/Game.ini';
@@ -132,6 +134,7 @@ test('le booster sauvegarde les valeurs réelles, les restaure, et refuse une an
   const writes = [];
   store.getData = async () => sessions;
   store.setData = async (_key, data) => { sessions = structuredClone(data); };
+  iniLock.withMapIniLock = async (_id, work) => work();
   legion.readFile = async (id, file) => {
     assert.equal(id, mapId);
     assert.equal(file, path);
@@ -170,17 +173,20 @@ test('le booster sauvegarde les valeurs réelles, les restaure, et refuse une an
     store.setData = originals.setData;
     legion.readFile = originals.readFile;
     legion.writeFile = originals.writeFile;
+    iniLock.withMapIniLock = originals.withMapIniLock;
   }
 });
 
 test('l’éditeur INI refuse les fichiers, clés et cartes non autorisés sans exposer les fichiers', async () => {
   const store = require('../pgStore');
   const id = legion.MAPS[0].id;
-  const originals = { getData: store.getData, readFile: legion.readFile, writeFile: legion.writeFile };
+  const originals = { getData: store.getData, readFile: legion.readFile, writeFile: legion.writeFile,
+    withMapIniLock: iniLock.withMapIniLock };
   const path = '/ShooterGame/Saved/Config/WindowsServer/GameUserSettings.ini';
   let contents = '[ServerSettings]\r\nServerAdminPassword=private\r\nXPMultiplier=1\r\n';
   let writes = 0;
   store.getData = async () => [];
+  iniLock.withMapIniLock = async (mapId, work) => { legion.assertMap(mapId); return work(); };
   legion.readFile = async (_id, file) => {
     assert.equal(file, path);
     return contents;
@@ -203,6 +209,7 @@ test('l’éditeur INI refuse les fichiers, clés et cartes non autorisés sans 
     store.getData = originals.getData;
     legion.readFile = originals.readFile;
     legion.writeFile = originals.writeFile;
+    iniLock.withMapIniLock = originals.withMapIniLock;
   }
 });
 

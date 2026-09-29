@@ -4,6 +4,7 @@ const cron = require('node-cron');
 const pgStore = require('./pgStore');
 const { getSettings } = require('./settingsManager');
 const legion = require('./web/legionManager');
+const iniLock = require('./web/legionIniMutationLock');
 const { EmbedBuilder } = require('discord.js');
 
 const SESSIONS_KEY = 'booster_sessions';
@@ -252,7 +253,7 @@ async function findActivationSessionId(serviceId, itemConfig, sessionId) {
   return eligible[0].id;
 }
 
-async function applyBoostIni(serviceId, itemConfig, sessionId) {
+async function applyBoostIniUnlocked(serviceId, itemConfig, sessionId) {
   assertLegionMap(serviceId);
   if (!itemConfig || typeof itemConfig !== 'object') throw new Error('Configuration INI booster manquante');
   const { iniKey1, iniKey2 } = itemConfig;
@@ -310,7 +311,11 @@ async function applyBoostIni(serviceId, itemConfig, sessionId) {
   return { iniBackup };
 }
 
-async function restoreNormalIni(serviceId, session, fallbackItemConfig) {
+async function applyBoostIni(serviceId, itemConfig, sessionId) {
+  return iniLock.withMapIniLock(serviceId, () => applyBoostIniUnlocked(serviceId, itemConfig, sessionId));
+}
+
+async function restoreNormalIniUnlocked(serviceId, session, fallbackItemConfig) {
   assertLegionMap(serviceId);
   const key1Name = session.iniConfig?.key1Name || fallbackItemConfig?.iniKey1?.key;
   const key2Name = session.iniConfig?.key2Name || fallbackItemConfig?.iniKey2?.key;
@@ -332,6 +337,10 @@ async function restoreNormalIni(serviceId, session, fallbackItemConfig) {
     updatedContent = setIniKey(updatedContent, key, value);
   }
   await legion.writeFile(serviceId, GAME_INI_PATH, updatedContent);
+}
+
+async function restoreNormalIni(serviceId, session, fallbackItemConfig) {
+  return iniLock.withMapIniLock(serviceId, () => restoreNormalIniUnlocked(serviceId, session, fallbackItemConfig));
 }
 
 // ── Helpers notification ──────────────────────────────────────────────────────

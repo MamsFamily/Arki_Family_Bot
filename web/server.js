@@ -3679,6 +3679,12 @@ function createWebServer(discordClient) {
     if (isApiRequest(req)) return res.status(403).json({ ok: false, error: 'Identité administrateur requise pour Legion.' });
     return res.status(403).send('Identité administrateur requise pour Legion. <a href="/logout">Se déconnecter</a>');
   });
+  const requireIniLineAccess = (req, res, next) => {
+    if (/^\d{17,20}$/.test(String(req.session.discordUser?.id || ''))) return next();
+    return res.status(403).json({
+      ok: false, error: 'Connexion administrateur avec vérification Discord requise pour modifier les lignes INI.',
+    });
+  };
 
   app.get('/legion', requireAdmin, async (req, res) => {
     let servers = [];
@@ -3689,6 +3695,7 @@ function createWebServer(discordClient) {
       path: req.path, botUser: discordClient?.user || null,
       discordUser: req.session.discordUser, role: req.session.role,
       servers, maps: legion.MAPS, error,
+      canEditIniLines: /^\d{17,20}$/.test(String(req.session.discordUser?.id || '')),
     });
   });
 
@@ -3720,6 +3727,22 @@ function createWebServer(discordClient) {
       res.json({ ok: true });
     } catch (e) {
       res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+  const legionIniLines = require('./legionIniLines');
+  app.post('/legion/api/ini/lines/preview', requireIniLineAccess, async (req, res) => {
+    try {
+      res.json(await legionIniLines.preview(req.body));
+    } catch (error) {
+      res.status(error.status || 502).json({ ok: false, error: error.message });
+    }
+  });
+  app.post('/legion/api/ini/lines/apply', requireIniLineAccess, async (req, res) => {
+    try {
+      const result = await legionIniLines.apply(req.body);
+      res.status(result.ok ? 200 : 502).json(result);
+    } catch (error) {
+      res.status(error.status || 502).json({ ok: false, error: error.message });
     }
   });
 

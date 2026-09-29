@@ -1,4 +1,5 @@
 const legion = require('./legionManager');
+const iniLock = require('./legionIniMutationLock');
 const booster = require('../boosterReproManager');
 
 const ROOT = '/ShooterGame/Saved/Config/WindowsServer/';
@@ -46,7 +47,7 @@ function replaceKey(content, section, key, value) {
   return lines.join(newline);
 }
 
-async function updateSetting(mapId, key, value) {
+async function updateSettingUnlocked(mapId, key, value) {
   legion.assertMap(mapId);
   if (!Object.hasOwn(PRESETS, key)) throw new Error('Paramètre INI non autorisé');
   if (typeof value !== 'string' || !/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(value) ||
@@ -70,6 +71,10 @@ async function updateSetting(mapId, key, value) {
   if (await legion.readFile(mapId, preset.path) !== updated) {
     throw new Error('Écriture INI non confirmée par relecture ; vérifiez le fichier dans GPanel');
   }
+}
+
+async function updateSetting(mapId, key, value) {
+  return iniLock.withMapIniLock(mapId, () => updateSettingUnlocked(mapId, key, value));
 }
 
 module.exports = { PRESETS, updateSetting, replaceKey };

@@ -43,7 +43,12 @@
     .legion-panel p { color:var(--text-secondary); line-height:1.5; margin:0 0 16px; }
     .legion-form { display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin:16px 0; }
     .legion-form label { display:flex; flex-direction:column; gap:6px; font-size:.83rem; color:var(--text-secondary); }
-    .legion-form input, .legion-form select, .legion-filter { padding:9px 10px; background:var(--bg-input); border:1px solid var(--border); border-radius:8px; color:var(--text-primary); font:inherit; }
+    .legion-form input, .legion-form select, .legion-form textarea, .legion-filter { padding:9px 10px; background:var(--bg-input); border:1px solid var(--border); border-radius:8px; color:var(--text-primary); font:inherit; }
+    .legion-line-field { width:min(100%,720px); }
+    .legion-line-field[hidden] { display:none; }
+    .legion-line-field textarea { width:100%; box-sizing:border-box; resize:vertical; }
+    .legion-ini-divider { border:0; border-top:1px solid var(--border); margin:28px 0; }
+    .legion-ini-fields { border:0; padding:0; margin:0; min-width:0; }
     .legion-targets { display:flex; gap:10px; flex-wrap:wrap; margin:12px 0; }
     .legion-targets label { display:inline-flex; gap:6px; align-items:center; background:var(--bg-secondary); padding:7px 10px; border-radius:7px; cursor:pointer; }
     .legion-list { list-style:none; display:grid; gap:9px; margin:15px 0 0; padding:0; }
@@ -160,6 +165,49 @@
           <label>Nouvelle valeur <input name="value" type="number" min="0.000001" step="any" required placeholder="Ex. 2.5"></label>
           <button type="submit" class="legion-btn primary">Enregistrer dans l’INI</button>
         </form>
+        <hr class="legion-ini-divider">
+        <h2>Lignes INI personnalisées · plusieurs cartes</h2>
+        <p>Ajoute, remplace ou retire une ligne exacte dans une section de Game.ini ou GameUserSettings.ini. Sélectionne explicitement les cartes, puis vérifie l’aperçu avant de confirmer. Aucun fichier complet ni mot de passe n’est affiché. Si une carte échoue, les suivantes ne sont pas modifiées ; contrôle les résultats avant de réessayer. Aucun redémarrage automatique.</p>
+        <% if (!canEditIniLines) { %><p>Cette opération nécessite une connexion administrateur vérifiée par Discord. <a href="/logout">Déconnecte-toi</a>, puis reconnecte-toi avec le compte admin et Discord.</p><% } %>
+        <form id="ini-lines-form">
+          <fieldset class="legion-ini-fields" <%= canEditIniLines ? '' : 'disabled' %>>
+          <div class="legion-form">
+            <label>Fichier
+              <select name="file" required>
+                <option value="Game.ini">Game.ini</option>
+                <option value="GameUserSettings.ini">GameUserSettings.ini</option>
+              </select>
+            </label>
+            <label>Action
+              <select name="operation" required>
+                <option value="add">Ajouter une ligne</option>
+                <option value="replace">Modifier une ligne</option>
+                <option value="remove">Retirer une ligne</option>
+              </select>
+            </label>
+            <label>Section exacte
+              <input name="section" required maxlength="160" value="[/Script/ShooterGame.ShooterGameMode]" spellcheck="false">
+            </label>
+          </div>
+          <div class="legion-form">
+            <label id="ini-line-before-field" class="legion-line-field" hidden>Ligne actuelle exacte
+              <textarea name="before" rows="2" maxlength="4096" spellcheck="false" placeholder="Ex. : MatingIntervalMultiplier=1"></textarea>
+            </label>
+            <label id="ini-line-after-field" class="legion-line-field">Nouvelle ligne
+              <textarea name="after" rows="2" maxlength="4096" required spellcheck="false" placeholder="Ex. : MatingIntervalMultiplier=2"></textarea>
+            </label>
+          </div>
+          <p>Cartes à modifier (aucune sélection par défaut) :</p>
+          <div class="legion-targets">
+            <% maps.forEach(function(map) { %><label><input type="checkbox" name="ids" value="<%= map.id %>"> <%= map.name %></label><% }); %>
+          </div>
+          <div class="legion-form">
+            <button type="submit" class="legion-btn">Prévisualiser</button>
+            <button type="button" id="ini-lines-apply" class="legion-btn primary" disabled>Confirmer et écrire sur les cartes</button>
+          </div>
+          <ul id="ini-lines-results" class="legion-list" aria-live="polite"></ul>
+          </fieldset>
+        </form>
       </section>
     </main>
   </div>
@@ -223,6 +271,109 @@
         notify(`${key} enregistré sur ${name}. Redémarre la carte séparément si nécessaire.`);
       } catch (error) { notify(error.message, true); }
       finally { button.disabled = false; }
+    });
+    const linesForm = document.getElementById('ini-lines-form');
+    const linesApply = document.getElementById('ini-lines-apply');
+    const linesResults = document.getElementById('ini-lines-results');
+    let linesPreview = null;
+    let linesRevision = 0;
+    function syncLineFields() {
+      const operation = linesForm.elements.operation.value;
+      const before = document.getElementById('ini-line-before-field');
+      const after = document.getElementById('ini-line-after-field');
+      before.hidden = operation === 'add';
+      after.hidden = operation === 'remove';
+      linesForm.elements.before.required = operation !== 'add';
+      linesForm.elements.after.required = operation !== 'remove';
+    }
+    function lineRequest() {
+      return {
+        ids: [...linesForm.querySelectorAll('input[name=ids]:checked')].map(input => input.value),
+        file: linesForm.elements.file.value,
+        operation: linesForm.elements.operation.value,
+        section: linesForm.elements.section.value,
+        before: linesForm.elements.before.value,
+        after: linesForm.elements.after.value,
+      };
+    }
+    function showLineResults(maps) {
+      linesResults.replaceChildren(...maps.map(map => {
+        const li = document.createElement('li');
+        li.textContent = `${map.name} : ${map.error || (map.ok === false ? 'Échec' : map.ok ? 'Écriture confirmée' : 'Prête pour l’écriture')}`;
+        return li;
+      }));
+    }
+    function invalidateLinePreview() {
+      linesRevision++;
+      linesPreview = null;
+      linesApply.disabled = true;
+      linesResults.replaceChildren();
+    }
+    linesForm.addEventListener('input', invalidateLinePreview);
+    linesForm.addEventListener('change', event => {
+      if (event.target.name === 'file') {
+        linesForm.elements.section.value = event.target.value === 'Game.ini'
+          ? '[/Script/ShooterGame.ShooterGameMode]' : '[ServerSettings]';
+      }
+      syncLineFields();
+      invalidateLinePreview();
+    });
+    syncLineFields();
+    linesForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const input = lineRequest();
+      if (!input.ids.length) return notify('Sélectionne au moins une carte.', true);
+      invalidateLinePreview();
+      const revision = linesRevision;
+      linesResults.textContent = 'Vérification des fichiers sélectionnés…';
+      const button = linesForm.querySelector('button[type=submit]');
+      button.disabled = true;
+      try {
+        const response = await fetch('/legion/api/ini/lines/preview', {
+          method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(input),
+        });
+        const data = await response.json();
+        if (revision !== linesRevision) return;
+        if (!response.ok) throw new Error(data.error || 'Aperçu indisponible');
+        showLineResults(data.maps);
+        if (data.ok) {
+          linesPreview = { ...input, expected:data.maps.map(map => ({ id:map.id, hash:map.hash })) };
+          linesApply.disabled = false;
+          notify(`${data.maps.length} carte(s) prête(s). Confirme l’écriture si l’action et la sélection sont correctes.`);
+        } else {
+          notify('Aucun fichier modifié : corrige les erreurs de l’aperçu.', true);
+        }
+      } catch (error) {
+        if (revision !== linesRevision) return;
+        linesResults.textContent = error.message;
+        notify('Aucun fichier modifié.', true);
+      } finally { button.disabled = false; }
+    });
+    linesApply.addEventListener('click', async () => {
+      if (!linesPreview) return;
+      const names = linesPreview.ids.map(id => mapNames[id] || id).join(', ');
+      const action = { add:'Ajouter', replace:'Modifier', remove:'Retirer' }[linesPreview.operation];
+      if (!confirm(`${action} dans ${linesPreview.file} sur : ${names}\nSection : ${linesPreview.section}\n${linesPreview.before ? `Ligne actuelle : ${linesPreview.before}\n` : ''}${linesPreview.after ? `Nouvelle ligne : ${linesPreview.after}\n` : ''}\nConfirmer l’écriture ? Aucun redémarrage ne sera lancé.`)) return;
+      linesApply.disabled = true;
+      linesForm.querySelector('fieldset').disabled = true;
+      linesResults.textContent = 'Écriture et relecture en cours…';
+      try {
+        const response = await fetch('/legion/api/ini/lines/apply', {
+          method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(linesPreview),
+        });
+        const data = await response.json();
+        if (data.results) {
+          showLineResults(data.results);
+          notify(data.ok ? 'Écritures confirmées. Redémarre les cartes séparément si nécessaire.' :
+            'Résultat partiel ou incertain : vérifie chaque carte dans GPanel avant de réessayer.', !data.ok);
+        } else throw new Error(data.error || 'Écriture indisponible');
+      } catch (error) {
+        linesResults.textContent = error.message;
+        notify('Aucun résultat confirmé. Refais un aperçu avant de réessayer.', true);
+      } finally {
+        linesPreview = null;
+        linesForm.querySelector('fieldset').disabled = false;
+      }
     });
     grid.addEventListener('change', updateSelection);
     grid.addEventListener('click', async event => {
