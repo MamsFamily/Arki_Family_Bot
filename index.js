@@ -12,8 +12,6 @@ const { Client, GatewayIntentBits, Partials, AttachmentBuilder, PermissionFlagsB
 })();
 
 const commands = require('./commands');
-const { createDestroyWildDinosHandler } = require('./destroyWildDinosCommand');
-const destroyWildDinosHandler = createDestroyWildDinosHandler();
 const fs = require('fs');
 const path = require('path');
 const VOTE_BANNER_PATH = path.join(__dirname, 'assets/vote-banner.jpg');
@@ -49,6 +47,10 @@ const lockdown         = require('./lockdownManager');
 const { recordJoin, recordLeave, buildWelcomeEmbed, buildGoodbyeEmbed, sendWelcomeDM, getRandomArrivalPhrase, getRandomGreetPhrase, getRandomGreetGonePhrase } = require('./welcomeManager');
 const { registerCasinoHandlers } = require('./casino/casinoHandler');
 const boosterReproManager = require('./boosterReproManager');
+const { getBoosterMaps } = require('./boosterReproMaps');
+const { createDestroyWildDinosHandler } = require('./destroyWildDinosCommand');
+const destroyWildDinosHandler = createDestroyWildDinosHandler();
+const { handleServerPanelCommand, handleServerPanelInteraction } = require('./serverPanelCommand');
 const { handleBlindTestCommand } = require('./blindTestCommand');
 const blindTestManager = require('./blindTestManager');
 const birthdayManager    = require('./birthdayManager');
@@ -647,6 +649,16 @@ client.once('clientReady', async () => {
   config = getConfig();
 
   createWebServer(client);
+  // Le bot exécute les redémarrages et la fin des boosters; le dashboard seul
+  // ne doit pas lancer une seconde instance de ces tâches.
+  if (!process.env.LEGION_CLIENT_API_KEY) {
+    console.error('[Legion] Clé API absente dans l’environnement du bot : automatismes désactivés');
+  } else {
+    await require('./web/legionJournal').init().catch(e => console.error('[Legion] Initialisation journal:', e.message));
+    await restartScheduler.init().catch(e => console.error('[Legion] Plannings redémarrage:', e.message));
+    restartScheduler.startPolling();
+    boosterReproManager.init(client);
+  }
 
   // Restaurer le vote Loup-Garou après un redémarrage du bot.
   try {
@@ -1162,20 +1174,9 @@ client.on('interactionCreate', async interaction => {
     });
   }
 
-  if ((interaction.isChatInputCommand() && interaction.commandName === 'destroywilddinos') ||
-      (interaction.isButton() && interaction.customId.startsWith('legion:wild:'))) {
-    try { await destroyWildDinosHandler.handle(interaction); }
-    catch (error) {
-      console.error('[Legion] Commande Discord DestroyWildDinos :', error);
-      const response = { content: 'Erreur pendant la commande Legion. Vérifie le journal avant de réessayer.',
-        components: [] };
-      try {
-        if (interaction.deferred || interaction.replied) await interaction.editReply(response);
-        else await interaction.reply({ ...response, ephemeral: true });
-      } catch (replyError) { console.error('[Legion] Réponse Discord :', replyError.message); }
-    }
-    return;
-  }
+  // Commande et confirmation traitées par la même instance pour garder le
+  // nonce du bouton ; le filtrage des cartes est fait dans le handler.
+  if (await destroyWildDinosHandler.handle(interaction)) return;
 
   // ── Shop interactions (buttons + select menus) ──
   if (interaction.isButton() || interaction.isStringSelectMenu()) {
@@ -3941,43 +3942,21 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // ── lancer — désactivé temporairement ────────────────────────────────────
+    // ── lancer — redémarrage Legion à la demande ─────────────────────────────
     if (sub === 'lancer') {
-      return interaction.editReply({ content: '🔒 Les redémarrages via Discord sont temporairement désactivés. Utilise le dashboard Nitrado.' });
-
-      // eslint-disable no-unreachable
       const id = interaction.options.getString('id');
-      const list = await restartScheduler.getAll();
-      const sched = list.find(s => s.id === id);
-      if (!sched) return interaction.editReply({ content: '❌ Planning introuvable.' });
-
-      await interaction.editReply({ content: `⏳ Lancement du redémarrage **${sched.nom}**… (SaveWorld puis restart)` });
-
       try {
+        const sched = (await restartScheduler.getAll()).find(s => s.id === id);
+        if (!sched) return interaction.editReply({ content: '❌ Planning introuvable.' });
+        await interaction.editReply({ content: `⏳ Redémarrage Legion **${sched.nom}** en cours… (SaveWorld puis restart)` });
         const results = await restartScheduler.runNow(id);
-        const ok    = results.filter(r => r.ok).length;
-        const total = results.length;
-        logRestart({
-          source:    'discord_command',
-          adminId:   interaction.user.id,
-          adminName: interaction.member?.displayName || interaction.user.username,
-          serviceIds: sched.serverIds || [],
-          mapNames:  [sched.nom],
-          ok:        ok === total,
-          error:     ok < total ? `${total - ok} serveur(s) en échec` : null,
-        }).catch(() => {});
-        return interaction.followUp({ content: `✅ Redémarrage lancé sur **${ok}/${total}** serveur(s).`, ephemeral: true });
+        const ok = results.filter(r => r.ok).length;
+        return interaction.editReply({
+          content: `${ok === results.length ? '✅' : '⚠️'} Redémarrage accepté sur **${ok}/${results.length}** carte(s) Legion.` +
+            (ok < results.length ? ` Échecs : ${results.filter(r => !r.ok).map(r => `${r.id}: ${r.error}`).join(' ; ')}` : ''),
+        });
       } catch (e) {
-        logRestart({
-          source:    'discord_command',
-          adminId:   interaction.user.id,
-          adminName: interaction.member?.displayName || interaction.user.username,
-          serviceIds: sched.serverIds || [],
-          mapNames:  [sched.nom],
-          ok:        false,
-          error:     e.message,
-        }).catch(() => {});
-        return interaction.followUp({ content: `❌ Erreur lors du redémarrage : ${e.message}`, ephemeral: true });
+        return interaction.editReply({ content: `❌ Erreur lors du redémarrage : ${e.message}` });
       }
     }
 
@@ -4738,16 +4717,27 @@ client.on('interactionCreate', async interaction => {
 
 // ─── BOOSTER REPRO ───────────────────────────────────────────────────────────
 client.on('interactionCreate', async interaction => {
+  try {
+    if (interaction.isChatInputCommand() && interaction.commandName === 'serveur-panel') {
+      await handleServerPanelCommand(interaction);
+    } else if (interaction.isButton() && interaction.customId.startsWith('srvp_')) {
+      await handleServerPanelInteraction(interaction);
+    }
+  } catch (error) {
+    console.error('[Legion] Panneau Discord:', error.message);
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: '❌ Panneau Legion indisponible.', ephemeral: true }).catch(() => {});
+    }
+  }
+});
+client.on('interactionCreate', async interaction => {
   // ── Commande slash /activer-booster ──────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'activer-booster') {
-    return interaction.reply({ content: 'Le Booster Repro Nitrado a été retiré. Les cartes sont désormais gérées sur Legion Hosting.', ephemeral: true });
+    if (!process.env.LEGION_CLIENT_API_KEY) return interaction.reply({ content: 'Booster Repro indisponible : clé Legion absente du bot.', ephemeral: true });
     const cfg = getSettings().boosterRepro || {};
 
     if (!cfg.enabled) {
       return interaction.reply({ content: '❌ Le système de booster repro est actuellement désactivé.', ephemeral: true });
-    }
-    if (!cfg.maps || cfg.maps.length === 0) {
-      return interaction.reply({ content: '❌ Aucune map configurée pour le booster repro.', ephemeral: true });
     }
     if (!cfg.items || cfg.items.length === 0) {
       return interaction.reply({ content: '❌ Aucun item booster configuré.', ephemeral: true });
@@ -4774,7 +4764,8 @@ client.on('interactionCreate', async interaction => {
     const booster = ownedBoosters.sort((a, b) => a.durationHours - b.durationHours)[0];
 
     // Construire le menu de sélection des maps
-    const mapOptions = cfg.maps.map(map => ({
+    const approvedMaps = getBoosterMaps();
+    const mapOptions = approvedMaps.map(map => ({
       label: map.displayName,
       value: `${map.serviceId}::${map.id}`,
       description: `Service ID : ${map.serviceId}`,
@@ -4804,16 +4795,21 @@ client.on('interactionCreate', async interaction => {
 
   // ── Sélection de la map ───────────────────────────────────────────────────
   if (interaction.isStringSelectMenu() && interaction.customId.startsWith('booster_map_select::')) {
-    return interaction.update({ content: 'Le Booster Repro Nitrado a été retiré.', components: [], embeds: [] });
     const parts = interaction.customId.split('::');
     const itemName = parts[1];
     const durationHours = parseInt(parts[2]) || 6;
     const [serviceId] = interaction.values[0].split('::');
+    try { require('./web/legionManager').assertMap(serviceId); }
+    catch { return interaction.update({ content: '❌ Carte Legion non autorisée.', components: [], embeds: [] }); }
 
     const cfg = getSettings().boosterRepro || {};
-    const mapCfg = (cfg.maps || []).find(m => m.serviceId === serviceId);
+    const mapCfg = getBoosterMaps().find(m => m.serviceId === serviceId);
     if (!mapCfg) {
       return interaction.update({ content: '❌ Map introuvable.', components: [], embeds: [] });
+    }
+    const configuredItem = (cfg.items || []).find(i => i.itemName === itemName && Number(i.durationHours) === durationHours);
+    if (!cfg.enabled || !configuredItem) {
+      return interaction.update({ content: '❌ Ce booster est désactivé ou sa durée ne correspond plus.', components: [], embeds: [] });
     }
 
     const userId = interaction.user.id;
@@ -4888,10 +4884,6 @@ client.on('interactionCreate', async interaction => {
         mapDisplayName: mapCfg.displayName,
         itemName, durationHours,
         expiresAt,
-        iniBackup: {
-          key1: itemCfgFull.iniKey1?.normalValue || '1.0',
-          key2: itemCfgFull.iniKey2?.normalValue || '1.0',
-        },
         iniConfig: {
           key1Name: itemCfgFull.iniKey1?.key || '',
           key2Name: itemCfgFull.iniKey2?.key || '',
@@ -4906,20 +4898,20 @@ client.on('interactionCreate', async interaction => {
     }
 
     // Écriture INI immédiate (le redémarrage est différé de 15 min par le cron)
-    (async () => {
-      try {
-        await boosterReproManager.applyBoostIni(serviceId, itemCfgFull);
+    try {
+        await boosterReproManager.applyBoostIni(serviceId, itemCfgFull, session.id);
         console.log(`[BoosterRepro] ✅ INI appliqué pour ${mapCfg.displayName} — redémarrage dans 15 min`);
-      } catch (e) {
+    } catch (e) {
         console.error('[BoosterRepro] Erreur application INI:', e.message);
         await boosterReproManager.cancelSession(session.id);
-        await addToInventory(userId, itemName, 1, 'system', `Remboursement booster repro — erreur INI: ${e.message}`).catch(() => {});
+        const refund = await addToInventory(userId, itemName, 1, 'system', `Remboursement booster repro — erreur INI: ${e.message}`)
+          .then(() => true, () => false);
         if (cfg.notifChannelId) {
           const ch = client.channels.cache.get(cfg.notifChannelId);
           if (ch) ch.send({ content: `⚠️ Erreur activation boost repro pour <@${userId}> sur **${mapCfg.displayName}** : \`${e.message}\`` }).catch(() => {});
         }
-        return;
-      }
+        return interaction.editReply({ content: `❌ Activation impossible : ${e.message}. ${refund ? 'Booster remboursé.' : 'Remboursement automatique échoué : contactez un administrateur.'}`, embeds: [], components: [] });
+    }
 
       // Notif publique d'activation
       const expiresTs = Math.floor(expiresAt.getTime() / 1000);
@@ -4942,7 +4934,6 @@ client.on('interactionCreate', async interaction => {
           }).catch(() => {});
         }
       }
-    })();
 
     // Réponse éphémère de confirmation au joueur
     await interaction.editReply({

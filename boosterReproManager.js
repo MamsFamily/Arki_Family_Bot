@@ -3,12 +3,116 @@
 const cron = require('node-cron');
 const pgStore = require('./pgStore');
 const { getSettings } = require('./settingsManager');
-const { updateIniKeyMapped, restartServer } = require('./web/nitradoManager');
+const legion = require('./web/legionManager');
 const { EmbedBuilder } = require('discord.js');
 
 const SESSIONS_KEY = 'booster_sessions';
 const COOLDOWN_DAYS = 7;
 const RESTART_DELAY_MIN = 15;
+const GAME_INI_PATH = '/ShooterGame/Saved/Config/WindowsServer/Game.ini';
+const BREEDING_KEYS = new Set([
+  'MatingIntervalMultiplier',
+  'MatingSpeedMultiplier',
+  'EggHatchSpeedMultiplier',
+  'BabyMatureSpeedMultiplier',
+  'BabyFoodConsumptionSpeedMultiplier',
+  'BabyImprintAmountMultiplier',
+  'BabyImprintingStatScaleMultiplier',
+  'BabyCuddleIntervalMultiplier',
+  'BabyCuddleGracePeriodMultiplier',
+  'BabyCuddleLoseImprintQualitySpeedMultiplier',
+  'LayEggIntervalMultiplier',
+]);
+const BREEDING_SECTION = '/Script/ShooterGame.ShooterGameMode';
+
+function assertLegionMap(id) {
+  legion.assertMap(String(id || ''));
+}
+
+function assertIniFileApi() {
+  if (typeof legion.readFile !== 'function' || typeof legion.writeFile !== 'function') {
+    throw new Error('API fichiers Legion manquante : legionManager doit exposer readFile(id, path) et writeFile(id, path, content)');
+  }
+}
+
+function validateBreedingKey(key) {
+  if (!BREEDING_KEYS.has(key)) throw new Error(`Clé INI de reproduction non autorisée : ${key}`);
+}
+
+function validateFiniteValue(value, label) {
+  const text = String(value ?? '').trim();
+  const number = Number(text);
+  if (!text || !Number.isFinite(number)) throw new Error(`Valeur numérique invalide pour ${label}`);
+  return text;
+}
+
+function setIniKey(content, key, value) {
+  validateBreedingKey(key);
+  const hasBom = content.startsWith('\uFEFF');
+  const body = hasBom ? content.slice(1) : content;
+  const newline = body.includes('\r\n') ? '\r\n' : '\n';
+  const lines = body.split(/\r?\n/);
+  const sectionHeader = `[${BREEDING_SECTION}]`;
+  let inSection = false;
+  let lastSection = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      inSection = trimmed.toLowerCase() === sectionHeader.toLowerCase();
+      if (inSection) lastSection = i;
+    } else if (inSection && trimmed.slice(0, trimmed.indexOf('=')).trim().toLowerCase() === key.toLowerCase() && trimmed.includes('=')) {
+      lines[i] = `${key}=${String(value)}`;
+      return `${hasBom ? '\uFEFF' : ''}${lines.join(newline)}`;
+    }
+  }
+  if (lastSection === -1) {
+    if (lines[lines.length - 1] !== '') lines.push('');
+    lines.push(sectionHeader, `${key}=${String(value)}`);
+  } else {
+    let insertAt = lastSection + 1;
+    while (insertAt < lines.length && !/^\s*\[.*\]\s*$/.test(lines[insertAt])) insertAt++;
+    lines.splice(insertAt, 0, `${key}=${String(value)}`);
+  }
+  return `${hasBom ? '\uFEFF' : ''}${lines.join(newline)}`;
+}
+
+function readIniValue(content, key) {
+  validateBreedingKey(key);
+  const lines = String(content).replace(/^\uFEFF/, '').split(/\r?\n/);
+  const sectionHeader = `[${BREEDING_SECTION}]`;
+  let inSection = false;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      inSection = trimmed.toLowerCase() === sectionHeader.toLowerCase();
+      continue;
+    }
+    const equals = trimmed.indexOf('=');
+    if (inSection && equals > 0 && trimmed.slice(0, equals).trim().toLowerCase() === key.toLowerCase()) {
+      const value = trimmed.slice(equals + 1).trim();
+      return validateFiniteValue(value, key);
+    }
+  }
+  throw new Error(`Clé ${key} introuvable dans ${GAME_INI_PATH}; activation refusée`);
+}
+
+async function readGameIni(mapId) {
+  assertLegionMap(mapId);
+  assertIniFileApi();
+  const current = await legion.readFile(mapId, GAME_INI_PATH);
+  if (typeof current !== 'string') throw new Error('Contenu Game.ini Legion invalide');
+  return current;
+}
+
+function sessionOnApprovedMap(session) {
+  try {
+    assertLegionMap(session.serviceId);
+    return true;
+  } catch (error) {
+    console.error(`[BoosterRepro] Session legacy ignorée (${session.id}) : ${error.message}`);
+    return false;
+  }
+}
 
 // ── Persistence ───────────────────────────────────────────────────────────────
 
@@ -31,6 +135,7 @@ async function updateSession(sessionId, patch) {
 }
 
 async function createSession({ userId, username, serviceId, mapDisplayName, itemName, durationHours, expiresAt, iniBackup, iniConfig }) {
+  assertLegionMap(serviceId);
   const sessions = await loadSessions();
   const session = {
     id: `${Date.now()}_${userId}`,
@@ -43,8 +148,11 @@ async function createSession({ userId, username, serviceId, mapDisplayName, item
     startedAt:  new Date().toISOString(),
     expiresAt:  new Date(expiresAt).toISOString(),
     status:     'active',
-    iniBackup:  iniBackup || {},
+    // Never trust configured "normal values" as the backup; applyBoostIni fills
+    // this from the live Game.ini before writing any boost values.
+    iniBackup:  {},
     iniConfig:  iniConfig || {},
+    iniApplied: false,
     // Flags de warnings pour ne pas renvoyer deux fois le même message
     warns: {
       // Activation : notif redémarrage imminent
@@ -71,6 +179,7 @@ async function createSession({ userId, username, serviceId, mapDisplayName, item
 }
 
 async function getActiveSessionForMap(serviceId) {
+  assertLegionMap(serviceId);
   const sessions = await loadSessions();
   const now = Date.now();
   return sessions.find(
@@ -81,6 +190,7 @@ async function getActiveSessionForMap(serviceId) {
 }
 
 async function getLastSessionForMap(serviceId) {
+  assertLegionMap(serviceId);
   const sessions = await loadSessions();
   const all = sessions.filter(s => s.serviceId === serviceId);
   if (!all.length) return null;
@@ -90,7 +200,7 @@ async function getLastSessionForMap(serviceId) {
 async function getAllActiveSessions() {
   const sessions = await loadSessions();
   const now = Date.now();
-  return sessions.filter(s => s.status === 'active' && new Date(s.expiresAt).getTime() > now);
+  return sessions.filter(s => s.status === 'active' && new Date(s.expiresAt).getTime() > now && sessionOnApprovedMap(s));
 }
 
 async function endSession(sessionId) {
@@ -98,12 +208,20 @@ async function endSession(sessionId) {
 }
 
 async function cancelSession(sessionId) {
+  const sessions = await loadSessions();
+  const session = sessions.find(s => s.id === sessionId);
+  if (!session) throw new Error('Session de booster introuvable');
+  if (session.iniApplied) {
+    throw new Error('Annulation refusée : Game.ini contient déjà le boost. Attendez la restauration automatique pour éviter de laisser la carte boostée.');
+  }
+  if (session.status !== 'active') throw new Error('Cette session n’est plus active');
   return updateSession(sessionId, { status: 'cancelled' });
 }
 
 // ── Cooldown hebdomadaire ─────────────────────────────────────────────────────
 
 async function getCooldownInfo(serviceId) {
+  assertLegionMap(serviceId);
   const last = await getLastSessionForMap(serviceId);
   if (!last) return { onCooldown: false };
   const cooldownUntil = new Date(last.startedAt).getTime() + COOLDOWN_DAYS * 24 * 3600 * 1000;
@@ -115,36 +233,105 @@ async function getCooldownInfo(serviceId) {
 
 // ── INI Apply / Restore ───────────────────────────────────────────────────────
 
-async function applyBoostIni(serviceId, itemConfig) {
+async function findActivationSessionId(serviceId, itemConfig, sessionId) {
+  const sessions = await loadSessions();
+  const eligible = sessions.filter(session =>
+    session.serviceId === serviceId &&
+    session.status === 'active' &&
+    (!itemConfig.itemName || session.itemName === itemConfig.itemName),
+  );
+  if (sessionId) {
+    if (!eligible.some(session => session.id === sessionId)) {
+      throw new Error('Session de booster active introuvable pour cette carte; application INI refusée');
+    }
+    return sessionId;
+  }
+  if (eligible.length !== 1) {
+    throw new Error('ID de session requis ou session active ambiguë; application INI refusée');
+  }
+  return eligible[0].id;
+}
+
+async function applyBoostIni(serviceId, itemConfig, sessionId) {
+  assertLegionMap(serviceId);
+  if (!itemConfig || typeof itemConfig !== 'object') throw new Error('Configuration INI booster manquante');
   const { iniKey1, iniKey2 } = itemConfig;
-  const errors = [];
-  if (iniKey1?.key) {
-    try {
-      await updateIniKeyMapped(serviceId, iniKey1.key, String(iniKey1.boostValue));
-    } catch (e) { errors.push(`${iniKey1.key}: ${e.message}`); }
+  const configured = [iniKey1, iniKey2].filter(entry => entry?.key);
+  if (!configured.length) throw new Error('Aucune clé INI de reproduction configurée; activation refusée');
+  for (const entry of configured) {
+    validateBreedingKey(entry.key);
+    validateFiniteValue(entry.boostValue, `${entry.key} boost`);
   }
-  if (iniKey2?.key) {
-    try {
-      await updateIniKeyMapped(serviceId, iniKey2.key, String(iniKey2.boostValue));
-    } catch (e) { errors.push(`${iniKey2.key}: ${e.message}`); }
+  if (new Set(configured.map(entry => entry.key.toLowerCase())).size !== configured.length) {
+    throw new Error('Les deux clés INI doivent être différentes');
   }
-  if (errors.length) throw new Error(errors.join(' | '));
+
+  const targetSessionId = await findActivationSessionId(serviceId, itemConfig, sessionId);
+  const originalContent = await readGameIni(serviceId);
+  const iniBackup = {};
+  let updatedContent = originalContent;
+  for (let i = 0; i < configured.length; i++) {
+    const entry = configured[i];
+    iniBackup[`key${i + 1}`] = readIniValue(originalContent, entry.key);
+    updatedContent = setIniKey(updatedContent, entry.key, validateFiniteValue(entry.boostValue, `${entry.key} boost`));
+  }
+
+  // One INI write contains all configured boost values. Roll back the complete
+  // source file if the GPanel write or session persistence reports a failure.
+  try {
+    await legion.writeFile(serviceId, GAME_INI_PATH, updatedContent);
+  } catch (error) {
+    try {
+      await legion.writeFile(serviceId, GAME_INI_PATH, originalContent);
+    } catch (rollbackError) {
+      throw new Error(`Écriture du boost INI échouée (${error.message}) et rollback Game.ini échoué (${rollbackError.message})`);
+    }
+    throw new Error(`Écriture du boost INI échouée; Game.ini original réécrit : ${error.message}`);
+  }
+  try {
+    const updatedSession = await updateSession(targetSessionId, {
+      iniBackup,
+      iniConfig: {
+        key1Name: iniKey1?.key || '',
+        key2Name: iniKey2?.key || '',
+      },
+      iniApplied: true,
+      lastError: null,
+    });
+    if (!updatedSession) throw new Error('Session introuvable lors de la sauvegarde des valeurs INI');
+  } catch (error) {
+    try {
+      await legion.writeFile(serviceId, GAME_INI_PATH, originalContent);
+    } catch (rollbackError) {
+      throw new Error(`Sauvegarde de session impossible (${error.message}) et restauration du Game.ini échouée (${rollbackError.message})`);
+    }
+    throw new Error(`Sauvegarde des valeurs INI impossible; Game.ini original restauré : ${error.message}`);
+  }
+  return { iniBackup };
 }
 
 async function restoreNormalIni(serviceId, session, fallbackItemConfig) {
+  assertLegionMap(serviceId);
   const key1Name = session.iniConfig?.key1Name || fallbackItemConfig?.iniKey1?.key;
   const key2Name = session.iniConfig?.key2Name || fallbackItemConfig?.iniKey2?.key;
-  const val1     = session.iniBackup?.key1     || fallbackItemConfig?.iniKey1?.normalValue || '1.0';
-  const val2     = session.iniBackup?.key2     || fallbackItemConfig?.iniKey2?.normalValue || '1.0';
+  const keys = [key1Name, key2Name].filter(Boolean);
+  if (!keys.length) throw new Error('Aucune clé de restauration enregistrée');
+  if (new Set(keys.map(key => key.toLowerCase())).size !== keys.length) {
+    throw new Error('Clés de restauration dupliquées');
+  }
 
-  if (key1Name) {
-    try { await updateIniKeyMapped(serviceId, key1Name, String(val1)); }
-    catch (e) { console.error(`[BoosterRepro] Erreur restauration ${key1Name}:`, e.message); }
+  const originalContent = await readGameIni(serviceId);
+  let updatedContent = originalContent;
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    validateBreedingKey(key);
+    if (!Object.prototype.hasOwnProperty.call(session.iniBackup || {}, `key${i + 1}`)) {
+      throw new Error(`Valeur pré-boost réelle manquante pour ${key}; restauration refusée`);
+    }
+    const value = validateFiniteValue(session.iniBackup[`key${i + 1}`], `${key} restauration`);
+    updatedContent = setIniKey(updatedContent, key, value);
   }
-  if (key2Name) {
-    try { await updateIniKeyMapped(serviceId, key2Name, String(val2)); }
-    catch (e) { console.error(`[BoosterRepro] Erreur restauration ${key2Name}:`, e.message); }
-  }
+  await legion.writeFile(serviceId, GAME_INI_PATH, updatedContent);
 }
 
 // ── Helpers notification ──────────────────────────────────────────────────────
@@ -170,6 +357,11 @@ async function tick(discordClient) {
 
   for (const session of sessions) {
     if (session.status !== 'active') continue;
+    // Sessions persisted with Nitrado service IDs are intentionally left untouched.
+    if (!sessionOnApprovedMap(session)) continue;
+    // A session is rebootable only once its live INI was written and its
+    // pre-boost values were durably stored.
+    if (session.iniApplied !== true) continue;
 
     const expiresAt       = new Date(session.expiresAt).getTime();
     const activationReboot = new Date(session.activationRebootAt).getTime();
@@ -213,8 +405,11 @@ async function tick(discordClient) {
       // Redémarrage d'activation
       if (now >= activationReboot) {
         try {
-          await restartServer(session.serviceId, 'Activation booster de reproduction');
+          await legion.power(session.serviceId, 'restart');
           console.log(`[BoosterRepro] ✅ Redémarrage activation effectué pour ${session.mapDisplayName}`);
+          patch.warns.startReboot = true;
+          patch.lastError = null;
+          dirty = true;
           sendNotif(discordClient, channelId, {
             title: '🟢 Boost Repro — Serveur redémarré !',
             color: 0x2ecc71,
@@ -226,9 +421,10 @@ async function tick(discordClient) {
           });
         } catch (e) {
           console.error('[BoosterRepro] Erreur redémarrage activation:', e.message);
+          patch.lastError = { phase: 'activation_restart', message: e.message, at: new Date().toISOString() };
+          patch.retryCounts = { ...(session.retryCounts || {}), activationRestart: (session.retryCounts?.activationRestart || 0) + 1 };
+          dirty = true;
         }
-        patch.warns.startReboot = true;
-        dirty = true;
       }
     }
 
@@ -283,24 +479,26 @@ async function tick(discordClient) {
         try {
           await restoreNormalIni(session.serviceId, session, itemConfig);
           console.log(`[BoosterRepro] ✅ INI restauré pour ${session.mapDisplayName}`);
+          const restoreRebootAt = new Date(now + RESTART_DELAY_MIN * 60 * 1000).toISOString();
+          patch.restoreRebootAt = restoreRebootAt;
+          patch.lastError = null;
+          dirty = true;
+          sendNotif(discordClient, channelId, {
+            title: '🔴 Boost Repro terminé — Redémarrage dans 15 min',
+            color: 0xe74c3c,
+            description:
+              `🗺️ Le boost de reproduction sur **${session.mapDisplayName}** est terminé.\n` +
+              `Activé par <@${session.userId}> · Durée : **${session.durationHours}h**\n\n` +
+              `La map redémarrera dans **15 minutes** pour restaurer les paramètres normaux.\n` +
+              `Déconnectez-vous avant le redémarrage !`,
+            timestamp: new Date().toISOString(),
+          });
         } catch (e) {
           console.error(`[BoosterRepro] Erreur restauration INI:`, e.message);
+          patch.lastError = { phase: 'ini_restore', message: e.message, at: new Date().toISOString() };
+          patch.retryCounts = { ...(session.retryCounts || {}), iniRestore: (session.retryCounts?.iniRestore || 0) + 1 };
+          dirty = true;
         }
-
-        const restoreRebootAt = new Date(now + RESTART_DELAY_MIN * 60 * 1000).toISOString();
-        sendNotif(discordClient, channelId, {
-          title: '🔴 Boost Repro terminé — Redémarrage dans 15 min',
-          color: 0xe74c3c,
-          description:
-            `🗺️ Le boost de reproduction sur **${session.mapDisplayName}** est terminé.\n` +
-            `Activé par <@${session.userId}> · Durée : **${session.durationHours}h**\n\n` +
-            `La map redémarrera dans **15 minutes** pour restaurer les paramètres normaux.\n` +
-            `Déconnectez-vous avant le redémarrage !`,
-          timestamp: new Date().toISOString(),
-        });
-
-        patch.restoreRebootAt = restoreRebootAt;
-        dirty = true;
       }
 
       // ── Phase 4 : Alertes + redémarrage de restauration ──────────────────────
@@ -332,8 +530,12 @@ async function tick(discordClient) {
 
         if (!warns.restoreReboot && now >= restoreReboot) {
           try {
-            await restartServer(session.serviceId, 'Fin du booster de reproduction — restauration des paramètres');
+            await legion.power(session.serviceId, 'restart');
             console.log(`[BoosterRepro] ✅ Redémarrage restauration pour ${session.mapDisplayName}`);
+            patch.warns.restoreReboot = true;
+            patch.status = 'ended';
+            patch.lastError = null;
+            dirty = true;
             sendNotif(discordClient, channelId, {
               title: '✅ Serveur redémarré — Paramètres normaux restaurés',
               color: 0x95a5a6,
@@ -342,10 +544,10 @@ async function tick(discordClient) {
             });
           } catch (e) {
             console.error('[BoosterRepro] Erreur redémarrage restauration:', e.message);
+            patch.lastError = { phase: 'restore_restart', message: e.message, at: new Date().toISOString() };
+            patch.retryCounts = { ...(session.retryCounts || {}), restoreRestart: (session.retryCounts?.restoreRestart || 0) + 1 };
+            dirty = true;
           }
-          patch.warns.restoreReboot = true;
-          patch.status = 'ended';
-          dirty = true;
         }
       }
     }

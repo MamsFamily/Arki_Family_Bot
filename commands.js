@@ -394,6 +394,14 @@ const commands = [
     ],
   },
   {
+    name: 'activer-booster',
+    description: '🧬 Active un booster de reproduction sur une carte Legion',
+  },
+  {
+    name: 'serveur-panel',
+    description: 'Publie le panneau des 12 serveurs ARK Legion (Admin)',
+  },
+  {
     name: 'reclamation-panel',
     description: '📋 Publie le panneau de réclamation dans ce salon (Admin uniquement)',
   },

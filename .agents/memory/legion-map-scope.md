@@ -7,4 +7,4 @@ Les commandes groupées du cluster doivent cibler uniquement les 12 cartes ARK a
 
 **Why:** Le compte GPanel contient déjà un serveur d'essai distinct des cartes du cluster. Une opération « tous les serveurs » basée sur la seule liste API pourrait l'arrêter ou le redémarrer par erreur.
 
-**How to apply:** Lors de la migration des commandes Discord, RCON, redémarrages programmés et Booster Repro, partager le même périmètre explicite et vérifier les identifiants avant les actions d'écriture.
+**How to apply:** Lors de la migration des commandes Discord, RCON, redémarrages programmés et Booster Repro, partager le même périmètre explicite et vérifier les identifiants avant les actions d'écriture. Ne jamais interpréter une ancienne sélection vide ou absente comme « les 12 cartes » : elle peut provenir d'un planning Nitrado historique. Exiger une nouvelle sélection explicite avant de remettre un tel planning en service.

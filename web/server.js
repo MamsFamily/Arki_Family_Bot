@@ -46,7 +46,8 @@ function createWebServer(discordClient) {
   pgStore.initPool();
   pgStore.initTables().then(async () => {
     await inventoryManager.initInventory().catch(e => console.error('[Inventory] initInventory au démarrage dashboard:', e.message));
-    await require('./legionJournal').init().catch(e => console.error('[Legion] init:', e.message));
+    // Le dashboard expose les plannings, mais Railway est seul chargé de les exécuter.
+    await require('./legionJournal').init({ runSchedules: false }).catch(e => console.error('[Legion] init:', e.message));
     // loadState uniquement si dashboard standalone (sans bot) — sinon index.js le fait après ready
     if (!discordClient) {
       await adminQuizManager.loadState().catch(e => console.error('[AdminQuiz] loadState au démarrage dashboard:', e.message));
@@ -3624,6 +3625,32 @@ function createWebServer(discordClient) {
     try { res.json({ ok: true, servers: await legion.getServers() }); }
     catch (e) { res.status(502).json({ ok: false, error: e.message }); }
   });
+  app.get('/legion/api/rcon-config', requireAdmin, async (req, res) => {
+    const configurations = await Promise.all(legion.MAPS.map(async map => {
+      try { return { ...map, ...await legion.getRconConfig(map.id) }; }
+      catch (error) { return { ...map, error: error.message }; }
+    }));
+    res.json({ ok: true, configurations });
+  });
+  app.post('/legion/api/command', requireAdmin, async (req, res) => {
+    try {
+      const ids = legionJournal.validateIds(req.body?.ids);
+      const results = await Promise.all(ids.map(id =>
+        legionJournal.executeScheduledCommand(id, req.body?.command,
+          req.session.discordUser?.displayName || 'Admin Dashboard', 'manuel')));
+      res.status(results.every(result => result.ok) ? 200 : 502).json({
+        ok: results.every(result => result.ok), results,
+      });
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+  });
+  app.post('/legion/api/ini/setting', requireAdmin, async (req, res) => {
+    try {
+      await require('./legionIni').updateSetting(req.body?.id, req.body?.key, req.body?.value);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: e.message });
+    }
+  });
 
   app.post('/legion/api/power/:id', requireAdmin, async (req, res) => {
     const { signal } = req.body || {};
@@ -3690,17 +3717,16 @@ function createWebServer(discordClient) {
   });
 
   // Les anciennes pages Nitrado ne sont plus exposées. Les données historiques
-  // restent conservées pendant la migration pour éviter toute perte.
+  // restent conservées dans PostgreSQL pour éviter toute perte.
   app.use('/nitrado', (req, res) => {
     if (req.method === 'GET' && req.path === '/') return res.redirect('/legion');
     return res.status(410).json({ ok: false, error: 'Nitrado retiré ; utilise Legion Hosting.' });
   });
-  app.use('/booster-repro', (req, res) => {
-    if (req.method === 'GET' && req.path === '/') return res.redirect('/legion');
-    return res.status(410).json({ ok: false, error: 'Booster Repro Nitrado retiré.' });
-  });
 
-  // ─── NITRADO (conservé tant que les automatismes n'ont pas été migrés) ──────
+  // Ancienne implémentation non montée : ni routes ni tâches programmées Nitrado
+  // ne doivent démarrer. Le bloc est conservé uniquement pour référence historique.
+  if (false) {
+  // ─── NITRADO (historique, inactif) ──────────────────────────────────────────
   const nitrado = require('./nitradoManager');
   const { logRestart, getLogs: getRestartLogs } = require('../restartLogger');
 
@@ -5080,6 +5106,8 @@ function createWebServer(discordClient) {
     } catch (e) { res.json({ ok: false, error: e.message }); }
   });
 
+  }
+
   // ═══════════════════════════ CASINO ════════════════════════════════════════
 
   app.get('/casino', requireAdmin, async (req, res) => {
@@ -5219,7 +5247,7 @@ function createWebServer(discordClient) {
 
   async function getBoosterPageVars() {
     const settings = getSettings();
-    const boosterRepro = settings.boosterRepro || {};
+    const boosterRepro = { ...(settings.boosterRepro || {}), maps: require('../boosterReproMaps').getBoosterMaps() };
     const configuredGuildId = settings.guild?.guildId;
     const guild = discordClient
       ? (configuredGuildId ? discordClient.guilds.cache.get(configuredGuildId) : discordClient.guilds.cache.first())
@@ -5248,27 +5276,8 @@ function createWebServer(discordClient) {
       .sort((a,b) => new Date(b.expiresAt) - new Date(a.expiresAt))
       .slice(0, 20);
 
-    // ── Serveurs Nitrado disponibles (FTP configuré) ──────────────────────────
-    // On croise les credentials FTP enregistrés avec les noms venant de l'API
-    const nitradoFtp = settings.nitradoFtp || {};
-    let nitradoApiNames = {};
-    try {
-      const apiServices = await nitrado.getServices();
-      for (const s of apiServices) {
-        nitradoApiNames[String(s.id)] = s.details?.name || s.username || null;
-      }
-    } catch { /* API indispo — on utilise uniquement les infos FTP */ }
-
-    // Construire la liste des serveurs sélectionnables (uniquement ceux avec FTP)
-    const nitradoServersForSelect = Object.entries(nitradoFtp).map(([svcId, ftp]) => ({
-      serviceId: svcId,
-      apiName:   nitradoApiNames[svcId] || null,
-      host:      ftp.host || '',
-      port:      ftp.port || 21,
-      user:      ftp.user || '',
-    }));
-
-    return { boosterRepro, channels, activeSessions, recentSessions, nitradoServersForSelect };
+    return { boosterRepro, channels, activeSessions, recentSessions,
+      legionMapsForSelect: legion.MAPS };
   }
 
   app.get('/booster-repro', requireAdmin, async (req, res) => {
@@ -5323,29 +5332,11 @@ function createWebServer(discordClient) {
   });
 
   app.post('/booster-repro/maps/add', requireAdmin, async (req, res) => {
-    try {
-      const { displayName, serviceId } = req.body;
-      if (!displayName || !serviceId) return res.redirect('/booster-repro?error=Nom+et+Service+ID+requis');
-      const cur = getSettings().boosterRepro || {};
-      const maps = Array.isArray(cur.maps) ? [...cur.maps] : [];
-      maps.push({ id: `map_${Date.now()}`, displayName: displayName.trim(), serviceId: serviceId.trim() });
-      await updateSection('boosterRepro', { ...cur, maps });
-      res.redirect('/booster-repro?success=Map+ajoutée+!');
-    } catch (e) {
-      res.redirect('/booster-repro?error=' + encodeURIComponent(e.message));
-    }
+    res.status(410).send('Les 12 cartes Legion sont configurées automatiquement.');
   });
 
   app.post('/booster-repro/maps/delete', requireAdmin, async (req, res) => {
-    try {
-      const { mapId } = req.body;
-      const cur = getSettings().boosterRepro || {};
-      const maps = (cur.maps || []).filter(m => m.id !== mapId);
-      await updateSection('boosterRepro', { ...cur, maps });
-      res.redirect('/booster-repro?success=Map+supprimée+!');
-    } catch (e) {
-      res.redirect('/booster-repro?error=' + encodeURIComponent(e.message));
-    }
+    res.status(410).send('Les 12 cartes Legion ne peuvent pas être supprimées du Booster Repro.');
   });
 
   app.post('/booster-repro/items/add', requireAdmin, async (req, res) => {

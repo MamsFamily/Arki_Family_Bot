@@ -5,6 +5,7 @@ const legion = require('./legionManager');
 
 const TIMEZONE = 'Europe/Paris';
 let started = false;
+let schedulerStarted = false;
 let checking = false;
 let ready = false;
 
@@ -23,7 +24,7 @@ function validateIds(ids) {
   return ids;
 }
 
-async function init() {
+async function init({ runSchedules = true } = {}) {
   const pool = db();
   await pool.query(`CREATE TABLE IF NOT EXISTS legion_map_events (
     id BIGSERIAL PRIMARY KEY,
@@ -40,11 +41,13 @@ async function init() {
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     event_type TEXT NOT NULL,
+    command TEXT,
     time_of_day TEXT NOT NULL,
     map_ids JSONB NOT NULL,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`);
+  await pool.query('ALTER TABLE legion_map_schedules ADD COLUMN IF NOT EXISTS command TEXT');
   await pool.query(`CREATE TABLE IF NOT EXISTS legion_schedule_runs (
     schedule_id TEXT NOT NULL,
     local_date TEXT NOT NULL,
@@ -66,14 +69,19 @@ async function init() {
     observed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`);
   await pool.query('ALTER TABLE legion_map_states ADD COLUMN IF NOT EXISTS uptime_ms BIGINT');
-  if (started) return;
-  started = true;
-  cron.schedule('* * * * *', () => runDueSchedules().catch(e => console.error('[Legion] plannings:', e.message)),
-    { timezone: TIMEZONE, noOverlap: true });
-  cron.schedule('* * * * *', () => observeStates().catch(e => console.error('[Legion] états:', e.message)),
-    { timezone: TIMEZONE, noOverlap: true });
+  if (!started) {
+    started = true;
+    cron.schedule('* * * * *', () => observeStates().catch(e => console.error('[Legion] états:', e.message)),
+      { timezone: TIMEZONE, noOverlap: true });
+  }
   ready = true;
-  await reconcileMissedSchedules().catch(e => console.error('[Legion] rattrapage journal:', e.message));
+  if (runSchedules && !schedulerStarted) {
+    if (!process.env.LEGION_CLIENT_API_KEY) throw new Error('Clé Legion requise pour exécuter les planifications');
+    schedulerStarted = true;
+    cron.schedule('* * * * *', () => runDueSchedules().catch(e => console.error('[Legion] plannings:', e.message)),
+      { timezone: TIMEZONE, noOverlap: true });
+    await reconcileMissedSchedules().catch(e => console.error('[Legion] rattrapage journal:', e.message));
+  }
   console.log('[Legion] Journal et planifications initialisés');
 }
 
@@ -100,6 +108,12 @@ async function execute(mapId, type, origin, actor) {
   }
 }
 
+async function executeMany(mapIds, type, origin, actor) {
+  const ids = validateIds(mapIds);
+  if (!['restart', 'start', 'stop', 'wild_dinos'].includes(type)) throw new Error('Action non autorisée');
+  return Promise.all(ids.map(id => execute(id, type, origin, actor)));
+}
+
 async function listEvents(mapId) {
   if (mapId) legion.assertMap(mapId);
   const { rows } = await db().query(
@@ -124,24 +138,54 @@ async function listEvents(mapId) {
 
 async function listSchedules() {
   const { rows } = await db().query(
-    'SELECT id, name, event_type, time_of_day, map_ids, active, created_at FROM legion_map_schedules ORDER BY created_at DESC'
+    'SELECT id, name, event_type, command, time_of_day, map_ids, active, created_at FROM legion_map_schedules ORDER BY created_at DESC'
   );
   return rows;
 }
 
-async function createSchedule({ name, type, time, ids }) {
+function validateScheduledCommand(command) {
+  if (typeof command !== 'string' || command.length > 180 ||
+      /[\u0000-\u001F\u007F-\u009F]/.test(command)) {
+    throw new Error('Commande invalide (180 caractères maximum, sans caractères de contrôle)');
+  }
+  if (command === 'SaveWorld' || command === 'ListPlayers' || /^Broadcast .+$/.test(command)) return command;
+  throw new Error('Commande planifiée non autorisée (SaveWorld, Broadcast <texte> ou ListPlayers)');
+}
+
+async function createSchedule({ name, type, time, ids, command }) {
   validateIds(ids);
-  if (!['restart', 'wild_dinos'].includes(type) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time) ||
+  if (!['restart', 'wild_dinos', 'command'].includes(type) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time) ||
       typeof name !== 'string' || !name.trim() || name.length > 80) {
     throw new Error('Nom, type ou heure invalide');
   }
+  const safeCommand = type === 'command' ? validateScheduledCommand(command) : null;
   const id = crypto.randomUUID();
   await db().query(
-    `INSERT INTO legion_map_schedules (id,name,event_type,time_of_day,map_ids)
-     VALUES ($1,$2,$3,$4,$5::jsonb)`,
-    [id, name.trim(), type, time, JSON.stringify(ids)]
+    `INSERT INTO legion_map_schedules (id,name,event_type,command,time_of_day,map_ids)
+     VALUES ($1,$2,$3,$4,$5,$6::jsonb)`,
+    [id, name.trim(), type, safeCommand, time, JSON.stringify(ids)]
   );
   return id;
+}
+
+async function executeScheduledCommand(mapId, command, actor, origin = 'programme') {
+  legion.assertMap(mapId);
+  const safeCommand = validateScheduledCommand(command);
+  const pool = db();
+  const { rows } = await pool.query(
+    `INSERT INTO legion_map_events (map_id,event_type,origin,status,actor)
+     VALUES ($1,'command',$2,'en_cours',$3) RETURNING id`,
+    [mapId, origin, actor]
+  );
+  try {
+    await legion.sendCommand(mapId, safeCommand);
+    await pool.query(`UPDATE legion_map_events SET status='accepte' WHERE id=$1`, [rows[0].id]);
+    return { id: mapId, ok: true };
+  } catch (error) {
+    await pool.query(`UPDATE legion_map_events SET status='echec', details=$2 WHERE id=$1`,
+      [rows[0].id, error.message]);
+    return { id: mapId, ok: false, error: error.message };
+  }
 }
 
 async function setScheduleActive(id, active) {
@@ -172,7 +216,17 @@ async function runDueSchedules(now = new Date()) {
     'SELECT * FROM legion_map_schedules WHERE active=true AND time_of_day=$1', [localTime]
   );
   for (const schedule of rows) {
-    for (const id of schedule.map_ids) {
+    let ids;
+    let safeCommand;
+    try {
+      ids = validateIds(schedule.map_ids);
+      if (schedule.event_type === 'command') safeCommand = validateScheduledCommand(schedule.command);
+      else if (!['restart', 'wild_dinos'].includes(schedule.event_type)) throw new Error('Action non autorisée');
+    } catch (error) {
+      console.error(`[Legion] Planning ${schedule.name} invalide : ${error.message}`);
+      continue;
+    }
+    for (const id of ids) {
       const claim = await db().query(
         `INSERT INTO legion_schedule_map_runs (schedule_id,local_date,map_id)
          VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING map_id`,
@@ -180,7 +234,10 @@ async function runDueSchedules(now = new Date()) {
       );
       if (!claim.rowCount) continue;
       try {
-        const result = await execute(id, schedule.event_type, 'programme', `Planning : ${schedule.name}`);
+        const actor = `Planning : ${schedule.name}`;
+        const result = schedule.event_type === 'command'
+          ? await executeScheduledCommand(id, safeCommand, actor)
+          : await execute(id, schedule.event_type, 'programme', actor);
         await db().query(
           'UPDATE legion_schedule_map_runs SET status=$4 WHERE schedule_id=$1 AND local_date=$2 AND map_id=$3',
           [schedule.id, localDate, id, result.ok ? 'accepte' : 'echec']
@@ -211,10 +268,19 @@ async function reconcileMissedSchedules(now = new Date()) {
     'SELECT * FROM legion_map_schedules WHERE active=true AND time_of_day < $1', [localTime]
   );
   for (const schedule of rows) {
+    let ids;
+    try {
+      ids = validateIds(schedule.map_ids);
+      if (schedule.event_type === 'command') validateScheduledCommand(schedule.command);
+      else if (!['restart', 'wild_dinos'].includes(schedule.event_type)) throw new Error('Action non autorisée');
+    } catch (error) {
+      console.error(`[Legion] Planning ${schedule.name} invalide : ${error.message}`);
+      continue;
+    }
     const created = parisParts(schedule.created_at);
     const createdDate = `${created.year}-${created.month}-${created.day}`;
     if (createdDate === localDate && `${created.hour}:${created.minute}` >= schedule.time_of_day) continue;
-    for (const id of schedule.map_ids) {
+    for (const id of ids) {
       const claim = await db().query(
         `INSERT INTO legion_schedule_map_runs (schedule_id,local_date,map_id,status)
          VALUES ($1,$2,$3,'manque') ON CONFLICT DO NOTHING RETURNING map_id`,
@@ -299,4 +365,5 @@ async function observeStates() {
 }
 
 module.exports = { init, execute, listEvents, listSchedules, createSchedule,
-  setScheduleActive, removeSchedule, runDueSchedules, observeStates, validateIds, isReady };
+  executeMany, executeScheduledCommand, setScheduleActive, removeSchedule,
+  runDueSchedules, observeStates, validateIds, isReady };

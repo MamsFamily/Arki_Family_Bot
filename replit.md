@@ -37,7 +37,7 @@ The bot is built on Node.js using Discord.js for Discord API interactions. A web
 - **Welcome System:** Configurable welcome messages and banners with historical visit tracking.
 - **Spawn Ticket System:** Full admission flow for new players — modal form (age, platform, gamertag), private ticket channel `spawn-joueur-username`, staff checklist (vocal/registration/starter), in-game password sent via DM, automatic role grant on finalization, welcome & log channel messages. Configurable via Dashboard → Tickets → Spawn Joueur. Slash command: `/spawn-panel`.
 - **Event Ticket System:** Temporary ticket panel with a custom event name chosen at creation. Admin runs `/event-panel nom:<EventName>` to post a button; players click to open a private channel `evt-<event>-<username>`. A pre-configured welcome message (supports `{user}` and `{event}` variables) is posted automatically on open. Channel deleted on close. Staff roles, category, and notification channel configurable via Dashboard → Tickets → Événement. Closing is now a 2-step process (close → rename → delete button), matching spawn ticket behavior.
-- **Booster Repro System:** Players buy booster items from the shop, then use `/activer-booster` to select a cluster map. Bot validates inventory, cooldown, and active sessions; consumes the item; applies 2 configurable INI keys via Nitrado FTP; restarts the map; and auto-restores normal values after the boost duration via `node-cron`. Fully configurable via Dashboard → 🧬 Booster Repro (admin-only): enable/disable toggle, INI key configuration, map list CRUD, item type CRUD, cooldown, notification channel, and active session management.
+- **Booster Repro System:** Players buy booster items from the shop, then use `/activer-booster` to select one of the 12 approved Legion maps. The bot validates inventory, cooldown and active sessions; applies two configured reproduction keys through the GPanel client file API, backs up the actual pre-boost values, then schedules activation and restoration restarts. Configuration is available in Dashboard → Booster Repro (admin-only). The test server is never an eligible map.
 
 ## External Dependencies
 - **Discord.js:** For interacting with the Discord API.
@@ -51,4 +51,4 @@ The bot is built on Node.js using Discord.js for Discord API interactions. A web
 - **@vitalets/google-translate-api:** For translation functionalities.
 - **node-cron:** For scheduling automated tasks, such as monthly vote publications.
 - **TopServeurs API:** For fetching monthly vote rankings and data.
-- **basic-ftp:** Direct FTP access to Nitrado game servers for writing .ini files (bypasses the Nitrado API Long-life token permission restrictions on file uploads).
+- **Legion GPanel client API:** Server power, console commands and allowlisted ARK INI edits. The legacy Nitrado/FTP implementation is inactive and its historical database records are retained.
