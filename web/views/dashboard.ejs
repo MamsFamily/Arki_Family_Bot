@@ -51,6 +51,9 @@ function top5Html(top5) {
           <a href="/welcome" class="dashboard-shortcut"><span class="shortcut-icon">👋</span><span><strong>Communauté</strong><small>Arrivées, départs et messages</small></span><span class="shortcut-arrow">↗</span></a>
           <a href="/tickets" class="dashboard-shortcut"><span class="shortcut-icon">🎫</span><span><strong>Modération</strong><small>Tickets et demandes</small></span><span class="shortcut-arrow">↗</span></a>
           <a href="/shop" class="dashboard-shortcut"><span class="shortcut-icon">🛒</span><span><strong>Boutique</strong><small>Produits et inventaires</small></span><span class="shortcut-arrow">↗</span></a>
+          <% if (role === 'admin') { %>
+          <a href="/legion" class="dashboard-shortcut"><span class="shortcut-icon">🖥️</span><span><strong>Les serveurs</strong><small>Cartes ARK · Legion</small></span><span class="shortcut-arrow">↗</span></a>
+          <% } %>
           <a href="/settings" class="dashboard-shortcut"><span class="shortcut-icon">⚙️</span><span><strong>Configuration</strong><small>Paramètres du bot</small></span><span class="shortcut-arrow">↗</span></a>
         </div>
       </section>

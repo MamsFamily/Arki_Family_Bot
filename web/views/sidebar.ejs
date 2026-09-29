@@ -43,6 +43,7 @@
   <nav class="sidebar-nav">
     <% if (role === 'admin') { %>
       <a href="/" class="nav-link nav-home <%= path === '/' ? 'active' : '' %>" <%= path === '/' ? 'aria-current="page"' : '' %>><span class="icon">⌂</span> Vue d'ensemble</a>
+      <a href="/legion" class="nav-link <%= path === '/legion' ? 'active' : '' %>" <%= path === '/legion' ? 'aria-current="page"' : '' %>><span class="icon">🖥️</span> Les serveurs</a>
     <% } %>
     <label class="nav-search-label" for="navSearch">TROUVER UNE PAGE</label>
     <input id="navSearch" class="nav-search" type="search" placeholder="Rechercher dans le menu…" autocomplete="off" aria-label="Rechercher une page">
@@ -80,11 +81,10 @@
       </div>
     </details>
 
-    <details class="nav-group" <%= ['/legion','/roulette','/infinity-road','/blind-test','/werewolf','/admin-quiz','/paris-sportifs'].includes(path) ? 'open' : '' %>>
+    <details class="nav-group" <%= ['/roulette','/infinity-road','/blind-test','/werewolf','/admin-quiz','/paris-sportifs'].includes(path) ? 'open' : '' %>>
       <summary>🎮 <span>Jeux &amp; activités</span></summary>
       <div class="nav-group-links">
         <% if (role === 'admin') { %>
-        <a href="/legion" class="nav-link <%= path === '/legion' ? 'active' : '' %>">Serveurs ARK · Legion</a>
         <a href="/booster-repro" class="nav-link <%= path === '/booster-repro' ? 'active' : '' %>">Booster Repro</a>
         <a href="/roulette" class="nav-link <%= path === '/roulette' ? 'active' : '' %>">Roulette</a>
         <a href="/infinity-road" class="nav-link <%= path === '/infinity-road' ? 'active' : '' %>">Route de l'Infini</a>
