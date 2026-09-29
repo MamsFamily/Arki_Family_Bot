@@ -44,13 +44,19 @@
     <% if (role === 'admin') { %>
       <a href="/" class="nav-link nav-home <%= path === '/' ? 'active' : '' %>" <%= path === '/' ? 'aria-current="page"' : '' %>><span class="icon">⌂</span> Vue d'ensemble</a>
       <a href="/legion" class="nav-link <%= path === '/legion' ? 'active' : '' %>" <%= path === '/legion' ? 'aria-current="page"' : '' %>><span class="icon">🖥️</span> Les serveurs</a>
-      <a href="/starter-pack" class="nav-link <%= path === '/starter-pack' ? 'active' : '' %>" <%= path === '/starter-pack' ? 'aria-current="page"' : '' %>><span class="icon">🎒</span> Starter pack</a>
     <% } %>
     <label class="nav-search-label" for="navSearch">TROUVER UNE PAGE</label>
     <input id="navSearch" class="nav-search" type="search" placeholder="Rechercher dans le menu…" autocomplete="off" aria-label="Rechercher une page">
     <div id="navSearchEmpty" class="nav-search-empty" hidden>Aucune page trouvée</div>
 
     <% if (role === 'admin') { %>
+    <details class="nav-group" <%= path === '/starter-pack' ? 'open' : '' %>>
+      <summary>🧩 <span>Mod Arki</span></summary>
+      <div class="nav-group-links">
+        <a href="/starter-pack" class="nav-link <%= path === '/starter-pack' ? 'active' : '' %>" <%= path === '/starter-pack' ? 'aria-current="page"' : '' %>>Starter pack</a>
+      </div>
+    </details>
+
     <details class="nav-group" <%= ['/welcome','/welcome/phrases','/birthdays','/votes','/rewards','/message','/giveaways'].includes(path) ? 'open' : '' %>>
       <summary>👥 <span>Communauté</span></summary>
       <div class="nav-group-links">

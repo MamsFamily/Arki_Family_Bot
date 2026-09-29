@@ -60,7 +60,18 @@ test('admin page renders the saved pack and escapes hostile item names', async (
     error: null,
   });
   assert.match(html, /href="\/starter-pack"/);
+  assert.match(html, /<summary>🧩 <span>Mod Arki<\/span><\/summary>/);
   assert.match(html, /BROUILLON · non distribué/);
   assert.doesNotMatch(html, /<\/script><script>alert\(1\)/);
   assert.match(html, /\\u003c\/script>/);
+});
+
+test('Mod Arki stays hidden from staff navigation', async () => {
+  const file = path.resolve(__dirname, '../web/views/sidebar.ejs');
+  const html = await ejs.renderFile(file, {
+    role: 'staff', path: '/shop', botUser: null,
+    discordUser: { displayName: 'Staff', avatar: '' },
+  });
+  assert.doesNotMatch(html, /Mod Arki/);
+  assert.doesNotMatch(html, /href="\/starter-pack"/);
 });
