@@ -6,3 +6,4 @@
 - [Récompenses et annonces XP](xp-rewards-announcements.md) — ne jamais conditionner les gains au salon ou à la réussite des annonces Discord.
 - [Périmètre des cartes Legion](legion-map-scope.md) — toute action groupée doit cibler explicitement les 12 cartes ARK, jamais tous les serveurs du compte.
 - [Journal Legion et incidents](legion-incident-journal.md) — un redémarrage observé via uptime ne prouve pas un crash ; séparer commande acceptée et effet confirmé.
+- [Secrets du bot Railway](railway-bot-secrets.md) — les secrets Replit ne sont pas transmis au processus Discord hébergé séparément sur Railway.
