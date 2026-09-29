@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
 const ejs = require('ejs');
 const pgStore = require('../pgStore');
@@ -74,4 +75,19 @@ test('Mod Arki stays hidden from staff navigation', async () => {
   });
   assert.doesNotMatch(html, /Mod Arki/);
   assert.doesNotMatch(html, /href="\/starter-pack"/);
+});
+
+test('starter pack route runs after dashboard view locals and can show a database error', async () => {
+  const source = fs.readFileSync(path.resolve(__dirname, '../web/server.js'), 'utf8');
+  const locals = source.indexOf('res.locals.botUser =');
+  const route = source.indexOf("app.get('/starter-pack', requireAdmin");
+  assert.ok(locals !== -1 && route > locals, 'la route doit recevoir les variables du template');
+
+  const html = await ejs.renderFile(path.resolve(__dirname, '../web/views/starter-pack.ejs'), {
+    role: 'admin', path: '/starter-pack', botUser: null,
+    discordUser: { displayName: 'Admin', avatar: '' },
+    draft: null, error: 'Base indisponible',
+  });
+  assert.match(html, /Impossible de charger le brouillon/);
+  assert.match(html, /Base indisponible/);
 });
