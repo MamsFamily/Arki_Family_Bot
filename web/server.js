@@ -93,6 +93,7 @@ function createWebServer(discordClient) {
 
   function isApiRequest(req) {
     return req.path.startsWith('/api/') || req.path.startsWith('/legion/api/') ||
+      req.path.startsWith('/starter-pack/api/') ||
       req.headers['content-type'] === 'application/json' || req.xhr;
   }
 
@@ -158,6 +159,22 @@ function createWebServer(discordClient) {
   // Interface réservée à un pont privé exécuté côté serveur de jeu. Ne jamais
   // incorporer STARTER_PACK_MOD_TOKEN dans un mod téléchargeable par les joueurs.
   const starterPack = require('../starter-pack/service');
+  const starterPackDraft = require('../starter-pack/draft');
+  app.get('/starter-pack', requireAdmin, async (req, res) => {
+    try {
+      res.render('starter-pack', { draft: await starterPackDraft.getDraft(), error: null });
+    } catch (error) {
+      res.status(503).render('starter-pack', { draft: null, error: error.message });
+    }
+  });
+  app.post('/starter-pack/api/draft', requireAdmin, async (req, res) => {
+    try {
+      const draft = await starterPackDraft.saveDraft(req.body?.items, req.body?.revision);
+      res.json({ ok: true, draft });
+    } catch (error) {
+      res.status(error.status || 503).json({ ok: false, error: error.message });
+    }
+  });
   function requireStarterPackBridge(req, res, next) {
     const token = process.env.STARTER_PACK_MOD_TOKEN;
     if (process.env.STARTER_PACK_LINK_ENABLED !== 'true' || !token || token.length < 32) {

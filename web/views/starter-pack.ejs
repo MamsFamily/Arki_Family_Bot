@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Starter pack — Arki Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .pack-head { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:24px; }
+    .pack-head h1 { font-size:1.8rem; margin:5px 0 7px; }
+    .pack-head p { color:var(--text-secondary); line-height:1.55; max-width:670px; }
+    .pack-kicker { color:var(--accent); font-size:.76rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+    .pack-badge { border:1px solid var(--border); border-radius:999px; padding:8px 13px; color:var(--text-secondary); background:var(--bg-card); font-size:.81rem; font-weight:700; white-space:nowrap; }
+    .pack-notice { background:var(--bg-card); border:1px solid var(--border); border-left:4px solid var(--accent); border-radius:10px; padding:16px 18px; margin-bottom:22px; line-height:1.5; }
+    .pack-notice strong { display:block; margin-bottom:3px; }
+    .pack-notice p { color:var(--text-secondary); font-size:.89rem; margin:0; }
+    .pack-error { border-color:var(--error); }
+    .pack-board { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+    .pack-board-head { padding:19px 20px; border-bottom:1px solid var(--border); display:flex; gap:12px; flex-wrap:wrap; align-items:baseline; justify-content:space-between; }
+    .pack-board-head h2 { font-size:1.1rem; margin:0; }
+    .pack-board-head span { color:var(--text-secondary); font-size:.83rem; }
+    .pack-list { padding:18px; display:grid; gap:12px; }
+    .pack-empty { color:var(--text-secondary); text-align:center; padding:28px; border:1px dashed var(--border); border-radius:9px; }
+    .pack-row { display:grid; grid-template-columns:minmax(0,2fr) minmax(100px,.6fr) auto; gap:12px; border:1px solid var(--border); border-radius:10px; padding:16px; background:var(--bg-secondary); }
+    .pack-row label { display:grid; gap:6px; color:var(--text-secondary); font-size:.8rem; font-weight:650; min-width:0; }
+    .pack-row input, .pack-row textarea { width:100%; box-sizing:border-box; border:1px solid var(--border); border-radius:7px; background:var(--bg-input); padding:9px 10px; color:var(--text-primary); font:inherit; }
+    .pack-row input:focus, .pack-row textarea:focus { outline:2px solid var(--accent); outline-offset:1px; }
+    .pack-row textarea { resize:vertical; min-height:42px; }
+    .pack-note { grid-column:1 / 3; }
+    .pack-row-actions { grid-column:3; grid-row:1 / 3; align-self:start; display:flex; gap:5px; }
+    .pack-button { cursor:pointer; border:1px solid var(--border); border-radius:8px; background:var(--bg-card); color:var(--text-primary); font:inherit; font-weight:650; padding:10px 13px; }
+    .pack-button:hover { border-color:var(--accent); }
+    .pack-button:disabled { opacity:.55; cursor:not-allowed; }
+    .pack-button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .pack-button.icon { padding:8px 10px; }
+    .pack-button.remove { color:var(--error); }
+    .pack-footer { padding:17px 20px; border-top:1px solid var(--border); display:flex; flex-wrap:wrap; gap:14px; align-items:center; justify-content:space-between; }
+    .pack-footer-actions { display:flex; flex-wrap:wrap; gap:9px; }
+    .pack-feedback { min-height:20px; font-size:.86rem; color:var(--text-secondary); }
+    .pack-feedback.error { color:var(--error); }
+    @media (max-width:680px) {
+      .pack-row { grid-template-columns:minmax(0,1fr) 100px; }
+      .pack-note { grid-column:1 / -1; }
+      .pack-row-actions { grid-column:1 / -1; grid-row:auto; }
+      .pack-list { padding:12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <%- include('sidebar') %>
+    <main class="main-content">
+      <div class="pack-head">
+        <div>
+          <span class="pack-kicker">Serveurs ARK · Configuration</span>
+          <h1>Starter pack</h1>
+          <p>Compose le pack offert une seule fois à chaque joueur. Ajoute, modifie, réorganise ou retire des éléments.</p>
+        </div>
+        <span class="pack-badge">BROUILLON · non distribué</span>
+      </div>
+
+      <div class="pack-notice<%= error ? ' pack-error' : '' %>" role="<%= error ? 'alert' : 'note' %>">
+        <% if (error) { %>
+          <strong>Impossible de charger le brouillon</strong><p><%= error %></p>
+        <% } else { %>
+          <strong>Ce brouillon ne déclenche aucun envoi en jeu</strong>
+          <p>Enregistrer ce brouillon ne change pas le pack distribué. Chaque objet et le Griffon en cryopode devront être validés dans le mod avant toute activation.</p>
+        <% } %>
+      </div>
+
+      <% if (draft) { %>
+      <form id="pack-form" class="pack-board">
+        <div class="pack-board-head">
+          <h2>Contenu du pack <span id="item-count"></span></h2>
+          <span id="saved-at"></span>
+        </div>
+        <div id="pack-list" class="pack-list"></div>
+        <div class="pack-footer">
+          <button type="button" id="add-item" class="pack-button">+ Ajouter un objet</button>
+          <div class="pack-footer-actions">
+            <span id="pack-feedback" class="pack-feedback" role="status" aria-live="polite"></span>
+            <button type="submit" id="save-pack" class="pack-button primary">Enregistrer le brouillon</button>
+          </div>
+        </div>
+      </form>
+      <% } %>
+    </main>
+  </div>
+  <% if (draft) { %>
+  <script>
+    const initialDraft = <%- JSON.stringify(draft).replace(/</g, '\\u003c') %>;
+    let revision = initialDraft.revision;
+    let dirty = false;
+    const list = document.getElementById('pack-list');
+    const feedback = document.getElementById('pack-feedback');
+    const saveButton = document.getElementById('save-pack');
+
+    function updateCount() {
+      const count = list.querySelectorAll('.pack-row').length;
+      document.getElementById('item-count').textContent = `· ${count} entrée${count > 1 ? 's' : ''}`;
+      list.querySelector('.pack-empty')?.remove();
+      if (!count) {
+        const empty = document.createElement('p');
+        empty.className = 'pack-empty';
+        empty.textContent = 'Le pack est vide. Ajoute un objet pour commencer.';
+        list.append(empty);
+      }
+    }
+
+    function markDirty() {
+      dirty = true;
+      feedback.classList.remove('error');
+      feedback.textContent = 'Modifications non enregistrées';
+    }
+
+    function addRow(item = { name: '', quantity: 1, note: '' }, changed = true) {
+      list.querySelector('.pack-empty')?.remove();
+      const row = document.createElement('div');
+      row.className = 'pack-row';
+      row.innerHTML = `
+        <label>Objet ou récompense<input class="item-name" type="text" maxlength="120" required placeholder="Ex. : Viande cuite"></label>
+        <label>Quantité<input class="item-quantity" type="number" min="1" max="500" step="1" required></label>
+        <label class="pack-note">Précisions pour le mod (facultatif)<textarea class="item-note" maxlength="500" rows="2" placeholder="Ex. : niveau 450, déjà en cryopode"></textarea></label>
+        <div class="pack-row-actions">
+          <button type="button" class="pack-button icon move-up" aria-label="Monter cet objet" title="Monter">↑</button>
+          <button type="button" class="pack-button icon move-down" aria-label="Descendre cet objet" title="Descendre">↓</button>
+          <button type="button" class="pack-button icon remove" aria-label="Retirer cet objet" title="Retirer">✕</button>
+        </div>`;
+      row.querySelector('.item-name').value = item.name;
+      row.querySelector('.item-quantity').value = item.quantity;
+      row.querySelector('.item-note').value = item.note || '';
+      list.append(row);
+      updateCount();
+      if (changed) { markDirty(); row.querySelector('.item-name').focus(); }
+    }
+
+    list.addEventListener('input', markDirty);
+    list.addEventListener('click', event => {
+      const button = event.target.closest('button');
+      const row = button?.closest('.pack-row');
+      if (!row) return;
+      if (button.classList.contains('remove')) {
+        row.remove();
+        updateCount();
+      } else if (button.classList.contains('move-up') && row.previousElementSibling?.classList.contains('pack-row')) {
+        list.insertBefore(row, row.previousElementSibling);
+      } else if (button.classList.contains('move-down') && row.nextElementSibling?.classList.contains('pack-row')) {
+        list.insertBefore(row.nextElementSibling, row);
+      } else return;
+      markDirty();
+    });
+    document.getElementById('add-item').addEventListener('click', () => addRow());
+    (initialDraft.items || []).forEach(item => addRow(item, false));
+    updateCount();
+    document.getElementById('saved-at').textContent =
+      'Dernier enregistrement : ' + new Date(initialDraft.updated_at).toLocaleString('fr-FR');
+
+    document.getElementById('pack-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const items = [...list.querySelectorAll('.pack-row')].map(row => ({
+        name: row.querySelector('.item-name').value.trim(),
+        quantity: Number(row.querySelector('.item-quantity').value),
+        note: row.querySelector('.item-note').value.trim(),
+      }));
+      saveButton.disabled = true;
+      feedback.textContent = 'Enregistrement…';
+      feedback.classList.remove('error');
+      try {
+        const response = await fetch('/starter-pack/api/draft', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items, revision }),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.error || 'Enregistrement impossible.');
+        revision = data.draft.revision;
+        dirty = false;
+        feedback.textContent = 'Brouillon enregistré';
+        document.getElementById('saved-at').textContent =
+          'Dernier enregistrement : ' + new Date(data.draft.updated_at).toLocaleString('fr-FR');
+      } catch (error) {
+        feedback.classList.add('error');
+        feedback.textContent = error.message + (error.message.includes('Rechar') ? ' (Les modifications non enregistrées seront perdues.)' : '');
+      } finally {
+        saveButton.disabled = false;
+      }
+    });
+    window.addEventListener('beforeunload', event => {
+      if (dirty) { event.preventDefault(); event.returnValue = ''; }
+    });
+  </script>
+  <% } %>
+</body>
+</html>

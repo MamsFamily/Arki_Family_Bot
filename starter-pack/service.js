@@ -72,6 +72,7 @@ async function init() {
       delivered_at TIMESTAMPTZ
     )
   `);
+  await require('./draft').init();
 }
 
 async function issueCode(discordId) {

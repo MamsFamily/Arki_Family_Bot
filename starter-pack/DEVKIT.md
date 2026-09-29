@@ -7,6 +7,14 @@ la remise avant d'avoir testé *tous* les objets, notamment la gourde remplie,
 la tenue camouflage complète et le Griffon apprivoisé niveau 450 déjà en cryo.
 Les deux cryopodes vides sont **en plus** de celle du Griffon.
 
+Le dashboard expose `/starter-pack` aux administrateurs pour composer un
+**brouillon** persistant en PostgreSQL. `pack.json` ne sert qu'à initialiser ce
+brouillon lors de la création de la table, jamais à écraser les modifications.
+Ni le brouillon ni un changement de quantité ne sont transmis au mod. Avant la
+mise en service, prévoir un catalogue d'assets validés dans le DevKit et une
+publication de versions immuables : un mod doit appliquer la version exacte
+réclamée, pas un brouillon modifié après la demande du joueur.
+
 ## Prérequis de sécurité
 
 - Mod ARK Survival Ascended **ordinaire**, pas un mod « Custom Cosmetics » :
