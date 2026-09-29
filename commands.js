@@ -528,4 +528,18 @@ const commands = [
   },
 ];
 
+// Ne pas annoncer de commande aux joueurs avant que la liaison avec le jeu
+// soit testée et explicitement activée sur le bot Discord.
+if (process.env.STARTER_PACK_LINK_ENABLED === 'true') {
+  commands.push({
+    name: 'starterpack',
+    description: 'Lie ton compte ARK et récupère ton starter pack une seule fois',
+    options: [
+      { type: 1, name: 'lier', description: 'Crée un code temporaire pour lier ton compte en jeu' },
+      { type: 1, name: 'statut', description: 'Vérifie la liaison et la remise de ton pack' },
+      { type: 1, name: 'recevoir', description: 'Demande ton starter pack après avoir lié ton compte' },
+    ],
+  });
+}
+
 module.exports = commands;

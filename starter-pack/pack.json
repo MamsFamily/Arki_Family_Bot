@@ -1,0 +1,16 @@
+{
+  "version": "starter-ark-1",
+  "status": "specification-only-not-validated-in-devkit",
+  "items": [
+    { "name": "Lunette de vue classique", "quantity": 1 },
+    { "name": "Gourde remplie", "quantity": 1, "note": "Vérifier le niveau d'eau au moment de la remise." },
+    { "name": "Viande cuite", "quantity": 25 },
+    { "name": "Tente", "quantity": 1 },
+    { "name": "Lit", "quantity": 1 },
+    { "name": "Tenue camouflage complète", "pieces": ["casque", "plastron", "gants", "pantalon", "bottes"] },
+    { "name": "Bola", "quantity": 3 },
+    { "name": "Masse", "quantity": 1, "note": "Confirmer qu'il s'agit de la massue (Club)." },
+    { "name": "Cryopode vide", "quantity": 2 },
+    { "name": "Griffon apprivoisé niveau 450 dans une cryopode", "quantity": 1, "note": "Valider la création et la mise en cryopode directement dans le DevKit, sur le serveur d'essai." }
+  ]
+}

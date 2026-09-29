@@ -50,6 +50,8 @@ const boosterReproManager = require('./boosterReproManager');
 const { getBoosterMaps } = require('./boosterReproMaps');
 const { createDestroyWildDinosHandler } = require('./destroyWildDinosCommand');
 const destroyWildDinosHandler = createDestroyWildDinosHandler();
+const { createStarterPackHandler } = require('./starter-pack/discordCommand');
+const starterPackHandler = createStarterPackHandler();
 const { handleServerPanelCommand, handleServerPanelInteraction } = require('./serverPanelCommand');
 const { handleBlindTestCommand } = require('./blindTestCommand');
 const blindTestManager = require('./blindTestManager');
@@ -633,6 +635,7 @@ client.once('clientReady', async () => {
   pgStore.initPool();
   if (pgStore.isPostgres()) {
     await pgStore.initTables();
+    await require('./starter-pack/service').init().catch(error => console.error('[StarterPack] Initialisation:', error.message));
     await initSpawnTickets(client);
     await initShopOrders(client);
     await initReclaimTickets(client);
@@ -1177,6 +1180,7 @@ client.on('interactionCreate', async interaction => {
   // Commande et confirmation traitées par la même instance pour garder le
   // nonce du bouton ; le filtrage des cartes est fait dans le handler.
   if (await destroyWildDinosHandler.handle(interaction)) return;
+  if (await starterPackHandler.handle(interaction)) return;
 
   // ── Shop interactions (buttons + select menus) ──
   if (interaction.isButton() || interaction.isStringSelectMenu()) {

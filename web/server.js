@@ -45,6 +45,7 @@ function createWebServer(discordClient) {
   // Init PostgreSQL si disponible (partagé avec Railway)
   pgStore.initPool();
   pgStore.initTables().then(async () => {
+    await require('../starter-pack/service').init().catch(e => console.error('[StarterPack] init:', e.message));
     await inventoryManager.initInventory().catch(e => console.error('[Inventory] initInventory au démarrage dashboard:', e.message));
     // Le dashboard expose les plannings, mais Railway est seul chargé de les exécuter.
     await require('./legionJournal').init({ runSchedules: false }).catch(e => console.error('[Legion] init:', e.message));
@@ -153,6 +154,56 @@ function createWebServer(discordClient) {
     }
     res.redirect('/login');
   }
+
+  // Interface réservée à un pont privé exécuté côté serveur de jeu. Ne jamais
+  // incorporer STARTER_PACK_MOD_TOKEN dans un mod téléchargeable par les joueurs.
+  const starterPack = require('../starter-pack/service');
+  function requireStarterPackBridge(req, res, next) {
+    const token = process.env.STARTER_PACK_MOD_TOKEN;
+    if (process.env.STARTER_PACK_LINK_ENABLED !== 'true' || !token || token.length < 32) {
+      return res.status(503).json({ ok: false, error: 'Liaison en jeu non configurée.' });
+    }
+    const provided = /^Bearer (.+)$/i.exec(req.get('authorization') || '')?.[1] || '';
+    const expectedHash = require('crypto').createHash('sha256').update(token).digest();
+    const providedHash = require('crypto').createHash('sha256').update(provided).digest();
+    if (!require('crypto').timingSafeEqual(expectedHash, providedHash)) {
+      return res.status(401).json({ ok: false, error: 'Accès refusé.' });
+    }
+    next();
+  }
+
+  app.post('/api/starter-pack/link', requireStarterPackBridge, async (req, res) => {
+    try {
+      const result = await starterPack.confirmLink(req.body?.code, req.body?.eosId, req.body?.mapId);
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(400).json({ ok: false, error: error.message });
+    }
+  });
+  app.post('/api/starter-pack/next', requireStarterPackBridge, async (req, res) => {
+    if (!starterPack.isDeliveryEnabled()) {
+      return res.status(503).json({ ok: false, error: 'Distribution en jeu désactivée.' });
+    }
+    try {
+      const result = await starterPack.takeClaim(req.body?.eosId, req.body?.mapId, req.body?.packVersion);
+      res.json({ ok: true, claim: result });
+    } catch (error) {
+      res.status(400).json({ ok: false, error: error.message });
+    }
+  });
+  app.post('/api/starter-pack/delivered', requireStarterPackBridge, async (req, res) => {
+    if (!starterPack.isDeliveryEnabled()) {
+      return res.status(503).json({ ok: false, error: 'Distribution en jeu désactivée.' });
+    }
+    try {
+      const result = await starterPack.confirmDelivered(
+        req.body?.eosId, req.body?.mapId, req.body?.claimId, req.body?.packVersion,
+      );
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(400).json({ ok: false, error: error.message });
+    }
+  });
 
   // ─── API PUBLIQUE INVENTAIRE ────────────────────────────────────────────────
   function validateApiKey(req) {
