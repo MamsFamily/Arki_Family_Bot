@@ -49,6 +49,9 @@
     .legion-line-field textarea { width:100%; box-sizing:border-box; resize:vertical; }
     .legion-ini-divider { border:0; border-top:1px solid var(--border); margin:28px 0; }
     .legion-ini-fields { border:0; padding:0; margin:0; min-width:0; }
+    .shiny-rule { background:var(--bg-secondary); border:1px solid var(--border); border-radius:9px; padding:12px; margin:9px 0; display:flex; gap:10px; flex-wrap:wrap; align-items:end; }
+    .shiny-rule label { flex:1 1 250px; min-width:0; }
+    .shiny-rule input { width:100%; box-sizing:border-box; }
     .legion-targets { display:flex; gap:10px; flex-wrap:wrap; margin:12px 0; }
     .legion-targets label { display:inline-flex; gap:6px; align-items:center; background:var(--bg-secondary); padding:7px 10px; border-radius:7px; cursor:pointer; }
     .legion-list { list-style:none; display:grid; gap:9px; margin:15px 0 0; padding:0; }
@@ -81,6 +84,7 @@
         <button type="button" data-tab="journal">Journaux des maps</button>
         <button type="button" data-tab="schedules">Planifications</button>
         <button type="button" data-tab="ini">Paramètres INI</button>
+        <button type="button" data-tab="shiny">Shyni</button>
       </nav>
       <section id="tab-cards" aria-label="Cartes">
       <div class="legion-grid" id="legion-grid">
@@ -209,6 +213,37 @@
           </fieldset>
         </form>
       </section>
+      <section id="tab-shiny" class="legion-panel" aria-label="Rotation Shyni" hidden>
+        <h2>Rotation des cartes Shyni</h2>
+        <p>Les lignes ci-dessous concernent uniquement <strong>[Shiny]</strong> dans <strong>GameUserSettings.ini</strong>. Enregistre tes paires de lignes actives/à zéro, puis choisis exactement deux cartes accueillantes. L’aperçu lit les 12 cartes autorisées avant toute modification et laisse les autres lignes INI intactes.</p>
+        <% if (!canEditIniLines) { %><p>Une connexion administrateur vérifiée par Discord est nécessaire. <a href="/logout">Déconnecte-toi</a> puis reconnecte-toi avec Discord.</p><% } %>
+        <form id="shiny-rules-form">
+          <fieldset class="legion-ini-fields" <%= canEditIniLines ? '' : 'disabled' %>>
+            <h3>Lignes à enregistrer</h3>
+            <p>Les huit paires sont nécessaires : mêmes clés, valeurs actives à gauche et valeurs 0 à droite. Tu peux ajuster les valeurs, mais pas supprimer un réglage. Les autres paramètres de [Shiny] ne seront pas touchés.</p>
+            <div id="shiny-rules"></div>
+            <div class="legion-form">
+              <button type="submit" class="legion-btn primary">Enregistrer les lignes</button>
+            </div>
+            <p id="shiny-config-status" role="status" aria-live="polite"><%= canEditIniLines ? 'Ouvre cet onglet pour charger les réglages.' : 'Connexion Discord requise.' %></p>
+          </fieldset>
+        </form>
+        <hr class="legion-ini-divider">
+        <form id="shiny-rotation-form">
+          <fieldset class="legion-ini-fields" <%= canEditIniLines ? '' : 'disabled' %>>
+            <h3>Deux cartes accueillantes</h3>
+            <p>Choisis les deux cartes où les Shyni doivent apparaître après la rotation. Les dix autres passeront à zéro. Aucune carte n’est présélectionnée. Aucun redémarrage n’est lancé automatiquement.</p>
+            <div class="legion-targets">
+              <% maps.forEach(function(map) { %><label><input type="checkbox" name="ids" value="<%= map.id %>"> <%= map.name %></label><% }); %>
+            </div>
+            <div class="legion-form">
+              <button type="submit" class="legion-btn">Prévisualiser la rotation</button>
+              <button type="button" id="shiny-apply" class="legion-btn primary" disabled>Confirmer la rotation</button>
+            </div>
+            <ul id="shiny-results" class="legion-list" aria-live="polite"></ul>
+          </fieldset>
+        </form>
+      </section>
     </main>
   </div>
   <script>
@@ -247,11 +282,12 @@
     }
     document.querySelectorAll('.legion-tabs button').forEach(button => button.addEventListener('click', () => {
       document.querySelectorAll('.legion-tabs button').forEach(item => item.classList.toggle('active', item === button));
-      ['cards','journal','schedules','ini'].forEach(tab => {
+      ['cards','journal','schedules','ini','shiny'].forEach(tab => {
         document.getElementById('tab-' + tab).hidden = tab !== button.dataset.tab;
       });
       if (button.dataset.tab === 'journal') loadJournal();
       if (button.dataset.tab === 'schedules') loadSchedules();
+      if (button.dataset.tab === 'shiny') loadShinyConfig();
     }));
     document.getElementById('ini-form').addEventListener('submit', async event => {
       event.preventDefault();
@@ -373,6 +409,159 @@
       } finally {
         linesPreview = null;
         linesForm.querySelector('fieldset').disabled = false;
+      }
+    });
+    const shinyAllowed = <%= canEditIniLines ? 'true' : 'false' %>;
+    const shinyRulesForm = document.getElementById('shiny-rules-form');
+    const shinyRotationForm = document.getElementById('shiny-rotation-form');
+    const shinyRules = document.getElementById('shiny-rules');
+    const shinyStatus = document.getElementById('shiny-config-status');
+    const shinyResults = document.getElementById('shiny-results');
+    const shinyApply = document.getElementById('shiny-apply');
+    let shinyLoaded = false, shinySaved = false, shinyRevision = null, shinyPreview = null, shinyGeneration = 0;
+    function invalidateShinyPreview() {
+      shinyGeneration++;
+      shinyPreview = null;
+      shinyApply.disabled = true;
+      shinyResults.replaceChildren();
+    }
+    function shinyRow(rule = { active:'', inactive:'' }) {
+      const row = document.createElement('div');
+      row.className = 'shiny-rule';
+      for (const [kind, title] of [['active','Ligne active'],['inactive','Ligne à zéro']]) {
+        const label = document.createElement('label');
+        label.textContent = title;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.dataset.kind = kind;
+        input.value = rule[kind];
+        input.required = true;
+        input.maxLength = 4096;
+        input.spellcheck = false;
+        input.autocomplete = 'off';
+        label.appendChild(input);
+        row.appendChild(label);
+      }
+      shinyRules.appendChild(row);
+    }
+    async function loadShinyConfig() {
+      if (!shinyAllowed || shinyLoaded) return;
+      shinyStatus.textContent = 'Chargement des lignes…';
+      try {
+        const response = await fetch('/legion/api/shiny/config');
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.error || 'Réglages indisponibles');
+        shinyRules.replaceChildren();
+        data.rules.forEach(shinyRow);
+        shinyRevision = data.revision;
+        shinySaved = data.saved;
+        shinyLoaded = true;
+        shinyStatus.textContent = data.saved ? 'Lignes enregistrées. Choisis deux cartes pour la rotation.' :
+          'Huit paires proposées. Vérifie-les et clique sur « Enregistrer les lignes » avant la première rotation.';
+      } catch (error) { shinyStatus.textContent = error.message; }
+    }
+    shinyRulesForm.addEventListener('input', () => {
+      shinySaved = false;
+      shinyStatus.textContent = 'Lignes modifiées : enregistre-les avant de prévisualiser.';
+      invalidateShinyPreview();
+    });
+    shinyRulesForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!shinyLoaded) return notify('Charge les réglages avant de les enregistrer.', true);
+      const rules = [...shinyRules.querySelectorAll('.shiny-rule')].map(row => ({
+        active: row.querySelector('[data-kind=active]').value,
+        inactive: row.querySelector('[data-kind=inactive]').value,
+      }));
+      const generation = shinyGeneration;
+      const button = shinyRulesForm.querySelector('button[type=submit]');
+      button.disabled = true;
+      try {
+        const response = await fetch('/legion/api/shiny/config', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({ rules, revision:shinyRevision }),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.error || 'Enregistrement refusé');
+        shinyRevision = data.revision;
+        if (generation === shinyGeneration) {
+          shinySaved = true;
+          invalidateShinyPreview();
+          shinyStatus.textContent = 'Lignes enregistrées. Aucun serveur modifié.';
+        } else {
+          shinySaved = false;
+          shinyStatus.textContent = 'Une version précédente a été enregistrée. Enregistre aussi tes dernières modifications.';
+        }
+      } catch (error) { shinyStatus.textContent = error.message; }
+      finally { button.disabled = false; }
+    });
+    shinyRotationForm.addEventListener('change', invalidateShinyPreview);
+    function showShinyResults(maps) {
+      shinyResults.replaceChildren(...maps.map(map => {
+        const li = document.createElement('li');
+        if (map.error) li.textContent = `${map.name} : ${map.error}`;
+        else if ('ok' in map) li.textContent = `${map.name} : ${map.ok ? 'écriture confirmée' : 'échec'}`;
+        else li.textContent = `${map.name} : ${map.state === 'active' ? 'actuellement active' : 'actuellement à zéro'} → ${map.toActive ? 'active' : 'à zéro'}${map.changed ? '' : ' (aucun changement)'}`;
+        return li;
+      }));
+    }
+    shinyRotationForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!shinySaved) return notify('Enregistre d’abord les paires de lignes Shyni.', true);
+      const ids = [...shinyRotationForm.querySelectorAll('input[name=ids]:checked')].map(input => input.value);
+      if (ids.length !== 2) return notify('Sélectionne exactement deux cartes accueillantes.', true);
+      invalidateShinyPreview();
+      const generation = shinyGeneration;
+      const button = shinyRotationForm.querySelector('button[type=submit]');
+      button.disabled = true;
+      shinyResults.textContent = 'Lecture et vérification des 12 cartes…';
+      try {
+        const response = await fetch('/legion/api/shiny/preview', {
+          method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ ids }),
+        });
+        const data = await response.json();
+        if (generation !== shinyGeneration) return;
+        if (!response.ok) throw new Error(data.error || 'Aperçu indisponible');
+        showShinyResults(data.maps);
+        if (data.ok) {
+          shinyPreview = {
+            ids, revision:data.revision, maps:data.maps,
+            expected:data.maps.map(map => ({ id:map.id, hash:map.hash })),
+          };
+          shinyApply.disabled = false;
+          notify('Aperçu prêt : vérifie les deux cartes choisies avant de confirmer.');
+        } else notify('Aucun serveur modifié : corrige les erreurs avant de réessayer.', true);
+      } catch (error) {
+        if (generation !== shinyGeneration) return;
+        shinyResults.textContent = error.message;
+      } finally { button.disabled = false; }
+    });
+    shinyApply.addEventListener('click', async () => {
+      if (!shinyPreview) return;
+      const selectedNames = shinyPreview.ids.map(id => mapNames[id] || id).join(' et ');
+      const changed = shinyPreview.maps.filter(map => map.changed);
+      const leaving = changed.filter(map => map.state === 'active' && !map.toActive).map(map => map.name);
+      if (!confirm(`Activer les Shyni sur ${selectedNames} et les mettre à zéro sur les dix autres cartes ?\nAnciennes cartes à désactiver : ${leaving.join(', ') || 'aucune'}.\n${changed.length} fichier(s) à modifier. Aucun redémarrage automatique.\n\nConfirmer la rotation ?`)) return;
+      shinyApply.disabled = true;
+      shinyRulesForm.querySelector('fieldset').disabled = true;
+      shinyRotationForm.querySelector('fieldset').disabled = true;
+      shinyResults.textContent = 'Écriture et relecture en cours…';
+      try {
+        const response = await fetch('/legion/api/shiny/apply', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({ ids:shinyPreview.ids, revision:shinyPreview.revision, expected:shinyPreview.expected }),
+        });
+        const data = await response.json();
+        if (!data.results) throw new Error(data.error || 'Rotation indisponible');
+        showShinyResults(data.results);
+        notify(data.ok ? `Rotation vérifiée. ${data.unchanged.length} carte(s) déjà réglée(s). Redémarre les cartes concernées séparément si nécessaire.` :
+          'Rotation partielle ou non confirmée : vérifie les cartes dans GPanel avant de recommencer.', !data.ok);
+      } catch (error) {
+        shinyResults.textContent = error.message;
+        notify('Aucun résultat confirmé. Refais un aperçu avant de réessayer.', true);
+      } finally {
+        shinyPreview = null;
+        shinyRulesForm.querySelector('fieldset').disabled = false;
+        shinyRotationForm.querySelector('fieldset').disabled = false;
       }
     });
     grid.addEventListener('change', updateSelection);

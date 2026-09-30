@@ -3745,6 +3745,25 @@ function createWebServer(discordClient) {
       res.status(error.status || 502).json({ ok: false, error: error.message });
     }
   });
+  const legionShiny = require('./legionShiny');
+  app.get('/legion/api/shiny/config', requireIniLineAccess, async (req, res) => {
+    try { res.json({ ok: true, ...await legionShiny.loadConfig() }); }
+    catch (error) { res.status(error.status || 502).json({ ok: false, error: error.message }); }
+  });
+  app.post('/legion/api/shiny/config', requireIniLineAccess, async (req, res) => {
+    try { res.json({ ok: true, ...await legionShiny.saveConfig(req.body) }); }
+    catch (error) { res.status(error.status || 502).json({ ok: false, error: error.message }); }
+  });
+  app.post('/legion/api/shiny/preview', requireIniLineAccess, async (req, res) => {
+    try { res.json(await legionShiny.preview(req.body)); }
+    catch (error) { res.status(error.status || 502).json({ ok: false, error: error.message }); }
+  });
+  app.post('/legion/api/shiny/apply', requireIniLineAccess, async (req, res) => {
+    try {
+      const result = await legionShiny.apply(req.body);
+      res.status(result.ok ? 200 : 502).json(result);
+    } catch (error) { res.status(error.status || 502).json({ ok: false, error: error.message }); }
+  });
 
   app.post('/legion/api/power/:id', requireAdmin, async (req, res) => {
     const { signal } = req.body || {};
