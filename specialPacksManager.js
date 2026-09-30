@@ -38,6 +38,14 @@ function getSpecialPacks() {
   return data;
 }
 
+async function refreshSpecialPacks() {
+  if (!pgStore.isPostgres()) throw new Error('PostgreSQL indisponible pour les packs votes.');
+  const data = await pgStore.getData(PG_KEY, null, { throwOnError: true });
+  if (!data || !Array.isArray(data.packs)) throw new Error('Catalogue des packs spéciaux indisponible.');
+  cachedData = data;
+  return cachedData;
+}
+
 async function saveSpecialPacks(data) {
   cachedData = data;
   if (pgStore.isPostgres()) await pgStore.setData(PG_KEY, data);
@@ -72,4 +80,4 @@ async function deleteSpecialPack(id) {
   await saveSpecialPacks(data);
 }
 
-module.exports = { initSpecialPacks, getSpecialPacks, getSpecialPack, addSpecialPack, updateSpecialPack, deleteSpecialPack };
+module.exports = { initSpecialPacks, refreshSpecialPacks, getSpecialPacks, getSpecialPack, addSpecialPack, updateSpecialPack, deleteSpecialPack };

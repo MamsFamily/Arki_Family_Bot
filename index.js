@@ -27,6 +27,21 @@ const OpenAI = require('openai');
 const { createWebServer } = require('./web/server');
 const { getDinosByLetter, getModdedDinos, getShoulderDinos, getPaidDLCDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildShoulderEmbed, buildShoulderEmbeds, buildPaidDLCEmbeds, buildCompactAllEmbeds, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, buildVariantEmbeds, getAllLetters, getLetterColor } = require('./dinoManager');
 const pgStore = require('./pgStore');
+const {
+  getPreviousVotePeriod: getVoteRewardPeriod,
+  creditVotePlayer,
+  creditPendingVote,
+  getOrCreateShinyWinner,
+  creditShiny,
+  refreshVoteSources,
+  persistPending,
+  loadPending,
+  createPendingId,
+  buildCreditSummary,
+  simulateVoteDistribution,
+  assertVoteRewardPeriod,
+  MINIMUM_VOTE_REWARD_PERIOD,
+} = require('./voteRewards');
 const { getConfig, saveConfig: saveRouletteConfig, initConfig } = require('./configManager');
 const { initSettings, getSettings } = require('./settingsManager');
 const { initDinos, refreshDinoCache } = require('./dinoManager');
@@ -126,6 +141,11 @@ function splitMessage(text, maxLength = 1900) {
   return chunks;
 }
 
+function summarizeVoteCredits(results) {
+  const summary = buildCreditSummary(results);
+  return results.merged ? `${summary} ${results.merged} fusion(s) créditée(s) comme crédit agrégé.` : summary;
+}
+
 function hasRoulettePermission(member) {
   const votesConfig = getVotesConfig();
   const MODO_ROLE_ID = votesConfig.MODO_ROLE_ID || '1157803768893689877';
@@ -134,6 +154,40 @@ function hasRoulettePermission(member) {
 }
 
 const pendingDistributions = new Map();
+
+async function reloadPendingDistributions() {
+  if (!pgStore.isPostgres()) throw new Error('Les distributions votes exigent un chargement des demandes depuis PostgreSQL.');
+  const persisted = await loadPending();
+  if (!persisted || typeof persisted !== 'object' || Array.isArray(persisted)) {
+    throw new Error('État des demandes votes indisponible; distribution bloquée.');
+  }
+  for (const [id, pending] of Object.entries(persisted)) {
+    const current = pendingDistributions.get(id);
+    if (current?.resolving || current?.distributing) continue;
+    pendingDistributions.set(id, pending);
+  }
+}
+
+async function persistPendingState(pendingId, pending) {
+  const stored = { ...pending, resolving: false, distributing: false };
+  await persistPending(pendingId, stored);
+}
+
+async function resolvePendingVote(pendingId, pending, decision, selectedMemberId, result, choiceIdx = null) {
+  pending.decision = decision;
+  pending.selectedMemberId = selectedMemberId || pending.memberId || null;
+  pending.choiceIdx = choiceIdx;
+  pending.creditResult = result;
+  pending.resolved = true;
+  pending.resolving = false;
+  pending.distributing = false;
+  await persistPendingState(pendingId, pending);
+}
+
+async function tryPendingReply(interaction, payload) {
+  try { await interaction.editReply(payload); }
+  catch (error) { console.warn('[VOTES] Réponse d’interaction pending impossible:', error.message); }
+}
 
 function detectDuplicates(ranking, memberIndex) {
   const memberToPlayers = new Map();
@@ -155,35 +209,87 @@ function detectDuplicates(ranking, memberIndex) {
   return duplicates;
 }
 
-async function distributeWithChecks(ranking, memberIndex, votesConfig, monthName, adminChannel) {
-  const duplicates = detectDuplicates(ranking, memberIndex);
+async function distributeWithChecks(ranking, memberIndex, votesConfig, monthName, adminChannel, periodKey = getVoteRewardPeriod().key) {
+  await reloadPendingDistributions();
+  const undecidedRanking = ranking.filter(player => {
+    const prior = pendingDistributions.get(createPendingId('notfound', periodKey, [player.playername]));
+    return !prior || !(prior.resolved || prior.creditResult?.status === 'success' || prior.creditResult?.status === 'ignored');
+  });
+  // A terminal assignment/ignore must not re-enter another player's new group.
+  const duplicates = detectDuplicates(undecidedRanking, memberIndex);
   const duplicateMemberIds = new Set(duplicates.map(d => d.memberId));
-  const distributionResults = { success: 0, failed: 0, notFound: [], pendingDuplicates: 0, pendingNotFound: 0, inventoryResults: [], errors: [] };
+  const distributionResults = { success: 0, partial: 0, failed: 0, ignored: 0, merged: 0, notFound: [], pendingDuplicates: 0, pendingNotFound: 0, inventoryResults: [], errors: [] };
   const playerStatus = {};
+  const handledDuplicateMemberIds = new Set();
+  const savePendingSafely = async (pendingId, pending, playername) => {
+    try {
+      await persistPendingState(pendingId, pending);
+      return true;
+    } catch (error) {
+      distributionResults.failed++;
+      distributionResults.errors.push({ playername, error: `Demande en attente non persistée : ${error.message}` });
+      playerStatus[playername] = 'failed';
+      console.error(`[VOTES] Pending ${pendingId} non persisté:`, error.message);
+      if (adminChannel) {
+        try { await adminChannel.send(`⚠️ La demande votes pour **${playername}** n'a pas pu être sauvegardée en base. Les autres crédits continuent; corrigez PostgreSQL puis relancez la publication.`); }
+        catch (notifyErr) { console.warn('[VOTES] Notification d’échec de persistance impossible:', notifyErr.message); }
+      }
+      return false;
+    }
+  };
 
   for (const player of ranking) {
     const memberId = resolvePlayer(memberIndex, player.playername);
     const rankIdx = ranking.indexOf(player) + 1;
     const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
-    const bonusDiamonds = votesConfig.TOP_DIAMONDS[rankIdx] || 0;
+    const bonusDiamonds = (votesConfig.TOP_DIAMONDS || {})[rankIdx] || 0;
     const totalGain = totalDiamonds + bonusDiamonds;
+    const priorNotFoundId = createPendingId('notfound', periodKey, [player.playername]);
+    const priorNotFound = pendingDistributions.get(priorNotFoundId);
+    if (priorNotFound && (priorNotFound.resolved || priorNotFound.creditResult?.status === 'success' || priorNotFound.creditResult?.status === 'ignored')) {
+      if (priorNotFound.decision === 'ignore' || priorNotFound.creditResult?.status === 'ignored') {
+        distributionResults.ignored++;
+        playerStatus[player.playername] = 'ignored';
+      } else if (priorNotFound.creditResult?.status === 'success') {
+        distributionResults.success++;
+        playerStatus[player.playername] = 'success';
+        distributionResults.inventoryResults.push(...(priorNotFound.creditResult.credits || []).map(credit => ({ playername: player.playername, rankIdx: priorNotFound.rankIdx || rankIdx, ...credit })));
+      } else {
+        distributionResults.failed++;
+        playerStatus[player.playername] = 'failed';
+        distributionResults.errors.push({ playername: player.playername, error: 'Demande précédemment résolue sans reçu de crédit; vérification admin requise.' });
+      }
+      if (priorNotFound.creditResult?.status === 'success' || priorNotFound.creditResult?.status === 'ignored') {
+        priorNotFound.resolved = true;
+        await savePendingSafely(priorNotFoundId, priorNotFound, player.playername);
+      }
+      continue;
+    }
 
     if (!memberId) {
       distributionResults.notFound.push(player.playername);
-      playerStatus[player.playername] = 'pending';
+      const pendingId = createPendingId('notfound', periodKey, [player.playername]);
+      const existing = pendingDistributions.get(pendingId);
       distributionResults.pendingNotFound++;
-
-      if (adminChannel) {
-        const pendingId = `notfound_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        pendingDistributions.set(pendingId, {
+      playerStatus[player.playername] = 'pending';
+      const pending = existing || {
           type: 'notfound',
           playername: player.playername,
           votes: player.votes,
           totalGain,
           monthName,
+          periodKey,
+          votesConfig,
+          rankIdx,
           resolved: false,
-        });
+        };
+      pendingDistributions.set(pendingId, pending);
+      if (!await savePendingSafely(pendingId, pending, player.playername)) {
+        distributionResults.pendingNotFound--;
+        continue;
+      }
 
+      if (adminChannel && !pending.notified) {
         const ignoreBtn = new ButtonBuilder()
           .setCustomId(`vote_ignore_${pendingId}`)
           .setLabel('Ignorer')
@@ -194,38 +300,82 @@ async function distributeWithChecks(ranking, memberIndex, votesConfig, monthName
           .setStyle(ButtonStyle.Primary);
         const row = new ActionRowBuilder().addComponents(assignBtn, ignoreBtn);
 
-        await adminChannel.send({
+        try {
+          await adminChannel.send({
           content: `## ⚠️ Joueur non trouvé\n\n**${player.playername}** — ${player.votes} votes — ${totalGain.toLocaleString('fr-FR')} 💎\n\nAucun membre Discord correspondant trouvé.\nVoulez-vous attribuer les récompenses à un membre ou ignorer ?`,
           components: [row],
-        });
+          });
+          pending.notified = true;
+          await savePendingSafely(pendingId, pending, player.playername);
+        } catch (err) { console.warn('[VOTES] Notification joueur introuvable impossible:', err.message); }
       }
     } else if (duplicateMemberIds.has(memberId)) {
       const dupInfo = duplicates.find(d => d.memberId === memberId);
-      const isFirstOccurrence = dupInfo.players[0].playername === player.playername;
+      const isFirstOccurrence = !handledDuplicateMemberIds.has(memberId);
 
       if (isFirstOccurrence) {
-        playerStatus[player.playername] = 'pending';
-        distributionResults.pendingDuplicates++;
-
-        const pendingId = `dup_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        const allEntries = dupInfo.players.map(p => {
+        handledDuplicateMemberIds.add(memberId);
+        const pendingId = createPendingId('duplicate', periodKey, dupInfo.players.map(p => p.playername));
+        const currentEntries = dupInfo.players.map(p => {
           const ri = ranking.indexOf(p) + 1;
           const td = p.votes * votesConfig.DIAMONDS_PER_VOTE;
           const bd = votesConfig.TOP_DIAMONDS[ri] || 0;
           return { playername: p.playername, votes: p.votes, totalGain: td + bd, rankIdx: ri };
         });
+        const existing = pendingDistributions.get(pendingId);
+        if (existing?.resolved || existing?.creditResult?.status === 'success') {
+          const successful = existing.creditResult?.status === 'success';
+          const entries = existing.entries || currentEntries;
+          if (successful) {
+            if (existing.decision === 'keep') {
+              const chosen = entries[existing.choiceIdx];
+              for (let index = 0; index < entries.length; index++) {
+                playerStatus[entries[index].playername] = index === existing.choiceIdx ? 'success' : 'ignored';
+              }
+              distributionResults.success++;
+              distributionResults.ignored += Math.max(0, entries.length - 1);
+              distributionResults.inventoryResults.push(...(existing.creditResult.credits || []).map(c => ({ playername: chosen?.playername || player.playername, rankIdx: chosen?.rankIdx || entries[0].rankIdx, ...c })));
+            } else if (existing.decision === 'merge') {
+              for (const entry of entries) playerStatus[entry.playername] = 'merged';
+              distributionResults.success++;
+              distributionResults.merged++;
+              distributionResults.inventoryResults.push(...(existing.creditResult.credits || []).map(c => ({ playername: entries.map(e => e.playername).join(' + '), rankIdx: entries[0].rankIdx, ...c })));
+            } else {
+              for (const entry of entries) playerStatus[entry.playername] = 'success';
+              distributionResults.success += entries.length;
+              distributionResults.inventoryResults.push(...(existing.creditResult.credits || []).map(c => ({ playername: entries.map(e => e.playername).join(' + '), rankIdx: entries[0].rankIdx, ...c })));
+            }
+            existing.resolved = true;
+            await savePendingSafely(pendingId, existing, player.playername);
+          } else {
+            for (const entry of entries) playerStatus[entry.playername] = 'failed';
+            distributionResults.failed++;
+            distributionResults.errors.push({ playername: player.playername, error: 'Demande doublon résolue sans reçu de crédit; vérification admin requise.' });
+          }
+          continue;
+        }
 
-        pendingDistributions.set(pendingId, {
+        const pending = existing || {
           type: 'duplicate',
           memberId,
-          entries: allEntries,
+          entries: currentEntries,
           monthName,
+          periodKey,
+          votesConfig,
           resolved: false,
-        });
+        };
+        pendingDistributions.set(pendingId, pending);
+        for (const entry of pending.entries) playerStatus[entry.playername] = 'pending';
+        distributionResults.pendingDuplicates++;
+        if (!await savePendingSafely(pendingId, pending, player.playername)) {
+          distributionResults.pendingDuplicates--;
+          for (const entry of pending.entries) playerStatus[entry.playername] = 'failed';
+          continue;
+        }
 
         let dupMsg = `## 🔄 Doublon détecté\n\n<@${memberId}> a été détecté avec **${dupInfo.players.length} entrées** dans le classement :\n\n`;
         const buttons = [];
-        allEntries.forEach((e, idx) => {
+        pending.entries.forEach((e, idx) => {
           dupMsg += `**${idx + 1}.** "${e.playername}" — ${e.votes} votes — ${e.totalGain.toLocaleString('fr-FR')} 💎\n`;
           buttons.push(
             new ButtonBuilder()
@@ -255,78 +405,39 @@ async function distributeWithChecks(ranking, memberIndex, votesConfig, monthName
 
         dupMsg += `\nQue souhaitez-vous faire ?`;
 
-        if (adminChannel) {
-          await adminChannel.send({ content: dupMsg, components: rows });
+        if (adminChannel && !pending.notified) {
+          try {
+            await adminChannel.send({ content: dupMsg, components: rows });
+            pending.notified = true;
+            await savePendingSafely(pendingId, pending, player.playername);
+          } catch (err) { console.warn('[VOTES] Notification doublon impossible:', err.message); }
         }
       } else {
-        playerStatus[player.playername] = 'pending';
+        if (!playerStatus[player.playername]) playerStatus[player.playername] = 'pending';
       }
     } else {
-      // Distribuer les diamants directement dans l'inventaire Arki
       try {
-        await addToInventory(memberId, 'diamants', totalGain, 'system', `Votes ${monthName}`);
-        distributionResults.success++;
-        playerStatus[player.playername] = 'success';
-        distributionResults.inventoryResults.push({
-          playername: player.playername,
-          rankIdx,
-          type: 'diamants',
-          quantity: totalGain,
+        const credit = await creditVotePlayer({
+          memberId, playername: player.playername, votes: player.votes, rankIdx,
+          votesConfig, monthName, periodKey,
         });
-
-        // Top 1 à 5 : ajouter le pack spécial dans l'inventaire si configuré
-        if (rankIdx >= 1 && rankIdx <= 5) {
-          const packNames = [
-            'pack 1ere place vote', 'pack 2eme place vote', 'pack 3eme place vote',
-            'pack 4eme place vote', 'pack 5eme place vote',
-          ];
-          const configuredId = (votesConfig.VOTE_PACK_IDS || {})[rankIdx];
-          if (configuredId) {
-            let votePack = getSpecialPacks().packs.find(p => p.id === configuredId);
-            // Fallback : recherche par nom si l'ID ne correspond plus
-            if (!votePack) {
-              votePack = getSpecialPacks().packs.find(p =>
-                p.name.toLowerCase().replace(/[èéê]/g, 'e').replace(/[àâ]/g, 'a')
-                  === packNames[rankIdx - 1].replace(/[èéê]/g, 'e')
-              );
-            }
-            if (votePack) {
-              const packItems = votePack.items || [];
-              if (packItems.length > 0) {
-                for (const item of packItems) {
-                  await addToInventory(memberId, item.itemId, item.quantity, 'system', `${votePack.name} — Votes ${monthName}`);
-                }
-              } else {
-                // Fallback : aucun item dans le pack — crédite le pack brut
-                await addToInventory(memberId, votePack.id, 1, 'system', `${votePack.name} — Votes ${monthName}`);
-              }
-              distributionResults.inventoryResults.push({
-                playername: player.playername,
-                rankIdx,
-                type: 'pack',
-                packId: votePack.id,
-                packName: votePack.name,
-                itemsCount: packItems.length,
-              });
-            } else {
-              const ordinal = rankIdx === 1 ? '1ère' : `${rankIdx}ème`;
-              console.warn(`⚠️ [VOTES] Pack introuvable pour la ${ordinal} place (ID configuré: "${configuredId}")`);
-              if (adminChannel) {
-                await adminChannel.send(
-                  `⚠️ **Pack vote non distribué — ${ordinal} place**\n` +
-                  `Le joueur **${player.playername}** (<@${memberId}>) aurait dû recevoir le pack vote ${ordinal} place, mais aucun pack correspondant n'a été trouvé.\n` +
-                  `-# Vérifiez que le pack existe dans Packs spéciaux ou reconfigurez le dashboard → Récompenses → Packs vote.`
-                );
-              }
-              distributionResults.inventoryResults.push({
-                playername: player.playername,
-                rankIdx,
-                type: 'pack',
-                packId: null,
-                packName: packNames[rankIdx - 1],
-                notFound: true,
-              });
-            }
+        distributionResults.inventoryResults.push(...(credit.credits || []).map(c => ({ playername: player.playername, rankIdx, ...c })));
+        if (credit.status === 'success') {
+          distributionResults.success++;
+          playerStatus[player.playername] = 'success';
+        } else if (credit.status === 'partial') {
+          distributionResults.partial++;
+          playerStatus[player.playername] = 'partial';
+          distributionResults.errors.push({ playername: player.playername, userId: memberId, error: (credit.errors || []).join('; ') || 'Crédit partiel' });
+          if (adminChannel && credit.errors?.length) {
+            try { await adminChannel.send(`⚠️ Crédit vote partiel pour ${player.playername} : ${credit.errors.join('; ')}`); } catch (err) { console.warn('[VOTES] Notification crédit impossible:', err.message); }
+          }
+        } else {
+          distributionResults.failed++;
+          playerStatus[player.playername] = credit.status === 'partial' ? 'partial' : 'failed';
+          distributionResults.errors.push({ playername: player.playername, userId: memberId, error: (credit.errors || []).join('; ') || 'Crédit incomplet' });
+          if (adminChannel && credit.errors?.length) {
+            try { await adminChannel.send(`⚠️ Crédit vote ${player.playername} incomplet : ${credit.errors.join('; ')}`); } catch (err) { console.warn('[VOTES] Notification crédit impossible:', err.message); }
           }
         }
       } catch (err) {
@@ -354,7 +465,7 @@ function buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus
     const bonusDiamonds = votesConfig.TOP_DIAMONDS[rankIdx] || 0;
     const totalGain = totalDiamonds + bonusDiamonds;
     const status = playerStatus[player.playername];
-    const statusIcon = status === 'success' ? '✅' : status === 'pending' ? '⏳' : status === 'failed' ? '❌' : '⚠️';
+    const statusIcon = status === 'success' ? '✅' : status === 'pending' ? '⏳' : status === 'failed' ? '❌' : status === 'ignored' ? '⏭️' : status === 'merged' ? '🔗' : '⚠️';
     const memberId = resolvePlayer(memberIndex, player.playername);
     const mention = memberId ? `<@${memberId}>` : `\`${player.playername}\``;
 
@@ -371,14 +482,17 @@ function buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus
   msg += `\n`;
   const vals = Object.values(playerStatus);
   const sCount = vals.filter(s => s === 'success').length;
+  const mergedCount = vals.filter(s => s === 'merged').length;
   const pCount = vals.filter(s => s === 'pending').length;
   const fCount = vals.filter(s => s === 'failed').length;
   msg += `✅ ${sCount} distribué(s)`;
+  if (mergedCount > 0) msg += ` | 🔗 ${mergedCount} entrée(s) fusionnée(s) (crédit agrégé)`;
   if (pCount > 0) msg += ` | ⏳ ${pCount} en attente`;
+  if (Object.values(playerStatus).filter(s => s === 'partial').length > 0) msg += ` | ⚠️ ${Object.values(playerStatus).filter(s => s === 'partial').length} partiel(s)`;
   if (fCount > 0) msg += ` | ❌ ${fCount} échec(s)`;
 
   // Section dédiée aux joueurs non trouvés
-  const notFoundPlayers = ranking.filter(p => !resolvePlayer(memberIndex, p.playername));
+  const notFoundPlayers = ranking.filter(p => playerStatus[p.playername] === 'pending' && !resolvePlayer(memberIndex, p.playername));
   if (notFoundPlayers.length > 0) {
     msg += `\n\n⚠️ **${notFoundPlayers.length} joueur(s) non identifié(s) sur Discord — récompenses non envoyées :**\n`;
     for (const p of notFoundPlayers) {
@@ -400,23 +514,7 @@ function buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus
   return msg;
 }
 
-function getPreviousVotePeriod() {
-  const parts = new Intl.DateTimeFormat('fr-FR', {
-    timeZone: 'Europe/Paris',
-    year: 'numeric',
-    month: 'numeric',
-  }).formatToParts(new Date());
-  const currentMonth = parseInt(parts.find(p => p.type === 'month').value, 10);
-  const currentYear = parseInt(parts.find(p => p.type === 'year').value, 10);
-  const month = currentMonth === 1 ? 12 : currentMonth - 1;
-  const year = currentMonth === 1 ? currentYear - 1 : currentYear;
-  return {
-    year,
-    month,
-    monthIndex: month - 1,
-    key: `${year}-${String(month).padStart(2, '0')}`,
-  };
-}
+const getPreviousVotePeriod = getVoteRewardPeriod;
 
 let autoVotePublicationRunning = false;
 
@@ -428,8 +526,16 @@ async function autoPublishVotes() {
   autoVotePublicationRunning = true;
 
   try {
+    if (!pgStore.isPostgres()) throw new Error('Publication mensuelle indisponible : PostgreSQL requis (aucun stockage local de secours).');
+    await refreshVoteSources();
     const votesConfig = getVotesConfig();
     const votePeriod = getPreviousVotePeriod();
+    assertVoteRewardPeriod(votePeriod.key);
+    const lastPublished = await pgStore.getData('vote_last_publish', null, { throwOnError: true });
+    if (lastPublished === votePeriod.key) {
+      console.log(`⏭️ [AUTO-VOTES] La période ${votePeriod.key} est déjà publiée.`);
+      return;
+    }
     const guildId = votesConfig.GUILD_ID;
     if (!guildId) {
       console.error('❌ [AUTO-VOTES] GUILD_ID non configuré');
@@ -467,12 +573,13 @@ async function autoPublishVotes() {
     try { reportChannel = await client.channels.fetch(VOTE_REPORT_CHANNEL_ID); } catch (e) {
       console.warn('⚠️ [AUTO-VOTES] Salon de rapport introuvable:', VOTE_REPORT_CHANNEL_ID);
     }
-    const { distributionResults, playerStatus } = await distributeWithChecks(ranking, memberIndex, votesConfig, monthName, adminChannel);
+    const { distributionResults, playerStatus } = await distributeWithChecks(ranking, memberIndex, votesConfig, monthName, adminChannel, votePeriod.key);
 
     let resultsMessage = `# ${votesConfig.STYLE.fireworks} Résultats des votes de ${monthName} ${votesConfig.STYLE.fireworks}\n\n`;
     const msg = votesConfig.MESSAGE || {};
     resultsMessage += `${msg.introText || ''}\n\n`;
-    resultsMessage += `${votesConfig.STYLE.sparkly} ${msg.creditText || ''}\n\n`;
+    const creditSummary = summarizeVoteCredits(distributionResults);
+    resultsMessage += `${votesConfig.STYLE.sparkly} ${creditSummary}\n\n`;
 
     const top10 = ranking.slice(0, 10);
     for (let i = 0; i < top10.length; i++) {
@@ -480,7 +587,7 @@ async function autoPublishVotes() {
       const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
       const bonusDiamonds = votesConfig.TOP_DIAMONDS[i + 1] || 0;
       const status = playerStatus[player.playername];
-      const statusIcon = status === 'success' ? '' : status === 'failed' ? ' ❌' : ' ⚠️';
+      const statusIcon = status === 'success' ? '' : status === 'failed' ? ' ❌' : status === 'partial' ? ' ⚠️' : status === 'ignored' ? ' ⏭️' : status === 'merged' ? ' 🔗 (fusionné)' : ' ⏳';
 
       resultsMessage += `${votesConfig.STYLE.animeArrow} **${i + 1}** - **${player.playername}**${statusIcon}\n`;
       resultsMessage += `Votes : ${player.votes} | Gains : ${totalDiamonds.toLocaleString('fr-FR')} ${votesConfig.STYLE.sparkly}\n`;
@@ -542,9 +649,16 @@ async function autoPublishVotes() {
 
     const dinoTitle = msg.dinoTitle || 'DINO';
     const rouletteWheel = new RouletteWheel(top10.map(p => p.playername), dinoTitle);
-    const winningIndex = Math.floor(Math.random() * top10.length);
+    let shinyWinner;
+    try {
+      shinyWinner = await getOrCreateShinyWinner(votePeriod.key, top10);
+    } catch (err) {
+      try { await resultsChannel.send(`⚠️ Tirage Dino Shiny non finalisé (${votePeriod.key}) : ${err.message}. Aucune attribution n'est confirmée; la période sera réessayée.`); } catch (notifyErr) { console.warn('[DINO SHINY] État public du tirage impossible:', notifyErr.message); }
+      throw err;
+    }
+    const winningIndex = shinyWinner.index;
     const gifBuffer = await rouletteWheel.generateAnimatedGif(winningIndex);
-    const winningChoice = rouletteWheel.getWinningChoice(winningIndex);
+    const winningChoice = shinyWinner.playername || rouletteWheel.getWinningChoice(winningIndex);
     const attachment = new AttachmentBuilder(gifBuffer, { name: 'dino-shiny-roulette.gif' });
 
     if (resultsChannel) {
@@ -556,35 +670,44 @@ async function autoPublishVotes() {
         files: [attachment]
       });
 
-      const dinoWinText = msg.dinoWinText || 'Tu remportes le **Dino Shiny** du mois ! 🦖✨';
-      await resultsChannel.send(`${pingPrefix}## 🎉 Félicitations **${winningChoice}** !\n\n${dinoWinText}`);
+      await resultsChannel.send(`${pingPrefix}## 🎉 Le tirage désigne **${winningChoice}** !\n\nAttribution de la récompense en cours.`);
     }
 
     // Distribuer le Dino Shiny dans l'inventaire du gagnant
     const dinoShinyItemId = votesConfig.DINO_SHINY_ITEM_ID;
-    if (dinoShinyItemId) {
+    let shinyCreditSucceeded = false;
+    {
       const winnerMemberId = resolvePlayer(memberIndex, winningChoice);
       if (winnerMemberId) {
         try {
-          await addToInventory(winnerMemberId, dinoShinyItemId, 1, 'system', `Dino Shiny — Tirage votes ${monthName}`);
+          const shinyReceipt = await creditShiny({ periodKey: votePeriod.key, memberId: winnerMemberId, itemId: dinoShinyItemId, monthName });
+          shinyCreditSucceeded = true;
+          const creditedItems = (shinyReceipt.credits || []).map(item => `\`${item.itemTypeId} × ${item.quantity}\``).join(', ');
           console.log(`🦖 Dino Shiny (${dinoShinyItemId}) distribué à ${winnerMemberId} (${winningChoice})`);
+          if (resultsChannel) {
+            try {
+              const dinoWinText = msg.dinoWinText || 'Tu as reçu la récompense du tirage Dino Shiny ! 🦖✨';
+              const receiptText = creditedItems ? `Récompense créditée : ${creditedItems}.` : 'Récompense confirmée par le reçu idempotent.';
+              await resultsChannel.send(`## 🎉 Félicitations <@${winnerMemberId}> (**${winningChoice}**) !\n\n${receiptText}\n${dinoWinText}`);
+            } catch (notifyErr) { console.warn('[DINO SHINY] Notification gagnant impossible:', notifyErr.message); }
+          }
           if (reportChannel) {
-            await reportChannel.send(`🦖 **Dino Shiny distribué en inventaire !** → <@${winnerMemberId}> (\`${winningChoice}\`) a reçu \`${dinoShinyItemId}\`.`);
+            try { await reportChannel.send(`🦖 **Dino Shiny reçu en inventaire !** → <@${winnerMemberId}> (\`${winningChoice}\`) ${creditedItems || 'crédit confirmé par reçu idempotent'}.`); } catch (notifyErr) { console.warn('[DINO SHINY] Notification impossible:', notifyErr.message); }
           }
         } catch (err) {
           console.error('❌ [DINO SHINY] Erreur distribution inventaire:', err.message);
+          try { await resultsChannel.send(`⚠️ **Attribution Dino Shiny non confirmée** pour **${winningChoice}** : ${err.message}. La période reste à reprendre.`); } catch (notifyErr) { console.warn('[DINO SHINY] État public de crédit impossible:', notifyErr.message); }
           if (adminChannel) {
-            await adminChannel.send(`⚠️ **Dino Shiny non distribué** — Erreur : \`${err.message}\`\nGagnant : **${winningChoice}** (<@${winnerMemberId}>) — Ajoutez manuellement \`${dinoShinyItemId}\`.`);
+            try { await adminChannel.send(`⚠️ **Dino Shiny non distribué** — Erreur : \`${err.message}\`\nGagnant : **${winningChoice}** (<@${winnerMemberId}>) — Vérifiez et réessayez.`); } catch (notifyErr) { console.warn('[VOTES] Notification admin indisponible:', notifyErr.message); }
           }
         }
       } else {
         console.warn(`⚠️ [DINO SHINY] Gagnant "${winningChoice}" non trouvé dans Discord`);
+        try { await resultsChannel.send(`⚠️ **Attribution Dino Shiny en attente** : le gagnant **${winningChoice}** n'est pas relié à un membre Discord. La période reste à reprendre.`); } catch (notifyErr) { console.warn('[DINO SHINY] État public de crédit impossible:', notifyErr.message); }
         if (adminChannel) {
-          await adminChannel.send(`⚠️ **Dino Shiny non distribué** — Le gagnant **${winningChoice}** n'est pas identifié sur Discord.\nAjoutez manuellement \`${dinoShinyItemId}\` au bon membre.`);
+          try { await adminChannel.send(`⚠️ **Dino Shiny non distribué** — Le gagnant **${winningChoice}** n'est pas identifié sur Discord.\nVérifiez le mapping Discord avant de réessayer.`); } catch (notifyErr) { console.warn('[VOTES] Notification admin indisponible:', notifyErr.message); }
         }
       }
-    } else {
-      console.warn('⚠️ [DINO SHINY] Aucun item configuré (Dashboard → Récompenses → Item Dino Shiny)');
     }
 
     const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);
@@ -593,7 +716,7 @@ async function autoPublishVotes() {
     if (reportChannel) {
       const reportMsg = buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus, monthName, 'auto', distributionResults.errors);
       for (const chunk of splitMessage(reportMsg, 1900)) {
-        await reportChannel.send(chunk);
+        try { await reportChannel.send(chunk); } catch (notifyErr) { console.warn('[VOTES] Rapport indisponible:', notifyErr.message); }
       }
     }
 
@@ -601,6 +724,7 @@ async function autoPublishVotes() {
     let adminMessage = `📊 **Rapport admin — ${monthName}**\n\n`;
     adminMessage += `🕐 *Publication automatique du 1er du mois*\n\n`;
     adminMessage += `💎 **Inventaire Arki :** ${distributionResults.success} distribué(s)`;
+    if (distributionResults.partial > 0) adminMessage += `, ${distributionResults.partial} partiel(s)`;
     if (distributionResults.failed > 0) adminMessage += `, ${distributionResults.failed} échec(s)`;
     adminMessage += `\n📦 **Crédits inventaire :** ${distributionResults.inventoryResults.length} élément(s)\n`;
     if (distributionResults.pendingDuplicates > 0) {
@@ -614,12 +738,18 @@ async function autoPublishVotes() {
     }
 
     if (adminChannel) {
-      await adminChannel.send(adminMessage);
+      try { await adminChannel.send(adminMessage); } catch (notifyErr) { console.warn('[VOTES] Rapport admin indisponible:', notifyErr.message); }
     }
 
-    // Marquer la publication pour éviter les doublons (rattrapage au redémarrage)
-    const pubKey = votePeriod.key;
-    try { await pgStore.setData('vote_last_publish', pubKey); } catch {}
+    // Un état incomplet reste réessayable; les crédits individuels sont idempotents.
+    const creditsComplete = distributionResults.failed === 0 && distributionResults.partial === 0 &&
+      distributionResults.pendingDuplicates === 0 && distributionResults.pendingNotFound === 0;
+    if (creditsComplete && shinyCreditSucceeded) {
+      const stored = await pgStore.setData('vote_last_publish', votePeriod.key);
+      if (stored === false) throw new Error('Échec de persistance du marqueur vote_last_publish.');
+    } else {
+      console.warn(`[AUTO-VOTES] ${votePeriod.key} non marqué comme publié (crédits/pending/shiny incomplets).`);
+    }
 
     console.log(`✅ [AUTO-VOTES] Résultats publiés automatiquement - ${distributionResults.success} récompensés, ${distributionResults.notFound.length} non trouvés`);
 
@@ -640,6 +770,18 @@ client.once('clientReady', async () => {
     await initSpawnTickets(client);
     await initShopOrders(client);
     await initReclaimTickets(client);
+  }
+  try {
+    const restoredPending = await loadPending();
+    if (restoredPending instanceof Map) {
+      for (const [id, pending] of restoredPending) pendingDistributions.set(id, pending);
+    } else if (Array.isArray(restoredPending)) {
+      for (const row of restoredPending) if (row?.id && row.pending) pendingDistributions.set(row.id, row.pending);
+    } else if (restoredPending && typeof restoredPending === 'object') {
+      for (const [id, pending] of Object.entries(restoredPending)) pendingDistributions.set(id, pending);
+    }
+  } catch (error) {
+    console.error('[VOTES] Restauration des distributions en attente impossible:', error.message);
   }
   await initConfig();
   await initSettings();
@@ -758,15 +900,20 @@ client.once('clientReady', async () => {
 
   // ─── Rattrapage au démarrage ─────────────────────────────────────────────
   // Un redémarrage peut arriver n'importe quel jour du mois. Si la période
-  // précédente n'est pas marquée comme publiée, on retente après le démarrage.
+  // précédente n'est pas marquée comme publiée, on retente après le démarrage,
+  // sauf les cycles historiques déjà exécutés avant l'activation des reçus.
   try {
     const expectedKey = getPreviousVotePeriod().key;
-    const lastPublish = await pgStore.getData('vote_last_publish', null);
-    if (lastPublish !== expectedKey) {
-      console.log(`⚡ [RATTRAPAGE] Publication des votes ${expectedKey} manquante — nouvelle tentative dans 30s...`);
-      setTimeout(() => autoPublishVotes(), 30 * 1000);
+    if (expectedKey < MINIMUM_VOTE_REWARD_PERIOD) {
+      console.log(`⏭️ [RATTRAPAGE] Votes ${expectedKey} historiques : reprise désactivée. Protections actives à partir de ${MINIMUM_VOTE_REWARD_PERIOD}.`);
     } else {
-      console.log(`✅ [RATTRAPAGE] Votes ${expectedKey} déjà publiés, aucun rattrapage nécessaire.`);
+      const lastPublish = await pgStore.getData('vote_last_publish', null, { throwOnError: true });
+      if (lastPublish !== expectedKey) {
+        console.log(`⚡ [RATTRAPAGE] Publication des votes ${expectedKey} manquante — nouvelle tentative dans 30s...`);
+        setTimeout(() => autoPublishVotes(), 30 * 1000);
+      } else {
+        console.log(`✅ [RATTRAPAGE] Votes ${expectedKey} déjà publiés, aucun rattrapage nécessaire.`);
+      }
     }
   } catch (e) {
     console.warn('[RATTRAPAGE] Vérification échouée:', e.message);
@@ -1606,87 +1753,108 @@ client.on('interactionCreate', async interaction => {
       const choiceIdx = parseInt(parts.pop(), 10);
       const pendingId = parts.join('_');
       const pending = pendingDistributions.get(pendingId);
-      if (!pending || pending.resolved) {
+      if (!pending || pending.resolved || pending.resolving || pending.distributing) {
         return interaction.reply({ content: '❌ Cette demande a déjà été traitée.', ephemeral: true });
       }
-      pending.resolved = true;
       const chosen = pending.entries[choiceIdx];
-      let statusText;
+      if (!chosen) return interaction.reply({ content: '❌ Choix invalide.', ephemeral: true });
+      pending.resolving = true;
+      pending.distributing = true;
       try {
-        await addToInventory(pending.memberId, 'diamants', chosen.totalGain, 'system', `Votes ${pending.monthName}`);
-        statusText = '✅ Ajouté à l\'inventaire';
+        await interaction.deferUpdate();
+        const result = await creditPendingVote(pending, pending.memberId, 'keep', choiceIdx);
+        if (result.status !== 'success') throw new Error((result.errors || []).join('; ') || 'Crédit incomplet');
+        await resolvePendingVote(pendingId, pending, 'keep', pending.memberId, result, choiceIdx);
+        await tryPendingReply(interaction, { content: `## ✅ Doublon résolu\n\n<@${pending.memberId}> — Entrée retenue : **"${chosen.playername}"** (${chosen.votes} votes)\nRécompenses créditées.`, components: [] });
       } catch (err) {
-        statusText = `❌ Échec : ${err.message}`;
+        pending.resolved = false;
+        pending.resolving = false;
+        pending.distributing = false;
+        await persistPendingState(pendingId, pending).catch(() => {});
+        const message = pending.creditResult?.status === 'success'
+          ? `⚠️ Crédit enregistré, mais la décision finale doit être enregistrée/confirmée; réessayez ce même choix.\n${err.message}`
+          : `⚠️ Crédit incomplet — vous pouvez réessayer.\n${err.message}`;
+        await tryPendingReply(interaction, { content: message, components: interaction.message.components });
       }
-      await interaction.update({
-        content: `## ✅ Doublon résolu\n\n<@${pending.memberId}> — Entrée retenue : **"${chosen.playername}"** (${chosen.votes} votes)\n${statusText} : **${chosen.totalGain.toLocaleString('fr-FR')}** 💎`,
-        components: [],
-      });
       return;
     }
 
     if (interaction.customId.startsWith('vote_dupmerge_')) {
       const pendingId = interaction.customId.replace('vote_dupmerge_', '');
       const pending = pendingDistributions.get(pendingId);
-      if (!pending || pending.resolved) {
+      if (!pending || pending.resolved || pending.resolving || pending.distributing) {
         return interaction.reply({ content: '❌ Cette demande a déjà été traitée.', ephemeral: true });
       }
-      pending.resolved = true;
+      pending.resolving = true;
+      pending.distributing = true;
       const totalVotes = pending.entries.reduce((s, e) => s + e.votes, 0);
-      const votesConfig = getVotesConfig();
-      const bestRank = Math.min(...pending.entries.map(e => e.rankIdx));
-      const totalDiamonds = totalVotes * votesConfig.DIAMONDS_PER_VOTE;
-      const bonusDiamonds = votesConfig.TOP_DIAMONDS[bestRank] || 0;
-      const totalGain = totalDiamonds + bonusDiamonds;
-      let statusText;
       try {
-        await addToInventory(pending.memberId, 'diamants', totalGain, 'system', `Votes ${pending.monthName} (fusionné)`);
-        statusText = '✅ Ajouté à l\'inventaire';
+        await interaction.deferUpdate();
+        const result = await creditPendingVote(pending, pending.memberId, 'merge');
+        if (result.status !== 'success') throw new Error((result.errors || []).join('; ') || 'Crédit incomplet');
+        await resolvePendingVote(pendingId, pending, 'merge', pending.memberId, result);
+        const names = pending.entries.map(e => `"${e.playername}"`).join(' + ');
+        await tryPendingReply(interaction, { content: `## ✅ Doublon fusionné\n\n<@${pending.memberId}> — ${names} fusionnés\nTotal : **${totalVotes} votes** — toutes les récompenses ont été créditées.`, components: [] });
       } catch (err) {
-        statusText = `❌ Échec : ${err.message}`;
+        pending.resolved = false;
+        pending.resolving = false;
+        pending.distributing = false;
+        await persistPendingState(pendingId, pending).catch(() => {});
+        const message = pending.creditResult?.status === 'success'
+          ? `⚠️ Crédit enregistré, mais la décision finale doit être enregistrée/confirmée; réessayez la même décision.\n${err.message}`
+          : `⚠️ Crédit incomplet — vous pouvez réessayer.\n${err.message}`;
+        await tryPendingReply(interaction, { content: message, components: interaction.message.components });
       }
-      const names = pending.entries.map(e => `"${e.playername}"`).join(' + ');
-      await interaction.update({
-        content: `## ✅ Doublon fusionné\n\n<@${pending.memberId}> — ${names} fusionnés\nTotal : **${totalVotes} votes** → ${statusText} : **${totalGain.toLocaleString('fr-FR')}** 💎`,
-        components: [],
-      });
       return;
     }
 
     if (interaction.customId.startsWith('vote_dupall_')) {
       const pendingId = interaction.customId.replace('vote_dupall_', '');
       const pending = pendingDistributions.get(pendingId);
-      if (!pending || pending.resolved) {
+      if (!pending || pending.resolved || pending.resolving || pending.distributing) {
         return interaction.reply({ content: '❌ Cette demande a déjà été traitée.', ephemeral: true });
       }
-      pending.resolved = true;
-      let totalDistributed = 0;
-      let allSuccess = true;
-      for (const entry of pending.entries) {
-        try {
-          await addToInventory(pending.memberId, 'diamants', entry.totalGain, 'system', `Votes ${pending.monthName} (${entry.playername})`);
-          totalDistributed += entry.totalGain;
-        } catch (err) {
-          allSuccess = false;
-        }
+      pending.resolving = true;
+      pending.distributing = true;
+      try {
+        await interaction.deferUpdate();
+        const result = await creditPendingVote(pending, pending.memberId, 'all');
+        if (result.status !== 'success') throw new Error((result.errors || []).join('; ') || 'Crédit incomplet');
+        await resolvePendingVote(pendingId, pending, 'all', pending.memberId, result);
+        await tryPendingReply(interaction, { content: `## ✅ Doublon — distribution complète\n\n<@${pending.memberId}> — toutes les entrées et récompenses ont été créditées.`, components: [] });
+      } catch (err) {
+        pending.resolved = false;
+        pending.resolving = false;
+        pending.distributing = false;
+        await persistPendingState(pendingId, pending).catch(() => {});
+        const message = pending.creditResult?.status === 'success'
+          ? `⚠️ Crédit enregistré, mais la décision finale doit être enregistrée/confirmée; réessayez la même décision.\n${err.message}`
+          : `⚠️ Crédit incomplet — vous pouvez réessayer.\n${err.message}`;
+        await tryPendingReply(interaction, { content: message, components: interaction.message.components });
       }
-      const names = pending.entries.map(e => `"${e.playername}" (${e.totalGain.toLocaleString('fr-FR')} 💎)`).join(' + ');
-      const statusText = allSuccess ? '✅ Tout ajouté à l\'inventaire' : '⚠️ Distribution partielle';
-      await interaction.update({
-        content: `## ✅ Doublon — distribution complète\n\n<@${pending.memberId}> — ${names}\n${statusText} : **${totalDistributed.toLocaleString('fr-FR')}** 💎 au total`,
-        components: [],
-      });
       return;
     }
 
     if (interaction.customId.startsWith('vote_ignore_')) {
       const pendingId = interaction.customId.replace('vote_ignore_', '');
       const pending = pendingDistributions.get(pendingId);
-      if (!pending || pending.resolved) {
+      if (!pending || pending.resolved || pending.resolving || pending.distributing) {
         return interaction.reply({ content: '❌ Cette demande a déjà été traitée.', ephemeral: true });
       }
-      pending.resolved = true;
-      await interaction.update({
+      pending.resolving = true;
+      pending.distributing = true;
+      try {
+        await interaction.deferUpdate();
+        await resolvePendingVote(pendingId, pending, 'ignore', null, { status: 'ignored', credits: [], errors: [] });
+      } catch (err) {
+        pending.resolved = false;
+        pending.resolving = false;
+        pending.distributing = false;
+        await persistPendingState(pendingId, pending).catch(() => {});
+        await tryPendingReply(interaction, { content: `⚠️ Impossible d'enregistrer cette décision; réessayez.\n${err.message}`, components: interaction.message.components });
+        return;
+      }
+      await tryPendingReply(interaction, {
         content: `## ⏭️ Ignoré\n\n**${pending.playername}** — ${pending.votes} votes — ${pending.totalGain.toLocaleString('fr-FR')} 💎\n*Aucune distribution effectuée.*`,
         components: [],
       });
@@ -1696,7 +1864,7 @@ client.on('interactionCreate', async interaction => {
     if (interaction.customId.startsWith('vote_assign_')) {
       const pendingId = interaction.customId.replace('vote_assign_', '');
       const pending = pendingDistributions.get(pendingId);
-      if (!pending || pending.resolved) {
+      if (!pending || pending.resolved || pending.resolving || pending.distributing) {
         return interaction.reply({ content: '❌ Cette demande a déjà été traitée.', ephemeral: true });
       }
       const { UserSelectMenuBuilder } = require('discord.js');
@@ -1721,22 +1889,28 @@ client.on('interactionCreate', async interaction => {
       }
       const pendingId = interaction.customId.replace('vote_assignuser_', '');
       const pending = pendingDistributions.get(pendingId);
-      if (!pending || pending.resolved) {
+      if (!pending || pending.resolved || pending.resolving || pending.distributing) {
         return interaction.reply({ content: '❌ Cette demande a déjà été traitée.', ephemeral: true });
       }
-      pending.resolved = true;
       const selectedUserId = interaction.values[0];
-      let statusText;
+      pending.resolving = true;
+      pending.distributing = true;
       try {
-        await addToInventory(selectedUserId, 'diamants', pending.totalGain, 'system', `Votes ${pending.monthName} (${pending.playername})`);
-        statusText = '✅ Ajouté à l\'inventaire';
+        await interaction.deferUpdate();
+        const result = await creditPendingVote(pending, selectedUserId, 'assign');
+        if (result.status !== 'success') throw new Error((result.errors || []).join('; ') || 'Crédit incomplet');
+        await resolvePendingVote(pendingId, pending, 'assign', selectedUserId, result);
+        await tryPendingReply(interaction, { content: `## ✅ Joueur attribué\n\n**${pending.playername}** → <@${selectedUserId}>\nRécompenses créditées.`, components: [] });
       } catch (err) {
-        statusText = `❌ Échec : ${err.message}`;
+        pending.resolved = false;
+        pending.resolving = false;
+        pending.distributing = false;
+        await persistPendingState(pendingId, pending).catch(() => {});
+        const message = pending.creditResult?.status === 'success'
+          ? `⚠️ Crédit enregistré, mais la décision finale doit être enregistrée/confirmée; réessayez le même membre.\n${err.message}`
+          : `⚠️ Crédit incomplet — vous pouvez réessayer.\n${err.message}`;
+        await tryPendingReply(interaction, { content: message, components: interaction.message.components });
       }
-      await interaction.update({
-        content: `## ✅ Joueur attribué\n\n**${pending.playername}** → <@${selectedUserId}>\n${statusText} : **${pending.totalGain.toLocaleString('fr-FR')}** 💎`,
-        components: [],
-      });
       return;
     }
   }
@@ -2811,7 +2985,15 @@ client.on('interactionCreate', async interaction => {
     await interaction.deferReply();
 
     try {
+      if (!pgStore.isPostgres()) throw new Error('Publication des votes indisponible : PostgreSQL requis.');
+      await refreshVoteSources();
       const votesConfig = getVotesConfig();
+      const votePeriod = getPreviousVotePeriod();
+      assertVoteRewardPeriod(votePeriod.key);
+      const lastPublished = await pgStore.getData('vote_last_publish', null, { throwOnError: true });
+      if (lastPublished === votePeriod.key) {
+        return interaction.editReply({ content: `❌ La période ${votePeriod.key} est déjà marquée comme publiée.` });
+      }
       const ranking = await fetchTopserveursRanking(votesConfig.TOPSERVEURS_RANKING_URL);
       
       if (ranking.length === 0) {
@@ -2823,10 +3005,11 @@ client.on('interactionCreate', async interaction => {
       const guild = interaction.guild;
       const memberIndex = await buildMemberIndex(guild);
 
-      const now = new Date();
-      const lastMonthIdx = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
       const moisOverride = interaction.options.getString('mois');
-      const monthName = moisOverride ? moisOverride.toUpperCase().trim() : monthNameFr(lastMonthIdx);
+      const monthName = monthNameFr(votePeriod.monthIndex);
+      if (moisOverride && moisOverride.toUpperCase().trim() !== monthName.toUpperCase()) {
+        return interaction.editReply({ content: `❌ Le classement TopServeurs courant correspond uniquement à ${monthName} ${votePeriod.year}; impossible de le publier sous un autre mois historique.` });
+      }
 
       let adminChannel = null;
       try {
@@ -2838,12 +3021,12 @@ client.on('interactionCreate', async interaction => {
       try { reportChannel = await client.channels.fetch(VOTE_REPORT_CHANNEL_ID); } catch (e) {
         console.warn('⚠️ [VOTES] Salon de rapport introuvable:', VOTE_REPORT_CHANNEL_ID);
       }
-      const { distributionResults, playerStatus } = await distributeWithChecks(ranking, memberIndex, votesConfig, monthName, adminChannel);
+      const { distributionResults, playerStatus } = await distributeWithChecks(ranking, memberIndex, votesConfig, monthName, adminChannel, votePeriod.key);
 
       let resultsMessage = `# ${votesConfig.STYLE.fireworks} Résultats des votes de ${monthName} ${votesConfig.STYLE.fireworks}\n\n`;
       const msg = votesConfig.MESSAGE || {};
       resultsMessage += `${msg.introText || ''}\n\n`;
-      resultsMessage += `${votesConfig.STYLE.sparkly} ${msg.creditText || ''}\n\n`;
+      resultsMessage += `${votesConfig.STYLE.sparkly} ${summarizeVoteCredits(distributionResults)}\n\n`;
 
       const top10 = ranking.slice(0, 10);
       for (let i = 0; i < top10.length; i++) {
@@ -2851,7 +3034,7 @@ client.on('interactionCreate', async interaction => {
         const totalDiamonds = player.votes * votesConfig.DIAMONDS_PER_VOTE;
         const bonusDiamonds = votesConfig.TOP_DIAMONDS[i + 1] || 0;
         const status = playerStatus[player.playername];
-        const statusIcon = status === 'success' ? '' : status === 'pending' ? ' ⏳' : status === 'failed' ? ' ❌' : ' ⚠️';
+        const statusIcon = status === 'success' ? '' : status === 'pending' ? ' ⏳' : status === 'failed' ? ' ❌' : status === 'ignored' ? ' ⏭️' : status === 'merged' ? ' 🔗 (fusionné)' : status === 'partial' ? ' ⚠️' : ' ⚠️';
         
         resultsMessage += `${votesConfig.STYLE.animeArrow} **${i + 1}** - **${player.playername}**${statusIcon}\n`;
         resultsMessage += `Votes : ${player.votes} | Gains : ${totalDiamonds.toLocaleString('fr-FR')} ${votesConfig.STYLE.sparkly}\n`;
@@ -2894,6 +3077,9 @@ client.on('interactionCreate', async interaction => {
       } catch (e) {
         console.error('❌ [VOTES] Salon de résultats introuvable:', votesConfig.RESULTS_CHANNEL_ID, e.message);
       }
+      if (!resultsChannel?.isSendable?.()) {
+        throw new Error(`Salon de résultats indisponible ou non accessible : ${votesConfig.RESULTS_CHANNEL_ID || '(non configuré)'}`);
+      }
       if (resultsChannel) {
         const pingPrefix = votesConfig.STYLE.everyonePing ? '|| @everyone ||\n' : '';
         if (fs.existsSync(VOTE_BANNER_PATH)) {
@@ -2909,9 +3095,16 @@ client.on('interactionCreate', async interaction => {
 
       const dinoTitle = msg.dinoTitle || 'DINO';
       const rouletteWheel = new RouletteWheel(top10.map(p => p.playername), dinoTitle);
-      const winningIndex = Math.floor(Math.random() * top10.length);
+      let shinyWinner;
+      try {
+        shinyWinner = await getOrCreateShinyWinner(votePeriod.key, top10);
+      } catch (err) {
+        try { await resultsChannel.send(`⚠️ Tirage Dino Shiny non finalisé (${votePeriod.key}) : ${err.message}. Aucune attribution n'est confirmée; la période sera réessayée.`); } catch (notifyErr) { console.warn('[DINO SHINY] État public du tirage impossible:', notifyErr.message); }
+        throw err;
+      }
+      const winningIndex = shinyWinner.index;
       const gifBuffer = await rouletteWheel.generateAnimatedGif(winningIndex);
-      const winningChoice = rouletteWheel.getWinningChoice(winningIndex);
+      const winningChoice = shinyWinner.playername || rouletteWheel.getWinningChoice(winningIndex);
       const attachment = new AttachmentBuilder(gifBuffer, { name: 'dino-shiny-roulette.gif' });
 
       if (resultsChannel) {
@@ -2923,35 +3116,44 @@ client.on('interactionCreate', async interaction => {
           files: [attachment]
         });
 
-        const dinoWinText = msg.dinoWinText || 'Tu remportes le **Dino Shiny** du mois ! 🦖✨';
-        await resultsChannel.send(`${pingPrefix}## 🎉 Félicitations **${winningChoice}** !\n\n${dinoWinText}`);
+        await resultsChannel.send(`${pingPrefix}## 🎉 Le tirage désigne **${winningChoice}** !\n\nAttribution de la récompense en cours.`);
       }
 
       // Distribuer le Dino Shiny dans l'inventaire du gagnant
       const dinoShinyItemId = votesConfig.DINO_SHINY_ITEM_ID;
-      if (dinoShinyItemId) {
+      let shinyCreditSucceeded = false;
+      {
         const winnerMemberId = resolvePlayer(memberIndex, winningChoice);
         if (winnerMemberId) {
           try {
-            await addToInventory(winnerMemberId, dinoShinyItemId, 1, 'system', `Dino Shiny — Tirage votes ${monthName}`);
+            const shinyReceipt = await creditShiny({ periodKey: votePeriod.key, memberId: winnerMemberId, itemId: dinoShinyItemId, monthName });
+            shinyCreditSucceeded = true;
+            const creditedItems = (shinyReceipt.credits || []).map(item => `\`${item.itemTypeId} × ${item.quantity}\``).join(', ');
             console.log(`🦖 Dino Shiny (${dinoShinyItemId}) distribué à ${winnerMemberId} (${winningChoice})`);
+            if (resultsChannel) {
+              try {
+                const dinoWinText = msg.dinoWinText || 'Tu as reçu la récompense du tirage Dino Shiny ! 🦖✨';
+                const receiptText = creditedItems ? `Récompense créditée : ${creditedItems}.` : 'Récompense confirmée par le reçu idempotent.';
+                await resultsChannel.send(`## 🎉 Félicitations <@${winnerMemberId}> (**${winningChoice}**) !\n\n${receiptText}\n${dinoWinText}`);
+              } catch (notifyErr) { console.warn('[DINO SHINY] Notification gagnant impossible:', notifyErr.message); }
+            }
             if (reportChannel) {
-              await reportChannel.send(`🦖 **Dino Shiny distribué en inventaire !** → <@${winnerMemberId}> (\`${winningChoice}\`) a reçu \`${dinoShinyItemId}\`.`);
+              try { await reportChannel.send(`🦖 **Dino Shiny reçu en inventaire !** → <@${winnerMemberId}> (\`${winningChoice}\`) ${creditedItems || 'crédit confirmé par reçu idempotent'}.`); } catch (notifyErr) { console.warn('[DINO SHINY] Notification impossible:', notifyErr.message); }
             }
           } catch (err) {
             console.error('❌ [DINO SHINY] Erreur distribution inventaire:', err.message);
+            try { await resultsChannel.send(`⚠️ **Attribution Dino Shiny non confirmée** pour **${winningChoice}** : ${err.message}. La période reste à reprendre.`); } catch (notifyErr) { console.warn('[DINO SHINY] État public de crédit impossible:', notifyErr.message); }
             if (adminChannel) {
-              await adminChannel.send(`⚠️ **Dino Shiny non distribué** — Erreur : \`${err.message}\`\nGagnant : **${winningChoice}** (<@${winnerMemberId}>) — Ajoutez manuellement \`${dinoShinyItemId}\`.`);
+              try { await adminChannel.send(`⚠️ **Dino Shiny non distribué** — Erreur : \`${err.message}\`\nGagnant : **${winningChoice}** (<@${winnerMemberId}>).`); } catch (notifyErr) { console.warn('[VOTES] Notification admin indisponible:', notifyErr.message); }
             }
           }
         } else {
           console.warn(`⚠️ [DINO SHINY] Gagnant "${winningChoice}" non trouvé dans Discord`);
+          try { await resultsChannel.send(`⚠️ **Attribution Dino Shiny en attente** : le gagnant **${winningChoice}** n'est pas relié à un membre Discord. La période reste à reprendre.`); } catch (notifyErr) { console.warn('[DINO SHINY] État public de crédit impossible:', notifyErr.message); }
           if (adminChannel) {
-            await adminChannel.send(`⚠️ **Dino Shiny non distribué** — Le gagnant **${winningChoice}** n'est pas identifié sur Discord.\nAjoutez manuellement \`${dinoShinyItemId}\` au bon membre.`);
+            try { await adminChannel.send(`⚠️ **Dino Shiny non distribué** — Le gagnant **${winningChoice}** n'est pas identifié sur Discord.`); } catch (notifyErr) { console.warn('[VOTES] Notification admin indisponible:', notifyErr.message); }
           }
         }
-      } else {
-        console.warn('⚠️ [DINO SHINY] Aucun item configuré (Dashboard → Récompenses → Item Dino Shiny)');
       }
 
       const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);
@@ -2960,13 +3162,14 @@ client.on('interactionCreate', async interaction => {
       if (reportChannel) {
         const reportMsg = buildDistributionReport(ranking, memberIndex, votesConfig, playerStatus, monthName, 'manual', distributionResults.errors);
         for (const chunk of splitMessage(reportMsg, 1900)) {
-          await reportChannel.send(chunk);
+          try { await reportChannel.send(chunk); } catch (notifyErr) { console.warn('[VOTES] Rapport indisponible:', notifyErr.message); }
         }
       }
 
       // Message admin (doublons, non trouvés, commandes DraftBot)
       let adminMessage = `📊 **Rapport admin — ${monthName}**\n\n`;
       adminMessage += `💎 **Inventaire Arki :** ${distributionResults.success} distribué(s)`;
+      if (distributionResults.partial > 0) adminMessage += `, ${distributionResults.partial} partiel(s)`;
       if (distributionResults.failed > 0) adminMessage += `, ${distributionResults.failed} échec(s)`;
       adminMessage += `\n📦 **Crédits inventaire :** ${distributionResults.inventoryResults.length} élément(s)\n`;
       if (distributionResults.pendingDuplicates > 0) {
@@ -2980,10 +3183,18 @@ client.on('interactionCreate', async interaction => {
       }
 
       if (adminChannel) {
-        await adminChannel.send(adminMessage);
+        try { await adminChannel.send(adminMessage); } catch (notifyErr) { console.warn('[VOTES] Rapport admin indisponible:', notifyErr.message); }
       }
 
-      let replyText = `✅ Résultats publiés dans <#${votesConfig.RESULTS_CHANNEL_ID}> | 📊 Rapport dans <#${VOTE_REPORT_CHANNEL_ID}>`;
+      let replyText = `📊 ${summarizeVoteCredits(distributionResults)} | Résultats : <#${votesConfig.RESULTS_CHANNEL_ID}>`;
+      const creditsComplete = distributionResults.failed === 0 && distributionResults.partial === 0 &&
+        distributionResults.pendingDuplicates === 0 && distributionResults.pendingNotFound === 0;
+      if (creditsComplete && shinyCreditSucceeded) {
+        const stored = await pgStore.setData('vote_last_publish', votePeriod.key);
+        if (!stored) throw new Error('Échec de persistance du marqueur vote_last_publish.');
+      } else {
+        replyText += ' — période non finalisée : crédits en attente/échec ou Dino Shiny non crédité.';
+      }
       if (distributionResults.pendingDuplicates > 0 || distributionResults.pendingNotFound > 0) {
         replyText += ` | ⏳ ${distributionResults.pendingDuplicates + distributionResults.pendingNotFound} distribution(s) en attente dans <#${votesConfig.ADMIN_LOG_CHANNEL_ID}>`;
       }
@@ -2993,7 +3204,7 @@ client.on('interactionCreate', async interaction => {
     } catch (error) {
       console.error('Erreur lors de la publication des votes:', error);
       await interaction.editReply({
-        content: '❌ Une erreur est survenue lors de la publication des résultats.',
+        content: `❌ Publication interrompue : ${error.message || 'erreur inconnue'}`,
       });
     }
   }
@@ -3020,6 +3231,14 @@ client.on('interactionCreate', async interaction => {
 
       const guild = interaction.guild;
       const memberIndex = await buildMemberIndex(guild);
+      const preflight = simulateVoteDistribution(ranking, memberIndex, votesConfig, resolvePlayer);
+      const previewLines = preflight.players.slice(0, 20).map(p =>
+        `${p.status === 'ready' ? '✅' : '⚠️'} ${p.playername} (#${p.rankIdx}) — ${p.memberId ? `<@${p.memberId}>` : 'non trouvé'}${p.errors.length ? ` : ${p.errors.join('; ')}` : ''}`
+      );
+      const configErrors = preflight.errors.length ? `\n\nConfiguration : ${preflight.errors.join('; ')}` : '';
+      return interaction.editReply({
+        content: `🔎 **Prévol privé — aucune récompense distribuée, aucun message public envoyé.**\n${preflight.players.length} entrée(s), ${preflight.players.filter(p => p.status === 'ready').length} prêtes, ${preflight.players.filter(p => p.status !== 'ready').length} à vérifier.\n${previewLines.join('\n')}${preflight.players.length > 20 ? '\n…' : ''}${configErrors}`.slice(0, 1900),
+      });
 
       const now = new Date();
       const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
@@ -3144,6 +3363,8 @@ client.on('interactionCreate', async interaction => {
     await interaction.deferReply();
 
     try {
+      if (!pgStore.isPostgres()) throw new Error('La publication des récompenses votes nécessite PostgreSQL.');
+      await refreshVoteSources();
       const votesConfig = getVotesConfig();
       const ranking = await fetchTopserveursRanking(votesConfig.TOPSERVEURS_RANKING_URL);
 
@@ -3156,12 +3377,14 @@ client.on('interactionCreate', async interaction => {
       const guild = interaction.guild;
       const memberIndex = await buildMemberIndex(guild);
 
-      const now = new Date();
-      const lastMonthIdx = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+      const votePeriod = getPreviousVotePeriod();
       const moisOverride = interaction.options.getString('mois');
-      const monthName = moisOverride ? moisOverride.toUpperCase().trim() : monthNameFr(lastMonthIdx);
+      const monthName = monthNameFr(votePeriod.monthIndex);
+      if (moisOverride && moisOverride.toUpperCase().trim() !== monthName.toUpperCase()) {
+        return interaction.editReply({ content: `❌ Le classement TopServeurs courant correspond uniquement à ${monthName} ${votePeriod.year}; impossible de l'étiqueter comme un autre mois historique.` });
+      }
 
-      let listMessage = `@here\n# 📋 Liste complète des votes de ${monthName}\n\n`;
+      let listMessage = `@here\n# 📋 Liste complète des votes de ${monthName}\n\n**Récompenses prévues — cette liste n'indique pas des crédits déjà effectués.**\n\n`;
 
       for (let i = 0; i < ranking.length; i++) {
         const player = ranking[i];
@@ -3219,7 +3442,7 @@ client.on('interactionCreate', async interaction => {
     } catch (error) {
       console.error('Erreur lors de la publication de la liste des votes:', error);
       await interaction.editReply({
-        content: '❌ Une erreur est survenue.',
+        content: `❌ Publication interrompue : ${error.message || 'erreur inconnue'}`,
       });
     }
   }
@@ -3311,7 +3534,15 @@ client.on('interactionCreate', async interaction => {
     await interaction.deferReply();
 
     try {
+      if (!pgStore.isPostgres()) throw new Error('La distribution votes nécessite PostgreSQL.');
+      await refreshVoteSources();
       const votesConfig = getVotesConfig();
+      const votePeriod = getPreviousVotePeriod();
+      assertVoteRewardPeriod(votePeriod.key);
+      const lastPublished = await pgStore.getData('vote_last_publish', null, { throwOnError: true });
+      if (lastPublished === votePeriod.key) {
+        return interaction.editReply({ content: `❌ La période ${votePeriod.key} est déjà marquée comme publiée.` });
+      }
       const ranking = await fetchTopserveursRanking(votesConfig.TOPSERVEURS_RANKING_URL);
       
       if (ranking.length === 0) {
@@ -3323,10 +3554,11 @@ client.on('interactionCreate', async interaction => {
       const guild = interaction.guild;
       const memberIndex = await buildMemberIndex(guild);
 
-      const now = new Date();
-      const lastMonthIdx = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
       const moisOverride = interaction.options.getString('mois');
-      const monthName = moisOverride ? moisOverride.toUpperCase().trim() : monthNameFr(lastMonthIdx);
+      const monthName = monthNameFr(votePeriod.monthIndex);
+      if (moisOverride && moisOverride.toUpperCase().trim() !== monthName.toUpperCase()) {
+        return interaction.editReply({ content: `❌ Le classement TopServeurs courant correspond uniquement à ${monthName} ${votePeriod.year}; impossible de créditer un autre mois historique.` });
+      }
 
       let adminChannel = null;
       try {
@@ -3334,13 +3566,14 @@ client.on('interactionCreate', async interaction => {
       } catch (e) {
         console.warn('⚠️ [VOTES] Salon admin introuvable:', votesConfig.ADMIN_LOG_CHANNEL_ID, e.message);
       }
-      const { distributionResults } = await distributeWithChecks(ranking, memberIndex, votesConfig, monthName, adminChannel);
+      const { distributionResults } = await distributeWithChecks(ranking, memberIndex, votesConfig, monthName, adminChannel, votePeriod.key);
 
       const draftBotCommands = generateDraftBotCommands(ranking, memberIndex, resolvePlayer);
       
       let adminMessage = `📊 **Rapport de distribution - ${monthName}**\n\n`;
       adminMessage += `💎 **Distribution Inventaire Arki :**\n`;
       adminMessage += `   • ${distributionResults.success} joueurs récompensés\n`;
+      if (distributionResults.partial > 0) adminMessage += `   • ⚠️ ${distributionResults.partial} crédit(s) partiel(s)\n`;
       if (distributionResults.failed > 0) {
         adminMessage += `   • ${distributionResults.failed} échecs\n`;
       }
@@ -3356,10 +3589,10 @@ client.on('interactionCreate', async interaction => {
       }
 
       if (adminChannel) {
-        await adminChannel.send(adminMessage);
+        try { await adminChannel.send(adminMessage); } catch (notifyErr) { console.warn('[VOTES] Rapport admin indisponible:', notifyErr.message); }
       }
 
-      let replyText = `✅ Distribution terminée ! Rapport envoyé dans <#${votesConfig.ADMIN_LOG_CHANNEL_ID}>`;
+      let replyText = `📊 ${summarizeVoteCredits(distributionResults)}`;
       if (distributionResults.pendingDuplicates > 0 || distributionResults.pendingNotFound > 0) {
         replyText += ` | ⏳ ${distributionResults.pendingDuplicates + distributionResults.pendingNotFound} en attente`;
       }
@@ -3369,7 +3602,7 @@ client.on('interactionCreate', async interaction => {
     } catch (error) {
       console.error('Erreur lors de la distribution:', error);
       await interaction.editReply({
-        content: '❌ Une erreur est survenue lors de la distribution.',
+        content: `❌ Distribution interrompue : ${error.message || 'erreur inconnue'}`,
       });
     }
   }

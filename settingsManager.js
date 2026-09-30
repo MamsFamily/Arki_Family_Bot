@@ -278,6 +278,14 @@ function getSettings() {
   return loadSettingsFromFile();
 }
 
+async function refreshSettings() {
+  if (!pgStore.isPostgres()) throw new Error('PostgreSQL indisponible pour les réglages votes.');
+  const data = await pgStore.getData(PG_KEY, null, { throwOnError: true });
+  if (!data || typeof data !== 'object') throw new Error('Réglages du bot absents de PostgreSQL.');
+  cachedSettings = deepMerge(DEFAULTS, data);
+  return cachedSettings;
+}
+
 async function saveSettings(settings) {
   cachedSettings = settings;
   if (pgStore.isPostgres()) {
@@ -298,4 +306,4 @@ async function updateSection(section, data, replace = false) {
   return settings;
 }
 
-module.exports = { getSettings, saveSettings, updateSection, initSettings, DEFAULTS };
+module.exports = { getSettings, saveSettings, updateSection, initSettings, refreshSettings, DEFAULTS };
