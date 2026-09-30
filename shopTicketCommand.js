@@ -30,6 +30,7 @@ const { getPlayerInventory, addToInventory, removeFromInventory, getItemTypes } 
 const { getRoleIncomes } = require('./economyManager');
 const { getSettings } = require('./settingsManager');
 const pgStore = require('./pgStore');
+const { planColorCredits, deliver: deliverShopColors, isColorDeliveryComplete } = require('./shopColorRewards');
 
 // ── Constantes ───────────────────────────────────────────────────────────────
 const SEXES = ['Mâle', 'Femelle'];
@@ -41,6 +42,7 @@ const STAT_EMOJIS = { 'Vie': '❤️', 'Énergie': '⚡', 'Nourriture': '🍖', 
 const activeCarts = new Map();
 // Map orderId -> orderData (ticket créé, persisté en PostgreSQL)
 const activeOrders = new Map();
+const validatingOrders = new Set();
 // Map orderId -> message de notification (pour suppression automatique à la fermeture)
 const shopNotifMessages = new Map();
 
@@ -1502,10 +1504,15 @@ async function handleShopTicketInteraction(interaction) {
   // ── Bouton admin : forcer paiement direct (sans choix joueur) ───────────────
   if (id.startsWith('st_admin_force_validate::')) {
     const orderId = id.split('::')[1];
+    if (validatingOrders.has(orderId)) {
+      return interaction.reply({ content: '⏳ La validation de cette commande est déjà en cours.', ephemeral: true });
+    }
     const order = await getOrReloadOrder(orderId, interaction.channelId);
     if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
     // Injecter un paymentChoice "direct" puis valider
-    order.paymentChoice = { id: 'direct', label: 'Paiement direct (forcé par admin)', coveredItemIds: [] };
+    if (order.status === 'pending') {
+      order.paymentChoice = { id: 'direct', label: 'Paiement direct (forcé par admin)', coveredItemIds: [] };
+    }
     return handleAdminValidate(interaction, orderId);
   }
 
@@ -2004,11 +2011,46 @@ async function publishShopTicketPanel(interaction) {
 
 // ── Admin : valider & encaisser ───────────────────────────────────────────────
 async function handleAdminValidate(interaction, orderId) {
+  if (validatingOrders.has(orderId)) {
+    return interaction.reply({ content: '⏳ La validation de cette commande est déjà en cours.', ephemeral: true });
+  }
+  validatingOrders.add(orderId);
+  try {
+    return await validateAndDeliverOrder(interaction, orderId);
+  } finally {
+    validatingOrders.delete(orderId);
+  }
+}
+
+function buildPostValidationRow(orderId, retryColors = false) {
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('st_new_order').setLabel('🛒 Passer une nouvelle commande').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`st_admin_close::${orderId}`).setLabel('🔒 Fermer le ticket').setStyle(ButtonStyle.Secondary),
+  );
+  if (retryColors) row.addComponents(
+    new ButtonBuilder().setCustomId(`st_admin_validate::${orderId}`).setLabel('🎨 Réessayer ajout / annonces couleurs').setStyle(ButtonStyle.Success)
+  );
+  return row;
+}
+
+async function validateAndDeliverOrder(interaction, orderId) {
   const order = await getOrReloadOrder(orderId, interaction.channelId);
   if (!order) {
     return interaction.reply({ content: '❌ Commande introuvable ou déjà traitée.', ephemeral: true });
   }
   if (order.status !== 'pending') {
+    // Only new, explicitly planned deliveries can resume. Historical paid
+    // purchases are never retrospectively credited.
+    if (order.status === 'paid' && order.shopColorCredits?.length && !isColorDeliveryComplete(order)) {
+      await interaction.deferReply();
+      const result = await deliverShopColors(order, interaction, interaction.member?.displayName || interaction.user.username);
+      return interaction.editReply({
+        content: result.complete
+          ? '✅ Couleurs enregistrées en inventaire et annonces envoyées. Aucun nouveau paiement débité.'
+          : `⚠️ Le paiement est déjà validé ; aucun nouveau débit.\n${result.errors.join('\n')}`,
+        components: [buildPostValidationRow(orderId, !result.complete)],
+      });
+    }
     return interaction.reply({ content: `⚠️ Cette commande a déjà été **${order.status === 'paid' ? 'encaissée' : 'annulée'}**.`, ephemeral: true });
   }
 
@@ -2037,7 +2079,11 @@ async function handleAdminValidate(interaction, orderId) {
     });
   }
 
+  await interaction.deferReply();
   try {
+    // Validate the resource and quantity before taking payment. Store the plan
+    // on the paid order so a failed delivery can resume without charging again.
+    const colorCredits = planColorCredits(order.cart.items, getItemTypes());
     let paymentDesc = '';
     const warnings = [];
     let pendingStrawberries = 0;
@@ -2134,34 +2180,32 @@ async function handleAdminValidate(interaction, orderId) {
     order.paymentDesc = paymentDesc;
     if (pendingStrawberries > 0) order.pendingStrawberries = pendingStrawberries;
     if (pendingDiamonds > 0) order.pendingDiamonds = pendingDiamonds;
-    pgStore.saveShopOrder(order).catch(() => {});
+    if (colorCredits.length) {
+      order.shopColorCredits = colorCredits;
+      order.shopColorDelivery = {};
+    }
+    await pgStore.saveShopOrder(order, { throwOnError: true });
+    const colorResult = await deliverShopColors(order, interaction, adminName);
 
     // Retirer les boutons du message admin
     try { await interaction.message.edit({ components: [] }); } catch (e) {}
 
     const paidEmbed = new EmbedBuilder()
-      .setColor(warnings.length > 0 ? 0xe67e22 : 0x2ecc71)
-      .setTitle(warnings.length > 0 ? '⚠️ Commande validée — Solde insuffisant !' : '✅ Commande validée & Paiement encaissé !')
+      .setColor(warnings.length > 0 || !colorResult.complete ? 0xe67e22 : 0x2ecc71)
+      .setTitle(!colorResult.complete ? '⚠️ Paiement validé — Couleurs / annonces à compléter' :
+        warnings.length > 0 ? '⚠️ Commande validée — Solde insuffisant !' : '✅ Commande validée & Paiement encaissé !')
       .setDescription(
         `**Admin :** ${adminName}\n` +
         `**Paiement débité :**\n${paymentDesc}\n` +
         (warnings.length > 0 ? `\n**Avertissements :**\n${warnings.join('\n')}\n\n*Le solde a été ramené à 0. Gérer manuellement via UnbelievaBoat si nécessaire.*\n\n` : '') +
+        (colorResult.errors.length ? `\n**Couleurs — action requise :**\n${colorResult.errors.join('\n')}\n*Utilise le bouton de reprise : le paiement ne sera pas débité à nouveau.*\n\n` : '') +
         `*Merci pour ta commande <@${userId}> !* 🎉`
       )
       .setTimestamp();
 
-    const postValidationRow = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('st_new_order')
-        .setLabel('🛒 Passer une nouvelle commande')
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId(`st_admin_close::${orderId}`)
-        .setLabel('🔒 Fermer le ticket')
-        .setStyle(ButtonStyle.Secondary),
-    );
+    const postValidationRow = buildPostValidationRow(orderId, !colorResult.complete);
 
-    await interaction.reply({ embeds: [paidEmbed], components: [postValidationRow] });
+    await interaction.editReply({ embeds: [paidEmbed], components: [postValidationRow] });
 
     // ── Messages post-validation si paiement incomplet ────────────────────────
     if (pendingStrawberries > 0) {
@@ -2247,7 +2291,11 @@ async function handleAdminValidate(interaction, orderId) {
 
   } catch (err) {
     console.error('[ShopTicket] Erreur encaissement:', err);
-    return interaction.reply({ content: `❌ Erreur lors de l'encaissement : ${err.message}`, ephemeral: true });
+    return interaction.editReply({
+      content: `❌ Erreur lors de la validation : ${err.message}` +
+        (order.status === 'paid' ? '\nLe paiement a déjà été traité : ne pas encaisser à nouveau.' : ''),
+      ...(order.status === 'paid' && order.shopColorCredits?.length ? { components: [buildPostValidationRow(orderId, true)] } : {}),
+    });
   }
 }
 
@@ -2443,7 +2491,13 @@ async function handleNewOrder(interaction) {
 
 // ── Admin : annuler la commande ───────────────────────────────────────────────
 async function handleAdminCancel(interaction, orderId) {
+  if (validatingOrders.has(orderId)) {
+    return interaction.reply({ content: '⏳ La validation est en cours ; attends sa fin avant d’annuler.', ephemeral: true });
+  }
   const order = await getOrReloadOrder(orderId, interaction.channelId);
+  if (validatingOrders.has(orderId)) {
+    return interaction.reply({ content: '⏳ La validation est en cours ; attends sa fin avant d’annuler.', ephemeral: true });
+  }
   if (!order) return interaction.reply({ content: '❌ Commande introuvable.', ephemeral: true });
   if (order.status !== 'pending') return interaction.reply({ content: '⚠️ Cette commande a déjà été traitée.', ephemeral: true });
 
@@ -2470,6 +2524,9 @@ async function handleAdminCancel(interaction, orderId) {
 // ── Admin : demander confirmation avant de fermer le ticket ──────────────────
 async function handleAdminClose(interaction, orderId) {
   const order = await getOrReloadOrder(orderId, interaction.channelId);
+  if (validatingOrders.has(orderId)) {
+    return interaction.reply({ content: '⏳ La validation est en cours ; attends la fin de l’ajout inventaire avant de fermer.', ephemeral: true });
+  }
 
   // Bloquer si la commande est toujours en cours (paiement non confirmé ni annulé)
   if (order && order.status === 'pending') {
