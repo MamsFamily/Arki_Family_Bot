@@ -14,3 +14,9 @@ Le verrou partagé des écritures INI ne coordonne le dashboard et les boosters 
 **Why:** Le bot en ligne et le dashboard tournent séparément ; un verrou ajouté uniquement au code Replit ne peut empêcher une ancienne version du bot de modifier les mêmes fichiers au même moment.
 
 **How to apply:** Après une modification du protocole d'écriture INI partagé, distinguer validation locale et mise à jour effective du bot Railway avant d'affirmer que la protection inter-processus est opérationnelle en ligne.
+
+Les requêtes de la console SQL Replit ciblent ses bases gérées, pas automatiquement la base externe utilisée par le bot Railway. Ne pas présenter leurs réglages ou inventaires comme les données du bot en ligne.
+
+**Why:** Le diagnostic des votes a montré des données d'inventaire différentes entre la base consultée dans Replit et celles chargées par le bot Railway. Des réglages absents dans la première ne prouvent pas leur absence en production.
+
+**How to apply:** Identifier la source réelle des données avant toute conclusion sur les récompenses. Consulter les journaux du service Railway et, si sa base n'est pas accessible en lecture seule, annoncer précisément cette limite sans lire les valeurs des secrets.
