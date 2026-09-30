@@ -11,6 +11,10 @@ const FILES = Object.freeze({
 });
 const OPERATIONS = new Set(['add', 'replace', 'remove']);
 const SENSITIVE_KEY = /(?:password|secret|token|api.?key|auth)/i;
+const SENSITIVE_SUGGESTION_KEY = /(?:password|passwd|pwd|passphrase|secret|token|api.?key|auth|rcon|webhook|url|uri|credential|private|pin|otp|dsn)/i;
+const SAFE_SUGGESTION_VALUE = /^(?:[+-]?\d{1,12}(?:\.\d{1,8})?(?:[smhd])?|true|false|yes|no)$/i;
+const PUBLIC_VALUE_KEYS = /^(?:ItemStatClamps\[\d+\]|XPMultiplier|MatingIntervalMultiplier|HarvestAmountMultiplier|TamingSpeedMultiplier|SpawnIntervalMin|SpawnIntervalMax|DinoLifetimeMin|DinoLifetimeMax|DinoLevelMin|DinoLevelMax|MaxNumShinies|NumSearchLoops|RandomSelectionBias|CanCarryShinies)$/i;
+const PUBLIC_TEXT_KEYS = /^(?:SessionName|ServerName)$/i;
 let applying = false;
 
 function requestError(message, status = 400) {
@@ -32,6 +36,67 @@ function validLine(line) {
   }
   if (SENSITIVE_KEY.test(key)) throw requestError('Les clés sensibles ne sont pas modifiables ici.');
   return line;
+}
+
+function keyOf(line) {
+  const equals = line.indexOf('=');
+  return equals > 0 ? line.slice(0, equals).trim().toLowerCase() : null;
+}
+
+function distance(a, b, limit) {
+  if (Math.abs(a.length - b.length) > limit) return limit + 1;
+  let previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 0; i < a.length; i++) {
+    const current = [i + 1];
+    let minimum = current[0];
+    for (let j = 0; j < b.length; j++) {
+      current[j + 1] = Math.min(current[j] + 1, previous[j + 1] + 1,
+        previous[j] + Number(a[i] !== b[j]));
+      minimum = Math.min(minimum, current[j + 1]);
+    }
+    if (minimum > limit) return limit + 1;
+    previous = current;
+  }
+  return previous[b.length];
+}
+
+function closestLine(sectionLines, before) {
+  const wantedKey = keyOf(before);
+  const wantedValue = before.slice(before.indexOf('=') + 1);
+  const indexedRoot = key => key.replace(/\[\d+\]$/, '');
+  let best = null;
+  for (const line of sectionLines) {
+    try { validLine(line); } catch { continue; }
+    const key = keyOf(line);
+    if (SENSITIVE_SUGGESTION_KEY.test(key)) continue;
+    let rank;
+    if (key === wantedKey) rank = 0;
+    else if (indexedRoot(key) === indexedRoot(wantedKey) && key !== indexedRoot(key)) rank = 1;
+    else rank = 2;
+    if (best && rank > best.rank) continue;
+    const keyDistance = rank === 0 ? 0 :
+      distance(key.slice(0, 160), wantedKey.slice(0, 160), 160) +
+      Math.abs(key.length - wantedKey.length);
+    const value = line.slice(line.indexOf('=') + 1);
+    const safeValue = (PUBLIC_VALUE_KEYS.test(key) && SAFE_SUGGESTION_VALUE.test(value)) ||
+      (PUBLIC_TEXT_KEYS.test(key) && /^[\p{L}\p{N} _'.-]{1,80}$/u.test(value));
+    const wantedNumber = Number(wantedValue);
+    const candidateNumber = Number(value);
+    const valueDistance = /^\d+$/.test(wantedValue) && /^\d+$/.test(value) &&
+        Number.isSafeInteger(wantedNumber) && Number.isSafeInteger(candidateNumber)
+      ? Math.log1p(Math.abs(wantedNumber - candidateNumber))
+      : distance(wantedValue.slice(0, 120), value.slice(0, 120), 120) +
+        Math.min(120, Math.abs(wantedValue.length - value.length));
+    const score = [rank, keyDistance, Number(!safeValue), valueDistance];
+    if (!best || score.some((part, index) =>
+      part < best.score[index] && score.slice(0, index).every((prior, i) => prior === best.score[i]))) {
+      best = {
+        line: safeValue ? line : `${line.slice(0, line.indexOf('=') + 1)}[valeur masquée]`,
+        sameKey: rank === 0, redacted: !safeValue, rank, score,
+      };
+    }
+  }
+  return best && { line: best.line, sameKey: best.sameKey, redacted: best.redacted };
 }
 
 function validate(input) {
@@ -63,10 +128,6 @@ function editContent(original, request) {
   const start = sections[0] + 1;
   let end = start;
   while (end < lines.length && !/^\s*\[[^\]\r\n]+\]\s*$/.test(lines[end])) end++;
-  const keyOf = line => {
-    const equals = line.indexOf('=');
-    return equals > 0 ? line.slice(0, equals).trim().toLowerCase() : null;
-  };
   const afterKey = request.after && keyOf(request.after);
   if (request.operation === 'add') {
     if (lines.slice(start, end).includes(request.after)) {
@@ -82,8 +143,10 @@ function editContent(original, request) {
     const matches = [];
     for (let i = start; i < end; i++) if (lines[i] === request.before) matches.push(i);
     if (matches.length !== 1) {
-      throw requestError(matches.length ? 'Ligne présente plusieurs fois dans la section.' :
-        'Ligne exacte introuvable dans la section.');
+      if (matches.length) throw requestError('Ligne présente plusieurs fois dans la section.');
+      const error = requestError('Ligne exacte introuvable dans la section.');
+      error.suggestion = closestLine(lines.slice(start, end), request.before);
+      throw error;
     }
     if (request.operation === 'remove') lines.splice(matches[0], 1);
     else {
@@ -122,7 +185,7 @@ async function prepare(request) {
       const updated = editContent(original, request);
       maps.push({ id, name, hash: digest(original), updated });
     } catch (error) {
-      maps.push({ id, name, error: error.message });
+      maps.push({ id, name, error: error.message, suggestion: error.suggestion });
     }
   }
   return maps;
@@ -133,7 +196,7 @@ async function preview(input) {
   const maps = await prepare(request);
   return {
     ok: maps.every(map => !map.error),
-    maps: maps.map(({ id, name, hash, error }) => ({ id, name, hash, error })),
+    maps: maps.map(({ id, name, hash, error, suggestion }) => ({ id, name, hash, error, suggestion })),
   };
 }
 

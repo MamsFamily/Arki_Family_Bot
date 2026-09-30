@@ -49,6 +49,85 @@ test('accepte les clés ARK indexées sans confondre deux indices', () => {
   assert.throws(() => lines.validate({ ...base, after: 'ItemStatClamps[]=32750' }), /Clé=Valeur/);
 });
 
+test('suggère la ligne exacte la plus proche sans corriger automatiquement les clés indexées', async () => {
+  const originalRead = legion.readFile;
+  const originalWrite = legion.writeFile;
+  const originalSessions = booster.loadSessions;
+  const request = {
+    ...base, ids: [first, second, third], operation: 'replace',
+    before: 'ItemStatClamps[3]=50000', after: 'ItemStatClamps[3]=65530',
+  };
+  const content = new Map([
+    [first, `${base.section}\nItemStatClamps[3]=49999\nItemStatClamps[3]=20000\n[Other]\nItemStatClamps[3]=50000\n`],
+    [second, `${base.section}\nItemStatClamps[2]=50000\nItemStatClamps[4]=30000\n`],
+    [third, `${base.section}\nItemStatClamps[3]=Authorization=confidentiel\nAdminPassword=confidentiel\n[Other]\nItemStatClamps[3]=50000\n`],
+  ]);
+  let writes = 0;
+  legion.readFile = async id => content.get(id);
+  legion.writeFile = async () => { writes++; };
+  booster.loadSessions = async () => [];
+  try {
+    const preview = await lines.preview(request);
+    assert.equal(preview.ok, false);
+    assert.equal(writes, 0);
+    assert.match(preview.maps[0].error, /Ligne exacte introuvable/);
+    assert.deepEqual(preview.maps[0].suggestion,
+      { line: 'ItemStatClamps[3]=49999', sameKey: true, redacted: false });
+    assert.deepEqual(preview.maps[1].suggestion,
+      { line: 'ItemStatClamps[2]=50000', sameKey: false, redacted: false });
+    assert.deepEqual(preview.maps[2].suggestion,
+      { line: 'ItemStatClamps[3]=[valeur masquée]', sameKey: true, redacted: true });
+    assert.doesNotMatch(JSON.stringify(preview), /confidentiel/);
+    try {
+      lines.editContent(`${base.section}\nItemStatClamps[3]=50000\n`,
+        lines.validate({ ...request, before: 'ItemStatClampIndex[3]=50000' }));
+      assert.fail('La ligne exacte ne doit pas être trouvée');
+    } catch (error) {
+      assert.deepEqual(error.suggestion,
+        { line: 'ItemStatClamps[3]=50000', sameKey: false, redacted: false });
+    }
+    try {
+      lines.editContent(`${base.section}\nWebhookURL=https://discord.com/api/webhooks/123456789/AbCdef012345\n`,
+        lines.validate({ ...request, before: 'WebhookURL=placeholder' }));
+      assert.fail('La ligne exacte ne doit pas être trouvée');
+    } catch (error) {
+      assert.equal(error.suggestion, null);
+      assert.doesNotMatch(JSON.stringify(error.suggestion), /AbCdef012345/);
+    }
+    try {
+      lines.editContent(`${base.section}\nRconPwd=481526\n`,
+        lines.validate({ ...request, before: 'RconPwd=000000' }));
+      assert.fail('La ligne exacte ne doit pas être trouvée');
+    } catch (error) {
+      assert.equal(error.suggestion, null);
+    }
+    try {
+      lines.editContent(`${base.section}\nSessionName=ARK World\n`,
+        lines.validate({ ...request, before: 'SessionName=Guess' }));
+      assert.fail('La ligne exacte ne doit pas être trouvée');
+    } catch (error) {
+      assert.deepEqual(error.suggestion,
+        { line: 'SessionName=ARK World', sameKey: true, redacted: false });
+    }
+    try {
+      lines.editContent(`${base.section}\nSomeSetting=123456\n`,
+        lines.validate({ ...request, before: 'SomeSetting=000000' }));
+      assert.fail('La ligne exacte ne doit pas être trouvée');
+    } catch (error) {
+      assert.deepEqual(error.suggestion,
+        { line: 'SomeSetting=[valeur masquée]', sameKey: true, redacted: true });
+    }
+    await assert.rejects(lines.apply({
+      ...request, expected: preview.maps.map(map => ({ id: map.id, hash: map.hash || '0'.repeat(64) })),
+    }), /refais la prévisualisation/);
+    assert.equal(writes, 0);
+  } finally {
+    legion.readFile = originalRead;
+    legion.writeFile = originalWrite;
+    booster.loadSessions = originalSessions;
+  }
+});
+
 test('refuse les cartes hors cluster, chemins arbitraires, clés sensibles et lignes ambiguës', () => {
   assert.throws(() => lines.validate({ ...base, ids: [] }), /invalide/);
   assert.throws(() => lines.validate({ ...base, ids: [first, 'serveur-test'] }), /autorisés/);

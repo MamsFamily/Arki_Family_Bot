@@ -8,3 +8,4 @@
 - [Journal Legion et incidents](legion-incident-journal.md) — un redémarrage observé via uptime ne prouve pas un crash ; séparer commande acceptée et effet confirmé.
 - [Secrets du bot Railway](railway-bot-secrets.md) — les secrets Replit ne sont pas transmis au processus Discord hébergé séparément sur Railway.
 - [Espaces dans les lignes INI](ini-paste-whitespace.md) — les erreurs de saisie autour des indices ARK sont discrètes à l’écran ; les signaler précisément plutôt que normaliser les lignes exactes.
+- [Suggestions INI sûres](ini-suggestion-safety.md) — une suggestion proche peut exposer un secret ; ne montrer les valeurs exactes que pour des clés de jeu explicitement admises.
