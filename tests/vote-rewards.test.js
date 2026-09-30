@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   createVoteRewardsService, getPreviousVotePeriod, buildCreditSummary, createPendingId,
+  assertVoteRewardPeriod,
 } = require('../voteRewards');
 
 function fixture() {
@@ -54,6 +55,7 @@ function fixture() {
     getData: async (key, fallback) => key === 'inventory_item_types' ? inventory.getItemTypes() : rows[key] || fallback,
   };
   const service = createVoteRewardsService({
+    minimumRewardPeriod: '2026-09', // Isolated fixtures exercise the initial design, never live data.
     inventory, pgStore, settings: { refreshSettings: async () => {} },
     specialPacks: { getSpecialPacks: () => ({ packs: packList }), refreshSpecialPacks: async () => {} },
     getVotesConfig: () => config,
@@ -71,6 +73,27 @@ test('la période bascule à minuit Paris, pas à minuit UTC', () => {
   assert.equal(getPreviousVotePeriod(new Date('2026-09-30T22:00:00Z')).key, '2026-09');
   assert.equal(getPreviousVotePeriod(new Date('2026-12-31T23:00:00Z')).key, '2026-12');
   assert.equal(getPreviousVotePeriod(new Date('2027-01-31T23:00:00Z')).key, '2027-01');
+});
+
+test('activation après minuit : septembre est bloqué, octobre éligible', () => {
+  assert.throws(() => assertVoteRewardPeriod('2026-09'), /ancien système/);
+  assert.throws(() => assertVoteRewardPeriod('2026-00'), /invalide/);
+  assert.doesNotThrow(() => assertVoteRewardPeriod('2026-10'));
+  assert.equal(getPreviousVotePeriod(new Date('2026-10-31T23:00:00Z')).key, '2026-10');
+});
+
+test('les quatre chemins de crédit refusent un cycle historique sans accès aux données', async () => {
+  let touched = false;
+  const forbidden = () => { touched = true; throw new Error('Ne doit pas accéder à la base'); };
+  const service = createVoteRewardsService({
+    inventory: { applyInventoryCredits: forbidden, getInventoryCreditReceipt: forbidden },
+    pgStore: { getPool: forbidden, getData: forbidden, isPostgres: forbidden },
+  });
+  await assert.rejects(service.creditVotePlayer({ periodKey: '2026-09' }), /ancien système/);
+  await assert.rejects(service.creditPendingVote({ periodKey: '2026-09' }, 'winner', 'assign'), /ancien système/);
+  await assert.rejects(service.creditShiny({ periodKey: '2026-09' }), /ancien système/);
+  await assert.rejects(service.getOrCreateShinyWinner('2026-09', [{ playername: 'A' }]), /ancien système/);
+  assert.equal(touched, false);
 });
 
 test('recherche par nom sans ID configuré : diamants et contenu du pack', async () => {

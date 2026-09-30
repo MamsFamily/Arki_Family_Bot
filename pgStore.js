@@ -275,8 +275,11 @@ async function appendUniqueToArray(key, item) {
 
 // ── Shop Orders ───────────────────────────────────────────────────────────────
 
-async function saveShopOrder(orderData) {
-  if (!usePostgres) return;
+async function saveShopOrder(orderData, options = {}) {
+  if (!usePostgres) {
+    if (options.throwOnError) throw new Error('La sauvegarde de commande nécessite PostgreSQL.');
+    return;
+  }
   try {
     await pool.query(`
       INSERT INTO shop_orders (order_id, channel_id, user_id, username, data, status, created_at)
@@ -293,8 +296,11 @@ async function saveShopOrder(orderData) {
       orderData.status || 'pending',
       orderData.createdAt || Date.now(),
     ]);
+    return true;
   } catch (err) {
     console.error('❌ Erreur sauvegarde shop order:', err.message);
+    if (options.throwOnError) throw err;
+    return false;
   }
 }
 

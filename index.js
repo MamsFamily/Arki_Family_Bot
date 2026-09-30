@@ -39,6 +39,8 @@ const {
   createPendingId,
   buildCreditSummary,
   simulateVoteDistribution,
+  assertVoteRewardPeriod,
+  MINIMUM_VOTE_REWARD_PERIOD,
 } = require('./voteRewards');
 const { getConfig, saveConfig: saveRouletteConfig, initConfig } = require('./configManager');
 const { initSettings, getSettings } = require('./settingsManager');
@@ -528,6 +530,7 @@ async function autoPublishVotes() {
     await refreshVoteSources();
     const votesConfig = getVotesConfig();
     const votePeriod = getPreviousVotePeriod();
+    assertVoteRewardPeriod(votePeriod.key);
     const lastPublished = await pgStore.getData('vote_last_publish', null, { throwOnError: true });
     if (lastPublished === votePeriod.key) {
       console.log(`⏭️ [AUTO-VOTES] La période ${votePeriod.key} est déjà publiée.`);
@@ -897,15 +900,20 @@ client.once('clientReady', async () => {
 
   // ─── Rattrapage au démarrage ─────────────────────────────────────────────
   // Un redémarrage peut arriver n'importe quel jour du mois. Si la période
-  // précédente n'est pas marquée comme publiée, on retente après le démarrage.
+  // précédente n'est pas marquée comme publiée, on retente après le démarrage,
+  // sauf les cycles historiques déjà exécutés avant l'activation des reçus.
   try {
     const expectedKey = getPreviousVotePeriod().key;
-    const lastPublish = await pgStore.getData('vote_last_publish', null, { throwOnError: true });
-    if (lastPublish !== expectedKey) {
-      console.log(`⚡ [RATTRAPAGE] Publication des votes ${expectedKey} manquante — nouvelle tentative dans 30s...`);
-      setTimeout(() => autoPublishVotes(), 30 * 1000);
+    if (expectedKey < MINIMUM_VOTE_REWARD_PERIOD) {
+      console.log(`⏭️ [RATTRAPAGE] Votes ${expectedKey} historiques : reprise désactivée. Protections actives à partir de ${MINIMUM_VOTE_REWARD_PERIOD}.`);
     } else {
-      console.log(`✅ [RATTRAPAGE] Votes ${expectedKey} déjà publiés, aucun rattrapage nécessaire.`);
+      const lastPublish = await pgStore.getData('vote_last_publish', null, { throwOnError: true });
+      if (lastPublish !== expectedKey) {
+        console.log(`⚡ [RATTRAPAGE] Publication des votes ${expectedKey} manquante — nouvelle tentative dans 30s...`);
+        setTimeout(() => autoPublishVotes(), 30 * 1000);
+      } else {
+        console.log(`✅ [RATTRAPAGE] Votes ${expectedKey} déjà publiés, aucun rattrapage nécessaire.`);
+      }
     }
   } catch (e) {
     console.warn('[RATTRAPAGE] Vérification échouée:', e.message);
@@ -2981,6 +2989,7 @@ client.on('interactionCreate', async interaction => {
       await refreshVoteSources();
       const votesConfig = getVotesConfig();
       const votePeriod = getPreviousVotePeriod();
+      assertVoteRewardPeriod(votePeriod.key);
       const lastPublished = await pgStore.getData('vote_last_publish', null, { throwOnError: true });
       if (lastPublished === votePeriod.key) {
         return interaction.editReply({ content: `❌ La période ${votePeriod.key} est déjà marquée comme publiée.` });
@@ -3529,6 +3538,7 @@ client.on('interactionCreate', async interaction => {
       await refreshVoteSources();
       const votesConfig = getVotesConfig();
       const votePeriod = getPreviousVotePeriod();
+      assertVoteRewardPeriod(votePeriod.key);
       const lastPublished = await pgStore.getData('vote_last_publish', null, { throwOnError: true });
       if (lastPublished === votePeriod.key) {
         return interaction.editReply({ content: `❌ La période ${votePeriod.key} est déjà marquée comme publiée.` });
