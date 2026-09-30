@@ -28,6 +28,27 @@ test('ajout, modification et suppression ciblent une section et préservent CRLF
   assert.equal(removed, original.replace('Old=1', 'Old=3'));
 });
 
+test('accepte les clés ARK indexées sans confondre deux indices', () => {
+  const original = `${base.section}\nItemStatClamps[0]=20000\nItemStatClamps[1]=19800\n`;
+  const replace = lines.validate({
+    ...base, operation: 'replace', before: 'ItemStatClamps[1]=19800',
+    after: 'ItemStatClamps[1]=32750',
+  });
+  assert.equal(lines.editContent(original, replace),
+    `${base.section}\nItemStatClamps[0]=20000\nItemStatClamps[1]=32750\n`);
+  const remove = lines.validate({
+    ...base, operation: 'remove', before: 'ItemStatClamps[1]=19800',
+  });
+  assert.equal(lines.editContent(original, remove),
+    `${base.section}\nItemStatClamps[0]=20000\n`);
+  const add = lines.validate({ ...base, after: 'ItemStatClamps[2]=32750' });
+  assert.match(lines.editContent(original, add), /ItemStatClamps\[2\]=32750/);
+  assert.throws(() => lines.editContent(original, lines.validate({
+    ...base, after: 'ItemStatClamps[1]=32750',
+  })), /clé existe déjà/);
+  assert.throws(() => lines.validate({ ...base, after: 'ItemStatClamps[]=32750' }), /Clé=Valeur/);
+});
+
 test('refuse les cartes hors cluster, chemins arbitraires, clés sensibles et lignes ambiguës', () => {
   assert.throws(() => lines.validate({ ...base, ids: [] }), /invalide/);
   assert.throws(() => lines.validate({ ...base, ids: [first, 'serveur-test'] }), /autorisés/);

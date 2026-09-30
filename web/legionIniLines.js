@@ -26,7 +26,8 @@ function validLine(line) {
   }
   const equals = line.indexOf('=');
   const key = equals > 0 ? line.slice(0, equals).trim() : '';
-  if (!/^[+!.-]?[A-Za-z_][A-Za-z0-9_.]*$/.test(key)) {
+  // ARK uses indexed INI keys such as ItemStatClamps[1] alongside plain keys.
+  if (!/^[+!.-]?[A-Za-z_][A-Za-z0-9_.]*(?:\[\d+\])?$/.test(key)) {
     throw requestError('La ligne doit être une affectation INI de la forme Clé=Valeur.');
   }
   if (SENSITIVE_KEY.test(key)) throw requestError('Les clés sensibles ne sont pas modifiables ici.');
