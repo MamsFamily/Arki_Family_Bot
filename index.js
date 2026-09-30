@@ -53,6 +53,7 @@ const destroyWildDinosHandler = createDestroyWildDinosHandler();
 const { createStarterPackHandler } = require('./starter-pack/discordCommand');
 const starterPackHandler = createStarterPackHandler();
 const { handleServerPanelCommand, handleServerPanelInteraction } = require('./serverPanelCommand');
+const legionStatusMessage = require('./web/legionStatusMessage');
 const { handleBlindTestCommand } = require('./blindTestCommand');
 const blindTestManager = require('./blindTestManager');
 const birthdayManager    = require('./birthdayManager');
@@ -642,6 +643,7 @@ client.once('clientReady', async () => {
   }
   await initConfig();
   await initSettings();
+  legionStatusMessage.start(client);
   await initDinos();
   await initShop();
   await initInventory();
@@ -4724,6 +4726,8 @@ client.on('interactionCreate', async interaction => {
   try {
     if (interaction.isChatInputCommand() && interaction.commandName === 'serveur-panel') {
       await handleServerPanelCommand(interaction);
+    } else if (interaction.isChatInputCommand() && interaction.commandName === 'statut-maps') {
+      await legionStatusMessage.publish(interaction);
     } else if (interaction.isButton() && interaction.customId.startsWith('srvp_')) {
       await handleServerPanelInteraction(interaction);
     }

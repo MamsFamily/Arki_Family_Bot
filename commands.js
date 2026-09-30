@@ -402,6 +402,10 @@ const commands = [
     description: 'Publie le panneau des 12 serveurs ARK Legion (Admin)',
   },
   {
+    name: 'statut-maps',
+    description: 'Publie ici le message unique des 12 cartes ARK, actualisé chaque minute (Admin)',
+  },
+  {
     name: 'reclamation-panel',
     description: '📋 Publie le panneau de réclamation dans ce salon (Admin uniquement)',
   },
