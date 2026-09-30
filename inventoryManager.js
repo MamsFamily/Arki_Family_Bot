@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const pgStore = require('./pgStore');
+const { createInventoryPersistence, trimHistory } = require('./inventoryPersistence');
 
 const INVENTORY_PATH = path.join(__dirname, 'inventory.json');
 const PG_KEY_ITEM_TYPES = 'inventory_item_types';
@@ -13,6 +14,17 @@ let cachedItemTypes = null;
 let cachedInventories = null;
 let cachedTransactions = null;
 let cachedCategories = null;
+const inventoryPersistence = createInventoryPersistence({
+  pgStore,
+  filePath: INVENTORY_PATH,
+  getFileDefaults: () => ({
+    itemTypes: cachedItemTypes || DEFAULT_ITEM_TYPES,
+    inventories: cachedInventories || {},
+    transactions: cachedTransactions || [],
+    categories: cachedCategories || DEFAULT_CATEGORIES,
+    receipts: {},
+  }),
+});
 
 const DEFAULT_ITEM_TYPES = [
   { id: 'diamants', name: 'Diamants', emoji: '💎', category: 'currency', order: 1 },
@@ -52,75 +64,131 @@ function loadFromFile() {
   return { itemTypes: DEFAULT_ITEM_TYPES, inventories: {}, transactions: [], categories: DEFAULT_CATEGORIES };
 }
 
-function saveToFile(data) {
+function saveToFile(data, { preserveInventoryState = false } = {}) {
+  let existing = {};
+  if (fs.existsSync(INVENTORY_PATH)) {
+    existing = JSON.parse(fs.readFileSync(INVENTORY_PATH, 'utf8'));
+  }
+  const savedData = {
+    ...existing,
+    ...data,
+    inventories: preserveInventoryState ? (existing.inventories || data.inventories || {}) : data.inventories,
+    transactions: preserveInventoryState ? (existing.transactions || data.transactions || []) : data.transactions,
+    receipts: data.receipts !== undefined ? data.receipts : (existing.receipts || {}),
+  };
+  fs.writeFileSync(INVENTORY_PATH, JSON.stringify(savedData, null, 2));
+  return true;
+}
+
+async function refreshInventoryCache({ throwOnError = true } = {}) {
+  if (!pgStore.isPostgres()) return;
   try {
-    fs.writeFileSync(INVENTORY_PATH, JSON.stringify(data, null, 2));
-    return true;
+    const options = throwOnError ? { throwOnError: true } : {};
+    const [inventories, itemTypes, transactions, categories] = await Promise.all([
+      pgStore.getData(PG_KEY_INVENTORIES, undefined, options),
+      pgStore.getData(PG_KEY_ITEM_TYPES, undefined, options),
+      pgStore.getData(PG_KEY_TRANSACTIONS, undefined, options),
+      pgStore.getData(PG_KEY_CATEGORIES, undefined, options),
+    ]);
+    cachedInventories = inventories || (throwOnError ? {} : cachedInventories || {});
+    cachedItemTypes = itemTypes || (throwOnError ? DEFAULT_ITEM_TYPES : cachedItemTypes || DEFAULT_ITEM_TYPES);
+    cachedTransactions = transactions || (throwOnError ? [] : cachedTransactions || []);
+    cachedCategories = categories || (throwOnError ? DEFAULT_CATEGORIES : cachedCategories || DEFAULT_CATEGORIES);
   } catch (err) {
-    console.error('Erreur écriture inventory.json:', err);
-    return false;
+    if (throwOnError) throw err;
+    console.error('[InventoryManager] Erreur refresh cache inventaire:', err);
   }
 }
 
-async function refreshInventoryCache() {
-  if (!pgStore.isPostgres()) return;
+async function addMissingDefaultItemTypes(currentTypes) {
+  const existingIds = new Set((currentTypes || []).map(item => item.id));
+  if (DEFAULT_ITEM_TYPES.every(item => existingIds.has(item.id))) return currentTypes;
+  const pool = pgStore.getPool();
+  if (!pool || typeof pool.connect !== 'function') throw new Error('PostgreSQL pool is unavailable');
+  const client = await pool.connect();
+  let inTransaction = false;
   try {
-    cachedInventories  = await pgStore.getData(PG_KEY_INVENTORIES)  || cachedInventories  || {};
-    cachedItemTypes    = await pgStore.getData(PG_KEY_ITEM_TYPES)    || cachedItemTypes    || DEFAULT_ITEM_TYPES;
-    cachedTransactions = await pgStore.getData(PG_KEY_TRANSACTIONS)  || cachedTransactions || [];
-    cachedCategories   = await pgStore.getData(PG_KEY_CATEGORIES)    || cachedCategories   || DEFAULT_CATEGORIES;
-  } catch (err) {
-    console.error('[InventoryManager] Erreur refresh cache inventaire:', err);
+    await client.query('BEGIN');
+    inTransaction = true;
+    const selected = await client.query(
+      'SELECT value FROM app_data WHERE key = $1 FOR UPDATE',
+      [PG_KEY_ITEM_TYPES]
+    );
+    if (!selected.rows.length) throw new Error('inventory_item_types disappeared during initialization');
+    const raw = selected.rows[0].value;
+    const latest = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    const latestIds = new Set((latest || []).map(item => item.id));
+    const missing = DEFAULT_ITEM_TYPES.filter(item => !latestIds.has(item.id));
+    const updated = [...(latest || []), ...missing];
+    if (missing.length) {
+      const saved = await client.query(
+        'UPDATE app_data SET value = $2::jsonb, updated_at = NOW() WHERE key = $1',
+        [PG_KEY_ITEM_TYPES, JSON.stringify(updated)]
+      );
+      if (saved.rowCount === 0) throw new Error('Échec sauvegarde inventory_item_types');
+    }
+    await client.query('COMMIT');
+    inTransaction = false;
+    return updated;
+  } catch (error) {
+    if (inTransaction) {
+      try { await client.query('ROLLBACK'); } catch (rollbackError) { error.rollbackError = rollbackError; }
+    }
+    throw error;
+  } finally {
+    client.release();
   }
 }
 
 async function initInventory() {
   if (pgStore.isPostgres()) {
     const fileData = loadFromFile();
-
-    // Chaque clé est vérifiée et migrée INDÉPENDAMMENT.
-    // On ne touche jamais une clé qui existe déjà dans PG — même si une autre
-    // clé est absente — pour éviter d'écraser des données réelles lors d'une
-    // erreur PG transitoire au démarrage.
-    const [pgItemTypes, pgInventories, pgTransactions, pgCategories] = await Promise.all([
-      pgStore.getData(PG_KEY_ITEM_TYPES),
-      pgStore.getData(PG_KEY_INVENTORIES),
-      pgStore.getData(PG_KEY_TRANSACTIONS),
-      pgStore.getData(PG_KEY_CATEGORIES),
+    const readStrict = key => pgStore.getData(key, undefined, { throwOnError: true });
+    let [pgItemTypes, pgInventories, pgTransactions, pgCategories] = await Promise.all([
+      readStrict(PG_KEY_ITEM_TYPES),
+      readStrict(PG_KEY_INVENTORIES),
+      readStrict(PG_KEY_TRANSACTIONS),
+      readStrict(PG_KEY_CATEGORIES),
     ]);
 
-    if (!pgItemTypes) {
-      await pgStore.setData(PG_KEY_ITEM_TYPES, fileData.itemTypes || DEFAULT_ITEM_TYPES);
-      console.log('📦 item_types migré vers PostgreSQL');
-    }
-    if (!pgInventories) {
-      await pgStore.setData(PG_KEY_INVENTORIES, fileData.inventories || {});
-      console.log('📦 inventories migré vers PostgreSQL');
-    }
-    if (!pgTransactions) {
-      await pgStore.setData(PG_KEY_TRANSACTIONS, fileData.transactions || []);
-      console.log('📦 transactions migré vers PostgreSQL');
-    }
-    if (!pgCategories) {
-      await pgStore.setData(PG_KEY_CATEGORIES, fileData.categories || DEFAULT_CATEGORIES);
-      console.log('📦 categories migré vers PostgreSQL');
-    }
-
-    cachedItemTypes    = pgItemTypes    || fileData.itemTypes    || DEFAULT_ITEM_TYPES;
-    cachedInventories  = pgInventories  || fileData.inventories  || {};
-    cachedTransactions = pgTransactions || fileData.transactions || [];
-    cachedCategories   = pgCategories   || fileData.categories   || DEFAULT_CATEGORIES;
-
-    // Injecter les items par défaut manquants sans écraser les existants
-    if (pgItemTypes) {
-      const existingIds = new Set(cachedItemTypes.map(t => t.id));
-      const missing = DEFAULT_ITEM_TYPES.filter(t => !existingIds.has(t.id));
-      if (missing.length > 0) {
-        cachedItemTypes = [...cachedItemTypes, ...missing];
-        await pgStore.setData(PG_KEY_ITEM_TYPES, cachedItemTypes);
-        console.log(`📦 ${missing.length} type(s) d'item ajouté(s) : ${missing.map(t => t.id).join(', ')}`);
+    const pool = pgStore.getPool();
+    if (!pool || typeof pool.query !== 'function') throw new Error('PostgreSQL pool is unavailable');
+    const migrations = [
+      [PG_KEY_ITEM_TYPES, fileData.itemTypes || DEFAULT_ITEM_TYPES],
+      [PG_KEY_INVENTORIES, fileData.inventories || {}],
+      [PG_KEY_TRANSACTIONS, fileData.transactions || []],
+      [PG_KEY_CATEGORIES, fileData.categories || DEFAULT_CATEGORIES],
+    ];
+    const currentValues = new Map([
+      [PG_KEY_ITEM_TYPES, pgItemTypes],
+      [PG_KEY_INVENTORIES, pgInventories],
+      [PG_KEY_TRANSACTIONS, pgTransactions],
+      [PG_KEY_CATEGORIES, pgCategories],
+    ]);
+    for (const [key, value] of migrations) {
+      if (currentValues.get(key) === null || currentValues.get(key) === undefined) {
+        await pool.query(
+          `INSERT INTO app_data (key, value, updated_at) VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (key) DO NOTHING`,
+          [key, JSON.stringify(value)]
+        );
       }
     }
+
+    // Re-read after insert-only migration to observe any competing initializer's row.
+    [pgItemTypes, pgInventories, pgTransactions, pgCategories] = await Promise.all([
+      readStrict(PG_KEY_ITEM_TYPES),
+      readStrict(PG_KEY_INVENTORIES),
+      readStrict(PG_KEY_TRANSACTIONS),
+      readStrict(PG_KEY_CATEGORIES),
+    ]);
+    if ([pgItemTypes, pgInventories, pgTransactions, pgCategories].some(value => value === null || value === undefined)) {
+      throw new Error('Inventory app_data initialization did not create all required keys');
+    }
+
+    cachedItemTypes = await addMissingDefaultItemTypes(pgItemTypes);
+    cachedInventories = pgInventories;
+    cachedTransactions = pgTransactions;
+    cachedCategories = pgCategories;
   } else {
     const fileData = loadFromFile();
     cachedItemTypes    = fileData.itemTypes    || DEFAULT_ITEM_TYPES;
@@ -137,30 +205,16 @@ function getFileData() {
 
 async function saveItemTypes() {
   if (pgStore.isPostgres()) {
-    await pgStore.setData(PG_KEY_ITEM_TYPES, cachedItemTypes);
+    if (!await pgStore.setData(PG_KEY_ITEM_TYPES, cachedItemTypes)) throw new Error('Échec sauvegarde inventory_item_types');
   }
-  saveToFile(getFileData());
-}
-
-async function saveInventories() {
-  if (pgStore.isPostgres()) {
-    await pgStore.setData(PG_KEY_INVENTORIES, cachedInventories);
-  }
-  saveToFile(getFileData());
-}
-
-async function saveTransactions() {
-  if (pgStore.isPostgres()) {
-    await pgStore.setData(PG_KEY_TRANSACTIONS, cachedTransactions);
-  }
-  saveToFile(getFileData());
+  saveToFile(getFileData(), { preserveInventoryState: true });
 }
 
 async function saveCategories() {
   if (pgStore.isPostgres()) {
     await pgStore.setData(PG_KEY_CATEGORIES, cachedCategories);
   }
-  saveToFile(getFileData());
+  saveToFile(getFileData(), { preserveInventoryState: true });
 }
 
 function getCategories() {
@@ -235,12 +289,13 @@ async function updateItemType(itemId, data) {
 async function deleteItemType(itemId) {
   const idx = cachedItemTypes.findIndex(t => t.id === itemId);
   if (idx === -1) return false;
+  const { state } = await inventoryPersistence.mutateInventory(data => {
+    for (const inventory of Object.values(data.inventories)) delete inventory[itemId];
+    return true;
+  });
+  syncInventoryCache(state);
   cachedItemTypes.splice(idx, 1);
-  for (const playerId of Object.keys(cachedInventories)) {
-    delete cachedInventories[playerId][itemId];
-  }
   await saveItemTypes();
-  await saveInventories();
   return true;
 }
 
@@ -252,128 +307,90 @@ function getAllInventories() {
   return cachedInventories || {};
 }
 
-async function addToInventory(playerId, itemTypeId, quantity, adminId, reason) {
-  if (!cachedInventories[playerId]) {
-    cachedInventories[playerId] = {};
-  }
-  const current = cachedInventories[playerId][itemTypeId] || 0;
-  cachedInventories[playerId][itemTypeId] = current + quantity;
+function syncInventoryCache(state) {
+  cachedInventories = state.inventories;
+  cachedTransactions = state.transactions;
+}
 
-  const transaction = {
-    id: generateId(),
+async function applyInventoryCredits(playerId, credits, adminId, reason, options = {}) {
+  const { result, state } = await inventoryPersistence.applyInventoryCredits(playerId, credits, adminId, reason, options);
+  // Persistence returns only after COMMIT/atomic file replacement.
+  syncInventoryCache(state);
+  return result;
+}
+
+async function getInventoryCreditReceipt(idempotencyKey) {
+  return inventoryPersistence.getInventoryCreditReceipt(idempotencyKey);
+}
+
+async function addToInventory(playerId, itemTypeId, quantity, adminId, reason, options = {}) {
+  const result = await applyInventoryCredits(
     playerId,
-    itemTypeId,
-    quantity: +quantity,
-    adminId: adminId || 'system',
-    reason: reason || '',
-    type: 'add',
-    timestamp: new Date().toISOString(),
-  };
-  cachedTransactions.push(transaction);
-
-  if (cachedTransactions.length > MAX_TRANSACTION_HISTORY) {
-    cachedTransactions = cachedTransactions.slice(-MAX_TRANSACTION_HISTORY);
-  }
-
-  await saveInventories();
-  await saveTransactions();
-  return { newQuantity: cachedInventories[playerId][itemTypeId], transaction };
+    [{ itemTypeId, quantity }],
+    adminId,
+    reason,
+    options
+  );
+  return { newQuantity: result.newQuantity, transaction: result.transaction };
 }
 
 async function removeFromInventory(playerId, itemTypeId, quantity, adminId, reason) {
-  if (!cachedInventories[playerId]) {
-    cachedInventories[playerId] = {};
-  }
-  const current = cachedInventories[playerId][itemTypeId] || 0;
-  const newQty = Math.max(0, current - quantity);
-  const actualRemoved = current - newQty;
-  cachedInventories[playerId][itemTypeId] = newQty;
-
-  if (newQty === 0) {
-    delete cachedInventories[playerId][itemTypeId];
-  }
-
-  const transaction = {
-    id: generateId(),
-    playerId,
-    itemTypeId,
-    quantity: -actualRemoved,
-    adminId: adminId || 'system',
-    reason: reason || '',
-    type: 'remove',
-    timestamp: new Date().toISOString(),
-  };
-  cachedTransactions.push(transaction);
-
-  if (cachedTransactions.length > MAX_TRANSACTION_HISTORY) {
-    cachedTransactions = cachedTransactions.slice(-MAX_TRANSACTION_HISTORY);
-  }
-
-  await saveInventories();
-  await saveTransactions();
-  return { newQuantity: newQty, transaction };
+  const { result, state } = await inventoryPersistence.mutateInventory(data => {
+    const inventory = data.inventories[playerId] || (data.inventories[playerId] = {});
+    const current = inventory[itemTypeId] || 0;
+    const newQty = Math.max(0, current - quantity);
+    const actualRemoved = current - newQty;
+    if (newQty === 0) delete inventory[itemTypeId];
+    else inventory[itemTypeId] = newQty;
+    const transaction = {
+      id: generateId(), playerId, itemTypeId, quantity: -actualRemoved,
+      adminId: adminId || 'system', reason: reason || '', type: 'remove',
+      timestamp: new Date().toISOString(),
+    };
+    data.transactions.push(transaction);
+    trimHistory(data.transactions, MAX_TRANSACTION_HISTORY);
+    return { newQuantity: newQty, transaction };
+  });
+  syncInventoryCache(state);
+  return result;
 }
 
 async function setInventoryItem(playerId, itemTypeId, quantity, adminId, reason) {
-  if (!cachedInventories[playerId]) {
-    cachedInventories[playerId] = {};
-  }
-  const current = cachedInventories[playerId][itemTypeId] || 0;
-  const diff = quantity - current;
-
-  if (quantity <= 0) {
-    delete cachedInventories[playerId][itemTypeId];
-  } else {
-    cachedInventories[playerId][itemTypeId] = quantity;
-  }
-
-  const transaction = {
-    id: generateId(),
-    playerId,
-    itemTypeId,
-    quantity: diff,
-    adminId: adminId || 'system',
-    reason: reason || 'set',
-    type: diff >= 0 ? 'add' : 'remove',
-    timestamp: new Date().toISOString(),
-  };
-  cachedTransactions.push(transaction);
-
-  if (cachedTransactions.length > MAX_TRANSACTION_HISTORY) {
-    cachedTransactions = cachedTransactions.slice(-MAX_TRANSACTION_HISTORY);
-  }
-
-  await saveInventories();
-  await saveTransactions();
-  return { newQuantity: quantity <= 0 ? 0 : quantity, transaction };
+  const { result, state } = await inventoryPersistence.mutateInventory(data => {
+    const inventory = data.inventories[playerId] || (data.inventories[playerId] = {});
+    const current = inventory[itemTypeId] || 0;
+    const diff = quantity - current;
+    if (quantity <= 0) delete inventory[itemTypeId];
+    else inventory[itemTypeId] = quantity;
+    const transaction = {
+      id: generateId(), playerId, itemTypeId, quantity: diff,
+      adminId: adminId || 'system', reason: reason || 'set',
+      type: diff >= 0 ? 'add' : 'remove', timestamp: new Date().toISOString(),
+    };
+    data.transactions.push(transaction);
+    trimHistory(data.transactions, MAX_TRANSACTION_HISTORY);
+    return { newQuantity: quantity <= 0 ? 0 : quantity, transaction };
+  });
+  syncInventoryCache(state);
+  return result;
 }
 
 async function resetPlayerInventory(playerId, adminId, reason) {
-  const oldInventory = cachedInventories[playerId] || {};
-  const items = Object.entries(oldInventory);
-
-  for (const [itemTypeId, quantity] of items) {
-    cachedTransactions.push({
-      id: generateId(),
-      playerId,
-      itemTypeId,
-      quantity: -quantity,
-      adminId: adminId || 'system',
-      reason: reason || 'reset',
-      type: 'reset',
-      timestamp: new Date().toISOString(),
-    });
-  }
-
-  delete cachedInventories[playerId];
-
-  if (cachedTransactions.length > MAX_TRANSACTION_HISTORY) {
-    cachedTransactions = cachedTransactions.slice(-MAX_TRANSACTION_HISTORY);
-  }
-
-  await saveInventories();
-  await saveTransactions();
-  return { itemsCleared: items.length };
+  const { result, state } = await inventoryPersistence.mutateInventory(data => {
+    const items = Object.entries(data.inventories[playerId] || {});
+    for (const [itemTypeId, quantity] of items) {
+      data.transactions.push({
+        id: generateId(), playerId, itemTypeId, quantity: -quantity,
+        adminId: adminId || 'system', reason: reason || 'reset', type: 'reset',
+        timestamp: new Date().toISOString(),
+      });
+    }
+    delete data.inventories[playerId];
+    trimHistory(data.transactions, MAX_TRANSACTION_HISTORY);
+    return { itemsCleared: items.length };
+  });
+  syncInventoryCache(state);
+  return result;
 }
 
 function getTransactions(filters = {}) {
@@ -421,6 +438,8 @@ module.exports = {
   deleteItemType,
   getPlayerInventory,
   getAllInventories,
+  applyInventoryCredits,
+  getInventoryCreditReceipt,
   addToInventory,
   removeFromInventory,
   setInventoryItem,

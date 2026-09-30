@@ -75,17 +75,19 @@ function resolvePlayer(index, playername) {
   if (ids.length === 1) {
     return ids[0];
   }
+  if (ids.length > 1) return null;
   
   const membersList = index._membersList || [];
+  const fuzzyIds = new Set();
   for (const member of membersList) {
     for (const name of member.names) {
       if (fuzzyMatch(aliasedName, name)) {
-        return member.id;
+        fuzzyIds.add(member.id);
       }
     }
   }
-  
-  return null;
+  // Never credit whichever member happened to be fetched first.
+  return fuzzyIds.size === 1 ? [...fuzzyIds][0] : null;
 }
 
 function formatRewards(rewards) {
