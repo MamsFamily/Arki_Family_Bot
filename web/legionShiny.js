@@ -125,35 +125,62 @@ function planFile(content, rules, activeTarget) {
   if (typeof content !== 'string' || content.length > 2_000_000) throw problem('Fichier INI invalide ou trop volumineux.');
   // Preserve each original separator: files may mix CRLF and LF outside [Shiny].
   const separators = content.match(/\r\n|\n|\r/g) || [];
-  const lines = content.split(/\r\n|\n|\r/);
+  const lines = content === '' ? [] : content.split(/\r\n|\n|\r/);
+  const records = lines.map((text, index) => ({ text, ending: separators[index] || '' }));
   const sections = [];
-  lines.forEach((line, index) => {
-    if (line.replace(/^\uFEFF/, '').trim() === SECTION) sections.push(index);
+  records.forEach(({ text }, index) => {
+    if (text.replace(/^\uFEFF/, '').trim().toLowerCase() === SECTION.toLowerCase()) sections.push(index);
   });
-  if (sections.length !== 1) throw problem('Section [Shiny] absente ou présente plusieurs fois.');
-  const start = sections[0] + 1;
+  if (sections.length > 1) throw problem('Section [Shiny] présente plusieurs fois : correction manuelle nécessaire.');
+  const start = sections.length ? sections[0] + 1 : records.length;
   let end = start;
-  while (end < lines.length && !/^\s*\[[^\]\r\n]+\]\s*$/.test(lines[end])) end++;
-  const state = [];
+  while (end < records.length && !/^\s*\[[^\]\r\n]+\]\s*$/.test(records[end].text)) end++;
+  const observed = [];
+  const missing = [];
+  let duplicates = 0;
+  let unexpected = 0;
   for (const rule of rules) {
     const key = parseLine(rule.active).key;
     const matches = [];
     for (let i = start; i < end; i++) {
-      const equals = lines[i].indexOf('=');
-      if (equals > 0 && lines[i].slice(0, equals).trim().toLowerCase() === key) matches.push(i);
+      const equals = records[i].text.indexOf('=');
+      if (equals > 0 && records[i].text.slice(0, equals).trim().toLowerCase() === key) matches.push(i);
     }
-    if (matches.length !== 1) throw problem(`Clé ${key} absente ou présente plusieurs fois dans [Shiny].`);
-    const current = lines[matches[0]];
-    if (current !== rule.active && current !== rule.inactive) {
-      throw problem(`Valeur inattendue pour ${key} dans [Shiny] : correction manuelle nécessaire.`);
+    if (matches.length === 0) {
+      missing.push(activeTarget ? rule.active : rule.inactive);
+      observed.push('missing');
+    } else {
+      duplicates += matches.length - 1;
+      const values = matches.map(index => records[index].text);
+      observed.push(values.every(value => value === rule.active) ? 'active' :
+        values.every(value => value === rule.inactive) ? 'inactive' : 'mixed');
+      for (const index of matches) {
+        if (records[index].text !== rule.active && records[index].text !== rule.inactive) unexpected++;
+        records[index].text = activeTarget ? rule.active : rule.inactive;
+      }
     }
-    state.push(current === rule.active);
-    lines[matches[0]] = activeTarget ? rule.active : rule.inactive;
   }
-  if (state.some(value => value !== state[0])) throw problem('Réglages Shyni partiellement activés : correction manuelle nécessaire.');
-  const updated = lines.map((line, index) => line + (separators[index] || '')).join('');
+  const newline = sections.length ? records[sections[0]].ending || separators[0] || '\n' :
+    separators[0] || '\n';
+  if (!sections.length) missing.unshift(SECTION);
+  if (missing.length) {
+    let insertAt = end;
+    // A trailing empty record represents a final newline, not a real setting.
+    if (insertAt === records.length && /[\r\n]$/.test(content)) insertAt--;
+    else if (insertAt === records.length && records.length) records[records.length - 1].ending = newline;
+    const appendingWithoutFinalNewline = insertAt === records.length;
+    records.splice(insertAt, 0, ...missing.map((text, index) => ({
+      text, ending: appendingWithoutFinalNewline && index === missing.length - 1 ? '' : newline,
+    })));
+  }
+  const updated = records.map(({ text, ending }) => text + ending).join('');
   if (updated.length > 2_000_000) throw problem('Fichier INI trop volumineux après modification.');
-  return { state: state[0] ? 'active' : 'inactive', changed: updated !== content, updated };
+  const state = observed.every(value => value === 'active') ? 'active' :
+    observed.every(value => value === 'inactive') ? 'inactive' : 'mixed';
+  return {
+    state, changed: updated !== content, updated,
+    repairs: { missing: missing.length - Number(!sections.length), duplicates, unexpected },
+  };
 }
 
 async function guardBoosts(ids) {
@@ -185,8 +212,8 @@ async function preview(input) {
   return {
     ok: maps.every(map => !map.error),
     revision: config.revision,
-    maps: maps.map(({ id, name, hash: fileHash, state, changed, toActive, error }) =>
-      ({ id, name, hash: fileHash, state, changed, toActive, error })),
+    maps: maps.map(({ id, name, hash: fileHash, state, changed, repairs, toActive, error }) =>
+      ({ id, name, hash: fileHash, state, changed, repairs, toActive, error })),
   };
 }
 

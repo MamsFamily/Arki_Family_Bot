@@ -49,11 +49,38 @@ test('préserve les autres sections et réglages Shyni, avec fins de ligne CRLF'
   assert.equal(shiny.planFile(mixed, rules, true).updated, expected);
 });
 
-test('refuse les valeurs inattendues, les sections absentes, les clés dupliquées et les états mixtes', () => {
-  assert.throws(() => shiny.planFile(ini(true).replace('[Shiny]', '[Different]'), rules, false), /Section/);
-  assert.throws(() => shiny.planFile(ini(true).replace('SpawnIntervalMin=20m', 'SpawnIntervalMin=12m'), rules, false), /inattendue/);
-  assert.throws(() => shiny.planFile(ini(true).replace('SpawnIntervalMin=20m', 'SpawnIntervalMin=0'), rules, false), /partiellement/);
-  assert.throws(() => shiny.planFile(ini(true).replace('SpawnIntervalMin=20m', 'SpawnIntervalMin=20m\nSpawnIntervalMin=0'), rules, false), /plusieurs fois/);
+test('régularise les lignes manquantes, dupliquées, inattendues et partiellement actives', () => {
+  const unusual = ini(true).replace('SpawnIntervalMin=20m', ' spawnintervalmin = 12m');
+  const corrected = shiny.planFile(unusual, rules, false);
+  assert.equal(corrected.state, 'mixed');
+  assert.equal(corrected.repairs.unexpected, 1);
+  assert.equal(corrected.updated, ini(false));
+  const partial = ini(true).replace('SpawnIntervalMin=20m', 'SpawnIntervalMin=0');
+  assert.equal(shiny.planFile(partial, rules, false).updated, ini(false));
+  const missing = ini(true).replace('SpawnIntervalMin=20m\n', '');
+  const completed = shiny.planFile(missing, rules, false);
+  assert.equal(completed.repairs.missing, 1);
+  assert.equal(shiny.planFile(completed.updated, rules, false).state, 'inactive');
+  assert.match(completed.updated, /SpawnIntervalMin=0\n\[Other\]/);
+  const duplicate = ini(true).replace('SpawnIntervalMin=20m', 'SpawnIntervalMin=20m\nSpawnIntervalMin=12m');
+  const normalized = shiny.planFile(duplicate, rules, false);
+  assert.equal(normalized.repairs.duplicates, 1);
+  assert.equal(normalized.repairs.unexpected, 1);
+  assert.match(normalized.updated, /SpawnIntervalMin=0\nSpawnIntervalMin=0/);
+  assert.equal(shiny.planFile(normalized.updated, rules, false).state, 'inactive');
+  const newSection = shiny.planFile('[ServerSettings]\r\nServerAdminPassword=private', rules, false);
+  assert.equal(newSection.repairs.missing, 8);
+  assert.equal(newSection.updated, `[ServerSettings]\r\nServerAdminPassword=private\r\n[Shiny]\r\n${rules.map(rule => rule.inactive).join('\r\n')}`);
+  const noFinalNewline = shiny.planFile('[Shiny]\nRandomSelectionBias=0.2', rules, true);
+  assert.equal(noFinalNewline.updated, `[Shiny]\nRandomSelectionBias=0.2\n${rules.map(rule => rule.active).join('\n')}`);
+  const lowercaseSection = shiny.planFile('[shiny]\nRandomSelectionBias=0.2', rules, false);
+  assert.equal(lowercaseSection.updated.includes('[Shiny]'), false);
+  assert.equal(lowercaseSection.updated.includes('SpawnIntervalMin=0'), true);
+  assert.throws(() => shiny.planFile(`${ini(true)}[Shiny]\n`, rules, false), /plusieurs fois/);
+  assert.throws(() => shiny.planFile(`${ini(true)}[shiny]\n`, rules, false), /plusieurs fois/);
+});
+
+test('refuse des règles incomplètes ou des clés non prévues', () => {
   assert.throws(() => shiny.validateRules([
     { active: 'ServerAdminPassword=a', inactive: 'ServerAdminPassword=0' }, ...rules.slice(1),
   ]), /sensible/);
@@ -65,6 +92,59 @@ test('refuse les valeurs inattendues, les sections absentes, les clés dupliqué
   assert.throws(() => shiny.validateRules([...rules.slice(0, -1), {
     active: 'OtherSetting=1', inactive: 'OtherSetting=0',
   }]), /attendue/);
+});
+
+test('la rotation corrige les écarts et finit avec deux cartes actives, dix à zéro', async () => {
+  const original = { getPool: pgStore.getPool, getData: pgStore.getData,
+    readFile: legion.readFile, writeFile: legion.writeFile,
+    loadSessions: booster.loadSessions, withMapIniLock: iniLock.withMapIniLock };
+  const contents = new Map(mapIds.map((id, index) => [id, ini(index < 2)]));
+  contents.set(mapIds[2], ini(false).replace('SpawnIntervalMin=0\n', ''));
+  contents.set(mapIds[3], ini(false).replace('DinoLifetimeMin=0', 'DinoLifetimeMin=2h'));
+  contents.set(mapIds[4], ini(false).replace('SpawnIntervalMin=0', 'SpawnIntervalMin=7m\nSpawnIntervalMin=0'));
+  contents.set(mapIds[5], '[ServerSettings]\nServerAdminPassword=private\n');
+  contents.set(mapIds[6], ini(false).replace('DinoLifetimeMin=0', 'DinoLifetimeMin=3h'));
+  const writes = [];
+  const pool = fakeLockPool();
+  pgStore.getPool = () => pool;
+  pgStore.getData = async () => ({ rules });
+  booster.loadSessions = async () => [];
+  legion.readFile = async id => contents.get(id);
+  legion.writeFile = async (id, path, updated) => {
+    assert.equal(path, file);
+    writes.push(id);
+    contents.set(id, updated);
+  };
+  iniLock.withMapIniLock = async (_id, work) => work();
+  try {
+    const ids = [mapIds[2], mapIds[3]];
+    const preview = await shiny.preview({ ids });
+    assert.equal(preview.ok, true);
+    assert.equal(writes.length, 0);
+    assert.equal(preview.maps[2].repairs.missing, 1);
+    assert.equal(preview.maps[4].repairs.duplicates, 1);
+    assert.equal(preview.maps[5].repairs.missing, 8);
+    assert.equal(preview.maps[6].state, 'mixed');
+    const applied = await shiny.apply({
+      ids, revision: preview.revision,
+      expected: preview.maps.map(({ id, hash }) => ({ id, hash })),
+    });
+    assert.equal(applied.ok, true);
+    assert.deepEqual(writes, [mapIds[0], mapIds[1], mapIds[4], mapIds[5], mapIds[6], ...ids]);
+    for (const id of mapIds) {
+      const expected = ids.includes(id) ? 'active' : 'inactive';
+      assert.equal(shiny.planFile(contents.get(id), rules, ids.includes(id)).state, expected);
+      assert.equal(shiny.planFile(contents.get(id), rules, ids.includes(id)).changed, false);
+    }
+    assert.match(contents.get(mapIds[5]), /ServerAdminPassword=private/);
+  } finally {
+    pgStore.getPool = original.getPool;
+    pgStore.getData = original.getData;
+    legion.readFile = original.readFile;
+    legion.writeFile = original.writeFile;
+    booster.loadSessions = original.loadSessions;
+    iniLock.withMapIniLock = original.withMapIniLock;
+  }
 });
 
 test('enregistre les paires sans toucher aux serveurs', async () => {

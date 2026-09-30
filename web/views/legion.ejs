@@ -216,6 +216,7 @@
       <section id="tab-shiny" class="legion-panel" aria-label="Rotation Shyni" hidden>
         <h2>Rotation des cartes Shyni</h2>
         <p>Les lignes ci-dessous concernent uniquement <strong>[Shiny]</strong> dans <strong>GameUserSettings.ini</strong>. Enregistre tes paires de lignes actives/à zéro, puis choisis exactement deux cartes accueillantes. L’aperçu lit les 12 cartes autorisées avant toute modification et laisse les autres lignes INI intactes.</p>
+        <p>Les valeurs inattendues et les réglages partiels seront ramenés à la valeur cible. Les clés absentes seront ajoutées ; les doublons seront conservés mais réglés tous à la même valeur. Une section [Shiny] absente sera créée. Vérifie le détail de chaque carte avant de confirmer.</p>
         <% if (!canEditIniLines) { %><p>Une connexion administrateur vérifiée par Discord est nécessaire. <a href="/logout">Déconnecte-toi</a> puis reconnecte-toi avec Discord.</p><% } %>
         <form id="shiny-rules-form">
           <fieldset class="legion-ini-fields" <%= canEditIniLines ? '' : 'disabled' %>>
@@ -500,7 +501,15 @@
         const li = document.createElement('li');
         if (map.error) li.textContent = `${map.name} : ${map.error}`;
         else if ('ok' in map) li.textContent = `${map.name} : ${map.ok ? 'écriture confirmée' : 'échec'}`;
-        else li.textContent = `${map.name} : ${map.state === 'active' ? 'actuellement active' : 'actuellement à zéro'} → ${map.toActive ? 'active' : 'à zéro'}${map.changed ? '' : ' (aucun changement)'}`;
+        else {
+          const state = { active:'actuellement active', inactive:'actuellement à zéro',
+            mixed:'réglages absents, partiels ou différents' }[map.state] || 'état inconnu';
+          const repairs = [];
+          if (map.repairs?.missing) repairs.push(`${map.repairs.missing} clé(s) à ajouter`);
+          if (map.repairs?.duplicates) repairs.push(`${map.repairs.duplicates} doublon(s) conservé(s), réglé(s) comme la cible`);
+          if (map.repairs?.unexpected) repairs.push(`${map.repairs.unexpected} valeur(s) inattendue(s) à corriger`);
+          li.textContent = `${map.name} : ${state} → ${map.toActive ? 'actives' : 'à zéro'}${map.changed ? '' : ' (aucun changement)'}${repairs.length ? ` ; ${repairs.join(', ')}` : ''}`;
+        }
         return li;
       }));
     }
@@ -539,8 +548,8 @@
       if (!shinyPreview) return;
       const selectedNames = shinyPreview.ids.map(id => mapNames[id] || id).join(' et ');
       const changed = shinyPreview.maps.filter(map => map.changed);
-      const leaving = changed.filter(map => map.state === 'active' && !map.toActive).map(map => map.name);
-      if (!confirm(`Activer les Shyni sur ${selectedNames} et les mettre à zéro sur les dix autres cartes ?\nAnciennes cartes à désactiver : ${leaving.join(', ') || 'aucune'}.\n${changed.length} fichier(s) à modifier. Aucun redémarrage automatique.\n\nConfirmer la rotation ?`)) return;
+      const resetting = changed.filter(map => !map.toActive).map(map => map.name);
+      if (!confirm(`Activer les Shyni sur ${selectedNames} et mettre les huit réglages à zéro sur les dix autres cartes ?\nCartes hors sélection à modifier : ${resetting.join(', ') || 'aucune'}.\n${changed.length} fichier(s) à modifier, y compris les réglages absents ou atypiques signalés dans l’aperçu. Aucun redémarrage automatique.\n\nConfirmer la rotation ?`)) return;
       shinyApply.disabled = true;
       shinyRulesForm.querySelector('fieldset').disabled = true;
       shinyRotationForm.querySelector('fieldset').disabled = true;
