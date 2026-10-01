@@ -3,6 +3,7 @@ const pgStore = require('../pgStore');
 const legion = require('./legionManager');
 const booster = require('../boosterReproManager');
 const iniLock = require('./legionIniMutationLock');
+const iniSafety = require('./legionIniSafety');
 
 const STORE_KEY = 'legion_shiny_rotation_config';
 const FILE = '/ShooterGame/Saved/Config/WindowsServer/GameUserSettings.ini';
@@ -208,12 +209,29 @@ async function preview(input) {
   const ids = validateSelection(input?.ids);
   const config = await loadConfig();
   if (!config.saved) throw problem('Enregistre les lignes Shyni avant de prévisualiser la rotation.', 409);
-  const maps = await prepare(ids, config.rules);
+  const [maps, serverStates] = await Promise.all([
+    prepare(ids, config.rules),
+    iniSafety.getMapsOfflineStatus(legion.MAPS.map(map => map.id)),
+  ]);
+  const states = new Map(serverStates.map(status => [status.id, status]));
+  const enriched = maps.map(map => {
+    const status = states.get(map.id);
+    return {
+      ...map,
+      serverState: status.serverState,
+      offline: status.offline,
+      stateError: status.stateError,
+      applySafe: !map.error && (!map.changed || status.applySafe),
+    };
+  });
   return {
-    ok: maps.every(map => !map.error),
+    ok: enriched.every(map => !map.error),
+    applySafe: enriched.every(map => map.applySafe),
     revision: config.revision,
-    maps: maps.map(({ id, name, hash: fileHash, state, changed, repairs, toActive, error }) =>
-      ({ id, name, hash: fileHash, state, changed, repairs, toActive, error })),
+    maps: enriched.map(({ id, name, hash: fileHash, state, changed, repairs, toActive, error,
+      serverState, offline, stateError, applySafe }) =>
+      ({ id, name, hash: fileHash, state, changed, repairs, toActive, error,
+        serverState, offline, stateError, applySafe })),
   };
 }
 
@@ -240,6 +258,9 @@ async function apply(input) {
     }
     // Disable old maps before enabling new ones; multi-map writes cannot be atomic.
     const changes = maps.filter(map => map.changed).sort((a, b) => Number(a.toActive) - Number(b.toActive));
+    // Check the complete write set before the first write so an online later map
+    // cannot cause an avoidable partial rotation. Unchanged maps are irrelevant.
+    await iniSafety.assertMapsOffline(changes.map(map => map.id));
     const results = [];
     for (const map of changes) {
       try {
@@ -247,6 +268,7 @@ async function apply(input) {
           const current = await legion.readFile(map.id, FILE);
           if (hash(current) !== map.hash) throw problem('Fichier changé depuis l’aperçu.', 409);
           await guardBoosts([map.id]);
+          await iniSafety.assertMapsOffline([map.id]);
           await legion.writeFile(map.id, FILE, map.updated);
           if (await legion.readFile(map.id, FILE) !== map.updated) {
             throw problem('Écriture non confirmée par relecture : vérifie cette carte dans GPanel.', 502);

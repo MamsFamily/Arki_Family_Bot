@@ -89,6 +89,22 @@ async function getServers() {
   }
 }
 
+// Read only: manual INI safety checks must never infer that a server is offline
+// from an API failure or from a missing/unrecognized resource field.
+async function getMapState(id) {
+  assertMap(id);
+  try {
+    const { data } = await client().get(`/servers/${id}/resources`);
+    const attributes = data?.attributes || {};
+    if (attributes.is_suspended) return 'suspended';
+    return ['offline', 'running', 'starting', 'stopping', 'restarting'].includes(attributes.current_state)
+      ? attributes.current_state
+      : 'unknown';
+  } catch (error) {
+    throw apiError(error);
+  }
+}
+
 async function power(id, signal) {
   assertMap(id);
   if (!['start', 'stop', 'restart'].includes(signal)) throw new Error('Action non autorisée');
@@ -427,6 +443,6 @@ async function handleServerPanelInteraction(interaction) {
 }
 
 module.exports = {
-  MAPS, getServers, power, wipeWildDinos, getActivity, assertMap, readFile, writeFile, getRconConfig, sendCommand,
+  MAPS, getServers, getMapState, power, wipeWildDinos, getActivity, assertMap, readFile, writeFile, getRconConfig, sendCommand,
   handleServerPanelCommand, handleServerPanelInteraction,
 };

@@ -6,6 +6,8 @@ const lines = require('../web/legionIniLines');
 const iniLock = require('../web/legionIniMutationLock');
 
 const [first, second, third] = legion.MAPS.map(map => map.id);
+const originalGetMapState = legion.getMapState;
+let mapState;
 const base = {
   ids: [first],
   file: 'Game.ini',
@@ -13,6 +15,15 @@ const base = {
   section: '[/Script/ShooterGame.ShooterGameMode]',
   after: 'XPMultiplier=2',
 };
+
+test.beforeEach(() => {
+  mapState = async () => 'offline';
+  legion.getMapState = id => mapState(id);
+});
+
+test.afterEach(() => {
+  legion.getMapState = originalGetMapState;
+});
 
 test('ajout, modification et suppression ciblent une section et préservent CRLF', () => {
   const original = '[One]\r\nKeep=1\r\n[/Script/ShooterGame.ShooterGameMode]\r\nOld=1\r\n\r\n[Other]\r\nKeep=2\r\n';
@@ -287,6 +298,83 @@ test('GameUserSettings.ini est pris en charge et une carte incompatible bloque t
     legion.readFile = originalRead;
     legion.writeFile = originalWrite;
     booster.loadSessions = originalSessions;
+  }
+});
+
+test('les lignes restent prévisualisables mais tout le lot est bloqué si une carte est active ou indéterminée', async () => {
+  const originalRead = legion.readFile;
+  const originalWrite = legion.writeFile;
+  const originalSessions = booster.loadSessions;
+  const originalLock = iniLock.withMapIniLock;
+  const content = new Map([[first, `${base.section}\nOld=1\n`], [second, `${base.section}\nOld=1\n`]]);
+  const blockedStates = ['running', 'starting', 'stopping', 'suspended', 'unknown', 'unavailable'];
+  let writes = 0;
+  legion.readFile = async id => content.get(id);
+  legion.writeFile = async () => { writes++; };
+  booster.loadSessions = async () => [];
+  iniLock.withMapIniLock = async (_id, work) => work();
+  try {
+    for (const blockedState of blockedStates) {
+      writes = 0;
+      mapState = async id => {
+        if (id !== second) return 'offline';
+        if (blockedState === 'unavailable') throw new Error('private api detail');
+        return blockedState;
+      };
+      const input = { ...base, ids: [first, second] };
+      const preview = await lines.preview(input);
+      assert.equal(preview.ok, true);
+      assert.equal(preview.applySafe, false);
+      assert.equal(preview.maps[1].applySafe, false);
+      if (blockedState === 'unavailable') {
+        assert.equal(preview.maps[1].serverState, 'unknown');
+        assert.doesNotMatch(JSON.stringify(preview), /private api detail/);
+      } else {
+        assert.equal(preview.maps[1].serverState, blockedState);
+      }
+      await assert.rejects(lines.apply({
+        ...input, expected: preview.maps.map(({ id, hash }) => ({ id, hash })),
+      }), /arrêt confirmé requis/);
+      assert.equal(writes, 0, `${blockedState} blocks before any write`);
+    }
+  } finally {
+    legion.readFile = originalRead;
+    legion.writeFile = originalWrite;
+    booster.loadSessions = originalSessions;
+    iniLock.withMapIniLock = originalLock;
+  }
+});
+
+test('les lignes revérifient le statut dans le verrou immédiatement avant chaque écriture', async () => {
+  const originalRead = legion.readFile;
+  const originalWrite = legion.writeFile;
+  const originalSessions = booster.loadSessions;
+  const originalLock = iniLock.withMapIniLock;
+  const content = new Map([[first, `${base.section}\nOld=1\n`], [second, `${base.section}\nOld=1\n`]]);
+  let writes = 0;
+  let stateReads = 0;
+  legion.readFile = async id => content.get(id);
+  legion.writeFile = async () => { writes++; };
+  booster.loadSessions = async () => [];
+  iniLock.withMapIniLock = async (_id, work) => work();
+  mapState = async id => {
+    if (id === first && ++stateReads >= 3) return 'stopping';
+    return 'offline';
+  };
+  try {
+    const input = { ...base, ids: [first, second] };
+    const preview = await lines.preview(input);
+    const result = await lines.apply({
+      ...input, expected: preview.maps.map(({ id, hash }) => ({ id, hash })),
+    });
+    assert.equal(result.ok, false);
+    assert.equal(writes, 0);
+    assert.match(result.results[0].error, /arrêt confirmé requis/);
+  } finally {
+    legion.readFile = originalRead;
+    legion.writeFile = originalWrite;
+    booster.loadSessions = originalSessions;
+    iniLock.withMapIniLock = originalLock;
   }
 });
 
