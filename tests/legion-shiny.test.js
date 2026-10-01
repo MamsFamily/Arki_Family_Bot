@@ -9,6 +9,17 @@ const shiny = require('../web/legionShiny');
 const rules = shiny.DEFAULT_RULES;
 const mapIds = legion.MAPS.map(map => map.id);
 const file = '/ShooterGame/Saved/Config/WindowsServer/GameUserSettings.ini';
+const originalGetMapState = legion.getMapState;
+let mapState;
+
+test.beforeEach(() => {
+  mapState = async () => 'offline';
+  legion.getMapState = id => mapState(id);
+});
+
+test.afterEach(() => {
+  legion.getMapState = originalGetMapState;
+});
 
 function fakeLockPool() {
   let held = false;
@@ -251,6 +262,7 @@ test('aperçu puis rotation vérifiée sur exactement deux cartes, anciennes dé
     readFile: legion.readFile, writeFile: legion.writeFile,
     loadSessions: booster.loadSessions, withMapIniLock: iniLock.withMapIniLock };
   const contents = new Map(mapIds.map((id, index) => [id, ini(index < 2)]));
+  mapState = async id => id === mapIds[4] ? 'running' : 'offline';
   const writes = [];
   const pool = fakeLockPool();
   pgStore.getPool = () => pool;
@@ -274,6 +286,9 @@ test('aperçu puis rotation vérifiée sur exactement deux cartes, anciennes dé
     const preview = await shiny.preview({ ids });
     assert.equal(preview.ok, true);
     assert.deepEqual(preview.maps.filter(map => map.state === 'active').map(map => map.id), mapIds.slice(0, 2));
+    assert.equal(preview.maps[4].serverState, 'running');
+    assert.equal(preview.maps[4].changed, false);
+    assert.equal(preview.maps[4].applySafe, true);
     assert.equal(writes.length, 0);
     assert.equal(JSON.stringify(preview).includes('private'), false);
     const applied = await shiny.apply({
@@ -320,5 +335,94 @@ test('bloque toutes les écritures si une carte a changé entre l’aperçu et l
     legion.readFile = original.readFile;
     legion.writeFile = original.writeFile;
     booster.loadSessions = original.loadSessions;
+  }
+});
+
+test('le précontrôle Shyni bloque tout le lot pour les états non arrêtés ou indisponibles', async () => {
+  const original = {
+    getPool: pgStore.getPool, getData: pgStore.getData,
+    readFile: legion.readFile, writeFile: legion.writeFile,
+    loadSessions: booster.loadSessions,
+  };
+  const pool = fakeLockPool();
+  const blockedStates = ['running', 'starting', 'stopping', 'suspended', 'unknown', 'unavailable'];
+  let contents;
+  let writes = 0;
+  pgStore.getPool = () => pool;
+  pgStore.getData = async () => ({ rules });
+  booster.loadSessions = async () => [];
+  legion.readFile = async id => contents.get(id);
+  legion.writeFile = async () => { writes++; };
+  try {
+    for (const blockedState of blockedStates) {
+      contents = new Map(mapIds.map((id, index) => [id, ini(index < 2)]));
+      writes = 0;
+      mapState = async id => {
+        if (id !== mapIds[3]) return 'offline';
+        if (blockedState === 'unavailable') throw new Error('private api detail');
+        return blockedState;
+      };
+      const ids = [mapIds[2], mapIds[3]];
+      const preview = await shiny.preview({ ids });
+      assert.equal(preview.ok, true, `preview remains available for ${blockedState}`);
+      assert.equal(preview.applySafe, false);
+      assert.equal(preview.maps[3].applySafe, false);
+      if (blockedState === 'unavailable') {
+        assert.equal(preview.maps[3].serverState, 'unknown');
+        assert.doesNotMatch(JSON.stringify(preview), /private api detail/);
+      } else {
+        assert.equal(preview.maps[3].serverState, blockedState);
+      }
+      await assert.rejects(shiny.apply({
+        ids, revision: preview.revision,
+        expected: preview.maps.map(({ id, hash }) => ({ id, hash })),
+      }), /arrêt confirmé requis/);
+      assert.equal(writes, 0, `${blockedState} blocks before any write`);
+    }
+  } finally {
+    pgStore.getPool = original.getPool;
+    pgStore.getData = original.getData;
+    legion.readFile = original.readFile;
+    legion.writeFile = original.writeFile;
+    booster.loadSessions = original.loadSessions;
+  }
+});
+
+test('la rotation revérifie dans le verrou et bloque si une carte démarre après le précontrôle', async () => {
+  const original = {
+    getPool: pgStore.getPool, getData: pgStore.getData,
+    readFile: legion.readFile, writeFile: legion.writeFile,
+    loadSessions: booster.loadSessions, withMapIniLock: iniLock.withMapIniLock,
+  };
+  const contents = new Map(mapIds.map((id, index) => [id, ini(index < 2)]));
+  const writes = [];
+  let stateReads = 0;
+  pgStore.getPool = () => fakeLockPool();
+  pgStore.getData = async () => ({ rules });
+  booster.loadSessions = async () => [];
+  legion.readFile = async id => contents.get(id);
+  legion.writeFile = async id => { writes.push(id); };
+  iniLock.withMapIniLock = async (_id, work) => work();
+  mapState = async id => {
+    if (id === mapIds[0] && ++stateReads >= 3) return 'starting';
+    return 'offline';
+  };
+  try {
+    const ids = [mapIds[2], mapIds[3]];
+    const preview = await shiny.preview({ ids });
+    const result = await shiny.apply({
+      ids, revision: preview.revision,
+      expected: preview.maps.map(({ id, hash }) => ({ id, hash })),
+    });
+    assert.equal(result.ok, false);
+    assert.deepEqual(writes, []);
+    assert.match(result.results[0].error, /arrêt confirmé requis/);
+  } finally {
+    pgStore.getPool = original.getPool;
+    pgStore.getData = original.getData;
+    legion.readFile = original.readFile;
+    legion.writeFile = original.writeFile;
+    booster.loadSessions = original.loadSessions;
+    iniLock.withMapIniLock = original.withMapIniLock;
   }
 });

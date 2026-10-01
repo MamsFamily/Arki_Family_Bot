@@ -181,11 +181,17 @@ test('l’éditeur INI refuse les fichiers, clés et cartes non autorisés sans 
   const store = require('../pgStore');
   const id = legion.MAPS[0].id;
   const originals = { getData: store.getData, readFile: legion.readFile, writeFile: legion.writeFile,
-    withMapIniLock: iniLock.withMapIniLock };
+    getMapState: legion.getMapState, withMapIniLock: iniLock.withMapIniLock };
   const path = '/ShooterGame/Saved/Config/WindowsServer/GameUserSettings.ini';
   let contents = '[ServerSettings]\r\nServerAdminPassword=private\r\nXPMultiplier=1\r\n';
   let writes = 0;
   store.getData = async () => [];
+  // Never contact GPanel in this fixture; the preset's offline preflight is
+  // mocked as a successful read-only resources response.
+  legion.getMapState = async mapId => {
+    assert.equal(mapId, id);
+    return 'offline';
+  };
   iniLock.withMapIniLock = async (mapId, work) => { legion.assertMap(mapId); return work(); };
   legion.readFile = async (_id, file) => {
     assert.equal(file, path);
@@ -201,7 +207,8 @@ test('l’éditeur INI refuse les fichiers, clés et cartes non autorisés sans 
     await assert.rejects(legionIni.updateSetting(id, 'ServerAdminPassword', '2'), /non autorisé/);
     await assert.rejects(legionIni.updateSetting(id, 'XPMultiplier', '2\nAdmin'), /invalide/);
     assert.equal(writes, 0);
-    assert.equal(await legionIni.updateSetting(id, 'XPMultiplier', '2'), undefined);
+    assert.deepEqual(await legionIni.updateSetting(id, 'XPMultiplier', '2'),
+      { changed: true, verified: true });
     assert.equal(writes, 1);
     assert.match(contents, /ServerAdminPassword=private\r\nXPMultiplier=2/);
     assert.equal(legionIni.PRESETS.XPMultiplier.path, path);
@@ -209,6 +216,7 @@ test('l’éditeur INI refuse les fichiers, clés et cartes non autorisés sans 
     store.getData = originals.getData;
     legion.readFile = originals.readFile;
     legion.writeFile = originals.writeFile;
+    legion.getMapState = originals.getMapState;
     iniLock.withMapIniLock = originals.withMapIniLock;
   }
 });

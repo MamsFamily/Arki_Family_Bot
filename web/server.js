@@ -3723,10 +3723,10 @@ function createWebServer(discordClient) {
   });
   app.post('/legion/api/ini/setting', requireAdmin, async (req, res) => {
     try {
-      await require('./legionIni').updateSetting(req.body?.id, req.body?.key, req.body?.value);
-      res.json({ ok: true });
+      const result = await require('./legionIni').updateSetting(req.body?.id, req.body?.key, req.body?.value);
+      res.json({ ok: true, ...result });
     } catch (e) {
-      res.status(400).json({ ok: false, error: e.message });
+      res.status(e.status || 400).json({ ok: false, error: e.message });
     }
   });
   const legionIniLines = require('./legionIniLines');

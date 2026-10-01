@@ -3,6 +3,7 @@ const legion = require('./legionManager');
 const journal = require('./legionJournal');
 const booster = require('../boosterReproManager');
 const iniLock = require('./legionIniMutationLock');
+const iniSafety = require('./legionIniSafety');
 
 const ROOT = '/ShooterGame/Saved/Config/WindowsServer/';
 const FILES = Object.freeze({
@@ -193,10 +194,26 @@ async function prepare(request) {
 
 async function preview(input) {
   const request = validate(input);
-  const maps = await prepare(request);
+  const [maps, serverStates] = await Promise.all([
+    prepare(request),
+    iniSafety.getMapsOfflineStatus(request.ids),
+  ]);
+  const states = new Map(serverStates.map(status => [status.id, status]));
+  const enriched = maps.map(map => {
+    const status = states.get(map.id);
+    return {
+      ...map,
+      serverState: status.serverState,
+      offline: status.offline,
+      stateError: status.stateError,
+      applySafe: !map.error && status.applySafe,
+    };
+  });
   return {
-    ok: maps.every(map => !map.error),
-    maps: maps.map(({ id, name, hash, error, suggestion }) => ({ id, name, hash, error, suggestion })),
+    ok: enriched.every(map => !map.error),
+    applySafe: enriched.every(map => map.applySafe),
+    maps: enriched.map(({ id, name, hash, error, suggestion, serverState, offline, stateError, applySafe }) =>
+      ({ id, name, hash, error, suggestion, serverState, offline, stateError, applySafe })),
   };
 }
 
@@ -219,6 +236,8 @@ async function apply(input) {
     if (maps.some(map => map.hash !== versions.get(map.id))) {
       throw requestError('Un fichier a changé depuis l’aperçu : refais la prévisualisation.', 409);
     }
+    // Validate all changed targets before writing any map in the batch.
+    await iniSafety.assertMapsOffline(maps.map(map => map.id));
     const results = [];
     for (const map of maps) {
       try {
@@ -227,6 +246,7 @@ async function apply(input) {
           const current = await legion.readFile(map.id, FILES[request.file]);
           if (digest(current) !== map.hash) throw requestError('Fichier modifié entre-temps : aucune écriture sur cette carte.', 409);
           await guardBoosts([map.id]);
+          await iniSafety.assertMapsOffline([map.id]);
           await legion.writeFile(map.id, FILES[request.file], map.updated);
           if (await legion.readFile(map.id, FILES[request.file]) !== map.updated) {
             throw requestError('Écriture non confirmée par relecture : vérifie cette carte dans GPanel.', 502);
