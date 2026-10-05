@@ -41,6 +41,9 @@
     <button class="sidebar-close" onclick="document.querySelector('.sidebar').classList.remove('open');document.querySelector('.sidebar-overlay').classList.remove('show')" aria-label="Fermer">✕</button>
   </div>
   <nav class="sidebar-nav">
+    <% if (typeof discordUser !== 'undefined' && discordUser && /^\d+$/.test(String(discordUser.id || ''))) { %>
+      <a href="/boutique" class="nav-link <%= path === '/boutique' ? 'active' : '' %>" <%= path === '/boutique' ? 'aria-current="page"' : '' %>><span class="icon" aria-hidden="true">↗</span> Shop Discord</a>
+    <% } %>
     <% if (role === 'admin') { %>
       <a href="/" class="nav-link nav-home <%= path === '/' ? 'active' : '' %>" <%= path === '/' ? 'aria-current="page"' : '' %>><span class="icon">⌂</span> Vue d'ensemble</a>
       <a href="/legion" class="nav-link <%= path === '/legion' ? 'active' : '' %>" <%= path === '/legion' ? 'aria-current="page"' : '' %>><span class="icon">🖥️</span> Les serveurs</a>
