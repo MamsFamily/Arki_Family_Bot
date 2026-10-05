@@ -31,6 +31,7 @@ const { getRoleIncomes } = require('./economyManager');
 const { getSettings } = require('./settingsManager');
 const pgStore = require('./pgStore');
 const { planColorCredits, deliver: deliverShopColors, isColorDeliveryComplete } = require('./shopColorRewards');
+const { SHOP_MAP_BUTTON_ID, buildShopMapButton, buildShopMapRow, showShopMap } = require('./shopMap');
 
 // ── Constantes ───────────────────────────────────────────────────────────────
 const SEXES = ['Mâle', 'Femelle'];
@@ -918,6 +919,8 @@ async function handleShopTicketCommand(interaction) {
 
 async function handleShopTicketInteraction(interaction) {
   const id = interaction.customId;
+  // This informational action must not create a cart or depend on an active order.
+  if (id === SHOP_MAP_BUTTON_ID) return showShopMap(interaction);
   const userId = interaction.user.id;
   const cart = getCart(userId);
 
@@ -1935,6 +1938,12 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
       components: adminBtns,
     });
 
+    // Keep the map button independent of admin/payment message updates.
+    await ticketChannel.send({
+      content: 'Le shop se trouve sur **Valguero**. Tu peux afficher sa carte si tu en as besoin.',
+      components: [buildShopMapRow()],
+    });
+
     // ── Message joueur : select menu roulette de paiement ────────────────────
     const payMsg = buildPaymentSelectMessage(orderId, orderData);
     await ticketChannel.send(payMsg);
@@ -1999,7 +2008,7 @@ async function publishShopTicketPanel(interaction) {
     .setLabel('🎫 Ouvrir un ticket')
     .setStyle(ButtonStyle.Primary);
 
-  const row = new ActionRowBuilder().addComponents(btn);
+  const row = new ActionRowBuilder().addComponents(btn, buildShopMapButton());
 
   await interaction.channel.send({
     embeds: [embed],

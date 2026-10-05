@@ -1359,7 +1359,7 @@ client.on('interactionCreate', async interaction => {
       id === 'st_back_packs' || id === 'st_packs_select' || id === 'st_cart_remove' ||
       id === 'st_cart_remove_select' || id === 'st_cart_comment' || id === 'st_cart_validate' ||
       id === 'st_view_cart_btn' || id === 'st_main_menu_dinos' ||
-      id === 'st_open_ticket_shop' || id === 'st_new_order' ||
+      id === 'st_open_ticket_shop' || id === 'st_new_order' || id === 'st_view_shop_map' ||
       id.startsWith('st_dino_select::') || id.startsWith('st_dino_letter_back::') ||
       id.startsWith('st_dino_variant::') || id.startsWith('st_dino_sexe::') ||
       id.startsWith('st_dino_stat::') || id.startsWith('st_couple_m_stat::') ||
