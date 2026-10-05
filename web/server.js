@@ -4,6 +4,7 @@ const PgSession = require('connect-pg-simple')(session);
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
+const { createMemberShop } = require('./memberShop');
 const multer = require('multer');
 
 const uploadStorage = multer.diskStorage({
@@ -398,6 +399,14 @@ function createWebServer(discordClient) {
     req.session.oauthState = state;
     res.redirect(getDiscordOAuthUrl(req, state));
   });
+
+  const memberShop = createMemberShop({
+    getGuildId: () => getSettings().guild?.guildId || '',
+    getBaseUrl,
+    getSessionGeneration: getCurrentSessionGen,
+  });
+  app.use('/boutique', memberShop.router);
+  app.get('/auth/discord/callback', memberShop.handleOAuthCallback);
 
   app.get('/auth/discord/callback', async (req, res) => {
     const { code, state } = req.query;
