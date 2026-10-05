@@ -14,3 +14,15 @@ La connexion Discord destinée aux joueurs doit rester séparée des accès de g
 **Why:** Les permissions historiques du Dashboard supposent une connexion staff. Donner aux joueurs ce même statut de connexion leur ouvrirait aussi des actions de gestion, même avec un rôle appelé « joueur ».
 
 **How to apply:** Une identité de joueur n’accorde jamais les droits de connexion staff/admin. Conserver les droits de gestion uniquement lorsqu’ils ont été obtenus indépendamment.
+
+Discord est la source de référence du contenu du Shop et des informations sur les dons ; ces sections doivent suivre les changements des salons, avec une synchronisation quotidienne.
+
+**Why:** L’utilisateur a demandé « La session shop et Dona devra se mettre à jour en fonction des mise à jour des Salons discord. Prévoir peut être une maj quotidienne ».
+
+**How to apply:** Ne pas créer une copie éditée manuellement qui diverge de Discord. Synchroniser uniquement les salons d’information désignés ; les salons d’ouverture de tickets restent des liens et leurs conversations privées ne sont jamais reprises.
+
+L’identification Discord seule n’autorise pas à lire les publications auxquelles le lecteur n’a pas accès dans Discord.
+
+**Why:** Republier avec les droits du bot élargirait sinon l’audience des salons privés à n’importe quel compte Discord identifié sur le site.
+
+**How to apply:** Vérifier les droits actuels du lecteur avant d’exposer une copie des publications, même lorsqu’elles sont déjà en cache. En cas de droits non vérifiables, ne pas afficher cette copie.

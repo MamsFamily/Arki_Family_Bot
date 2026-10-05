@@ -16,7 +16,7 @@ const guardSource = serverSource.slice(serverSource.indexOf('  function requireA
   serverSource.indexOf('  function requireAdmin('));
 const requireAuth = new Function('isApiRequest', `${guardSource}; return requireAuth;`)(req => req.path.startsWith('/api/'));
 
-async function fixture(t, { guild = GUILD, profile = {}, oauthFails = false } = {}) {
+async function fixture(t, { guild = GUILD, profile = {}, oauthFails = false, getShopSync } = {}) {
   let clock = 1000000;
   let generation = 1;
   const calls = [];
@@ -31,6 +31,7 @@ async function fixture(t, { guild = GUILD, profile = {}, oauthFails = false } = 
     getBaseUrl: () => 'https://example.invalid',
     getSessionGeneration: async () => generation,
     now: () => clock,
+    ...(getShopSync ? { getShopSync } : {}),
     getOAuthConfig: () => ({ clientId: 'fixture-client', clientSecret: 'fixture-secret' }),
     axiosClient: {
       post: async (url, body, options) => {
@@ -55,7 +56,7 @@ async function fixture(t, { guild = GUILD, profile = {}, oauthFails = false } = 
   const server = await new Promise(resolve => {
     const server = app.listen(0, '127.0.0.1', () => resolve(server));
   });
-  t.after(() => new Promise(resolve => server.close(resolve)));
+  t.after(() => new Promise(resolve => { server.close(resolve); server.closeAllConnections(); }));
   let cookie = '';
   const base = `http://127.0.0.1:${server.address().port}`;
   async function request(url, options = {}) {
@@ -192,4 +193,30 @@ test('provider failure gives a safe error without granting any identity', async 
   const response = await f.request('/auth/discord/callback?' + new URLSearchParams({ state, code: 'fixture-code' }));
   assert.ok(response.headers.get('location').startsWith('/boutique/connexion?error='));
   assert.equal((await f.request('/api/admin-probe')).status, 401);
+});
+
+test('synced content is fetched only after login and rendered as escaped text', async t => {
+  const members = [];
+  const f = await fixture(t, { getShopSync: async id => {
+    members.push(id);
+    return {
+      scheduleLabel: 'Tous les jours à 06h00 (heure de Paris)',
+      lastUpdatedAt: '2026-10-06T04:00:00Z', lastAttemptAt: '2026-10-06T04:00:00Z',
+      warning: null,
+      channels: { infos: {
+        name: 'infos-shop', status: 'ok', truncated: false, syncedAt: '2026-10-06T04:00:00Z',
+        messages: [{ id: '111111111111111111', url: `https://discord.com/channels/${GUILD}/${CHANNELS[0]}/111111111111111111`,
+          text: '<script>alert(1)</script>\nNouveau tarif', images: [], files: [], postedAt: null, editedAt: null }],
+      } },
+    };
+  } });
+  await f.request('/boutique');
+  assert.equal(members.length, 0);
+  await f.signIn();
+  const html = await (await f.request('/boutique')).text();
+  assert.deepEqual(members, ['123456789012345678']);
+  assert.ok(html.includes('Nouveau tarif'));
+  assert.ok(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
+  assert.ok(!html.includes('<script>alert(1)</script>'));
+  assert.ok(html.includes('06h00'));
 });

@@ -8,6 +8,48 @@
   <link rel="stylesheet" href="/css/member-shop.css">
 </head>
 <body class="member-shop-page">
+  <%
+    const shopSync = typeof sync !== 'undefined' && sync ? sync : {};
+    const syncChannels = shopSync.channels || {};
+    const formatShopDate = function(value) {
+      if (!value) return 'Date indisponible';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return 'Date indisponible';
+      try {
+        return new Intl.DateTimeFormat('fr-FR', {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+          timeZone: 'Europe/Paris'
+        }).format(date);
+      } catch (error) {
+        return 'Date indisponible';
+      }
+    };
+    const channelStatusLabel = function(status) {
+      return ({
+        ok: 'À jour',
+        stale: 'Contenu ancien',
+        forbidden: 'Accès refusé',
+        pending: 'Première synchronisation en attente',
+        unavailable: 'Indisponible'
+      })[status] || 'Indisponible';
+    };
+    const channelStatusMessage = function(channel) {
+      if (!channel || channel.status === 'pending') {
+        return 'La première synchronisation quotidienne est en attente. Le contenu apparaîtra ici dès qu’il sera disponible.';
+      }
+      if (channel.status === 'forbidden') {
+        return 'Ton compte Discord ne permet pas de consulter ce salon, ou ses droits n’ont pas pu être vérifiés. Aucun message n’est affiché.';
+      }
+      if (channel.status === 'stale') {
+        return 'La dernière synchronisation a échoué ou n’a pas pu être actualisée. Le contenu ci-dessous peut être ancien.';
+      }
+      if (channel.status === 'unavailable') {
+        return 'Le contenu de ce salon est momentanément indisponible. Réessayez un peu plus tard.';
+      }
+      return 'Aucune publication synchronisée n’est disponible pour le moment.';
+    };
+  %>
   <a class="shop-skip-link" href="#contenu">Aller au contenu</a>
   <div class="shop-shell">
     <header class="shop-header">
@@ -61,18 +103,89 @@
           </div>
           <p class="shop-section-note">Choisissez un rayon pour consulter les informations dans Discord.</p>
         </div>
+        <div class="shop-sync-overview" role="status" aria-label="État de synchronisation Discord">
+          <span class="shop-sync-indicator" aria-hidden="true"></span>
+          <span class="shop-sync-schedule"><%= shopSync.scheduleLabel || 'Synchronisation quotidienne à 06:00 Europe/Paris' %></span>
+          <span class="shop-sync-updated">Dernière mise à jour : <%= formatShopDate(shopSync.lastUpdatedAt) %></span>
+          <% if (shopSync.lastAttemptAt) { %>
+            <span class="shop-sync-attempt">Dernière tentative : <%= formatShopDate(shopSync.lastAttemptAt) %></span>
+          <% } %>
+          <% if (shopSync.warning) { %>
+            <p class="shop-sync-warning"><%= shopSync.warning %></p>
+          <% } %>
+        </div>
 
         <% if (directory && Array.isArray(directory.categories) && directory.categories.length) { %>
           <div class="shop-category-list">
             <% directory.categories.forEach(function(category, index) { %>
-              <a class="shop-category" href="<%= category.url %>" target="_blank" rel="noopener noreferrer">
-                <span class="shop-category-number"><%= String(index + 1).padStart(2, '0') %></span>
-                <span class="shop-category-copy">
-                  <span class="shop-category-title"><%= category.title %></span>
-                  <span class="shop-category-description"><%= category.description %></span>
-                </span>
-                <span class="shop-category-arrow" aria-hidden="true">↗</span>
-              </a>
+              <%
+                const categoryChannel = syncChannels[category.key] || null;
+                const categoryMessages = categoryChannel && Array.isArray(categoryChannel.messages) ? categoryChannel.messages : [];
+                const categoryChannelName = categoryChannel && categoryChannel.name ? categoryChannel.name : 'Salon Discord';
+              %>
+              <div class="shop-category-entry">
+                <a class="shop-category" href="<%= category.url %>" target="_blank" rel="noopener noreferrer">
+                  <span class="shop-category-number"><%= String(index + 1).padStart(2, '0') %></span>
+                  <span class="shop-category-copy">
+                    <span class="shop-category-title"><%= category.title %></span>
+                    <span class="shop-category-description"><%= category.description %></span>
+                  </span>
+                  <span class="shop-category-arrow" aria-hidden="true">↗</span>
+                </a>
+                <details class="shop-content-details">
+                  <summary>
+                    <span>Publications synchronisées</span>
+                    <span class="shop-content-count"><%= categoryMessages.length %> publication<%= categoryMessages.length === 1 ? '' : 's' %></span>
+                  </summary>
+                  <div class="shop-content-panel">
+                    <div class="shop-channel-meta">
+                      <span>Source : <strong><%= categoryChannelName %></strong></span>
+                      <span>Synchronisé le <%= formatShopDate(categoryChannel && categoryChannel.syncedAt) %></span>
+                      <span class="shop-channel-status shop-channel-status-<%= categoryChannel ? categoryChannel.status : 'unavailable' %>"><%= channelStatusLabel(categoryChannel && categoryChannel.status) %></span>
+                    </div>
+                    <% if (categoryChannel && categoryChannel.status === 'stale') { %>
+                      <p class="shop-content-notice shop-content-notice-warning"><%= channelStatusMessage(categoryChannel) %></p>
+                    <% } %>
+                    <% if (categoryChannel && categoryChannel.truncated) { %>
+                      <p class="shop-content-notice">Historique partiel : certaines publications n’ont pas été incluses.</p>
+                    <% } %>
+                    <% if (categoryMessages.length) { %>
+                      <div class="shop-message-list">
+                        <% categoryMessages.forEach(function(message) { %>
+                          <article class="shop-message">
+                            <div class="shop-message-meta">
+                              <span>Publié le <%= formatShopDate(message.postedAt) %></span>
+                              <% if (message.editedAt) { %>
+                                <span>Modifié le <%= formatShopDate(message.editedAt) %></span>
+                              <% } %>
+                              <% if (message.url) { %>
+                                <a href="<%= message.url %>" target="_blank" rel="noopener noreferrer">Voir sur Discord</a>
+                              <% } %>
+                            </div>
+                            <p class="shop-message-text"><%= message.text %></p>
+                            <% if (Array.isArray(message.images) && message.images.length) { %>
+                              <div class="shop-message-images">
+                                <% message.images.forEach(function(image) { %>
+                                  <img src="<%= image.url %>" alt="<%= image.alt || '' %>" loading="lazy">
+                                <% }); %>
+                              </div>
+                            <% } %>
+                            <% if (Array.isArray(message.files) && message.files.length) { %>
+                              <ul class="shop-message-files">
+                                <% message.files.forEach(function(file) { %>
+                                  <li><a href="<%= file.url %>" target="_blank" rel="noopener noreferrer"><%= file.name %></a></li>
+                                <% }); %>
+                              </ul>
+                            <% } %>
+                          </article>
+                        <% }); %>
+                      </div>
+                    <% } else { %>
+                      <p class="shop-content-notice"><%= channelStatusMessage(categoryChannel) %></p>
+                    <% } %>
+                  </div>
+                </details>
+              </div>
             <% }); %>
           </div>
         <% } else if (!error) { %>
@@ -120,18 +233,68 @@
           </details>
         </section>
 
-        <% if (directory.donations && (directory.donations.infoUrl || directory.donations.ticketUrl)) { %>
+        <%
+          const donationChannel = syncChannels.donations || null;
+          const donationMessages = donationChannel && Array.isArray(donationChannel.messages) ? donationChannel.messages : [];
+          const hasDonationLinks = directory.donations && (directory.donations.infoUrl || directory.donations.ticketUrl);
+        %>
+        <% if (hasDonationLinks || donationChannel) { %>
           <aside class="shop-support" aria-label="Informations complémentaires">
-            <span class="shop-support-label">Dons</span>
-            <p>Si vous souhaitez soutenir le serveur, les informations sont disponibles ici.</p>
-            <div class="shop-support-links">
-              <% if (directory.donations.infoUrl) { %>
-                <a href="<%= directory.donations.infoUrl %>" target="_blank" rel="noopener noreferrer">Informations sur les dons</a>
+            <details class="shop-support-details">
+              <summary><span class="shop-support-label">Soutenir le serveur</span><span class="shop-support-hint">Informations facultatives</span></summary>
+              <% if (hasDonationLinks) { %>
+                <p>Si vous souhaitez soutenir le serveur, les informations sont disponibles ici.</p>
+                <div class="shop-support-links">
+                  <% if (directory.donations.infoUrl) { %>
+                    <a href="<%= directory.donations.infoUrl %>" target="_blank" rel="noopener noreferrer">Informations sur les dons</a>
+                  <% } %>
+                  <% if (directory.donations.ticketUrl) { %>
+                    <a href="<%= directory.donations.ticketUrl %>" target="_blank" rel="noopener noreferrer">Ouvrir un ticket dons</a>
+                  <% } %>
+                </div>
               <% } %>
-              <% if (directory.donations.ticketUrl) { %>
-                <a href="<%= directory.donations.ticketUrl %>" target="_blank" rel="noopener noreferrer">Ouvrir un ticket dons</a>
+              <% if (donationChannel) { %>
+                <div class="shop-donation-content">
+                  <div class="shop-channel-meta">
+                    <span>Source : <strong><%= donationChannel.name || 'Salon Discord' %></strong></span>
+                    <span>Synchronisé le <%= formatShopDate(donationChannel.syncedAt) %></span>
+                    <span class="shop-channel-status shop-channel-status-<%= donationChannel.status %>"><%= channelStatusLabel(donationChannel.status) %></span>
+                  </div>
+                  <% if (donationChannel.status === 'stale') { %>
+                    <p class="shop-content-notice shop-content-notice-warning"><%= channelStatusMessage(donationChannel) %></p>
+                  <% } %>
+                  <% if (donationChannel.truncated) { %>
+                    <p class="shop-content-notice">Historique partiel : certaines publications n’ont pas été incluses.</p>
+                  <% } %>
+                  <% if (donationMessages.length) { %>
+                    <div class="shop-message-list">
+                      <% donationMessages.forEach(function(message) { %>
+                        <article class="shop-message">
+                          <div class="shop-message-meta">
+                            <span>Publié le <%= formatShopDate(message.postedAt) %></span>
+                            <% if (message.editedAt) { %><span>Modifié le <%= formatShopDate(message.editedAt) %></span><% } %>
+                            <% if (message.url) { %><a href="<%= message.url %>" target="_blank" rel="noopener noreferrer">Voir sur Discord</a><% } %>
+                          </div>
+                          <p class="shop-message-text"><%= message.text %></p>
+                          <% if (Array.isArray(message.images) && message.images.length) { %>
+                            <div class="shop-message-images">
+                              <% message.images.forEach(function(image) { %><img src="<%= image.url %>" alt="<%= image.alt || '' %>" loading="lazy"><% }); %>
+                            </div>
+                          <% } %>
+                          <% if (Array.isArray(message.files) && message.files.length) { %>
+                            <ul class="shop-message-files">
+                              <% message.files.forEach(function(file) { %><li><a href="<%= file.url %>" target="_blank" rel="noopener noreferrer"><%= file.name %></a></li><% }); %>
+                            </ul>
+                          <% } %>
+                        </article>
+                      <% }); %>
+                    </div>
+                  <% } else { %>
+                    <p class="shop-content-notice"><%= channelStatusMessage(donationChannel) %></p>
+                  <% } %>
+                </div>
               <% } %>
-            </div>
+            </details>
           </aside>
         <% } %>
       <% } %>

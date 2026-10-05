@@ -3,32 +3,7 @@
 const express = require('express');
 const crypto = require('node:crypto');
 const axios = require('axios');
-
-const SHOP_CHANNELS = Object.freeze([
-  { key: 'infos', title: 'Côté infos shop', description: 'Les informations utiles avant de passer commande.', id: '1485051049654878379' },
-  { key: 'petit-shop', title: 'Le p’tit shop', description: 'Découvre les articles du p’tit shop.', id: '1485051177845657771' },
-  { key: 'packs', title: 'Les packs', description: 'Consulte les packs disponibles sur Discord.', id: '1485051269977739334' },
-  { key: 'dinos', title: 'Dino shop', description: 'Retrouve les dinos proposés au shop.', id: '1485051399589855382' },
-]);
-const ORDER_CHANNEL = '1156938232244752494';
-const DONATION_INFO_CHANNEL = '1160538476224196628';
-const DONATION_TICKET_CHANNEL = '1156938293586427934';
-const DISCORD_ID = /^\d{17,20}$/;
-
-function buildShopDirectory(guildId) {
-  if (typeof guildId !== 'string' || !DISCORD_ID.test(guildId)) {
-    throw new Error('Identifiant du serveur Discord non configuré.');
-  }
-  const channelUrl = id => `https://discord.com/channels/${guildId}/${id}`;
-  return {
-    categories: SHOP_CHANNELS.map(({ id, ...category }) => ({ ...category, url: channelUrl(id) })),
-    orderUrl: channelUrl(ORDER_CHANNEL),
-    donations: {
-      infoUrl: channelUrl(DONATION_INFO_CHANNEL),
-      ticketUrl: channelUrl(DONATION_TICKET_CHANNEL),
-    },
-  };
-}
+const { buildShopDirectory, DISCORD_ID } = require('./shopDirectory');
 
 function sameToken(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length || !a.length || a.length > 256) return false;
@@ -53,6 +28,10 @@ function createMemberShop({
   getSessionGeneration,
   axiosClient = axios,
   now = Date.now,
+  getShopSync = async () => ({
+    scheduleLabel: 'Tous les jours à 06h00 (heure de Paris)',
+    lastUpdatedAt: null, lastAttemptAt: null, warning: null, channels: {},
+  }),
   getOAuthConfig = () => ({
     clientId: process.env.DISCORD_CLIENT_ID,
     clientSecret: process.env.DISCORD_CLIENT_SECRET,
@@ -99,7 +78,7 @@ function createMemberShop({
     return res.redirect(`https://discord.com/api/oauth2/authorize?${params}`);
   });
 
-  router.get('/', requireMember, (req, res) => {
+  router.get('/', requireMember, async (req, res) => {
     if (!req.session.shopCsrfToken) req.session.shopCsrfToken = crypto.randomBytes(32).toString('hex');
     let directory = null;
     let error = null;
@@ -109,7 +88,8 @@ function createMemberShop({
       error = 'Les liens Discord ne sont pas encore configurés. Contacte un administrateur.';
       res.status(503);
     }
-    res.render('member-shop', { directory, error, csrfToken: req.session.shopCsrfToken });
+    const sync = await getShopSync(res.locals.member.id);
+    res.render('member-shop', { directory, error, sync, csrfToken: req.session.shopCsrfToken });
   });
 
   router.post('/deconnexion', (req, res, next) => {
