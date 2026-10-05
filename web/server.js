@@ -4,8 +4,6 @@ const PgSession = require('connect-pg-simple')(session);
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
-const { createMemberShop } = require('./memberShop');
-const { createShopContentSync } = require('./shopContentSync');
 const multer = require('multer');
 
 const uploadStorage = multer.diskStorage({
@@ -46,7 +44,7 @@ function createWebServer(discordClient) {
 
   // Init PostgreSQL si disponible (partagé avec Railway)
   pgStore.initPool();
-  const storageReady = pgStore.initTables().then(async () => {
+  pgStore.initTables().then(async () => {
     await require('../starter-pack/service').init().catch(e => console.error('[StarterPack] init:', e.message));
     await inventoryManager.initInventory().catch(e => console.error('[Inventory] initInventory au démarrage dashboard:', e.message));
     // Le dashboard expose les plannings, mais Railway est seul chargé de les exécuter.
@@ -400,19 +398,6 @@ function createWebServer(discordClient) {
     req.session.oauthState = state;
     res.redirect(getDiscordOAuthUrl(req, state));
   });
-
-  const shopContentSync = createShopContentSync({
-    getGuildId: () => getSettings().guild?.guildId || '',
-  });
-  shopContentSync.start({ ready: storageReady });
-  const memberShop = createMemberShop({
-    getGuildId: () => getSettings().guild?.guildId || '',
-    getBaseUrl,
-    getSessionGeneration: getCurrentSessionGen,
-    getShopSync: shopContentSync.getForMember,
-  });
-  app.use('/boutique', memberShop.router);
-  app.get('/auth/discord/callback', memberShop.handleOAuthCallback);
 
   app.get('/auth/discord/callback', async (req, res) => {
     const { code, state } = req.query;

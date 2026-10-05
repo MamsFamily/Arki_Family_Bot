@@ -12,4 +12,3 @@
 - [Récompenses votes historiques](legacy-vote-rewards.md) — l’absence d’un nouveau reçu ne prouve pas qu’un ancien mois n’a pas déjà été distribué.
 - [Reprise des annonces Discord](discord-notification-recovery.md) — un historique vide sans ReadMessageHistory ne prouve pas l’absence ; un nonce ne protège que les reprises récentes.
 - [Cycle de vie des INI ARK](ark-ini-write-lifecycle.md) — ARK peut perdre les changements faits à chaud ; une relecture immédiate ne garantit pas leur conservation au redémarrage.
-- [Shop membres et dons](member-shop-access.md) — Shop et dons réservés aux identités Discord ; dons discrets et connexion joueurs distincte des accès de gestion.
