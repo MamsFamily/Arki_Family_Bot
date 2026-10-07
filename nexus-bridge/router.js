@@ -2,6 +2,7 @@
 const express = require('express');
 const { createHash, timingSafeEqual } = require('node:crypto');
 const { withVariantPrices } = require('../dinoPricing');
+const legion = require('../web/legionManager');
 
 class BridgeError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -11,6 +12,33 @@ const text = value => typeof value === 'string' ? value.slice(0, 500) : '';
 const amount = value => Number.isFinite(Number(value)) ? Number(value) : 0;
 const list = value => Array.isArray(value) ? value : [];
 const price = value => ({ diamonds: amount(value.priceDiamonds), strawberries: amount(value.priceStrawberries) });
+const PUBLIC_MAP_STATUS_SLUGS = Object.freeze({
+  '9e151580': 'valguero',
+  '7c110bf0': 'genesis',
+  '27d0aeff': 'astraeos',
+  'd8d6185e': 'the-island',
+  '8efe82b3': 'ragnarok',
+  '8e262f7c': 'lost-colony',
+  '686c087f': 'aberration',
+  '988af27d': 'scorched-earth',
+  'e4d5b19e': 'extinction',
+  'b59b0253': 'ragnarok-event',
+  '6c0e3a89': 'svartalfheim',
+  'cf79fe13': 'the-center',
+});
+
+function publicMapState(state) {
+  switch (String(state || '').toLowerCase()) {
+    case 'running': return 'running';
+    case 'restarting': return 'restarting';
+    case 'starting': return 'starting';
+    case 'stopping': return 'stopping';
+    case 'offline':
+    case 'stopped': return 'offline';
+    case 'suspended': return 'suspended';
+    default: return 'unknown';
+  }
+}
 
 function product(value, type) {
   if (type === 'dino') value = withVariantPrices(value);
@@ -39,12 +67,36 @@ function order(row, guildId, staff = false) {
 function createBridgeRouter({
   store = require('../pgStore'),
   settings = require('../settingsManager'),
+  legionApi = legion,
   fetchImpl = fetch,
   config = () => ({ token: process.env.NEXUS_BRIDGE_TOKEN, enabled: process.env.NEXUS_BRIDGE_ENABLED === 'true',
     discordToken: process.env.DISCORD_TOKEN }),
 } = {}) {
   const router = express.Router();
   const buckets = new Map();
+  let mapStatusCache = null;
+  let mapStatusCacheUntil = 0;
+  let mapStatusInFlight = null;
+  const readPublicMapStatus = async () => {
+    if (mapStatusCache && Date.now() < mapStatusCacheUntil) return mapStatusCache;
+    if (!mapStatusInFlight) {
+      mapStatusInFlight = (async () => {
+        const servers = await legionApi.getServers();
+        if (!Array.isArray(servers)) throw new Error('Invalid GPanel server list');
+        const byId = new Map(servers.filter(server => server && typeof server.id === 'string').map(server => [server.id, server]));
+        const maps = Object.entries(PUBLIC_MAP_STATUS_SLUGS).map(([id, slug]) => ({
+          slug,
+          state: publicMapState(byId.get(id)?.state),
+        }));
+        const snapshot = { schemaVersion: 1, checkedAt: new Date().toISOString(), maps };
+        mapStatusCache = snapshot;
+        mapStatusCacheUntil = Date.now() + 20000;
+        return snapshot;
+      })();
+    }
+    try { return await mapStatusInFlight; }
+    finally { mapStatusInFlight = null; }
+  };
   router.use(async (req, res, next) => {
     res.set('Cache-Control', 'private, no-store');
     res.set('X-Content-Type-Options', 'nosniff');
@@ -55,6 +107,12 @@ function createBridgeRouter({
       const supplied = /^Bearer ([^\s]+)$/i.exec(req.get('authorization') || '')?.[1] || '';
       const hash = v => createHash('sha256').update(v).digest();
       if (!timingSafeEqual(hash(supplied), hash(cfg.token))) throw new BridgeError(401, 'Accès refusé.');
+      // Public website status is read-only and intentionally returns only the
+      // twelve approved map slugs and normalized state; no actor or DB is needed.
+      if (req.path === '/map-status') {
+        req.bridge = { publicMapStatus: true };
+        return next();
+      }
       const actor = req.get('X-Arki-Actor-Id');
       const guild = req.get('X-Arki-Guild-Id');
       const configuredGuild = settings.getSettings().guild?.guildId;
@@ -84,6 +142,10 @@ function createBridgeRouter({
   const read = key => store.getData(key, undefined, { throwOnError: true });
   const metadata = guild => ({ schemaVersion: 1, guildId: guild, fetchedAt: new Date().toISOString() });
 
+  router.get('/map-status', async (_req, res, next) => {
+    try { res.json(await readPublicMapStatus()); }
+    catch (error) { next(error); }
+  });
   router.get('/account', async (req, res, next) => {
     try {
       const { actor, guild } = req.bridge;

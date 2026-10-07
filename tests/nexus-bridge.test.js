@@ -4,9 +4,16 @@ const express = require('express');
 const { createBridgeRouter } = require('../nexus-bridge/router');
 const ACTOR = '11111111111111111', OTHER = '22222222222222222', GUILD = '33333333333333333';
 const TOKEN = 'test-only-bridge-key-not-a-real-secret';
+const MAP_FIXTURES = [
+  ['9e151580', 'running'], ['7c110bf0', 'restarting'], ['27d0aeff', 'starting'],
+  ['d8d6185e', 'stopping'], ['8efe82b3', 'offline'], ['8e262f7c', 'suspended'],
+  ['686c087f', 'unknown'], ['988af27d', 'stopped'], ['e4d5b19e', 'running'],
+  ['b59b0253', 'running'], ['6c0e3a89', 'running'], ['cf79fe13', 'unexpected'],
+].map(([id, state]) => ({ id, state, cpu: 99, resourceError: 'private provider detail' }));
 
 async function fixture(t, options = {}) {
   const reads = [], queries = [], discordRequests = [];
+  let legionCalls = 0;
   const data = {
     inventory_data: { [ACTOR]: { diamants: 42, custom: 2 }, [OTHER]: { diamants: 9000 } },
     inventory_item_types: [{ id: 'diamants', name: 'Diamants', category: 'currency' }],
@@ -38,7 +45,13 @@ async function fixture(t, options = {}) {
   };
   const router = createBridgeRouter({
     store, settings: { getSettings: () => ({ guild: { guildId: GUILD } }) },
-    config: () => ({ enabled: options.enabled !== false, token: options.token ?? TOKEN, discordToken: 'test-only-discord-placeholder' }),
+    legionApi: { getServers: async () => {
+      legionCalls++;
+      if (options.legionFail) throw new Error('PRIVATE GPanel failure');
+      return [...MAP_FIXTURES, { id: 'test-only-server', state: 'running' }];
+    } },
+    config: () => ({ enabled: options.enabled !== false, token: options.token ?? TOKEN,
+      discordToken: Object.hasOwn(options, 'discordToken') ? options.discordToken : 'test-only-discord-placeholder' }),
     fetchImpl: async url => {
       discordRequests.push(url);
       if (options.discordFail) throw new Error('timeout');
@@ -57,7 +70,7 @@ async function fixture(t, options = {}) {
     });
     return { response, data: await response.json() };
   };
-  return { request, reads, queries, discordRequests };
+  return { request, reads, queries, discordRequests, get legionCalls() { return legionCalls; } };
 }
 
 test('account is scoped to asserted actor, ignores subject query, and minimizes private fields', async t => {
@@ -95,6 +108,41 @@ test('wrong service key is denied before Discord/database access', async t => {
   const f = await fixture(t);
   assert.equal((await f.request('account', { headers: { Authorization: 'Bearer invalid' } })).response.status, 401);
   assert.equal(f.reads.length + f.discordRequests.length, 0);
+});
+test('public map status exposes only the twelve approved maps and uses the bridge key only', async t => {
+  const f = await fixture(t, { postgres: false, discordToken: null });
+  const headers = { 'X-Arki-Actor-Id': '', 'X-Arki-Guild-Id': '' };
+  const { response, data } = await f.request('map-status', { headers });
+  assert.equal(response.status, 200);
+  assert.equal(data.schemaVersion, 1);
+  assert.equal(data.maps.length, 12);
+  assert.deepEqual(data.maps.map(map => map.slug), [
+    'valguero', 'genesis', 'astraeos', 'the-island', 'ragnarok', 'lost-colony',
+    'aberration', 'scorched-earth', 'extinction', 'ragnarok-event', 'svartalfheim', 'the-center',
+  ]);
+  assert.deepEqual(data.maps.map(map => map.state), [
+    'running', 'restarting', 'starting', 'stopping', 'offline', 'suspended',
+    'unknown', 'offline', 'running', 'running', 'running', 'unknown',
+  ]);
+  assert.doesNotMatch(JSON.stringify(data), /private provider detail|cpu|test-only-server/);
+  assert.equal(f.legionCalls, 1);
+  assert.equal(f.discordRequests.length, 0);
+  assert.equal(f.reads.length + f.queries.length, 0);
+});
+test('public map status is cached and GPanel failures do not become offline states', async t => {
+  const f = await fixture(t, { postgres: false, discordToken: null });
+  const headers = { 'X-Arki-Actor-Id': '', 'X-Arki-Guild-Id': '' };
+  const first = await f.request('map-status', { headers });
+  const second = await f.request('map-status', { headers });
+  assert.equal(first.response.status, 200);
+  assert.equal(second.response.status, 200);
+  assert.equal(f.legionCalls, 1);
+
+  const broken = await fixture(t, { legionFail: true });
+  const { response, data } = await broken.request('map-status');
+  assert.equal(response.status, 503);
+  assert.doesNotMatch(JSON.stringify(data), /PRIVATE GPanel/);
+  assert.equal(broken.legionCalls, 1);
 });
 test('malformed subject or different guild cannot access data', async t => {
   const f = await fixture(t);
