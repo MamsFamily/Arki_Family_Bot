@@ -36,55 +36,122 @@ function order(row, guildId, staff = false) {
   };
 }
 
-function createBridgeRouter({
+const MAP_STATUS_ENTRIES = Object.freeze([
+    ['ragnarok', 'Ragnarok'], ['valguero', 'Valguero'], ['astraeos', 'Astraeos'],
+    ['svartalfheim', 'Svartalfheim'], ['genesis', 'Genesis'], ['lost-colony', 'Lost Colony'],
+    ['aberration', 'Aberration'], ['scorched-earth', 'Scorched Earth'], ['the-island', 'The Island'],
+    ['the-center', 'The Center'], ['extinction', 'Extinction'], ['ragnarok-event', 'Map Event'],
+    ]);
+    const MAP_STATUS_BY_NAME = new Map(MAP_STATUS_ENTRIES.map(([slug, name]) => [name, slug]));
+
+    function publicMapStatuses(servers) {
+    if (!Array.isArray(servers) || servers.length !== MAP_STATUS_ENTRIES.length) {
+      throw new BridgeError(503, 'État GPanel incomplet.');
+    }
+    const bySlug = new Map();
+    for (const server of servers) {
+      const slug = MAP_STATUS_BY_NAME.get(server?.name);
+      if (!slug || bySlug.has(slug)) throw new BridgeError(503, 'État GPanel invalide.');
+      let state = 'unknown';
+      if (!server.resourceError) {
+        if (server.state === 'running') state = 'online';
+        else if (['starting', 'stopping', 'restarting', 'offline', 'suspended'].includes(server.state)) state = server.state;
+      }
+      bySlug.set(slug, { slug, state });
+    }
+    if (bySlug.size !== MAP_STATUS_ENTRIES.length) throw new BridgeError(503, 'État GPanel incomplet.');
+    return MAP_STATUS_ENTRIES.map(([slug]) => bySlug.get(slug));
+    }
+
+    function createBridgeRouter({
   store = require('../pgStore'),
   settings = require('../settingsManager'),
   fetchImpl = fetch,
   config = () => ({ token: process.env.NEXUS_BRIDGE_TOKEN, enabled: process.env.NEXUS_BRIDGE_ENABLED === 'true',
     discordToken: process.env.DISCORD_TOKEN }),
+  getMapServers = () => require('../web/legionManager').getServers(),
 } = {}) {
   const router = express.Router();
   const buckets = new Map();
+  let mapStatusCache = null;
+  let mapStatusCacheUntil = 0;
+  let mapStatusInFlight = null;
   router.use(async (req, res, next) => {
-    res.set('Cache-Control', 'private, no-store');
-    res.set('X-Content-Type-Options', 'nosniff');
-    try {
-      if (req.method !== 'GET') throw new BridgeError(405, 'Liaison en lecture seule.');
-      const cfg = config();
-      if (!cfg.enabled || !cfg.token || cfg.token.length < 32) throw new BridgeError(503, 'Liaison Lenexus non configurée.');
-      const supplied = /^Bearer ([^\s]+)$/i.exec(req.get('authorization') || '')?.[1] || '';
-      const hash = v => createHash('sha256').update(v).digest();
-      if (!timingSafeEqual(hash(supplied), hash(cfg.token))) throw new BridgeError(401, 'Accès refusé.');
-      const actor = req.get('X-Arki-Actor-Id');
-      const guild = req.get('X-Arki-Guild-Id');
-      const configuredGuild = settings.getSettings().guild?.guildId;
-      if (!snowflake(actor) || !snowflake(guild)) throw new BridgeError(400, 'Identité Discord invalide.');
-      if (!snowflake(configuredGuild) || guild !== configuredGuild) throw new BridgeError(403, 'Serveur Discord non autorisé.');
-      if (!cfg.discordToken || !store.isPostgres()) throw new BridgeError(503, 'Source ArkiFamily indisponible.');
-      const now = Date.now();
-      for (const [key, bucket] of buckets) if (now >= bucket.until) buckets.delete(key);
-      const bucket = buckets.get(actor) || { count: 0, until: now + 60000 };
-      if (buckets.size >= 10000 || ++bucket.count > 60) throw new BridgeError(429, 'Trop de demandes. Réessayez dans une minute.');
-      buckets.set(actor, bucket);
-      async function discord(path) {
-        const response = await fetchImpl(`https://discord.com/api/v10${path}`, {
-          headers: { Authorization: `Bot ${cfg.discordToken}` }, signal: AbortSignal.timeout(8000),
-          redirect: 'error',
-        });
-        if (response.status === 404) throw new BridgeError(403, 'Accès réservé aux membres du serveur.');
-        if (!response.ok) throw new BridgeError(503, 'Vérification Discord indisponible.');
-        return response.json();
-      }
-      const member = await discord(`/guilds/${guild}/members/${actor}`);
-      if (member.user?.id !== actor || member.user?.bot) throw new BridgeError(403, 'Compte joueur non autorisé.');
-      req.bridge = { actor, guild, member, discord };
-      next();
-    } catch (error) { next(error); }
-  });
-  const read = key => store.getData(key, undefined, { throwOnError: true });
+      res.set('Cache-Control', 'private, no-store');
+      res.set('X-Content-Type-Options', 'nosniff');
+      try {
+        if (req.method !== 'GET') throw new BridgeError(405, 'Liaison en lecture seule.');
+        const cfg = config();
+        if (!cfg.enabled || !cfg.token || cfg.token.length < 32) throw new BridgeError(503, 'Liaison Lenexus non configurée.');
+        const supplied = /^Bearer ([^\s]+)$/i.exec(req.get('authorization') || '')?.[1] || '';
+        const hash = v => createHash('sha256').update(v).digest();
+        if (!timingSafeEqual(hash(supplied), hash(cfg.token))) throw new BridgeError(401, 'Accès refusé.');
+
+        // This one read-only route is public to visitors through Lenexus, but the
+        // server-to-server bearer above remains mandatory. No Discord identity is sent.
+        if (req.path === '/map-status') {
+          const now = Date.now();
+          for (const [key, bucket] of buckets) if (now >= bucket.until) buckets.delete(key);
+          const rateKey = 'map-status:' + (req.ip || req.socket.remoteAddress || 'unknown');
+          const bucket = buckets.get(rateKey) || { count: 0, until: now + 60000 };
+          if (buckets.size >= 10000 || ++bucket.count > 600) throw new BridgeError(429, 'Trop de demandes. Réessayez dans une minute.');
+          buckets.set(rateKey, bucket);
+          return next();
+        }
+
+        const actor = req.get('X-Arki-Actor-Id');
+        const guild = req.get('X-Arki-Guild-Id');
+        const configuredGuild = settings.getSettings().guild?.guildId;
+        if (!snowflake(actor) || !snowflake(guild)) throw new BridgeError(400, 'Identité Discord invalide.');
+        if (!snowflake(configuredGuild) || guild !== configuredGuild) throw new BridgeError(403, 'Serveur Discord non autorisé.');
+        if (!cfg.discordToken || !store.isPostgres()) throw new BridgeError(503, 'Source ArkiFamily indisponible.');
+        const now = Date.now();
+        for (const [key, bucket] of buckets) if (now >= bucket.until) buckets.delete(key);
+        const bucket = buckets.get(actor) || { count: 0, until: now + 60000 };
+        if (buckets.size >= 10000 || ++bucket.count > 60) throw new BridgeError(429, 'Trop de demandes. Réessayez dans une minute.');
+        buckets.set(actor, bucket);
+        async function discord(path) {
+          const response = await fetchImpl('https://discord.com/api/v10' + path, {
+            headers: { Authorization: 'Bot ' + cfg.discordToken }, signal: AbortSignal.timeout(8000),
+            redirect: 'error',
+          });
+          if (response.status === 404) throw new BridgeError(403, 'Accès réservé aux membres du serveur.');
+          if (!response.ok) throw new BridgeError(503, 'Vérification Discord indisponible.');
+          return response.json();
+        }
+        const member = await discord('/guilds/' + guild + '/members/' + actor);
+        if (member.user?.id !== actor || member.user?.bot) throw new BridgeError(403, 'Compte joueur non autorisé.');
+        req.bridge = { actor, guild, member, discord };
+        next();
+      } catch (error) { next(error); }
+    });
+      const read = key => store.getData(key, undefined, { throwOnError: true });
   const metadata = guild => ({ schemaVersion: 1, guildId: guild, fetchedAt: new Date().toISOString() });
 
-  router.get('/account', async (req, res, next) => {
+  router.get('/map-status', async (_req, res, next) => {
+      try {
+        if (mapStatusCache && Date.now() < mapStatusCacheUntil) {
+          res.json(mapStatusCache);
+          return;
+        }
+        if (!mapStatusInFlight) {
+          mapStatusInFlight = Promise.resolve()
+            .then(() => getMapServers())
+            .then(publicMapStatuses)
+            .then(statuses => {
+              mapStatusCache = statuses;
+              mapStatusCacheUntil = Date.now() + 10000;
+              return statuses;
+            })
+            .finally(() => { mapStatusInFlight = null; });
+        }
+        res.json(await mapStatusInFlight);
+      } catch {
+        next(new BridgeError(503, 'États GPanel momentanément indisponibles.'));
+      }
+    });
+
+      router.get('/account', async (req, res, next) => {
     try {
       const { actor, guild } = req.bridge;
       // Always derive the subject from the trusted server assertion; ignore query IDs.

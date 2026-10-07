@@ -30,11 +30,17 @@ Sans configuration, les écrans affichent une erreur explicite ; les anciens
 
 ## Contrat versionné
 
-Requêtes GET seulement vers `/api/nexus/v1/account`, `/catalog`, `/staff?page=1`.
-En-têtes côté serveur : `Authorization: Bearer …`, `X-Arki-Actor-Id`,
-`X-Arki-Guild-Id`. Le backend Lenexus déduit l'acteur de sa session Discord,
-jamais d'un paramètre utilisateur. La source vérifie sa présence sur Discord.
-Toutes les réponses privées sont `no-store`.
+Requêtes GET seulement vers `/api/nexus/v1/account`, `/catalog`, `/staff?page=1` et `/map-status`.
+Les trois routes de compte exigent `Authorization: Bearer …`, `X-Arki-Actor-Id` et
+`X-Arki-Guild-Id`. Lenexus déduit l'acteur de sa session Discord et la source
+vérifie son appartenance au serveur.
+
+`GET /api/nexus/v1/map-status` est l'unique exception à l'identité Discord : la
+clé de liaison reste obligatoire. Il ne renvoie que 12 objets `{slug, state}`,
+sans identifiant GPanel ni détail de ressource. Une erreur GPanel sur une map
+devient `unknown`; une panne générale renvoie `503`. La réponse est mise en cache
+10 secondes côté bot pour limiter les appels GPanel. Toutes les réponses restent
+`no-store`.
 
 - Compte : uniquement son inventaire, ses 50 dernières commandes, ses tickets
   shop/spawn/reclaim et 30 mouvements d'inventaire. Pas de notes staff ni de
