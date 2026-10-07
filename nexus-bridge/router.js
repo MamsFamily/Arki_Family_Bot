@@ -1,6 +1,7 @@
 'use strict';
 const express = require('express');
 const { createHash, timingSafeEqual } = require('node:crypto');
+const { withVariantPrices } = require('../dinoPricing');
 
 class BridgeError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -12,6 +13,7 @@ const list = value => Array.isArray(value) ? value : [];
 const price = value => ({ diamonds: amount(value.priceDiamonds), strawberries: amount(value.priceStrawberries) });
 
 function product(value, type) {
+  if (type === 'dino') value = withVariantPrices(value);
   return {
     id: text(value.id), name: text(value.name), type, description: text(value.description),
     category: text(value.category) || type, prices: [{ label: 'Standard', ...price(value) },
