@@ -26,6 +26,9 @@ const { getShop, addPack, updatePack, deletePack, reorderPacks, getPack, updateS
 const { getDinoData, addDino, updateDino, deleteDino, getDino, updateDinoChannel, updateLetterMessage, getLetterMessages, updateLetterColor, getLetterColor, getLetterColors, getDinosByLetter, getModdedDinos, getShoulderDinos, getPaidDLCDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildModdedEmbeds, buildShoulderEmbed, buildPaidDLCEmbeds, buildVariantEmbeds, buildSaleEmbed, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, getAllLetters, updateNavMessage, getNavMessage, updateDinoIndexChannel, updateDinoIndexMessage, getDinoIndexInfo, saveDinos, DEFAULT_LETTER_COLORS, getActiveFlashSale, setFlashSale, clearFlashSale } = require('../dinoManager');
 // Variantes publiables comme catégories dédiées dans l'index
 const VARIANT_KEYS = { VARIANT_A: 'A', VARIANT_TEK: 'Tek' };
+const variantMessageKey = label => `VARIANT_${String(label || '').trim().toUpperCase()}`;
+const variantLabelFromKey = key => VARIANT_KEYS[key]
+  || (key.startsWith('VARIANT_') ? key.slice('VARIANT_'.length).trim() : null);
 
 const { getConfig: readConfig, saveConfig } = require('../configManager');
 const inventoryManager = require('../inventoryManager');
@@ -1896,13 +1899,16 @@ function createWebServer(discordClient) {
       }
     });
     const hasAnyVariant = Object.keys(variantLabels).length > 0;
+    const variantGroups = getVisibleVariantLabels().map(({ label }) => {
+      const dinos = getDinosByVariant(label);
+      const displayLabel = dinos[0]?.variant?.label || label;
+      return { label: displayLabel, messageKey: variantMessageKey(displayLabel), dinos };
+    }).filter(group => group.dinos.length > 0);
     const dinoIndexInfo = getDinoIndexInfo();
     const shoulderDinos = getShoulderDinos();
     const paidDLCDinos = getPaidDLCDinos();
-    const variantADinos = getDinosByVariant('A');
-    const variantTekDinos = getDinosByVariant('Tek');
     const activeFlashSale = getActiveFlashSale();
-    res.render('dinos', { dinoData, grouped, moddedDinos, shoulderDinos, paidDLCDinos, variantADinos, variantTekDinos, letterMessages, letterColors, defaultColors: DEFAULT_LETTER_COLORS, channels, variantLabels, hasAnyVariant, dinoIndexInfo, activeFlashSale, success: req.query.success || null, error: req.query.error || null });
+    res.render('dinos', { dinoData, grouped, moddedDinos, shoulderDinos, paidDLCDinos, variantGroups, letterMessages, letterColors, defaultColors: DEFAULT_LETTER_COLORS, channels, variantLabels, hasAnyVariant, dinoIndexInfo, activeFlashSale, success: req.query.success || null, error: req.query.error || null });
   });
 
   app.post('/dinos/settings', requireAuth, async (req, res) => {
@@ -1988,32 +1994,25 @@ function createWebServer(discordClient) {
         return dinoLine(d, (d.name || '?')[0].toUpperCase());
       });
 
-      // Dinos avec variant Alpha
-      const alphaVariants = getDinosByVariant('A');
-      const alphaLines = alphaVariants.map(({ dino }) => {
-        const lm = letterMessages['VARIANT_A'];
-        if (lm && lm.messageId && dinoChannelForLinks) {
-          return `[${dino.name}](https://discord.com/channels/${guildId}/${dinoChannelForLinks}/${lm.messageId})`;
-        }
-        return dinoLine(dino, (dino.name || '?')[0].toUpperCase());
-      });
-      // Dinos avec variant Tek
-      const tekVariants = getDinosByVariant('Tek');
-      const tekLines = tekVariants.map(({ dino }) => {
-        const lm = letterMessages['VARIANT_TEK'];
-        if (lm && lm.messageId && dinoChannelForLinks) {
-          return `[${dino.name}](https://discord.com/channels/${guildId}/${dinoChannelForLinks}/${lm.messageId})`;
-        }
-        return dinoLine(dino, (dino.name || '?')[0].toUpperCase());
+      const variantFields = getVisibleVariantLabels().flatMap(({ label }) => {
+        const variants = getDinosByVariant(label);
+        if (variants.length === 0) return [];
+        const displayLabel = variants[0].variant.label || label;
+        const message = letterMessages[variantMessageKey(displayLabel)];
+        const lines = variants.map(({ dino }) => {
+          if (message?.messageId && dinoChannelForLinks) {
+            return `[${dino.name}](https://discord.com/channels/${guildId}/${dinoChannelForLinks}/${message.messageId})`;
+          }
+          return dinoLine(dino, (dino.name || '?')[0].toUpperCase());
+        });
+        return toFields(lines, `🧬 Variants ${displayLabel}`);
       });
 
       const regularFields = regularLines.length > 0 ? toFields(regularLines, '🦕 Dinos disponibles') : [];
       const shoulderFields = shoulderLines.length > 0 ? toFields(shoulderLines, '🦜 Dinos d\'épaule') : [];
       const paidDLCFields = paidDLCLines.length > 0 ? toFields(paidDLCLines, '💰 Dinos DLC Payant') : [];
-      const alphaFields = alphaLines.length > 0 ? toFields(alphaLines, '🅰️ Variants Alpha') : [];
-      const tekFields = tekLines.length > 0 ? toFields(tekLines, '⚙️ Variants Tek') : [];
 
-      const allFields = [...regularFields, ...shoulderFields, ...paidDLCFields, ...alphaFields, ...tekFields];
+      const allFields = [...regularFields, ...shoulderFields, ...paidDLCFields, ...variantFields];
       if (allFields.length === 0) allFields.push({ name: '🦕 Dinos', value: '*Aucun dino pour le moment*' });
 
       // Découpe en plusieurs embeds si > 25 champs ou > 5800 chars
@@ -2137,6 +2136,7 @@ function createWebServer(discordClient) {
 
   app.post('/dinos/publish-letter/:letter', requireAuth, async (req, res) => {
     const letter = req.params.letter.toUpperCase();
+    let publicationKey = letter;
     const dinoData = getDinoData();
     const channelId = dinoData.dinoChannelId;
     if (!channelId) return res.redirect('/dinos?error=Aucun+salon+configur%C3%A9');
@@ -2154,10 +2154,12 @@ function createWebServer(discordClient) {
       const dlcDinos = getPaidDLCDinos();
       if (dlcDinos.length === 0) return res.redirect('/dinos?error=Aucun+dino+DLC+payant');
       embeds = buildPaidDLCEmbeds(dlcDinos);
-    } else if (VARIANT_KEYS[letter]) {
-      const variantLabel = VARIANT_KEYS[letter];
-      const variantDinos = getDinosByVariant(variantLabel);
+    } else if (variantLabelFromKey(letter)) {
+      const requestedLabel = variantLabelFromKey(letter);
+      const variantDinos = getDinosByVariant(requestedLabel);
       if (variantDinos.length === 0) return res.redirect('/dinos?error=Aucun+dino+avec+ce+variant');
+      const variantLabel = variantDinos[0].variant.label || requestedLabel;
+      publicationKey = variantMessageKey(variantLabel);
       embeds = buildVariantEmbeds(variantLabel, variantDinos);
     } else {
       const grouped = getDinosByLetter();
@@ -2171,11 +2173,12 @@ function createWebServer(discordClient) {
       if (!channel) return res.redirect('/dinos?error=Salon+introuvable');
 
       const letterMsgs = getLetterMessages();
-      const storedIds = letterMsgs[letter]?.messageIds || (letterMsgs[letter]?.messageId ? [letterMsgs[letter].messageId] : []);
+      const storedIds = letterMsgs[publicationKey]?.messageIds || (letterMsgs[publicationKey]?.messageId ? [letterMsgs[publicationKey].messageId] : []);
       const { ids: newIds, reposted } = await editOrRepost(channel, storedIds, embeds);
-      await updateLetterMessage(letter, newIds[0], channelId, newIds);
+      await updateLetterMessage(publicationKey, newIds[0], channelId, newIds);
       const action = reposted ? 'republié' : 'mis à jour';
-      res.redirect('/dinos?success=' + encodeURIComponent(`Lettre ${letter} ${action} (${newIds.length} message${newIds.length > 1 ? 's' : ''}) !`));
+      const subject = publicationKey.startsWith('VARIANT_') ? `Variant ${publicationKey.slice('VARIANT_'.length)}` : `Lettre ${letter}`;
+      res.redirect('/dinos?success=' + encodeURIComponent(`${subject} ${action} (${newIds.length} message${newIds.length > 1 ? 's' : ''}) !`));
     } catch (err) {
       console.error('Erreur publication dino:', err);
       res.redirect('/dinos?error=Erreur+de+publication:+' + encodeURIComponent(err.message));
@@ -2233,6 +2236,18 @@ function createWebServer(discordClient) {
         const storedIds = letterMsgs['PAIDDLC']?.messageIds || (letterMsgs['PAIDDLC']?.messageId ? [letterMsgs['PAIDDLC'].messageId] : []);
         const { ids: newIds } = await editOrRepost(channel, storedIds, buildPaidDLCEmbeds(dlcDinos));
         await updateLetterMessage('PAIDDLC', newIds[0], channelId, newIds);
+        totalMessages += newIds.length;
+        await new Promise(r => setTimeout(r, 400));
+      }
+
+      for (const { label } of getVisibleVariantLabels()) {
+        const variants = getDinosByVariant(label);
+        if (variants.length === 0) continue;
+        const displayLabel = variants[0].variant.label || label;
+        const key = variantMessageKey(displayLabel);
+        const storedIds = letterMsgs[key]?.messageIds || (letterMsgs[key]?.messageId ? [letterMsgs[key].messageId] : []);
+        const { ids: newIds } = await editOrRepost(channel, storedIds, buildVariantEmbeds(displayLabel, variants));
+        await updateLetterMessage(key, newIds[0], channelId, newIds);
         totalMessages += newIds.length;
         await new Promise(r => setTimeout(r, 400));
       }
