@@ -13,3 +13,9 @@ Les domaines de partage qu'il a sélectionnés sont :
 **Why:** demande explicite de l'utilisateur pour coordonner ses deux produits.
 
 **How to apply:** tenir compte des deux produits lorsqu'on conçoit la liaison. Ne pas confondre cette demande de conseil et de préparation avec une autorisation de migrer les bases ou de déployer les deux bots.
+
+Le site Lenexus est l'interface choisie pour afficher les informations communes aux deux bots.
+
+**Why:** choix explicite de l'utilisateur entre le site Lenexus, ce Dashboard et les deux sites.
+
+**How to apply:** prévoir les nouveaux écrans de consultation communs sur Lenexus, sans supposer que ce choix autorise à supprimer les fonctions existantes de ce Dashboard.
