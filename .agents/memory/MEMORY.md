@@ -1,6 +1,6 @@
 - [Discord modal timing](discord-modal-timing.md) — showModal() doit être la 1ère réponse dans les 3s : aucun await DB avant l'appel.
 - [Discord admin role](discord-admin-role.md) — ID du rôle admin Discord à utiliser pour les permissions bot/panel
-- [Workflow startup](workflow-startup.md) — doit être `node index.js` (bot + web), pas `createWebServer(null)` seul.
+- [Workflow startup](workflow-startup.md) — lancer le point d’entrée bot+web; après `EADDRINUSE`, rechercher le processus orphelin du workflow concerné.
 ---
 - [Voice gateway signalling fix](voice-gateway-fix.md) — Discord.js v14 : connexion vocale bloquée en signalling si bot pas en cache membre, fix via listener raw.
 - [Récompenses et annonces XP](xp-rewards-announcements.md) — ne jamais conditionner les gains au salon ou à la réussite des annonces Discord.
