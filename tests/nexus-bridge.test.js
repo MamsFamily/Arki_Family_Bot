@@ -9,14 +9,17 @@ const MAP_FIXTURES = [
   ['d8d6185e', 'stopping'], ['8efe82b3', 'offline'], ['8e262f7c', 'suspended'],
   ['686c087f', 'unknown'], ['988af27d', 'stopped'], ['e4d5b19e', 'running'],
   ['b59b0253', 'running'], ['6c0e3a89', 'running'], ['cf79fe13', 'unexpected'],
-].map(([id, state]) => ({ id, state, cpu: 99, resourceError: 'private provider detail' }));
+].map(([id, state]) => ({
+  id, state, cpu: 99,
+  ...(id === 'e4d5b19e' ? { resourceError: 'private provider detail' } : {}),
+}));
 
 async function fixture(t, options = {}) {
   const reads = [], queries = [], discordRequests = [];
   let legionCalls = 0;
   const data = {
     inventory_data: { [ACTOR]: { diamants: 42, custom: 2 }, [OTHER]: { diamants: 9000 } },
-    inventory_item_types: [{ id: 'diamants', name: 'Diamants', category: 'currency' }],
+    inventory_item_types: [{ id: 'diamants', name: 'Diamants', category: 'currency', emoji: '💎' }],
     inventory_transactions: [{ playerId: OTHER, action: 'credit', itemTypeId: 'diamants', quantity: 99, reason: 'private' },
       { playerId: ACTOR, type: 'add', itemTypeId: 'diamants', quantity: 42, timestamp: '2026-10-01', adminId: 'private-admin', reason: 'private-note' }],
     shop: { packs: [{ id: 'pack', name: 'Pack', priceDiamonds: 10, options: [{ name: 'Double', priceDiamonds: 20 }], privateKey: 'DO NOT EXPOSE' }],
@@ -80,6 +83,7 @@ test('account is scoped to asserted actor, ignores subject query, and minimizes 
   assert.equal(response.headers.get('cache-control'), 'private, no-store');
   assert.equal(data.discordUserId, ACTOR);
   assert.equal(data.inventory.find(i => i.id === 'diamants').quantity, 42);
+  assert.equal(data.inventory.find(i => i.id === 'diamants').emoji, '💎');
   assert.equal(data.inventory.find(i => i.id === 'custom').name, 'custom');
   assert.equal(data.activity.length, 1);
   assert.equal(data.activity[0].action, 'add');
@@ -122,7 +126,7 @@ test('public map status exposes only the twelve approved maps and uses the bridg
   ]);
   assert.deepEqual(data.maps.map(map => map.state), [
     'running', 'restarting', 'starting', 'stopping', 'offline', 'suspended',
-    'unknown', 'offline', 'running', 'running', 'running', 'unknown',
+    'unknown', 'offline', 'unknown', 'running', 'running', 'unknown',
   ]);
   assert.doesNotMatch(JSON.stringify(data), /private provider detail|cpu|test-only-server/);
   assert.equal(f.legionCalls, 1);
