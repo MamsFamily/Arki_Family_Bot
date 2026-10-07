@@ -86,7 +86,7 @@ function createBridgeRouter({
         const byId = new Map(servers.filter(server => server && typeof server.id === 'string').map(server => [server.id, server]));
         const maps = Object.entries(PUBLIC_MAP_STATUS_SLUGS).map(([id, slug]) => ({
           slug,
-          state: publicMapState(byId.get(id)?.state),
+          state: byId.get(id)?.resourceError ? 'unknown' : publicMapState(byId.get(id)?.state),
         }));
         const snapshot = { schemaVersion: 1, checkedAt: new Date().toISOString(), maps };
         mapStatusCache = snapshot;
@@ -110,6 +110,14 @@ function createBridgeRouter({
       // Public website status is read-only and intentionally returns only the
       // twelve approved map slugs and normalized state; no actor or DB is needed.
       if (req.path === '/map-status') {
+        const now = Date.now();
+        for (const [key, bucket] of buckets) if (now >= bucket.until) buckets.delete(key);
+        const rateKey = `map-status:${req.ip || req.socket.remoteAddress || 'unknown'}`;
+        const bucket = buckets.get(rateKey) || { count: 0, until: now + 60000 };
+        if (buckets.size >= 10000 || ++bucket.count > 600) {
+          throw new BridgeError(429, 'Trop de demandes. Réessayez dans une minute.');
+        }
+        buckets.set(rateKey, bucket);
         req.bridge = { publicMapStatus: true };
         return next();
       }
@@ -160,7 +168,8 @@ function createBridgeRouter({
       const own = inventories[actor] || {};
       const inventory = Object.entries(own).map(([id, quantity]) => {
         const type = types.find(t => t.id === id);
-        return { id, name: text(type?.name) || id, category: text(type?.category), quantity: amount(quantity) };
+        return { id, name: text(type?.name) || id, category: text(type?.category),
+          quantity: amount(quantity), emoji: text(type?.emoji) };
       });
       const tickets = [ ...orders.rows.map(r => ({ ...r, ticket_id: r.order_id, kind: 'shop' })),
         ...spawn.rows.map(r => ({ ...r, kind: 'spawn' })), ...reclaim.rows.map(r => ({ ...r, kind: 'reclaim' })) ]
