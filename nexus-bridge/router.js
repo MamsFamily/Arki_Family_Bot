@@ -96,7 +96,7 @@ function createBridgeRouter({
       const own = inventories[actor] || {};
       const inventory = Object.entries(own).map(([id, quantity]) => {
         const type = types.find(t => t.id === id);
-        return { id, name: text(type?.name) || id, category: text(type?.category), quantity: amount(quantity) };
+        return { id, name: text(type?.name) || id, category: text(type?.category), quantity: amount(quantity), emoji: text(type?.emoji) };
       });
       const tickets = [ ...orders.rows.map(r => ({ ...r, ticket_id: r.order_id, kind: 'shop' })),
         ...spawn.rows.map(r => ({ ...r, kind: 'spawn' })), ...reclaim.rows.map(r => ({ ...r, kind: 'reclaim' })) ]
