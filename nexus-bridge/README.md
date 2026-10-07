@@ -38,7 +38,7 @@ vérifie son appartenance au serveur.
 `GET /api/nexus/v1/map-status` est l'unique exception à l'identité Discord : la
 clé de liaison reste obligatoire. Il ne renvoie que 12 objets `{slug, state}`,
 sans identifiant GPanel ni détail de ressource. Une erreur GPanel sur une map
-devient `unknown`; une panne générale renvoie `503`. La réponse est mise en cache
+devient `unknown` et un état GPanel `suspended` devient `offline`; une panne générale renvoie `503`. La réponse est mise en cache
 10 secondes côté bot pour limiter les appels GPanel. Toutes les réponses restent
 `no-store`.
 
