@@ -55,7 +55,8 @@ const MAP_STATUS_ENTRIES = Object.freeze([
       let state = 'unknown';
       if (!server.resourceError) {
         if (server.state === 'running') state = 'online';
-        else if (['starting', 'stopping', 'restarting', 'offline', 'suspended'].includes(server.state)) state = server.state;
+        else if (server.state === 'suspended' || server.state === 'offline') state = 'offline';
+        else if (['starting', 'stopping', 'restarting'].includes(server.state)) state = server.state;
       }
       bySlug.set(slug, { slug, state });
     }
