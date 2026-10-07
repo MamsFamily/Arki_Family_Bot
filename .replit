@@ -39,10 +39,19 @@ DATABASE_PUBLIC_URL = "postgresql://postgres:cFYlRChDzHhHiGdDJmeFzeoFJVjKBRIq@ya
 
 [userenv.development]
 DASHBOARD_ONLY = "true"
+LENEXUS_NODE_BINARY = "/nix/store/a1kxazxkgw7mjbjgisvah95p1r3n5ykl-nodejs-22.16.0/bin/node"
 
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 22065
+externalPort = 3000
 
 [deployment]
 deploymentTarget = "cloudrun"

@@ -992,6 +992,18 @@
       const name = document.getElementById('dinoName').value || 'Dino';
       const diamonds = parseInt(document.getElementById('dinoPriceDiamonds').value) || 0;
       const strawberries = parseInt(document.getElementById('dinoPriceStrawberries').value) || 0;
+      document.querySelectorAll('#variantsContainer .variant-row').forEach(row => {
+        const label = row.querySelector('[name^="variant_label_"]');
+        const isX = label.value.trim().toUpperCase() === 'X';
+        const vd = row.querySelector('[name^="variant_diamonds_"]');
+        const vs = row.querySelector('[name^="variant_strawberries_"]');
+        vd.readOnly = vs.readOnly = isX;
+        vd.title = vs.title = isX ? 'Variant X : prix de base + 4 000 diamants et + 1 200 fraises.' : '';
+        if (isX) {
+          vd.value = diamonds + 4000;
+          vs.value = strawberries + 1200;
+        }
+      });
       const unique = document.getElementById('uniquePerTribe').checked;
       const noRed = document.getElementById('dinoNoReduction').checked;
       const couple = document.getElementById('coupleInventaire').checked;

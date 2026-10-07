@@ -41,6 +41,8 @@ const adminQuizManager    = require('../adminQuizManager');
 
 function createWebServer(discordClient) {
   const app = express();
+  // Private, read-only server-to-server bridge; no dashboard session or database writes.
+  app.use('/api/nexus/v1', require('../nexus-bridge/router').createBridgeRouter());
 
   // Init PostgreSQL si disponible (partagé avec Railway)
   pgStore.initPool();

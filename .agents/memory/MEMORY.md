@@ -13,3 +13,4 @@
 - [Reprise des annonces Discord](discord-notification-recovery.md) — un historique vide sans ReadMessageHistory ne prouve pas l’absence ; un nonce ne protège que les reprises récentes.
 - [Cycle de vie des INI ARK](ark-ini-write-lifecycle.md) — ARK peut perdre les changements faits à chaud ; une relecture immédiate ne garantit pas leur conservation au redémarrage.
 - [Liaison avec Lenexus](lenexus-coordination.md) — second bot et site du même utilisateur ; partage souhaité des joueurs, inventaires, shop, commandes, tickets et activités.
+- [Runtimes Lenexus](lenexus-runtime.md) — isoler le workspace web du bot Python et le runtime API du bot principal ; éviter de parcourir /nix/store au démarrage.

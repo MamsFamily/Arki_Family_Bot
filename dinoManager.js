@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const pgStore = require('./pgStore');
+const { withVariantPrices } = require('./dinoPricing');
 
 const DINO_PATH = path.join(__dirname, 'dinos.json');
 const PG_KEY = 'dinos';
@@ -59,6 +60,7 @@ function getDinoData() {
     data = loadDinosFromFile();
   }
   if (!data.dinos) data.dinos = [];
+  data.dinos = data.dinos.map(withVariantPrices);
   if (!data.dinoChannelId) data.dinoChannelId = '';
   if (!data.dinoIndexChannelId) data.dinoIndexChannelId = '';
   if (!data.dinoIndexMessageId) data.dinoIndexMessageId = '';
@@ -68,6 +70,7 @@ function getDinoData() {
 }
 
 async function saveDinos(data) {
+  data.dinos = (data.dinos || []).map(withVariantPrices);
   cachedData = data;
   if (pgStore.isPostgres()) {
     await pgStore.setData(PG_KEY, data);
