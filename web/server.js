@@ -2308,20 +2308,14 @@ function createWebServer(discordClient) {
         await updateLetterMessage('PAIDDLC', newIds[0], channelId, newIds);
         await new Promise(r => setTimeout(r, 400));
       }
-      // Variant Alpha (A)
-      const alphaVariantDinos = getDinosByVariant('A');
-      if (alphaVariantDinos.length > 0) {
-        const storedIds = letterMsgs['VARIANT_A']?.messageIds || (letterMsgs['VARIANT_A']?.messageId ? [letterMsgs['VARIANT_A'].messageId] : []);
-        const { ids: newIds } = await editOrRepost(channel, storedIds, buildVariantEmbeds('A', alphaVariantDinos));
-        await updateLetterMessage('VARIANT_A', newIds[0], channelId, newIds);
-        await new Promise(r => setTimeout(r, 400));
-      }
-      // Variant Tek
-      const tekVariantDinos = getDinosByVariant('Tek');
-      if (tekVariantDinos.length > 0) {
-        const storedIds = letterMsgs['VARIANT_TEK']?.messageIds || (letterMsgs['VARIANT_TEK']?.messageId ? [letterMsgs['VARIANT_TEK'].messageId] : []);
-        const { ids: newIds } = await editOrRepost(channel, storedIds, buildVariantEmbeds('Tek', tekVariantDinos));
-        await updateLetterMessage('VARIANT_TEK', newIds[0], channelId, newIds);
+      for (const { label } of getVisibleVariantLabels()) {
+        const variants = getDinosByVariant(label);
+        if (variants.length === 0) continue;
+        const displayLabel = variants[0].variant.label || label;
+        const key = variantMessageKey(displayLabel);
+        const storedIds = letterMsgs[key]?.messageIds || (letterMsgs[key]?.messageId ? [letterMsgs[key].messageId] : []);
+        const { ids: newIds } = await editOrRepost(channel, storedIds, buildVariantEmbeds(displayLabel, variants));
+        await updateLetterMessage(key, newIds[0], channelId, newIds);
         await new Promise(r => setTimeout(r, 400));
       }
 
@@ -2368,23 +2362,22 @@ function createWebServer(discordClient) {
         return lm?.messageId ? `[${d.name}](https://discord.com/channels/${guildId}/${dinoChannelForLinks}/${lm.messageId})` : dinoLineLocal(d, (d.name || '?')[0].toUpperCase());
       });
 
-      const alphaVariantDinos2 = getDinosByVariant('A');
-      const tekVariantDinos2 = getDinosByVariant('Tek');
-      const alphaLines2 = alphaVariantDinos2.map(({ dino }) => {
-        const lm = freshLetterMessages['VARIANT_A'];
-        return lm?.messageId ? `[${dino.name}](https://discord.com/channels/${guildId}/${dinoChannelForLinks}/${lm.messageId})` : dino.name;
-      });
-      const tekLines2 = tekVariantDinos2.map(({ dino }) => {
-        const lm = freshLetterMessages['VARIANT_TEK'];
-        return lm?.messageId ? `[${dino.name}](https://discord.com/channels/${guildId}/${dinoChannelForLinks}/${lm.messageId})` : dino.name;
+      const variantFields2 = getVisibleVariantLabels().flatMap(({ label }) => {
+        const variants = getDinosByVariant(label);
+        if (variants.length === 0) return [];
+        const displayLabel = variants[0].variant.label || label;
+        const lm = freshLetterMessages[variantMessageKey(displayLabel)];
+        const lines = variants.map(({ dino }) => lm?.messageId
+          ? `[${dino.name}](https://discord.com/channels/${guildId}/${dinoChannelForLinks}/${lm.messageId})`
+          : dino.name);
+        return toFieldsLocal(lines, `🧬 Variants ${displayLabel}`);
       });
 
       const allFields2 = [
         ...toFieldsLocal(regLines, '🦕 Dinos disponibles'),
         ...toFieldsLocal(shLines, '🦜 Dinos d\'épaule'),
         ...toFieldsLocal(dlcLines2, '💰 Dinos DLC Payant'),
-        ...toFieldsLocal(alphaLines2, '🅰️ Variants Alpha'),
-        ...toFieldsLocal(tekLines2, '⚙️ Variants Tek'),
+        ...variantFields2,
       ];
       if (allFields2.length === 0) allFields2.push({ name: '🦕 Dinos', value: '*Aucun dino pour le moment*' });
 
