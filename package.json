@@ -15,7 +15,6 @@
     "@snazzah/davey": "0.1.9",
     "@vitalets/google-translate-api": "^9.2.1",
     "axios": "^1.13.2",
-    "basic-ftp": "^6.0.0",
     "better-sqlite3": "^12.5.0",
     "canvas": "^3.2.0",
     "connect-pg-simple": "^10.0.0",
@@ -34,7 +33,6 @@
     "p-limit": "^7.3.0",
     "p-retry": "^7.1.1",
     "pg": "^8.18.0",
-    "rcon-client": "^4.2.5",
     "unb-api": "^1.4.0",
     "zod": "^4.3.6",
     "zod-validation-error": "^5.0.0"

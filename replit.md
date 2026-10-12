@@ -51,4 +51,4 @@ The bot is built on Node.js using Discord.js for Discord API interactions. A web
 - **@vitalets/google-translate-api:** For translation functionalities.
 - **node-cron:** For scheduling automated tasks, such as monthly vote publications.
 - **TopServeurs API:** For fetching monthly vote rankings and data.
-- **Legion GPanel client API:** Server power, console commands and allowlisted ARK INI edits. The legacy Nitrado/FTP implementation is inactive and its historical database records are retained.
+- **Legion GPanel client API:** Server power, console commands and allowlisted ARK INI edits. The legacy Nitrado/FTP implementation and its exclusive dependencies have been removed; historical PostgreSQL records and settings must remain untouched. The Legion restart scheduler keeps its existing filename `nitradoRestartScheduler.js`. `/nitrado` redirects to Legion; its old API endpoints return 410.
