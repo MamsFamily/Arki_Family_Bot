@@ -20,7 +20,7 @@ Le site Lenexus est l'interface choisie pour afficher les informations communes 
 
 **How to apply:** prévoir les nouveaux écrans de consultation communs sur Lenexus, sans supposer que ce choix autorise à supprimer les fonctions existantes de ce Dashboard.
 
-Dans le flux Spawn Joueur, le DM contenant le mot de passe et son rappel dans le ticket doivent tous deux rappeler au joueur de renseigner ses attributs sur Arki Family — Le Nexus, avec un lien vers le site.
+Dans le flux Spawn Joueur, le DM contenant le mot de passe et son rappel dans le ticket doivent tous deux rappeler au joueur de créer sa fiche tribu, d'y renseigner les membres et les coordonnées des futures bases et avant-postes, avec un lien vers Arki Family — Le Nexus.
 
 **Why:** demande explicite de l'utilisateur pour accompagner l'admission des nouveaux joueurs.
 

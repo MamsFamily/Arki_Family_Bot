@@ -519,8 +519,8 @@ async function handleSendPassword(interaction, ticketId) {
 
   const lenexusSiteUrl = getLenexusSiteUrl();
   const siteReminder = lenexusSiteUrl
-    ? `N’oublie pas de renseigner tes attributs sur le site [Arki Family — Le Nexus](${lenexusSiteUrl}).`
-    : 'N’oublie pas de renseigner tes attributs sur le site Arki Family — Le Nexus.';
+    ? `N’oublie pas de créer ta fiche tribu et d’y renseigner les membres ainsi que les coordonnées de tes futures bases et avant-postes sur le site [Arki Family — Le Nexus](${lenexusSiteUrl}).`
+    : 'N’oublie pas de créer ta fiche tribu et d’y renseigner les membres ainsi que les coordonnées de tes futures bases et avant-postes sur le site Arki Family — Le Nexus.';
 
   const passwordEmbed = new EmbedBuilder()
     .setColor(0x2ecc71)
