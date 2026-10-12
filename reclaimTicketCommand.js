@@ -37,6 +37,7 @@ const {
 const { getShop }    = require('./shopManager');
 const { getDinoData } = require('./dinoManager');
 const pgStore         = require('./pgStore');
+const { fetchTribeVaultPins, getTribeManageUrl } = require('./shopTicketCommand');
 
 const PREFIX = 'rcl';
 
@@ -267,6 +268,7 @@ async function handlePreTypeSelect(interaction) {
   // Message de bienvenue
   const att = new AttachmentBuilder(RECLAIM_IMG, { name: 'reclamation.png' });
   await channel.send({ content: `<@${user.id}>`, embeds: [buildWelcomeEmbed(ticketData, settings)], files: [att] });
+  await sendReclaimTribeVaultPins(channel, user.id, ticketData.ticketId);
 
   if (type === 'inventory')    await startInventoryReclaimToChannel(channel, ticketData);
   if (type === 'resurrection') await startResurrectionReclaimToChannel(channel, ticketData, settings);
@@ -321,6 +323,66 @@ async function notifyStaff(guild, settings, user, channel) {
   try {
     return await ch.send(`📋 **Nouvelle réclamation** — <@${user.id}> (\`${user.username}\`) → <#${channel.id}>`);
   } catch { return null; }
+}
+
+async function sendReclaimTribeVaultPins(channel, userId, ticketId) {
+  const result = await fetchTribeVaultPins(userId);
+  if (!result) {
+    return channel.send('ℹ️ Le PIN de coffre n’a pas pu être récupéré depuis la fiche tribu. Réessaie plus tard ou vérifie la configuration du site.');
+  }
+  if (result.pins.length === 0) {
+    return channel.send('ℹ️ Aucun PIN de coffre n’est enregistré pour les tribus associées à ce compte Discord.');
+  }
+  if (result.pins.length === 1) {
+    const pin = result.pins[0];
+    return channel.send({
+      content: pin.pin
+        ? `🔐 **${pin.tribeName} — PIN des coffres :** \`${pin.pin}\``
+        : `ℹ️ Aucun PIN n’est enregistré sur la fiche de **${pin.tribeName}**. Modifie-le depuis <${getTribeManageUrl(pin.tribeId)}>.`,
+      allowedMentions: { parse: [] },
+    });
+  }
+  if (result.pins.length > 25) {
+    return channel.send('ℹ️ Trop de fiches de tribu sont associées à ce compte pour proposer une sélection automatique. Consulte la fiche concernée.');
+  }
+
+  return channel.send({
+    content: 'Plusieurs fiches de tribu sont associées à ce compte. Sélectionne la fiche concernée pour afficher son PIN dans ce ticket.',
+    allowedMentions: { parse: [] },
+    components: [new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`${PREFIX}_vault_pin_pick::${ticketId}`)
+        .setPlaceholder('Choisir la fiche tribu')
+        .addOptions(result.pins.map(pin => ({
+          label: pin.tribeName.slice(0, 100),
+          value: String(pin.tribeId),
+        })))
+    )],
+  });
+}
+
+async function handleReclaimVaultPinPick(interaction, ticketId) {
+  const data = await getOrReloadReclaimTicket(ticketId, interaction.channelId);
+  if (!data || data.channelId !== interaction.channelId) {
+    return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
+  }
+  if (data.userId !== interaction.user.id && !isStaff(interaction)) {
+    return interaction.reply({ content: '🚫 Seul le joueur concerné ou le staff peut afficher ce PIN.', ephemeral: true });
+  }
+
+  const tribeId = interaction.values?.[0];
+  const result = await fetchTribeVaultPins(data.userId);
+  const selected = result?.pins?.find(pin => String(pin.tribeId) === tribeId);
+  if (!selected) {
+    return interaction.reply({ content: '❌ Fiche tribu introuvable ou service indisponible.', ephemeral: true });
+  }
+  return interaction.update({
+    content: selected.pin
+      ? `🔐 **${selected.tribeName} — PIN des coffres :** \`${selected.pin}\``
+      : `ℹ️ Aucun PIN n’est enregistré sur la fiche de **${selected.tribeName}**. Modifie-le depuis <${getTribeManageUrl(selected.tribeId)}>.`,
+    components: [],
+    allowedMentions: { parse: [] },
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -390,6 +452,7 @@ async function handleStructPreTypeModal(interaction) {
   // Bienvenue
   const att = new AttachmentBuilder(RECLAIM_IMG, { name: 'reclamation.png' });
   await channel.send({ content: `<@${user.id}>`, embeds: [buildWelcomeEmbed(ticketData, settings)], files: [att] });
+  await sendReclaimTribeVaultPins(channel, user.id, ticketData.ticketId);
 
   // Résumé avec boutons staff
   const embed = new EmbedBuilder()
@@ -2301,6 +2364,9 @@ async function handleReclaimTicketInteraction(interaction) {
 
   // ── Select type éphémère (pré-ouverture) ──────────────────────────────────
   if (isSelect && id === `${PREFIX}_pretype`) return handlePreTypeSelect(interaction);
+  if (isSelect && id.startsWith(`${PREFIX}_vault_pin_pick::`)) {
+    return handleReclaimVaultPinPick(interaction, id.split('::')[1]);
+  }
 
   // ── Structures : modal avant création salon ───────────────────────────────
   if (isModal && id === `${PREFIX}_struct_pretypemodal`) return handleStructPreTypeModal(interaction);

@@ -2960,6 +2960,7 @@ module.exports = {
   handleShopTicketCommand,
   handleShopTicketInteraction,
   fetchTribeVaultPins,
+  getTribeManageUrl,
   publishShopTicketPanel,
   handleRecapCommand,
   initShopOrders,
