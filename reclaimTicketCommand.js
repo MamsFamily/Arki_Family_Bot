@@ -268,7 +268,9 @@ async function handlePreTypeSelect(interaction) {
   // Message de bienvenue
   const att = new AttachmentBuilder(RECLAIM_IMG, { name: 'reclamation.png' });
   await channel.send({ content: `<@${user.id}>`, embeds: [buildWelcomeEmbed(ticketData, settings)], files: [att] });
-  await sendReclaimTribeVaultPins(channel, user.id, ticketData.ticketId);
+  if (type === 'inventory' || type === 'autres') {
+    await sendReclaimTribeVaultPins(channel, user.id, ticketData.ticketId);
+  }
 
   if (type === 'inventory')    await startInventoryReclaimToChannel(channel, ticketData);
   if (type === 'resurrection') await startResurrectionReclaimToChannel(channel, ticketData, settings);
@@ -452,7 +454,9 @@ async function handleStructPreTypeModal(interaction) {
   // Bienvenue
   const att = new AttachmentBuilder(RECLAIM_IMG, { name: 'reclamation.png' });
   await channel.send({ content: `<@${user.id}>`, embeds: [buildWelcomeEmbed(ticketData, settings)], files: [att] });
-  await sendReclaimTribeVaultPins(channel, user.id, ticketData.ticketId);
+  if (ticketData.type === 'inventory' || ticketData.type === 'autres') {
+    await sendReclaimTribeVaultPins(channel, user.id, ticketData.ticketId);
+  }
 
   // Résumé avec boutons staff
   const embed = new EmbedBuilder()
