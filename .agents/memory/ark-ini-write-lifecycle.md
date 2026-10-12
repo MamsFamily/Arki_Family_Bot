@@ -14,3 +14,9 @@ Dans une remise de réglages suivie d'un démarrage, un contrôle final échoué
 **Why:** Une reprise générale des cartes « déjà vérifiées » peut annuler la protection si un fichier change ou devient illisible entre la vérification individuelle et le contrôle global avant démarrage.
 
 **How to apply:** Revalider les réglages avant chaque démarrage ; garder hors ligne les cartes avec écritures non confirmées et permettre la reprise indépendante des cartes intactes ou toujours vérifiées. Après démarrage, une nouvelle lecture établit seulement la persistance observée à cet instant, pas une garantie pour les cycles futurs.
+
+Après une interruption, ne jamais reconstituer une confirmation initiale à partir d'une lecture ultérieure. Garder séparées la preuve d'écriture initiale, la persistance observée plus tard et l'effet en jeu.
+
+**Why:** Une valeur conforme retrouvée après reprise peut provenir d'une intervention externe ; elle ne prouve ni que l'écriture interrompue a réussi, ni qu'ARK a chargé ce réglage.
+
+**How to apply:** Conserver l'incertitude des écritures non confirmées, signaler une lecture impossible sans conclure à une disparition et ne jamais réappliquer pour réparer automatiquement l'historique.

@@ -5,6 +5,8 @@ const legion = require('../web/legionManager');
 const booster = require('../boosterReproManager');
 const iniLock = require('../web/legionIniMutationLock');
 const shiny = require('../web/legionShiny');
+const audit = require('../web/legionIniAudit');
+const auditOriginal = { begin: audit.begin, confirm: audit.confirm };
 
 const rules = shiny.DEFAULT_RULES;
 const mapIds = legion.MAPS.map(map => map.id);
@@ -13,11 +15,14 @@ const originalGetMapState = legion.getMapState;
 let mapState;
 
 test.beforeEach(() => {
+  audit.begin = async () => 'fixture';
+  audit.confirm = async () => {};
   mapState = async () => 'offline';
   legion.getMapState = id => mapState(id);
 });
 
 test.afterEach(() => {
+  Object.assign(audit, auditOriginal);
   legion.getMapState = originalGetMapState;
 });
 

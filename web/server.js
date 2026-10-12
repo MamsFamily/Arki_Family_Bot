@@ -3740,6 +3740,10 @@ function createWebServer(discordClient) {
     }
   });
   const legionIniLines = require('./legionIniLines');
+  app.get('/legion/api/ini/audit', requireAdmin, async (req, res) => {
+    try { res.json({ ok: true, ...await require('./legionIniAudit').list() }); }
+    catch { res.status(503).json({ ok: false, error: 'Historique INI PostgreSQL indisponible. Surveillance non vérifiable.' }); }
+  });
   app.post('/legion/api/ini/lines/preview', requireIniLineAccess, async (req, res) => {
     try {
       res.json(await legionIniLines.preview(req.body));

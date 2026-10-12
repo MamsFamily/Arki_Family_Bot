@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const crypto = require('crypto');
 const pgStore = require('../pgStore');
 const legion = require('./legionManager');
+const iniAudit = require('./legionIniAudit');
 
 const TIMEZONE = 'Europe/Paris';
 let started = false;
@@ -25,6 +26,7 @@ function validateIds(ids) {
 }
 
 async function init({ runSchedules = true } = {}) {
+  iniAudit.start();
   const pool = db();
   await pool.query(`CREATE TABLE IF NOT EXISTS legion_map_events (
     id BIGSERIAL PRIMARY KEY,
@@ -69,6 +71,7 @@ async function init({ runSchedules = true } = {}) {
     observed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`);
   await pool.query('ALTER TABLE legion_map_states ADD COLUMN IF NOT EXISTS uptime_ms BIGINT');
+  await iniAudit.init();
   if (!started) {
     started = true;
     cron.schedule('* * * * *', () => observeStates().catch(e => console.error('[Legion] états:', e.message)),
@@ -301,6 +304,7 @@ async function observeStates() {
   try {
     const servers = await legion.getServers();
     for (const server of servers) {
+      legion.assertMap(server.id);
       if (server.state === 'unknown') continue;
       const connection = await db().connect();
       let previous;
@@ -332,6 +336,8 @@ async function observeStates() {
       const elapsed = Date.now() - new Date(previous.observed_at).getTime();
       const uptimeReset = server.state === 'running' && server.uptime != null &&
         previous.uptime_ms != null && Number(server.uptime) + 15000 < Number(previous.uptime_ms) + elapsed;
+      // Also check deliberate starts/restarts; attribution below must not suppress verification.
+      if (server.state === 'running' && (changed || uptimeReset)) await iniAudit.onRestart(server.id);
       if (!changed && !uptimeReset) continue;
 
       const recent = await db().query(

@@ -5,6 +5,8 @@ const legion = require('../web/legionManager');
 const ini = require('../web/legionIni');
 const booster = require('../boosterReproManager');
 const iniLock = require('../web/legionIniMutationLock');
+const audit = require('../web/legionIniAudit');
+const auditOriginal = { begin: audit.begin, confirm: audit.confirm };
 
 const mapId = legion.MAPS[0].id;
 const realGetMapState = legion.getMapState;
@@ -20,6 +22,8 @@ let content;
 let writes;
 
 test.beforeEach(() => {
+  audit.begin = async () => 'fixture';
+  audit.confirm = async () => {};
   mapState = async () => 'offline';
   content = '[ServerSettings]\nXPMultiplier=1\n';
   writes = [];
@@ -31,6 +35,7 @@ test.beforeEach(() => {
 });
 
 test.afterEach(() => {
+  Object.assign(audit, auditOriginal);
   legion.getMapState = originals.getMapState;
   legion.readFile = originals.readFile;
   legion.writeFile = originals.writeFile;
@@ -100,9 +105,30 @@ test('un preset inchangé renvoie non modifié et non vérifié sans vérifier l
   assert.deepEqual(writes, []);
 });
 
+test('un historique indisponible bloque avant écriture ; une confirmation perdue ne promet pas le suivi', async () => {
+  audit.begin = async () => { throw new Error('Historique INI indisponible avant écriture'); };
+  await assert.rejects(ini.updateSetting(mapId, 'XPMultiplier', '2'), /avant écriture/);
+  assert.equal(writes.length, 0);
+  audit.begin = async (id, entries) => {
+    assert.equal(id, mapId);
+    assert.equal(entries[0].key, 'xpmultiplier');
+    assert.equal(entries[0].expected, '2');
+    assert.equal(writes.length, 0);
+    return 'fixture';
+  };
+  audit.confirm = async (batch, verified) => {
+    assert.equal(batch, 'fixture');
+    assert.equal(verified, content);
+    assert.equal(writes.length, 1);
+    throw new Error('Fichier relu conforme, mais confirmation historique indisponible');
+  };
+  await assert.rejects(ini.updateSetting(mapId, 'XPMultiplier', '2'), /confirmation historique indisponible/);
+  assert.equal(writes.length, 1, 'Aucune réapplication pour compenser un échec PostgreSQL');
+});
+
 test('les presets autorisent offline et recontrôlent le statut juste avant la sauvegarde', async () => {
   const result = await ini.updateSetting(mapId, 'XPMultiplier', '2');
-  assert.deepEqual(result, { changed: true, verified: true });
+  assert.deepEqual(result, { changed: true, verified: true, tracked: true });
   assert.equal(writes.length, 1);
   assert.match(writes[0], /XPMultiplier=2/);
 

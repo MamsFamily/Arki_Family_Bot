@@ -4,6 +4,7 @@ const journal = require('./legionJournal');
 const booster = require('../boosterReproManager');
 const iniLock = require('./legionIniMutationLock');
 const iniSafety = require('./legionIniSafety');
+const audit = require('./legionIniAudit');
 
 const ROOT = '/ShooterGame/Saved/Config/WindowsServer/';
 const FILES = Object.freeze({
@@ -114,6 +115,7 @@ function validate(input) {
   }
   const before = input.operation === 'add' ? null : validLine(input.before);
   const after = input.operation === 'remove' ? null : validLine(input.after);
+  audit.validateAfter(input.file, section, after);
   return { ids, file: input.file, operation: input.operation, section, before, after };
 }
 
@@ -247,10 +249,12 @@ async function apply(input) {
           if (digest(current) !== map.hash) throw requestError('Fichier modifié entre-temps : aucune écriture sur cette carte.', 409);
           await guardBoosts([map.id]);
           await iniSafety.assertMapsOffline([map.id]);
+          const batch = await audit.begin(map.id, audit.lineTargets(request));
           await legion.writeFile(map.id, FILES[request.file], map.updated);
           if (await legion.readFile(map.id, FILES[request.file]) !== map.updated) {
             throw requestError('Écriture non confirmée par relecture : vérifie cette carte dans GPanel.', 502);
           }
+          await audit.confirm(batch, map.updated);
         });
         results.push({ id: map.id, name: map.name, ok: true });
       } catch (error) {
@@ -262,7 +266,8 @@ async function apply(input) {
     for (const map of maps.slice(results.length)) {
       results.push({ id: map.id, name: map.name, ok: false, error: 'Non traitée après un échec précédent.' });
     }
-    return { ok: results.every(result => result.ok), results };
+    return { ok: results.every(result => result.ok), results,
+      tracked: audit.lineTargets(request).length > 0 };
   } finally {
     applying = false;
   }

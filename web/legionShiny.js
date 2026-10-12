@@ -4,6 +4,7 @@ const legion = require('./legionManager');
 const booster = require('../boosterReproManager');
 const iniLock = require('./legionIniMutationLock');
 const iniSafety = require('./legionIniSafety');
+const audit = require('./legionIniAudit');
 
 const STORE_KEY = 'legion_shiny_rotation_config';
 const FILE = '/ShooterGame/Saved/Config/WindowsServer/GameUserSettings.ini';
@@ -45,7 +46,7 @@ function parseLine(line) {
     throw problem('Clé Shyni invalide ou sensible.');
   }
   const value = line.slice(equals + 1);
-  if (!value || value.length > 200 || value.trim() !== value) throw problem('Valeur Shyni invalide.');
+  if (!value || value.trim() !== value || !audit.validValue(key, value)) throw problem('Valeur Shyni invalide : nombre ou durée de jeu requis.');
   return { key: key.toLowerCase(), value };
 }
 
@@ -269,10 +270,13 @@ async function apply(input) {
           if (hash(current) !== map.hash) throw problem('Fichier changé depuis l’aperçu.', 409);
           await guardBoosts([map.id]);
           await iniSafety.assertMapsOffline([map.id]);
+          const batch = await audit.begin(map.id, config.rules.map(rule =>
+            audit.target('GameUserSettings.ini', SECTION, map.toActive ? rule.active : rule.inactive)));
           await legion.writeFile(map.id, FILE, map.updated);
           if (await legion.readFile(map.id, FILE) !== map.updated) {
             throw problem('Écriture non confirmée par relecture : vérifie cette carte dans GPanel.', 502);
           }
+          await audit.confirm(batch, map.updated);
         });
         results.push({ id: map.id, name: map.name, ok: true });
       } catch (error) {

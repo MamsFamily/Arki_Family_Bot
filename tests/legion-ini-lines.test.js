@@ -1,5 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const audit = require('../web/legionIniAudit');
+const auditOriginal = { begin: audit.begin, confirm: audit.confirm };
+test.beforeEach(() => {
+  audit.begin = async () => 'fixture';
+  audit.confirm = async () => {};
+});
+test.afterEach(() => Object.assign(audit, auditOriginal));
 const legion = require('../web/legionManager');
 const booster = require('../boosterReproManager');
 const lines = require('../web/legionIniLines');

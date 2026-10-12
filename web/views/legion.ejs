@@ -80,6 +80,7 @@
         </div>
       </div>
       <% if (error) { %><div class="legion-alert error" role="alert"><%= error %></div><% } %>
+      <div id="ini-audit-alert" class="legion-alert error" role="alert" hidden></div>
       <div id="legion-message" role="status" aria-live="polite"></div>
       <nav class="legion-tabs" aria-label="Serveurs et journaux">
         <button type="button" class="active" data-tab="cards">Cartes</button>
@@ -123,6 +124,20 @@
         </select>
         <button type="button" class="legion-btn" id="journal-refresh">Actualiser</button>
         <ul id="journal-list" class="legion-list" aria-live="polite"></ul>
+        <hr class="legion-ini-divider">
+        <h2>Persistance des réglages INI</h2>
+        <p>Historique PostgreSQL du processus courant, distinct des bases des autres environnements. Seuls les réglages de jeu autorisés sont suivis (presets, ItemStatClamps[0–12] et clés Shiny reconnues dans leur section). Les clés inconnues ne sont ni enregistrées ni surveillées.</p>
+        <p>Premier contrôle après 5 minutes, puis chaque heure et environ 2 minutes après un retour en ligne ou une remise à zéro du temps de fonctionnement observée. Les écarts indiquent un changement depuis la relecture initiale, pas sa cause. L’état GPanel est une observation séparée ; l’effet en jeu reste non vérifié. Aucun contrôle n’écrit un fichier ni ne démarre, arrête ou redémarre une carte.</p>
+        <button type="button" class="legion-btn" id="ini-audit-refresh">Actualiser l’historique (sans agir sur les serveurs)</button>
+        <p id="ini-audit-status" aria-live="polite"></p>
+        <h3>Réglages actuellement suivis</h3>
+        <ul id="ini-audit-current" class="legion-list"></ul>
+        <details><summary>Dernières modifications et confirmations initiales (200 maximum)</summary>
+          <ul id="ini-audit-history" class="legion-list"></ul>
+        </details>
+        <details><summary>Derniers changements de résultat des contrôles (100 maximum)</summary>
+          <ul id="ini-audit-checks" class="legion-list"></ul>
+        </details>
       </section>
       <section id="tab-schedules" class="legion-panel" aria-label="Planifications" hidden>
         <h2>Planifications quotidiennes</h2>
@@ -175,6 +190,7 @@
         <hr class="legion-ini-divider">
         <h2>Lignes INI personnalisées · plusieurs cartes</h2>
         <p>Ajoute, remplace ou retire une ligne exacte dans une section de Game.ini ou GameUserSettings.ini. Sélectionne explicitement les cartes, puis vérifie l’aperçu avant de confirmer. Aucun fichier complet ni mot de passe n’est affiché. Si une carte échoue, les suivantes ne sont pas modifiées ; contrôle les résultats avant de réessayer.</p>
+        <p>La surveillance ultérieure ne couvre que les clés de jeu autorisées dans leur section habituelle. Consulte « Journaux » pour les confirmations et alertes ; les autres clés ne sont pas conservées.</p>
         <p class="legion-alert" role="note">La lecture et l’aperçu sont sûrs même si les cartes sont en ligne. Avant d’appliquer, arrête complètement uniquement les cartes dont l’aperçu indique que le fichier va changer et attends que chacune soit « Hors ligne ». Confirme l’écriture seulement une fois ces cartes déjà hors ligne. ARK peut écraser une modification faite sur une carte en ligne lors de son arrêt. Après écriture et relecture hors ligne, vérifie les résultats puis démarre manuellement les seules cartes modifiées.</p>
         <% if (!canEditIniLines) { %><p>Cette opération nécessite une connexion administrateur vérifiée par Discord. <a href="/logout">Déconnecte-toi</a>, puis reconnecte-toi avec le compte admin et Discord.</p><% } %>
         <form id="ini-lines-form">
@@ -869,5 +885,6 @@
       finally { button.disabled = false; }
     });
   </script>
+  <script src="/js/legionIniAudit.js"></script>
 </body>
 </html>

@@ -2,6 +2,7 @@ const legion = require('./legionManager');
 const iniLock = require('./legionIniMutationLock');
 const booster = require('../boosterReproManager');
 const iniSafety = require('./legionIniSafety');
+const audit = require('./legionIniAudit');
 
 const ROOT = '/ShooterGame/Saved/Config/WindowsServer/';
 const GAME = { path: `${ROOT}Game.ini`, section: '/Script/ShooterGame.ShooterGameMode' };
@@ -72,11 +73,15 @@ async function updateSettingUnlocked(mapId, key, value) {
   }
   // Recheck immediately before the write while the per-map advisory lock is held.
   await iniSafety.assertMapsOffline([mapId]);
+  const batch = await audit.begin(mapId, [
+    audit.target(preset.path.split('/').at(-1), `[${preset.section}]`, `${key}=${value}`),
+  ]);
   await legion.writeFile(mapId, preset.path, updated);
   if (await legion.readFile(mapId, preset.path) !== updated) {
     throw new Error('Écriture INI non confirmée par relecture ; vérifiez le fichier dans GPanel');
   }
-  return { changed: true, verified: true };
+  await audit.confirm(batch, updated);
+  return { changed: true, verified: true, tracked: true };
 }
 
 async function updateSetting(mapId, key, value) {
