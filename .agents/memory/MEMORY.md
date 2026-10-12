@@ -16,3 +16,4 @@
 - [Runtimes Lenexus](lenexus-runtime.md) — isoler le workspace web du bot Python et le runtime API du bot principal ; éviter de parcourir /nix/store au démarrage.
 - [Prix des variants dinos X](dino-x-pricing.md) — le prix X correspond au prix du dino de base + 4 000 diamants et + 1 200 fraises.
 - [Reprises de fusion Git](local-git-merge-checkpoints.md) — après une interruption pendant un conflit, revérifier MERGE_HEAD et les références avant de continuer.
+- [PIN de coffre de tribu](tribe-vault-pin.md) — membres et staff peuvent consulter; propriétaire, gérants et staff peuvent modifier; garder SESSION_SECRET stable.

@@ -1373,7 +1373,7 @@ client.on('interactionCreate', async interaction => {
       id.startsWith('st_inv_pick::') || id.startsWith('st_inv_direct::') ||
       id.startsWith('st_admin_straw_ok::') ||
       id.startsWith('st_admin_remove_item::') || id.startsWith('st_admin_remove_select::') ||
-      id.startsWith('st_admin_edit_comment::')
+      id.startsWith('st_admin_edit_comment::') || id.startsWith('st_vault_pin_pick::')
     ) {
       try {
         await handleShopTicketInteraction(interaction);

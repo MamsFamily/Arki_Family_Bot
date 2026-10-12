@@ -922,6 +922,24 @@ async function handleShopTicketInteraction(interaction) {
   // This informational action must not create a cart or depend on an active order.
   if (id === SHOP_MAP_BUTTON_ID) return showShopMap(interaction);
   const userId = interaction.user.id;
+  if (id.startsWith('st_vault_pin_pick::')) {
+    const orderId = id.split('::')[1];
+    const order = await getOrReloadOrder(orderId, interaction.channelId);
+    if (!order || order.channelId !== interaction.channelId) {
+      return interaction.reply({ content: '❌ Ticket introuvable.', ephemeral: true });
+    }
+    const tribeId = interaction.values?.[0];
+    const result = await fetchTribeVaultPins(order.userId);
+    const selected = result?.pins?.find(pin => String(pin.tribeId) === tribeId);
+    if (!selected) return interaction.reply({ content: '❌ Fiche tribu introuvable ou service indisponible.', ephemeral: true });
+    return interaction.update({
+      content: selected.pin
+        ? `🔐 **${selected.tribeName} — PIN des coffres :** \`${selected.pin}\``
+        : `ℹ️ Aucun PIN n’est enregistré sur la fiche de **${selected.tribeName}**. Modifie-le depuis [la fiche tribu](${getTribeManageUrl(selected.tribeId)}).`,
+      components: [],
+      allowedMentions: { parse: [] },
+    });
+  }
   const cart = getCart(userId);
 
   // ── Menu principal ──────────────────────────────────────────────────────────
@@ -1937,6 +1955,36 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
       embeds: [recapEmbed],
       components: adminBtns,
     });
+    const pinResult = await fetchTribeVaultPins(interaction.user.id);
+    if (!pinResult) {
+      await ticketChannel.send("ℹ️ Le PIN de coffre n’a pas pu être récupéré depuis la fiche tribu. Réessaie plus tard ou vérifie la configuration du site.");
+    } else if (pinResult.pins.length === 0) {
+      await ticketChannel.send("ℹ️ Aucun PIN de coffre n’est enregistré pour les tribus associées à ce compte Discord.");
+    } else if (pinResult.pins.length === 1) {
+      const pin = pinResult.pins[0];
+      await ticketChannel.send({
+        content: pin.pin
+          ? `🔐 **${pin.tribeName} — PIN des coffres :** \`${pin.pin}\``
+          : `ℹ️ Aucun PIN n’est enregistré sur la fiche de **${pin.tribeName}**. Modifie-le depuis <${getTribeManageUrl(pin.tribeId)}>.`,
+        allowedMentions: { parse: [] },
+      });
+    } else {
+      if (pinResult.pins.length > 25) {
+        await ticketChannel.send("ℹ️ Trop de fiches de tribu sont associées à ce compte pour proposer une sélection automatique. Consulte la fiche concernée.");
+      } else {
+      const choices = pinResult.pins.slice(0, 25);
+      await ticketChannel.send({
+        content: "Plusieurs fiches de tribu sont associées à ce compte. Sélectionne la fiche concernée pour afficher son PIN dans ce ticket.",
+        allowedMentions: { parse: [] },
+        components: [new ActionRowBuilder().addComponents(
+          new StringSelectMenuBuilder()
+            .setCustomId(`st_vault_pin_pick::${orderId}`)
+            .setPlaceholder("Choisir la fiche tribu")
+            .addOptions(choices.map(pin => ({ label: pin.tribeName.slice(0, 100), value: String(pin.tribeId) })))
+        )],
+      });
+      }
+    }
 
     // Keep the map button independent of admin/payment message updates.
     await ticketChannel.send({
@@ -1984,6 +2032,42 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
       components: [],
     });
   }
+}
+
+async function fetchTribeVaultPins(userId) {
+  const base = process.env.LENEXUS_API_URL;
+  const token = process.env.NEXUS_BRIDGE_TOKEN;
+  if (!base || !token || !/^\d{17,20}$/.test(String(userId))) return null;
+  try {
+    const origin = new URL(base);
+    if (origin.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(origin.hostname)) return null;
+    const url = new URL('/api/tribes/internal/shop-ticket-vault-pins', origin);
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, 'X-Arki-Actor-Id': String(userId) },
+      signal: AbortSignal.timeout(8000),
+      redirect: 'error',
+    });
+    if (!response.ok) return null;
+    const body = await response.json();
+    if (body?.schemaVersion !== 1 || !Array.isArray(body.pins)) return null;
+    if (!body.pins.every(pin =>
+      Number.isSafeInteger(pin?.tribeId) && pin.tribeId > 0 &&
+      typeof pin.tribeName === 'string' && (pin.pin === null || /^\d{1,32}$/.test(pin.pin))
+    )) return null;
+    return { pins: body.pins };
+  } catch {
+    // Never log response bodies or PIN values.
+    return null;
+  }
+}
+
+function getTribeManageUrl(tribeId) {
+  try {
+    const url = new URL(`/tribus/${tribeId}/gerer`, process.env.LENEXUS_API_URL);
+    if (url.protocol !== 'https:') return 'la fiche tribu';
+    return url.toString();
+  }
+  catch { return 'la fiche tribu'; }
 }
 
 // ── Publication du panneau shop (embed + bouton) ──────────────────────────────
@@ -2875,6 +2959,7 @@ async function handleRecapCommand(interaction) {
 module.exports = {
   handleShopTicketCommand,
   handleShopTicketInteraction,
+  fetchTribeVaultPins,
   publishShopTicketPanel,
   handleRecapCommand,
   initShopOrders,
