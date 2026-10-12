@@ -487,6 +487,16 @@ async function handleCheck(interaction, ticketId, step) {
   await interaction.deferUpdate();
 }
 
+function getLenexusSiteUrl() {
+  try {
+    const url = new URL(process.env.LENEXUS_API_URL);
+    if (url.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(url.hostname)) return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
 // ── Envoyer le mot de passe in-game en MP + dans le ticket ───────────────────
 async function handleSendPassword(interaction, ticketId) {
   if (!isStaff(interaction)) return interaction.reply(STAFF_ONLY_REPLY);
@@ -507,6 +517,11 @@ async function handleSendPassword(interaction, ticketId) {
     });
   }
 
+  const lenexusSiteUrl = getLenexusSiteUrl();
+  const siteReminder = lenexusSiteUrl
+    ? `N’oublie pas de renseigner tes attributs sur le site [Arki Family — Le Nexus](${lenexusSiteUrl}).`
+    : 'N’oublie pas de renseigner tes attributs sur le site Arki Family — Le Nexus.';
+
   const passwordEmbed = new EmbedBuilder()
     .setColor(0x2ecc71)
     .setTitle('🔑 Mot de passe in-game — Arki\' Family')
@@ -514,7 +529,8 @@ async function handleSendPassword(interaction, ticketId) {
       `Voici le mot de passe pour accéder aux maps :\n\n` +
       `## \`${password}\`\n` +
       `-# *Tout en MAJUSCULE, sauf le « i » en minuscule*\n\n` +
-      `*Ne partage ce mot de passe avec personne.*`
+      `*Ne partage ce mot de passe avec personne.*\n\n` +
+      siteReminder
     )
     .setFooter({ text: 'Arki\' Family' });
 
@@ -545,7 +561,8 @@ async function handleSendPassword(interaction, ticketId) {
             : 'Le message privé n’a pas pu être envoyé. Voici le mot de passe dans ce ticket :'}\n\n` +
           `## \`${password}\`\n` +
           `-# *Tout en MAJUSCULE, sauf le « i » en minuscule*\n\n` +
-          `*Ne partage ce mot de passe avec personne.*`
+          `*Ne partage ce mot de passe avec personne.*\n\n` +
+          siteReminder
         )
         .setFooter({ text: 'Arki\' Family · Message réservé au joueur et au staff' })
       ],
