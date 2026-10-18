@@ -87,6 +87,7 @@
         <button type="button" data-tab="journal">Journaux des maps</button>
         <button type="button" data-tab="schedules">Planifications</button>
         <button type="button" data-tab="ini">Paramètres INI</button>
+        <button type="button" data-tab="mods">Mods</button>
         <button type="button" data-tab="shiny">Shyni</button>
       </nav>
       <section id="tab-cards" aria-label="Cartes">
@@ -266,6 +267,30 @@
           </fieldset>
         </form>
       </section>
+      <section id="tab-mods" class="legion-panel" aria-label="Gestion des mods" hidden>
+        <h2>Mods ARK: Survival Ascended · GPanel</h2>
+        <p>Gère les IDs de projets CurseForge dans la variable « Mod IDs » de GPanel. Une seule carte est modifiée à la fois ; son état doit être « Hors ligne ». La liste conserve l’ordre de chargement.</p>
+        <p class="legion-alert" role="note">Après l’enregistrement, démarre la carte manuellement dans GPanel : les mods seront téléchargés au démarrage. Le premier démarrage peut durer plusieurs minutes. Aucun arrêt, démarrage ou redémarrage ne sera lancé automatiquement.</p>
+        <% if (!canEditIniLines) { %><p>Une connexion administrateur vérifiée par Discord est nécessaire. <a href="/logout">Déconnecte-toi</a>, puis reconnecte-toi avec le compte admin et Discord.</p><% } %>
+        <form id="legion-mods-form">
+          <fieldset class="legion-ini-fields" <%= canEditIniLines ? '' : 'disabled' %>>
+            <div class="legion-form">
+              <label>Carte
+                <select id="legion-mods-map" required>
+                  <% maps.forEach(function(map) { %><option value="<%= map.id %>"><%= map.name %></option><% }); %>
+                </select>
+              </label>
+              <button type="button" class="legion-btn" id="legion-mods-load">Charger les mods actuels</button>
+            </div>
+            <label for="legion-mods-ids">IDs CurseForge (séparés par des virgules, dans l’ordre de chargement)</label>
+            <textarea id="legion-mods-ids" rows="4" maxlength="650" spellcheck="false" placeholder="Ex. : 929420,926956,927131"></textarea>
+            <div class="legion-form">
+              <button type="submit" class="legion-btn primary" id="legion-mods-save" disabled>Enregistrer la liste</button>
+            </div>
+            <p id="legion-mods-status" role="status" aria-live="polite"></p>
+          </fieldset>
+        </form>
+      </section>
     </main>
   </div>
   <script>
@@ -304,7 +329,7 @@
     }
     document.querySelectorAll('.legion-tabs button').forEach(button => button.addEventListener('click', () => {
       document.querySelectorAll('.legion-tabs button').forEach(item => item.classList.toggle('active', item === button));
-      ['cards','journal','schedules','ini','shiny'].forEach(tab => {
+      ['cards','journal','schedules','ini','mods','shiny'].forEach(tab => {
         document.getElementById('tab-' + tab).hidden = tab !== button.dataset.tab;
       });
       if (button.dataset.tab === 'journal') loadJournal();
@@ -886,5 +911,6 @@
     });
   </script>
   <script src="/js/legionIniAudit.js"></script>
+  <script src="/js/legionMods.js"></script>
 </body>
 </html>

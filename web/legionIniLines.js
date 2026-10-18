@@ -17,6 +17,7 @@ const SENSITIVE_SUGGESTION_KEY = /(?:password|passwd|pwd|passphrase|secret|token
 const SAFE_SUGGESTION_VALUE = /^(?:[+-]?\d{1,12}(?:\.\d{1,8})?(?:[smhd])?|true|false|yes|no)$/i;
 const PUBLIC_VALUE_KEYS = /^(?:ItemStatClamps\[\d+\]|XPMultiplier|MatingIntervalMultiplier|HarvestAmountMultiplier|TamingSpeedMultiplier|SpawnIntervalMin|SpawnIntervalMax|DinoLifetimeMin|DinoLifetimeMax|DinoLevelMin|DinoLevelMax|MaxNumShinies|NumSearchLoops|RandomSelectionBias|CanCarryShinies)$/i;
 const PUBLIC_TEXT_KEYS = /^(?:SessionName|ServerName)$/i;
+const MANAGED_MOD_KEY = /^[+!.-]?ActiveMods$/i;
 let applying = false;
 
 function requestError(message, status = 400) {
@@ -36,6 +37,7 @@ function validLine(line) {
   if (!/^[+!.-]?[A-Za-z_][A-Za-z0-9_.]*(?:\[\d+\])?$/.test(key)) {
     throw requestError('La ligne doit être une affectation INI de la forme Clé=Valeur.');
   }
+  if (MANAGED_MOD_KEY.test(key)) throw requestError('Gère les mods depuis l’onglet « Mods » : GPanel utilise sa variable de démarrage.');
   if (SENSITIVE_KEY.test(key)) throw requestError('Les clés sensibles ne sont pas modifiables ici.');
   return line;
 }

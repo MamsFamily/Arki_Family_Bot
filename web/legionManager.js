@@ -23,6 +23,9 @@ const MAPS = Object.freeze([
 const MAP_IDS = new Set(MAPS.map(map => map.id));
 const GAME_INI = '/ShooterGame/Saved/Config/WindowsServer/Game.ini';
 const USER_INI = '/ShooterGame/Saved/Config/WindowsServer/GameUserSettings.ini';
+const MOD_ID_LIMIT = 50;
+const MOD_ID_PATTERN = /^[1-9]\d{0,11}$/;
+const MODS_APPLYING = new Set();
 
 function client() {
   if (!process.env.LEGION_CLIENT_API_KEY) throw new Error('Clé API client Legion non configurée');
@@ -169,6 +172,115 @@ async function writeFile(id, path, content) {
     });
   } catch (error) {
     throw apiError(error);
+  }
+}
+
+function parseModIds(value) {
+  if (value == null || value === '') return [];
+  if (typeof value !== 'string' || value.length > 650) {
+    const error = new Error('La liste des mods est invalide ou trop longue.');
+    error.status = 400;
+    throw error;
+  }
+  const ids = value.split(',').map(id => id.trim());
+  if (ids.length > MOD_ID_LIMIT || ids.some(id => !MOD_ID_PATTERN.test(id))) {
+    const error = new Error(`Indique au maximum ${MOD_ID_LIMIT} IDs CurseForge numériques, séparés par des virgules.`);
+    error.status = 400;
+    throw error;
+  }
+  if (new Set(ids).size !== ids.length) {
+    const error = new Error('Un ID de mod ne peut apparaître qu’une seule fois.');
+    error.status = 400;
+    throw error;
+  }
+  return ids;
+}
+
+function getModStartupVariable(payload) {
+  const entries = Array.isArray(payload?.data) ? payload.data
+    : Array.isArray(payload?.attributes?.variables) ? payload.attributes.variables
+      : [];
+  const variables = entries.map(entry => entry?.attributes || entry);
+  const variable = variables.find(item =>
+    /^(?:MODS|MOD_IDS|MOD_ID|MODID|MOD_ID_LIST)$/i.test(String(item?.env_variable || '')) ||
+    /^mod(?:ification)? ids?$/i.test(String(item?.name || '').trim())
+  );
+  if (!variable || typeof variable.env_variable !== 'string' || !variable.env_variable) {
+    throw new Error('Variable de démarrage « Mod IDs » introuvable sur cette carte dans GPanel.');
+  }
+  const value = typeof variable.server_value === 'string'
+    ? variable.server_value
+    : typeof variable.default_value === 'string' ? variable.default_value : '';
+  return { key: variable.env_variable, modIds: parseModIds(value), editable: variable.is_editable !== false };
+}
+
+async function getModIds(id) {
+  assertMap(id);
+  try {
+    const { data } = await client().get(`/servers/${id}/startup`);
+    const result = getModStartupVariable(data);
+    return { id, modIds: result.modIds };
+  } catch (error) {
+    if (error.response?.status === 403) {
+      throw new Error('La clé API GPanel doit autoriser la lecture des variables de démarrage.');
+    }
+    if (error.response?.status === 404) {
+      throw new Error('La lecture des variables de démarrage n’est pas disponible pour cette carte via GPanel.');
+    }
+    if (error.response) throw apiError(error);
+    throw error;
+  }
+}
+
+async function setModIds(id, input) {
+  assertMap(id);
+  if (input == null || (!Array.isArray(input) && typeof input !== 'string') ||
+      (Array.isArray(input) && input.some(item => typeof item !== 'string'))) {
+    const error = new Error('La liste des mods doit être une chaîne ou une liste d’IDs.');
+    error.status = 400;
+    throw error;
+  }
+  const modIds = Array.isArray(input) ? parseModIds(input.join(',')) : parseModIds(input);
+  if (MODS_APPLYING.has(id)) {
+    const error = new Error('Une modification de mods est déjà en cours sur cette carte.');
+    error.status = 409;
+    throw error;
+  }
+  MODS_APPLYING.add(id);
+  try {
+    const state = await getMapState(id);
+    if (state !== 'offline' && state !== 'stopped') {
+      const error = new Error('Arrête complètement cette carte dans GPanel avant de modifier ses mods.');
+      error.status = 409;
+      throw error;
+    }
+    const api = client();
+    const { data } = await api.get(`/servers/${id}/startup`);
+    const variable = getModStartupVariable(data);
+    if (!variable.editable) {
+      throw new Error('La variable Mod IDs de cette carte est verrouillée dans GPanel.');
+    }
+    await api.put(`/servers/${id}/startup/variable`, {
+      key: variable.key,
+      value: modIds.join(','),
+    });
+    const { data: updated } = await api.get(`/servers/${id}/startup`);
+    const confirmed = getModStartupVariable(updated);
+    if (confirmed.modIds.join(',') !== modIds.join(',')) {
+      throw new Error('GPanel n’a pas confirmé la nouvelle liste des mods. Vérifie la carte avant de la démarrer.');
+    }
+    return { id, modIds: confirmed.modIds };
+  } catch (error) {
+    if (error.response?.status === 403) {
+      throw new Error('La clé API GPanel doit autoriser la lecture et la modification des variables de démarrage.');
+    }
+    if (error.response?.status === 404) {
+      throw new Error('La gestion des variables de démarrage n’est pas disponible pour cette carte via GPanel.');
+    }
+    if (error.response) throw apiError(error);
+    throw error;
+  } finally {
+    MODS_APPLYING.delete(id);
   }
 }
 
@@ -444,5 +556,6 @@ async function handleServerPanelInteraction(interaction) {
 
 module.exports = {
   MAPS, getServers, getMapState, power, wipeWildDinos, getActivity, assertMap, readFile, writeFile, getRconConfig, sendCommand,
+  parseModIds, getModStartupVariable, getModIds, setModIds,
   handleServerPanelCommand, handleServerPanelInteraction,
 };

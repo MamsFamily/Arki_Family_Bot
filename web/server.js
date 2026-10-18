@@ -3739,6 +3739,22 @@ function createWebServer(discordClient) {
       res.status(e.status || 400).json({ ok: false, error: e.message });
     }
   });
+  app.get('/legion/api/mods/:id', requireIniLineAccess, async (req, res) => {
+    try {
+      const result = await legion.getModIds(req.params.id);
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 502).json({ ok: false, error: error.message });
+    }
+  });
+  app.put('/legion/api/mods/:id', requireIniLineAccess, async (req, res) => {
+    try {
+      const result = await legion.setModIds(req.params.id, req.body?.modIds);
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 502).json({ ok: false, error: error.message });
+    }
+  });
   const legionIniLines = require('./legionIniLines');
   app.get('/legion/api/ini/audit', requireAdmin, async (req, res) => {
     try { res.json({ ok: true, ...await require('./legionIniAudit').list() }); }
