@@ -5,7 +5,6 @@ const LETTERS = ['🇦','🇧','🇨','🇩','🇪','🇫','🇬','🇭','🇮',
 const MAX_OPTIONS = 20;
 const CLASSIC_POLL_INDEX_KEY = 'classic_poll_index';
 const MAX_TIMEOUT = 2_147_000_000;
-const MAX_CLASSIC_DESCRIPTION_LENGTH = 3_800;
 const classicCloseTimers = new Map();
 const classicVoteQueues = new Map();
 
@@ -82,6 +81,22 @@ function displayVoter(voter) {
 
 function displayOption(option, index) {
   return `${LETTERS[index] || '•'} ${String(option.text || '').slice(0, 80)}`;
+}
+
+function parseClassicAnswers(input) {
+  if (typeof input !== 'string') throw new Error('Saisis les réponses séparées par |.');
+  const answers = input.split('|').map(answer => answer.trim());
+  if (answers.length < 2 || answers.length > 10 || answers.some(answer => !answer)) {
+    throw new Error('Indique de 2 à 10 réponses, séparées par |.');
+  }
+  if (answers.some(answer => answer.length > 80)) {
+    throw new Error('Chaque réponse est limitée à 80 caractères.');
+  }
+  const normalized = answers.map(answer => answer.toLocaleLowerCase('fr-FR'));
+  if (new Set(normalized).size !== answers.length) {
+    throw new Error('Les réponses doivent toutes être différentes.');
+  }
+  return answers;
 }
 
 async function getClassicPollIndex() {
@@ -180,67 +195,55 @@ async function closeClassicPoll(messageId) {
 }
 
 function buildClassicEmbed(poll) {
-  const optionLines = poll.options.map((option, index) => {
-    const voters = Array.isArray(option.voters) ? option.voters : [];
-    const voteCount = voters.length;
-    return `${displayOption(option, index)} — **${voteCount}** vote${voteCount !== 1 ? 's' : ''}\n`;
-  });
-  let details = '';
-  let detailBudget = MAX_CLASSIC_DESCRIPTION_LENGTH - optionLines.join('').length;
-  if (!poll.closed && poll.endsAt) detailBudget -= 80;
-
-  if (!poll.anonymous && detailBudget > 0) {
-    for (let index = 0; index < poll.options.length; index++) {
-      const option = poll.options[index];
-      const voters = Array.isArray(option.voters) ? option.voters : [];
-      if (!voters.length || detailBudget < 12) continue;
-
-      const names = [];
-      for (const voter of voters.slice(0, 25)) {
-        const name = displayVoter(voter);
-        const candidate = names.length ? `, ${name}` : name;
-        if (candidate.length + 5 > detailBudget) break;
-        names.push(name);
-        detailBudget -= candidate.length;
-      }
-
-      if (names.length) {
-        let line = `↳ ${LETTERS[index]} ${names.join(', ')}`;
-        const remaining = voters.length - names.length;
-        const overflow = remaining > 0 ? `, +${remaining} autre${remaining > 1 ? 's' : ''}` : '';
-        if (overflow.length + 1 <= detailBudget) {
-          line += overflow;
-          detailBudget -= overflow.length;
-        }
-        line += '\n';
-        details += line;
-        detailBudget -= 4;
-      } else {
-        const line = `↳ ${voters.length} votant${voters.length > 1 ? 's' : ''}\n`;
-        if (line.length <= detailBudget) {
-          details += line;
-          detailBudget -= line.length;
-        }
-      }
-    }
-  }
-  let description = optionLines.join('') + details;
-
-  const voteMode = poll.allowMultiple ? 'Choix multiples' : 'Choix unique';
-  const privacy = poll.anonymous ? 'votes anonymes' : 'votes publics';
-  const status = poll.closed
-    ? `🔒 Sondage clôturé · ${voteMode.toLowerCase()} · ${privacy}`
-    : `${voteMode} · ${privacy} · cliquez à nouveau pour retirer votre vote`;
-
+  const totalVotes = poll.options.reduce((total, option) =>
+    total + (Array.isArray(option.voters) ? option.voters.length : 0), 0);
+  const highestVoteCount = Math.max(0, ...poll.options.map(option =>
+    Array.isArray(option.voters) ? option.voters.length : 0));
+  const description = [
+    poll.closed ? '🔒 Sondage clôturé' : 'Clique sur un choix pour voter, puis reclique pour retirer ton vote.',
+    `${poll.allowMultiple ? 'Choix multiples' : 'Choix unique'} · ${poll.anonymous ? 'votes anonymes' : 'votes publics'}`,
+    `**${totalVotes} vote${totalVotes !== 1 ? 's' : ''} au total**`,
+    'Les pourcentages indiquent la part des votes exprimés.',
+  ];
   if (!poll.closed && poll.endsAt) {
-    description += `\n-# Fermeture automatique <t:${Math.floor(poll.endsAt / 1000)}:R>`;
+    description.push(`Fermeture automatique <t:${Math.floor(poll.endsAt / 1000)}:R>`);
   }
 
   const embed = new EmbedBuilder()
     .setColor(poll.closed ? 0x95a5a6 : 0x5865f2)
     .setTitle(`📊 ${poll.question}`)
-    .setDescription(description.trimEnd())
-    .setFooter({ text: status });
+    .setDescription(description.join('\n'));
+
+  embed.addFields(poll.options.map((option, index) => {
+    const voters = Array.isArray(option.voters) ? option.voters : [];
+    const count = voters.length;
+    const percentage = totalVotes ? Math.round(count / totalVotes * 100) : 0;
+    const filled = Math.round(percentage / 10);
+    const bar = `${'█'.repeat(filled)}${'░'.repeat(10 - filled)}`;
+    const isWinner = poll.closed && highestVoteCount > 0 && count === highestVoteCount;
+    const value = [`${bar} **${percentage}%**`, `**${count} vote${count !== 1 ? 's' : ''}**`];
+
+    if (!poll.anonymous) {
+      if (!count) {
+        value.push('Aucun votant');
+      } else {
+        const names = voters.slice(0, 5).map(voter => displayVoter(voter).slice(0, 36));
+        const remaining = count - names.length;
+        value.push(`👥 ${names.join(', ')}${remaining ? ` · +${remaining} autre${remaining > 1 ? 's' : ''}` : ''}`);
+      }
+    }
+
+    return {
+      name: `${isWinner ? '🏆 ' : ''}${displayOption(option, index)}`,
+      value: value.join('\n'),
+      inline: false,
+    };
+  }));
+  embed.setFooter({
+    text: poll.closed
+      ? 'Sondage clôturé · 🏆 indique le ou les choix en tête'
+      : 'Les résultats se mettent à jour à chaque vote',
+  });
 
   if (poll.imageName) embed.setImage(`attachment://${poll.imageName}`);
   return embed;
@@ -348,21 +351,26 @@ async function initClassicPolls(client) {
 }
 
 function buildEmbed(poll) {
-  let desc = '';
-  for (let i = 0; i < poll.options.length; i++) {
-    const opt = poll.options[i];
-    desc += `${LETTERS[i]} **${opt.text}** — *ajouté par ${opt.addedBy || '?'}*\n`;
-  }
-  if (!desc) desc = '*Aucune réponse pour l\'instant — soyez le premier à en ajouter une !*';
-
-  return new EmbedBuilder()
+  const description = poll.options.length
+    ? 'Réponses proposées par les membres :'
+    : 'Aucune réponse pour l’instant. Clique sur « Ajouter ma réponse » pour commencer.';
+  const embed = new EmbedBuilder()
     .setColor(poll.closed ? 0x95a5a6 : 0x5865f2)
     .setTitle(`📊 ${poll.question}`)
-    .setDescription(desc.trimEnd())
-    .setFooter({ text: poll.closed
-      ? `🔒 Sondage clôturé · ${poll.options.length} réponse${poll.options.length !== 1 ? 's' : ''}`
-      : `Cliquez sur ➕ pour ajouter votre propre réponse`,
+    .setDescription(description)
+    .setFooter({
+      text: poll.closed
+        ? `🔒 Sondage clôturé · ${poll.options.length} réponse${poll.options.length !== 1 ? 's' : ''}`
+        : `${poll.options.length} réponse${poll.options.length !== 1 ? 's' : ''} · ajoute la tienne avec le bouton`,
     });
+  if (poll.options.length) {
+    embed.addFields(poll.options.map((option, index) => ({
+      name: displayOption(option, index),
+      value: `Proposée par **${displayVoter(option.addedBy || '?')}**`,
+      inline: false,
+    })));
+  }
+  return embed;
 }
 
 function buildComponents(poll) {
@@ -393,6 +401,7 @@ module.exports = {
   buildEmbed,
   buildComponents,
   createClassicPoll,
+  parseClassicAnswers,
   toggleClassicVote,
   closeClassicPoll,
   buildClassicEmbed,

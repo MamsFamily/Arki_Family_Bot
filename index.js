@@ -6052,21 +6052,14 @@ client.on('interactionCreate', async interaction => {
     }
 
     const question = interaction.options.getString('question', true).trim();
-    const answers = [];
-    for (let index = 1; index <= 10; index++) {
-      const answer = interaction.options.getString(`reponse_${index}`);
-      if (answer?.trim()) answers.push(answer.trim());
-    }
-
     if (question.length > 256) {
       return interaction.reply({ content: '❌ La question ne peut pas dépasser 256 caractères.', ephemeral: true });
     }
-    if (answers.length < 2 || answers.some(answer => answer.length > 80)) {
-      return interaction.reply({ content: '❌ Indique entre 2 et 10 réponses, de 80 caractères maximum chacune.', ephemeral: true });
-    }
-    const normalizedAnswers = answers.map(answer => answer.toLocaleLowerCase('fr-FR'));
-    if (new Set(normalizedAnswers).size !== answers.length) {
-      return interaction.reply({ content: '❌ Les réponses doivent toutes être différentes.', ephemeral: true });
+    let answers;
+    try {
+      answers = pollManager.parseClassicAnswers(interaction.options.getString('reponses', true));
+    } catch (error) {
+      return interaction.reply({ content: `❌ ${error.message}`, ephemeral: true });
     }
 
     const image = interaction.options.getAttachment('image');
