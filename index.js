@@ -6052,8 +6052,8 @@ client.on('interactionCreate', async interaction => {
     }
 
     const question = interaction.options.getString('question', true).trim();
-    if (question.length > 256) {
-      return interaction.reply({ content: '❌ La question ne peut pas dépasser 256 caractères.', ephemeral: true });
+    if (!question || question.length > 256) {
+      return interaction.reply({ content: '❌ La question doit contenir entre 1 et 256 caractères.', ephemeral: true });
     }
     let answers;
     try {
@@ -6069,9 +6069,17 @@ client.on('interactionCreate', async interaction => {
     }
 
     const requestedPing = interaction.options.getBoolean('ping_everyone') || false;
+    const botMember = interaction.guild.members.me;
+    const botPermissions = botMember && interaction.channel?.permissionsFor?.(botMember);
+    if (!botPermissions?.has(PermissionFlagsBits.SendMessages) ||
+        !botPermissions.has(PermissionFlagsBits.SendPolls)) {
+      return interaction.reply({
+        content: '❌ Le bot doit avoir les permissions « Envoyer des messages » et « Envoyer des sondages » dans ce salon.',
+        ephemeral: true,
+      });
+    }
     if (requestedPing) {
       const creatorCanPing = interaction.member.permissions.has(PermissionFlagsBits.MentionEveryone);
-      const botMember = interaction.guild.members.me;
       const botCanPing = botMember && interaction.channel.permissionsFor(botMember)?.has(PermissionFlagsBits.MentionEveryone);
       if (!creatorCanPing || !botCanPing) {
         return interaction.reply({
@@ -6081,51 +6089,35 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    const duration = interaction.options.getString('duree') || 'unlimited';
-    const durationMs = { '1h': 60 * 60 * 1000, '24h': 24 * 60 * 60 * 1000, '3d': 3 * 24 * 60 * 60 * 1000, '7d': 7 * 24 * 60 * 60 * 1000 };
-    const endsAt = durationMs[duration] ? Date.now() + durationMs[duration] : null;
+    const duration = interaction.options.getString('duree') || '24h';
+    const durationHours = { '1h': 1, '24h': 24, '3d': 72, '7d': 168 }[duration] || 24;
+    const durationLabel = { 1: '1 heure', 24: '24 heures', 72: '3 jours', 168: '7 jours' }[durationHours];
     const allowMultiple = interaction.options.getBoolean('choix_multiple') || false;
-    const anonymous = interaction.options.getBoolean('anonyme') || false;
     const imageName = image ? `sondage-${Date.now()}-${String(image.name || 'image').replace(/[^a-zA-Z0-9._-]/g, '_')}` : null;
 
     try {
-      await interaction.deferReply();
-      const temporaryPoll = {
-        kind: 'classic',
+      const nativePoll = pollManager.buildNativePoll({
         question,
-        options: answers.map((text, id) => ({ id, text, voters: [] })),
+        answers,
+        durationHours,
         allowMultiple,
-        anonymous,
-        endsAt,
-        imageName,
-        closed: false,
-      };
-      const message = await interaction.editReply({
+      });
+      await interaction.deferReply({ ephemeral: true });
+      if (!interaction.channel?.isTextBased?.() || typeof interaction.channel.send !== 'function') {
+        throw new Error('Ce salon ne permet pas de publier un sondage.');
+      }
+      await interaction.channel.send({
         content: requestedPing ? '@everyone' : undefined,
         allowedMentions: { parse: requestedPing ? ['everyone'] : [] },
-        embeds: [pollManager.buildClassicEmbed(temporaryPoll)],
+        poll: nativePoll,
         files: image ? [{ attachment: image.url, name: imageName }] : [],
       });
-
-      const poll = await pollManager.createClassicPoll({
-        messageId: message.id,
-        channelId: interaction.channelId,
-        question,
-        options: answers,
-        createdBy: interaction.user.id,
-        allowMultiple,
-        anonymous,
-        endsAt,
-        imageName,
-      });
-      await message.edit({
-        embeds: [pollManager.buildClassicEmbed(poll)],
-        components: pollManager.buildClassicComponents(poll),
-      });
-      pollManager.scheduleClassicPollClose(client, poll);
+      await interaction.editReply(
+        `✅ Sondage publié dans <#${interaction.channelId}>. Il se clôturera automatiquement dans ${durationLabel}.`,
+      );
     } catch (err) {
       console.error('[Poll] Erreur création sondage classique:', err);
-      const errorMessage = '❌ Erreur lors de la création du sondage.';
+      const errorMessage = `❌ Erreur lors de la création du sondage : ${err.message}`;
       if (interaction.deferred || interaction.replied) {
         await interaction.editReply({ content: errorMessage, embeds: [], components: [], attachments: [] }).catch(() => {});
       } else {

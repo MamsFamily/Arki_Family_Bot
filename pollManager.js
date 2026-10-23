@@ -89,14 +89,33 @@ function parseClassicAnswers(input) {
   if (answers.length < 2 || answers.length > 10 || answers.some(answer => !answer)) {
     throw new Error('Indique de 2 à 10 réponses, séparées par |.');
   }
-  if (answers.some(answer => answer.length > 80)) {
-    throw new Error('Chaque réponse est limitée à 80 caractères.');
+  if (answers.some(answer => answer.length > 55)) {
+    throw new Error('Chaque réponse est limitée à 55 caractères pour le sondage natif Discord.');
   }
   const normalized = answers.map(answer => answer.toLocaleLowerCase('fr-FR'));
   if (new Set(normalized).size !== answers.length) {
     throw new Error('Les réponses doivent toutes être différentes.');
   }
   return answers;
+}
+
+function buildNativePoll({ question, answers, durationHours = 24, allowMultiple = false }) {
+  if (typeof question !== 'string' || !question.trim() || question.trim().length > 300) {
+    throw new Error('La question doit contenir de 1 à 300 caractères.');
+  }
+  if (!Array.isArray(answers) || answers.length < 2 || answers.length > 10 ||
+      answers.some(answer => typeof answer !== 'string' || !answer.trim() || answer.trim().length > 55)) {
+    throw new Error('Le sondage natif accepte de 2 à 10 réponses de 55 caractères maximum.');
+  }
+  if (!Number.isInteger(durationHours) || durationHours < 1 || durationHours > 768) {
+    throw new Error('La durée du sondage doit être comprise entre 1 heure et 32 jours.');
+  }
+  return {
+    question: { text: question.trim() },
+    answers: answers.map(text => ({ text: text.trim() })),
+    duration: durationHours,
+    allowMultiselect: !!allowMultiple,
+  };
 }
 
 async function getClassicPollIndex() {
@@ -402,6 +421,7 @@ module.exports = {
   buildComponents,
   createClassicPoll,
   parseClassicAnswers,
+  buildNativePoll,
   toggleClassicVote,
   closeClassicPoll,
   buildClassicEmbed,
