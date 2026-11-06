@@ -161,6 +161,25 @@ function loadManager(harness, beforeInit) {
   }
 }
 
+test('vote rollback commits debits, audit and duplicate protection atomically in PostgreSQL', async () => {
+  const harness = createPostgresHarness();
+  const { manager } = await loadManager(harness);
+  await manager.applyInventoryCredits('player', [{ itemTypeId: 'ore', quantity: 4 }], 'system', 'Votes OCTOBRE', {
+    voteBatchId: 'latest-votes',
+  });
+  const plan = await manager.prepareVoteRollback({ actorId: 'admin', guildId: 'guild' });
+  harness.failNextWrite('inventory_credit_receipts');
+  await assert.rejects(manager.confirmVoteRollback({ actorId: 'admin', guildId: 'guild', planId: plan.id }), /mock write failure/);
+  assert.equal(harness.data('inventory_data').player.ore, 14);
+  assert.equal(harness.data('inventory_transactions').length, 1);
+  const results = await Promise.all([1, 2].map(() =>
+    manager.confirmVoteRollback({ actorId: 'admin', guildId: 'guild', planId: plan.id })));
+  assert.deepEqual(results.map(r => r.alreadyApplied).sort(), [false, true]);
+  assert.equal(harness.data('inventory_data').player.ore, 10);
+  assert.equal(harness.data('inventory_transactions').length, 2);
+  assert.equal(manager.getPlayerInventory('player').ore, 10);
+});
+
 test('credit bundles commit together, duplicate keys never credit twice, and cross-player reuse is rejected', async () => {
   const harness = createPostgresHarness();
   const { manager } = await loadManager(harness);

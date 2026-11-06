@@ -27,6 +27,8 @@ const OpenAI = require('openai');
 const { createWebServer } = require('./web/server');
 const { getDinosByLetter, getModdedDinos, getShoulderDinos, getPaidDLCDinos, buildLetterEmbed, buildLetterEmbeds, buildModdedEmbed, buildShoulderEmbed, buildShoulderEmbeds, buildPaidDLCEmbeds, buildCompactAllEmbeds, getVisibleVariantLabels, getDinosByVariant, buildVariantEmbed, buildVariantEmbeds, getAllLetters, getLetterColor } = require('./dinoManager');
 const pgStore = require('./pgStore');
+const { runVoteRewardBatch } = require('./voteBatchContext');
+const { showVoteRollbackPreview, handleVoteRollbackConfirmation } = require('./voteRollbackCommand');
 const {
   getPreviousVotePeriod: getVoteRewardPeriod,
   creditVotePlayer,
@@ -518,6 +520,10 @@ const getPreviousVotePeriod = getVoteRewardPeriod;
 let autoVotePublicationRunning = false;
 
 async function autoPublishVotes() {
+  return runVoteRewardBatch(() => autoPublishVotesInBatch());
+}
+
+async function autoPublishVotesInBatch() {
   if (autoVotePublicationRunning) {
     console.log('⏳ [AUTO-VOTES] Une publication est déjà en cours, nouvelle tentative ignorée.');
     return;
@@ -1286,7 +1292,7 @@ function buildGiveawayEmbed(g) {
   return embed;
 }
 
-client.on('interactionCreate', async interaction => {
+client.on('interactionCreate', async interaction => runVoteRewardBatch(async () => {
   // ── Log de toute commande slash ───────────────────────────────────────────
   if (interaction.isChatInputCommand()) {
     logCommand(interaction).catch(() => {});
@@ -1677,53 +1683,7 @@ client.on('interactionCreate', async interaction => {
       if (!hasRoulettePermission(interaction.member)) {
         return interaction.reply({ content: '❌ Réservé aux administrateurs.', ephemeral: true });
       }
-      await interaction.deferUpdate();
-
-      const payload = interaction.customId.split('::')[1]; // "DATE:2026-06-01T..." ou "NAME:MAI"
-      const [mode, value] = payload.split(/:(.+)/);        // split sur le premier ":" seulement
-
-      const { transactions: allTx } = getTransactions({ limit: 999999 });
-      const voteRegex = /votes\s+/i;
-
-      let toRollback, rollbackLabel;
-      if (mode === 'DATE') {
-        toRollback = allTx.filter(tx =>
-          tx.type === 'add' && voteRegex.test(tx.reason) && tx.timestamp >= value
-        );
-        rollbackLabel = `distribués depuis le ${new Date(value).toLocaleDateString('fr-FR')}`;
-      } else {
-        const nameRegex = new RegExp(`votes\\s+${value}`, 'i');
-        toRollback = allTx.filter(tx => tx.type === 'add' && nameRegex.test(tx.reason));
-        rollbackLabel = value;
-      }
-
-      if (toRollback.length === 0) {
-        return interaction.editReply({ content: `❌ Plus aucune transaction à annuler (${rollbackLabel}).`, embeds: [], components: [] });
-      }
-
-      let success = 0, failed = 0;
-      const report = [];
-      for (const tx of toRollback) {
-        try {
-          await removeFromInventory(tx.playerId, tx.itemTypeId, tx.quantity, interaction.user.id, `Rollback votes ${rollbackLabel}`);
-          success++;
-        } catch (e) {
-          failed++;
-          report.push(`❌ <@${tx.playerId}> — ${tx.itemTypeId} × ${tx.quantity} : ${e.message}`);
-        }
-      }
-
-      const embed = new EmbedBuilder()
-        .setColor(success > 0 ? 0x2ecc71 : 0xe74c3c)
-        .setTitle('✅ Rollback votes terminé')
-        .setDescription(
-          `**Filtre :** ${rollbackLabel}\n` +
-          `**${success}** transaction(s) annulée(s) avec succès.\n` +
-          (failed > 0 ? `**${failed}** erreur(s).\n\n${report.join('\n').slice(0, 1800)}` : '')
-        )
-        .setTimestamp();
-
-      return interaction.editReply({ embeds: [embed], components: [] });
+      return handleVoteRollbackConfirmation(interaction);
     }
 
     const isVoteAdmin = interaction.customId.startsWith('vote_dup') || interaction.customId.startsWith('vote_ignore_') || interaction.customId.startsWith('vote_assign_');
@@ -2879,82 +2839,7 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: '❌ Réservé aux administrateurs.', ephemeral: true });
     }
 
-    const { transactions: allTx } = getTransactions({ limit: 999999 });
-    const voteRegex = /votes\s+/i;
-    const moisParam = interaction.options.getString('mois');
-
-    let toRollback, label, confirmId;
-
-    if (moisParam) {
-      // Mode NOM : filtre par nom de mois dans la raison (peu importe la date)
-      const rawMois = moisParam.toUpperCase().trim();
-      const nameRegex = new RegExp(`votes\\s+${rawMois}`, 'i');
-      toRollback = allTx.filter(tx => tx.type === 'add' && nameRegex.test(tx.reason));
-      label = `"Votes ${rawMois}" — toutes dates`;
-      confirmId = `vote_rollback_confirm::NAME:${rawMois}`;
-    } else {
-      // Mode DATE : 1er du mois EN COURS heure Paris (CEST = UTC+2 avr-oct, CET = UTC+1 sinon)
-      const now = new Date();
-      const parisMonth = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Paris', month: 'numeric' }).format(now), 10);
-      const parisYear  = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Paris', year:  'numeric' }).format(now), 10);
-      const parisOffsetH = (parisMonth >= 4 && parisMonth <= 10) ? 2 : 1;
-      const debutMois = new Date(Date.UTC(parisYear, parisMonth - 1, 1) - parisOffsetH * 3600000).toISOString();
-      const moisLabel = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric', timeZone: 'Europe/Paris' }).format(now);
-      toRollback = allTx.filter(tx =>
-        tx.type === 'add' && voteRegex.test(tx.reason) && tx.timestamp >= debutMois
-      );
-      label = `distributions votes depuis le 1er ${moisLabel} 00h00 (Paris)`;
-      confirmId = `vote_rollback_confirm::DATE:${debutMois}`;
-    }
-
-    if (toRollback.length === 0) {
-      return interaction.reply({ content: `❌ Aucune transaction trouvée — filtre : ${label}.`, ephemeral: true });
-    }
-
-    // Résumé CONSOLIDÉ par joueur (total par item, pas une ligne par tx)
-    const byPlayer = {};
-    for (const tx of toRollback) {
-      if (!byPlayer[tx.playerId]) byPlayer[tx.playerId] = {};
-      byPlayer[tx.playerId][tx.itemTypeId] = (byPlayer[tx.playerId][tx.itemTypeId] || 0) + tx.quantity;
-    }
-
-    const nbPlayers = Object.keys(byPlayer).length;
-    const totalDiamants = Object.values(byPlayer).reduce((s, items) => s + (items.diamants || 0), 0);
-
-    const summaryLines = Object.entries(byPlayer).map(([pid, items]) => {
-      const parts = Object.entries(items)
-        .map(([item, qty]) => item === 'diamants' ? `${qty} 💎` : `${qty}× \`${item}\``)
-        .join(' + ');
-      return `<@${pid}> → ${parts}`;
-    });
-
-    const preview = summaryLines.join('\n').slice(0, 3600);
-    const truncated = summaryLines.join('\n').length > 3600 ? `\n*… (liste tronquée — ${nbPlayers} joueurs au total)*` : '';
-
-    const confirmBtn = new ButtonBuilder()
-      .setCustomId(confirmId)
-      .setLabel(`⚠️ Confirmer — ${nbPlayers} joueurs, ${totalDiamants.toLocaleString('fr-FR')} 💎`)
-      .setStyle(ButtonStyle.Danger);
-    const cancelBtn = new ButtonBuilder()
-      .setCustomId('vote_rollback_cancel')
-      .setLabel('Annuler')
-      .setStyle(ButtonStyle.Secondary);
-
-    const embed = new EmbedBuilder()
-      .setColor(0xe74c3c)
-      .setTitle('🔁 Annulation distributions votes — aperçu')
-      .setDescription(
-        `**Filtre :** ${label}\n` +
-        `**Total :** ${toRollback.length} transactions — **${nbPlayers} joueurs** — **${totalDiamants.toLocaleString('fr-FR')} 💎** à retirer\n\n` +
-        `**Résumé par joueur :**\n${preview}${truncated}`
-      )
-      .setFooter({ text: 'Les montants ci-dessus seront RETIRÉS des inventaires. Vérifie avant de confirmer.' });
-
-    return interaction.reply({
-      embeds: [embed],
-      components: [new ActionRowBuilder().addComponents(confirmBtn, cancelBtn)],
-      ephemeral: true,
-    });
+    return showVoteRollbackPreview(interaction);
   }
 
   if (commandName === 'publish-votes') {
@@ -4852,7 +4737,7 @@ client.on('interactionCreate', async interaction => {
 
     return interaction.editReply({ content: `✅ Re-tirage effectué ! Gagnant(s) : ${winnerMentions}` });
   }
-});
+}));
 
 // ─── MIGRATION UNBELIEVABOAT → DIAMANTS ────────────────────────────────────
 client.on('interactionCreate', async interaction => {

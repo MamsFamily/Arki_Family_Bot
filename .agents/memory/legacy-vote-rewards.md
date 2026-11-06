@@ -20,3 +20,9 @@ L’utilisateur a confirmé le 6 novembre 2026 que les récompenses du mois pré
 **Why:** l’utilisateur signale une redistribution au redémarrage alors que les gains avaient déjà été versés. Un marqueur absent ne doit pas autoriser un rattrapage.
 
 **How to apply:** ne jamais déclencher de distribution de votes au démarrage du bot. Conserver la programmation mensuelle et les commandes explicites du staff pour les périodes non clôturées. Auditer les transactions du bot Railway avant de proposer une correction des soldes, et demander l’accord de l’utilisateur avant tout retrait.
+
+L’annulation doit cibler uniquement le dernier versement, jamais tous les gains d’un mois ni le versement précédent après une première annulation.
+
+**Why:** l’utilisateur veut retirer le dernier versement erroné tout en conservant le premier paiement légitime. Les anciens historiques ne permettent pas de distinguer sûrement les lots à partir d’un simple écart de temps.
+
+**How to apply:** conserver un identifiant commun pour les futurs crédits d’une même exécution. Pour un versement ancien sans lot, demander une borne horaire explicite plutôt que deviner. La confirmation doit porter sur les seules transactions de l’aperçu ; garder les reçus d’origine pour empêcher un recrédit et des reçus d’annulation persistants pour empêcher un second retrait.

@@ -25,6 +25,7 @@ const inventoryPersistence = createInventoryPersistence({
     receipts: {},
   }),
 });
+const voteRollback = require('./voteRollback').createVoteRollbackService({ persistence: inventoryPersistence });
 
 const DEFAULT_ITEM_TYPES = [
   { id: 'diamants', name: 'Diamants', emoji: '💎', category: 'currency', order: 1 },
@@ -323,6 +324,18 @@ async function getInventoryCreditReceipt(idempotencyKey) {
   return inventoryPersistence.getInventoryCreditReceipt(idempotencyKey);
 }
 
+async function prepareVoteRollback(input) {
+  const { result, state } = await voteRollback.prepare(input);
+  syncInventoryCache(state);
+  return result;
+}
+
+async function confirmVoteRollback(input) {
+  const { result, state } = await voteRollback.confirm(input);
+  syncInventoryCache(state);
+  return result;
+}
+
 async function addToInventory(playerId, itemTypeId, quantity, adminId, reason, options = {}) {
   const result = await applyInventoryCredits(
     playerId,
@@ -440,6 +453,8 @@ module.exports = {
   getAllInventories,
   applyInventoryCredits,
   getInventoryCreditReceipt,
+  prepareVoteRollback,
+  confirmVoteRollback,
   addToInventory,
   removeFromInventory,
   setInventoryItem,

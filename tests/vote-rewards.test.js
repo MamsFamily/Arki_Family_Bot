@@ -106,6 +106,38 @@ test('recherche par nom sans ID configuré : diamants et contenu du pack', async
   assert.deepEqual(f.balances.winner, { diamants: 1200, fraises: 15000, peinture: 6 });
 });
 
+test('vote credits carry the shared batch ID through base, pack, pending and Shiny paths', async () => {
+  const { runVoteRewardBatch, getVoteRewardBatch } = require('../voteBatchContext');
+  const calls = [];
+  const service = createVoteRewardsService({
+    inventory: {
+      getItemTypes: () => [{ id: 'diamants' }, { id: 'shiny' }],
+      getInventoryCreditReceipt: async () => null,
+      applyInventoryCredits: async (memberId, credits, admin, reason, options) => {
+        calls.push({ reason, options });
+        return { transactions: credits, alreadyApplied: false };
+      },
+    },
+    specialPacks: { getSpecialPacks: () => ({ packs: [] }) },
+  });
+  await runVoteRewardBatch(async () => {
+    const batchId = getVoteRewardBatch().id;
+    await service.creditVotePlayer({
+      memberId: 'member', playername: 'A', votes: 2, rankIdx: 6,
+      periodKey: '2026-11', monthName: 'NOVEMBRE',
+      votesConfig: { DIAMONDS_PER_VOTE: 10 },
+    });
+    await service.creditPendingVote({
+      type: 'notfound', playername: 'B', votes: 1, rankIdx: 6,
+      periodKey: '2026-11', monthName: 'NOVEMBRE',
+      votesConfig: { DIAMONDS_PER_VOTE: 10 },
+    }, 'member', 'assign');
+    await service.creditShiny({ periodKey: '2026-11', memberId: 'member', itemId: 'shiny', monthName: 'NOVEMBRE' });
+    assert.equal(calls.length, 3);
+    assert.ok(calls.every(call => call.options.voteBatchId === batchId));
+  });
+});
+
 test('deux relances du même mois ne doublent aucun crédit', async () => {
   const f = fixture();
   await f.service.creditVotePlayer(f.input);

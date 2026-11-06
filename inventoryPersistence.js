@@ -226,6 +226,10 @@ function createInventoryPersistence({
           reason: reason || '',
           type: 'add',
           timestamp: new Date().toISOString(),
+          ...(options.voteBatchId ? {
+            voteBatchId: options.voteBatchId,
+            voteBatchStartedAt: options.voteBatchStartedAt,
+          } : {}),
         });
       }
       state.transactions.push(...transactions);

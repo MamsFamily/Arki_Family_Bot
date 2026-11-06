@@ -79,12 +79,18 @@ const commands = [
   },
   {
     name: 'annuler-votes-mois',
-    description: 'Annule et rembourse toutes les distributions de récompenses votes d\'un mois (Admin)',
+    description: 'Annule uniquement le dernier versement de votes, après aperçu (Admin)',
     options: [
       {
         name: 'mois',
         type: 3,
-        description: 'Nom du mois en français (ex: juin, JUIN). Défaut : mois en cours.',
+        description: 'Mois récompensé à filtrer (ex: octobre). Défaut : dernier versement tous mois confondus.',
+        required: false,
+      },
+      {
+        name: 'depuis',
+        type: 3,
+        description: 'Anciens versements sans lot : début exact avec fuseau (ex: 2026-11-06T10:15:00+01:00)',
         required: false,
       },
     ],

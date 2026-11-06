@@ -4,6 +4,7 @@ const inventory = require('./inventoryManager');
 const settings = require('./settingsManager');
 const specialPacks = require('./specialPacksManager');
 const { getVotesConfig } = require('./votesConfig');
+const { getVoteRewardBatch } = require('./voteBatchContext');
 
 // The owner confirmed October was already paid before a restart replayed it.
 // Missing receipts/publication markers do not authorize historical credits.
@@ -112,8 +113,10 @@ function createVoteRewardsService(dependencies = {}) {
   }
 
   async function applyComponent(memberId, credits, keys, reason, idempotencyFingerprint) {
+    const batch = getVoteRewardBatch();
     const result = await inv.applyInventoryCredits(memberId, credits, 'system', reason, {
       idempotencyKeys: keys, ...(idempotencyFingerprint ? { idempotencyFingerprint } : {}),
+      ...(batch ? { voteBatchId: batch.id, voteBatchStartedAt: batch.startedAt } : {}),
     });
     return {
       credits: result.transactions.map(tx => ({ itemTypeId: tx.itemTypeId, quantity: tx.quantity })),
