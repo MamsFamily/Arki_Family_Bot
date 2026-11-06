@@ -935,7 +935,7 @@ async function handleShopTicketInteraction(interaction) {
     return interaction.update({
       content: selected.pin
         ? `🔐 **${selected.tribeName} — PIN des coffres :** \`${selected.pin}\``
-        : `ℹ️ Aucun PIN n’est enregistré sur la fiche de **${selected.tribeName}**. Modifie-le depuis [la fiche tribu](${getTribeManageUrl(selected.tribeId)}).`,
+        : getMissingTribePinMessage(selected),
       components: [],
       allowedMentions: { parse: [] },
     });
@@ -1959,13 +1959,16 @@ async function createTicketThread(interaction, cart, discount = 0, discountRoleN
     if (!pinResult) {
       await ticketChannel.send("ℹ️ Le PIN de coffre n’a pas pu être récupéré depuis la fiche tribu. Réessaie plus tard ou vérifie la configuration du site.");
     } else if (pinResult.pins.length === 0) {
-      await ticketChannel.send("ℹ️ Aucun PIN de coffre n’est enregistré pour les tribus associées à ce compte Discord.");
+      await ticketChannel.send({
+        content: getMissingTribePinMessage(),
+        allowedMentions: { parse: [] },
+      });
     } else if (pinResult.pins.length === 1) {
       const pin = pinResult.pins[0];
       await ticketChannel.send({
         content: pin.pin
           ? `🔐 **${pin.tribeName} — PIN des coffres :** \`${pin.pin}\``
-          : `ℹ️ Aucun PIN n’est enregistré sur la fiche de **${pin.tribeName}**. Modifie-le depuis <${getTribeManageUrl(pin.tribeId)}>.`,
+          : getMissingTribePinMessage(pin),
         allowedMentions: { parse: [] },
       });
     } else {
@@ -2062,12 +2065,18 @@ async function fetchTribeVaultPins(userId) {
 }
 
 function getTribeManageUrl(tribeId) {
-  try {
-    const url = new URL(`/tribus/${tribeId}/gerer`, process.env.LENEXUS_API_URL);
-    if (url.protocol !== 'https:') return 'la fiche tribu';
-    return url.toString();
+  // The public player site is distinct from the bridge API origin.
+  const id = String(tribeId ?? '');
+  return /^[1-9]\d*$/.test(id) && Number.isSafeInteger(Number(id))
+    ? `https://arki-identite.replit.app/tribus/${id}#pin-coffres`
+    : 'https://arki-identite.replit.app/tribus';
+}
+
+function getMissingTribePinMessage(tribe) {
+  if (!tribe) {
+    return `ℹ️ Aucune fiche tribu n’est associée à ton compte Discord. Retrouve ou crée ta fiche tribu sur le site, puis renseigne le code PIN de tes coffres :\n${getTribeManageUrl()}`;
   }
-  catch { return 'la fiche tribu'; }
+  return `ℹ️ Aucun code PIN n’est enregistré pour **${tribe.tribeName}**. Renseigne le code PIN de tes coffres sur le site, dans la rubrique « PIN des coffres » de ta fiche tribu :\n${getTribeManageUrl(tribe.tribeId)}`;
 }
 
 // ── Publication du panneau shop (embed + bouton) ──────────────────────────────
@@ -2961,6 +2970,7 @@ module.exports = {
   handleShopTicketInteraction,
   fetchTribeVaultPins,
   getTribeManageUrl,
+  getMissingTribePinMessage,
   publishShopTicketPanel,
   handleRecapCommand,
   initShopOrders,

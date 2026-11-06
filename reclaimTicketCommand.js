@@ -37,7 +37,7 @@ const {
 const { getShop }    = require('./shopManager');
 const { getDinoData } = require('./dinoManager');
 const pgStore         = require('./pgStore');
-const { fetchTribeVaultPins, getTribeManageUrl } = require('./shopTicketCommand');
+const { fetchTribeVaultPins, getMissingTribePinMessage } = require('./shopTicketCommand');
 
 const PREFIX = 'rcl';
 
@@ -333,14 +333,17 @@ async function sendReclaimTribeVaultPins(channel, userId, ticketId) {
     return channel.send('ℹ️ Le PIN de coffre n’a pas pu être récupéré depuis la fiche tribu. Réessaie plus tard ou vérifie la configuration du site.');
   }
   if (result.pins.length === 0) {
-    return channel.send('ℹ️ Aucun PIN de coffre n’est enregistré pour les tribus associées à ce compte Discord.');
+    return channel.send({
+      content: getMissingTribePinMessage(),
+      allowedMentions: { parse: [] },
+    });
   }
   if (result.pins.length === 1) {
     const pin = result.pins[0];
     return channel.send({
       content: pin.pin
         ? `🔐 **${pin.tribeName} — PIN des coffres :** \`${pin.pin}\``
-        : `ℹ️ Aucun PIN n’est enregistré sur la fiche de **${pin.tribeName}**. Modifie-le depuis <${getTribeManageUrl(pin.tribeId)}>.`,
+        : getMissingTribePinMessage(pin),
       allowedMentions: { parse: [] },
     });
   }
@@ -381,7 +384,7 @@ async function handleReclaimVaultPinPick(interaction, ticketId) {
   return interaction.update({
     content: selected.pin
       ? `🔐 **${selected.tribeName} — PIN des coffres :** \`${selected.pin}\``
-      : `ℹ️ Aucun PIN n’est enregistré sur la fiche de **${selected.tribeName}**. Modifie-le depuis <${getTribeManageUrl(selected.tribeId)}>.`,
+      : getMissingTribePinMessage(selected),
     components: [],
     allowedMentions: { parse: [] },
   });

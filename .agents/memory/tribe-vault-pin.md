@@ -10,3 +10,9 @@ Le PIN est chiffré au repos avec une clé dérivée de `SESSION_SECRET`. Toute 
 **Why:** l'utilisateur a choisi ces droits pour que le PIN puisse être utilisé dans les tickets shop et dans les catégories Inventaire et Autres demandes des tickets Réclamation, sans être redemandé, tout en permettant aux responsables de le tenir à jour.
 
 **How to apply:** conserver ces droits si les routes ou l'interface du PIN évoluent; dans les tickets shop, Inventaire et Autres demandes, ne récupérer que les PIN des tribus liées au créateur; ne jamais inclure le PIN dans les réponses publiques, les journaux ou l'historique d'activité.
+
+Quand un PIN manque dans un ticket, le joueur doit être invité à le renseigner sur le site public `https://arki-identite.replit.app`, directement sur `/tribus/<id>#pin-coffres` pour sa propre tribu (exemple fourni : `/tribus/122#pin-coffres`).
+
+**Why:** l'utilisateur a fourni cette adresse pour ouvrir directement la bonne rubrique de saisie; l'adresse publique ne doit pas être déduite de celle de l'API de liaison.
+
+**How to apply:** conserver ce lien profond dans tous les tickets concernés; sans fiche associée, orienter vers la liste des tribus sans supposer que le joueur appartient à la tribu 122.
