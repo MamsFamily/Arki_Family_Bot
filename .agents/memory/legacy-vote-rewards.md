@@ -14,3 +14,9 @@ Une ancienne annonce « récompensés » dans les journaux n’est pas, à elle 
 **Why:** L’ancien chemin d’inventaire pouvait annoncer un succès après un retour d’échec de sauvegarde PostgreSQL. Les messages historiques ne permettent donc pas de distinguer un crédit confirmé d’un faux succès.
 
 **How to apply:** Après une mise à jour arrivée après le cycle mensuel, exclure explicitement les anciens cycles du rattrapage et vérifier les données réelles avant toute réparation. Ne pas déduire une réussite complète, ni un échec complet, des seules annonces de l’ancienne version.
+
+L’utilisateur a confirmé le 6 novembre 2026 que les récompenses du mois précédent (octobre 2026) avaient déjà été distribuées avant leur relance au redémarrage. Ce mois est clôturé : ne pas le recréditer, y compris via les anciennes demandes de validation.
+
+**Why:** l’utilisateur signale une redistribution au redémarrage alors que les gains avaient déjà été versés. Un marqueur absent ne doit pas autoriser un rattrapage.
+
+**How to apply:** ne jamais déclencher de distribution de votes au démarrage du bot. Conserver la programmation mensuelle et les commandes explicites du staff pour les périodes non clôturées. Auditer les transactions du bot Railway avant de proposer une correction des soldes, et demander l’accord de l’utilisateur avant tout retrait.

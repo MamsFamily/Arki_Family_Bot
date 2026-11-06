@@ -75,11 +75,12 @@ test('la période bascule à minuit Paris, pas à minuit UTC', () => {
   assert.equal(getPreviousVotePeriod(new Date('2027-01-31T23:00:00Z')).key, '2027-01');
 });
 
-test('activation après minuit : septembre est bloqué, octobre éligible', () => {
+test('octobre déjà distribué est clôturé même sans marqueur ; novembre reste éligible', () => {
   assert.throws(() => assertVoteRewardPeriod('2026-09'), /ancien système/);
+  assert.throws(() => assertVoteRewardPeriod('2026-10'), /clôturée/);
   assert.throws(() => assertVoteRewardPeriod('2026-00'), /invalide/);
-  assert.doesNotThrow(() => assertVoteRewardPeriod('2026-10'));
-  assert.equal(getPreviousVotePeriod(new Date('2026-10-31T23:00:00Z')).key, '2026-10');
+  assert.doesNotThrow(() => assertVoteRewardPeriod('2026-11'));
+  assert.equal(getPreviousVotePeriod(new Date('2026-11-30T23:00:00Z')).key, '2026-11');
 });
 
 test('les quatre chemins de crédit refusent un cycle historique sans accès aux données', async () => {
@@ -89,10 +90,12 @@ test('les quatre chemins de crédit refusent un cycle historique sans accès aux
     inventory: { applyInventoryCredits: forbidden, getInventoryCreditReceipt: forbidden },
     pgStore: { getPool: forbidden, getData: forbidden, isPostgres: forbidden },
   });
-  await assert.rejects(service.creditVotePlayer({ periodKey: '2026-09' }), /ancien système/);
-  await assert.rejects(service.creditPendingVote({ periodKey: '2026-09' }, 'winner', 'assign'), /ancien système/);
-  await assert.rejects(service.creditShiny({ periodKey: '2026-09' }), /ancien système/);
-  await assert.rejects(service.getOrCreateShinyWinner('2026-09', [{ playername: 'A' }]), /ancien système/);
+  for (const periodKey of ['2026-09', '2026-10']) {
+    await assert.rejects(service.creditVotePlayer({ periodKey }), /clôturée/);
+    await assert.rejects(service.creditPendingVote({ periodKey }, 'winner', 'assign'), /clôturée/);
+    await assert.rejects(service.creditShiny({ periodKey }), /clôturée/);
+    await assert.rejects(service.getOrCreateShinyWinner(periodKey, [{ playername: 'A' }]), /clôturée/);
+  }
   assert.equal(touched, false);
 });
 

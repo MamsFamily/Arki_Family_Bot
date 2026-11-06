@@ -5,14 +5,14 @@ const settings = require('./settingsManager');
 const specialPacks = require('./specialPacksManager');
 const { getVotesConfig } = require('./votesConfig');
 
-// Activated after September's legacy cycle had already run. Older credits have
-// no receipts and must never be re-issued through the new automatic system.
-const MINIMUM_VOTE_REWARD_PERIOD = '2026-10';
+// The owner confirmed October was already paid before a restart replayed it.
+// Missing receipts/publication markers do not authorize historical credits.
+const MINIMUM_VOTE_REWARD_PERIOD = '2026-11';
 
 function assertVoteRewardPeriod(periodKey, minimumPeriod = MINIMUM_VOTE_REWARD_PERIOD) {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(periodKey || '')) throw new Error('Période de votes invalide.');
   if (periodKey < minimumPeriod) {
-    throw new Error(`La période ${periodKey} utilise l’ancien système : aucun rattrapage ni nouveau crédit automatique. Les protections sont actives à partir des votes ${minimumPeriod}.`);
+    throw new Error(`La période ${periodKey} est clôturée (ancien système ou récompenses déjà distribuées) : aucun rattrapage ni nouveau crédit autorisé. Les crédits sont autorisés à partir des votes ${minimumPeriod}.`);
   }
 }
 

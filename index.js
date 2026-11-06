@@ -40,7 +40,6 @@ const {
   buildCreditSummary,
   simulateVoteDistribution,
   assertVoteRewardPeriod,
-  MINIMUM_VOTE_REWARD_PERIOD,
 } = require('./voteRewards');
 const { getConfig, saveConfig: saveRouletteConfig, initConfig } = require('./configManager');
 const { initSettings, getSettings } = require('./settingsManager');
@@ -898,26 +897,10 @@ client.once('clientReady', async () => {
   });
   console.log('⏰ Publication automatique des votes programmée : 1er de chaque mois à 00h00 (Europe/Paris)');
 
-  // ─── Rattrapage au démarrage ─────────────────────────────────────────────
-  // Un redémarrage peut arriver n'importe quel jour du mois. Si la période
-  // précédente n'est pas marquée comme publiée, on retente après le démarrage,
-  // sauf les cycles historiques déjà exécutés avant l'activation des reçus.
-  try {
-    const expectedKey = getPreviousVotePeriod().key;
-    if (expectedKey < MINIMUM_VOTE_REWARD_PERIOD) {
-      console.log(`⏭️ [RATTRAPAGE] Votes ${expectedKey} historiques : reprise désactivée. Protections actives à partir de ${MINIMUM_VOTE_REWARD_PERIOD}.`);
-    } else {
-      const lastPublish = await pgStore.getData('vote_last_publish', null, { throwOnError: true });
-      if (lastPublish !== expectedKey) {
-        console.log(`⚡ [RATTRAPAGE] Publication des votes ${expectedKey} manquante — nouvelle tentative dans 30s...`);
-        setTimeout(() => autoPublishVotes(), 30 * 1000);
-      } else {
-        console.log(`✅ [RATTRAPAGE] Votes ${expectedKey} déjà publiés, aucun rattrapage nécessaire.`);
-      }
-    }
-  } catch (e) {
-    console.warn('[RATTRAPAGE] Vérification échouée:', e.message);
-  }
+  // Never infer unpaid rewards from a missing publication marker at startup.
+  // Historical payments can predate receipts; only the scheduled monthly run
+  // or an explicit staff command may start a distribution.
+  console.log('⏭️ [VOTES] Aucun rattrapage au démarrage : un redémarrage ne redistribue pas les récompenses.');
 });
 
 const reactionTracker = new Map();
