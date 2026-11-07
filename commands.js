@@ -1,5 +1,21 @@
 const commands = [
   {
+    name: 'bouton-role',
+    description: 'Publie un message avec un bouton pour prendre ou retirer un rôle',
+    dm_permission: false,
+    options: [
+      { name: 'message', type: 3, description: 'Texte du message (utilise \\n pour un saut de ligne)', required: true, min_length: 1, max_length: 2000 },
+      { name: 'role', type: 8, description: 'Rôle ajouté ou retiré au clic', required: true },
+      { name: 'bouton', type: 3, description: 'Texte du bouton', required: false, min_length: 1, max_length: 80 },
+      {
+        name: 'couleur', type: 3, description: 'Couleur du bouton', required: false,
+        choices: ['bleu', 'vert', 'rouge', 'gris'].map(value => ({ name: value, value })),
+      },
+      { name: 'emoji', type: 3, description: 'Emoji du bouton (Unicode ou emoji Discord)', required: false, max_length: 100 },
+      { name: 'salon', type: 7, description: 'Salon de publication (par défaut : salon actuel)', required: false, channel_types: [0, 5] },
+    ],
+  },
+  {
     name: 'destroywilddinos',
     description: 'Supprime les dinos sauvages sur une carte Legion ou sur les 12 cartes (Admin)',
     options: [{

@@ -66,6 +66,8 @@ const boosterReproManager = require('./boosterReproManager');
 const { getBoosterMaps } = require('./boosterReproMaps');
 const { createDestroyWildDinosHandler } = require('./destroyWildDinosCommand');
 const destroyWildDinosHandler = createDestroyWildDinosHandler();
+const { createRoleButtonHandler } = require('./roleButtonCommand');
+const roleButtonHandler = createRoleButtonHandler();
 const { createStarterPackHandler } = require('./starter-pack/discordCommand');
 const starterPackHandler = createStarterPackHandler();
 const { handleServerPanelCommand, handleServerPanelInteraction } = require('./serverPanelCommand');
@@ -1319,6 +1321,7 @@ client.on('interactionCreate', async interaction => runVoteRewardBatch(async () 
   // nonce du bouton ; le filtrage des cartes est fait dans le handler.
   if (await destroyWildDinosHandler.handle(interaction)) return;
   if (await starterPackHandler.handle(interaction)) return;
+  if (await roleButtonHandler.handle(interaction)) return;
 
   // ── Shop interactions (buttons + select menus) ──
   if (interaction.isButton() || interaction.isStringSelectMenu()) {
